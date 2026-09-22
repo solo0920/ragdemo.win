@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# pre-push hook：git push 前的輕量 smoke（強制）+ 可選完整 HTTP smoke
+#
+# 強制（不通過就擋下 push）：
+#   1) backend/app/*.py 語法檢查（ast.parse，不產 __pycache__）
+#   2) IP 準則：被 git 追蹤的檔案不得出現 "LAN_IP=" 賦值（.env 不進版控抓不到，
+#      但 .env.example / 文件若殘留 LAN_IP= 即違規）
+# 可選（設 RAGDEMO_SMOKE=1 才跑，需本機 api 在線且 LLM 可用，較慢）：
+#   3) 完整 HTTP smoke：/health + /query（驗證答案非空）
+# 本機 api 不在線時：強制檢查照跑，HTTP 部分只警告不擋 push。
+#
+# 各機啟用：git config core.hooksPath .githooks
+set -euo pipefail
+
+echo "== pre-push smoke =="
+
+# 1) Python 語法
+fail=0
+for f in backend/app/*.py; do
+  python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],"rb").read())' "$f" \
+    || { echo "✗ 語法錯誤: $f"; fail=1; }
+done
+if [ "$fail" -ne 0 ]; then
+  echo "✗ backend Python 語法檢查失敗，中止 push" >&2
+  exit 1
+fi
+echo "✓ backend Python 語法 OK"
+
+# 2) IP 準則：追蹤檔案不得含 LAN_IP=
+if git grep -nE '^LAN_IP=' -- 2>/dev/null | grep -q .; then
+  echo "✗ 追蹤檔案含 LAN_IP= 賦值（違反 IP 準則），移除後再 push" >&2
+  git grep -nE '^LAN_IP=' -- 2>/dev/null | head -5 >&2
+  exit 1
+fi
+echo "✓ 無 LAN_IP= 殘留（IP 準則合規）"
+
+# 3) 可選完整 HTTP smoke
+if [ "${RAGDEMO_SMOKE:-0}" = "1" ]; then
+  if ! curl -sf -m 5 http://localhost:8000/health >/dev/null 2>&1; then
+    echo "✗ RAGDEMO_SMOKE=1 但本機 api(localhost:8000) 不在線，中止 push" >&2
+    exit 1
+  fi
+  ans="$(curl -s -m 120 http://localhost:8000/query -H 'content-type: application/json' \
+    -d '{"question":"契約解除後雙方有何回復原狀義務？"}' \
+    | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("answer","")))' 2>/dev/null || echo 0)"
+  if [ "${ans:-0}" -gt 0 ]; then
+    echo "✓ HTTP smoke: /query 答案 ${ans} chars"
+  else
+    echo "✗ HTTP smoke: /query 回空/異常，中止 push" >&2
+    exit 1
+  fi
+else
+  if curl -sf -m 3 http://localhost:8000/health >/dev/null 2>&1; then
+    echo "✓ 本機 api OK（完整 smoke 可加 RAGDEMO_SMOKE=1 跑 /query）"
+  else
+    echo "⚠ 本機 api 不在線，跳過 HTTP smoke（push 照常）"
+  fi
+fi
+
+echo "== pre-push smoke 通過 =="
+exit 0

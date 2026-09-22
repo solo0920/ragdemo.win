@@ -43,6 +43,23 @@ scripts/
   各機啟用一次：`git config core.hooksPath .githooks`。
 - 正文格式不拘，範例：`msi: 修正 registry 過濾邏輯`。
 
+## Git hooks（.githooks/，2026-09-22）
+repo 內 hook 隨版控走、各機 pull 即得；**各機啟用一次**：`git config core.hooksPath .githooks`
+（寫在 repo 的 `.git/config`，不進版控、不影響別台）。`git config core.hooksPath` 回 `.githooks`
+表示生效；hook 檔案更新後已啟用機器自動用新版。
+
+| hook | 時機 | 作用 |
+|---|---|---|
+| `commit-msg` | `git commit` | 強制首行 `msi:`/`mbp:`/`x570:`（提交準則）；Merge/Revert 放行 |
+| `pre-push` | `git push` | **強制**：backend Python 語法＋追蹤檔無 `LAN_IP=`（IP 準則）；**可選**：完整 HTTP smoke |
+
+`pre-push` 行為：
+- 強制項不過 → 擋下 push（語法錯／發現 `LAN_IP=` 殘留）
+- 本機 api 在線 → 自動回報 `/health` 狀態
+- 加 `RAGDEMO_SMOKE=1 git push` → 追加跑 `/query`（驗證答案非空），較慢但完整
+- 本機 api 不在線 → HTTP 部分只警告不擋 push（離線也可推，語法/IP 檢查照跑）
+- 想繞過（緊急）：`git push --no-verify`
+
 ## 三機分工（連線一律 tailscale，見 IP 準則）
 * Linux 100.119.83.111：主力，`OLLAMA_URLS=http://127.0.0.1:11434,http://100.119.83.111:11434`，
   `LLM_MODEL=qwen3:14b`，api/qdrant/pg 全跑（docker compose），資料唯一來源
