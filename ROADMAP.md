@@ -5,6 +5,11 @@
 > 讀完本檔＋`ARCHITECTURE.md`＋`.env.example` 即可接手設定與開發。
 >
 > 接手原則：**每台機器在自己的 WSL/Linux 跑 opencode，ollama 視主機而定。**
+>
+> 接手 checklist（新機必做）：① clone 後 `git config core.hooksPath .githooks`
+> （啟用 commit 前綴＋push smoke，見 ARCHITECTURE「Git hooks」）；② 依 §2.2/§0 寫
+> 本機 `backend/.env`（只留 tailscale IP）；③ 跑 `bash scripts/sync-snapshot.sh` 建本機
+> qdrant 備援；④ `/health`＋`/query` 驗證。
 
 ---
 
@@ -97,6 +102,10 @@ opencode   # 首次 /connect 貼 provider API key
 gh repo clone solo0920/ragdemo.win ~/ragdemo
 # 或 git clone https://github.com/solo0920/ragdemo.win ~/ragdemo
 cd ~/ragdemo
+
+# 啟用 repo 內 hooks（提交前綴 + push smoke，新機必做一次；見 ARCHITECTURE「Git hooks」）
+git config core.hooksPath .githooks
+git config core.hooksPath   # 應回 .githooks
 ```
 
 ### 2.2 後端 .env（MSI WSL 用）— 寫到 backend/.env（不進版控）
