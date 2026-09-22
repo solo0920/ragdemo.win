@@ -169,6 +169,9 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 - wrangler 需 Node ≥22：Linux 用 nvm Node v22.23.2（系統 v20 太舊）。
 - Cloudflare Worker proxy 未設 `API_ORIGIN` 時回 503：Pages 變數＋`nodejs_compat` flag。
 - qdrant scroll 是 POST 不是 GET（`.points/scroll`）。
+- **commit 前綴準則（2026-09-22）**：commit message 首行必須 `msi:`/`mbp:`/`x570:`
+  開頭（tailscale 機器名前綴）。各機啟用一次 `git config core.hooksPath .githooks`
+  （repo 內 `.githooks/commit-msg` 會強制，違反直接拒絕）。詳見 ARCHITECTURE「提交準則」。
 
 ---
 

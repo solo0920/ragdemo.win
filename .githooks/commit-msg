@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# commit-msg hook：強制 commit message 首行以主機前綴開頭（msi / mbp / x570）
+#
+# 目的（IP/提交準則 2026-09-22 定案）：三台 git 身份相同，單看 git log
+# 無法分辨是哪台主機提交；改以 tailscale 機器名前綴標記（msi/mbp/x570）。
+# 各機啟用：git config core.hooksPath .githooks
+set -euo pipefail
+
+MSG_FILE="$1"
+FIRST_LINE="$([ -f "$MSG_FILE" ] && head -n1 "$MSG_FILE" || true)"
+
+# 放行自動產生的 merge / revert 訊息
+if [[ "$FIRST_LINE" == Merge* || "$FIRST_LINE" == Revert* || -z "$FIRST_LINE" ]]; then
+  exit 0
+fi
+
+if ! grep -Eq '^(msi|mbp|x570)[:：][[:space:]]' <<<"$FIRST_LINE"; then
+  echo "✗ commit message 首行必須以主機前綴開頭：msi: / mbp: / x570:" >&2
+  echo "  例：  msi: 修正 registry 過濾邏輯" >&2
+  echo "  例：  x570: 同步快照壓力測試結果" >&2
+  echo "  （對應 tailscale 機器名：msi=MSI, mbp=Lees-MacBook-Pro, x570=solo-X570-…）" >&2
+  exit 1
+fi
+
+exit 0

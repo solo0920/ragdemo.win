@@ -32,6 +32,17 @@ scripts/
 - 實作前有污染（eg mbp ips 混入 `192.168.0.2`）＝某台 .env 殘留 LAN_IP/
   OLLAMA_URLS 打到別台——各台 pull 後**核對 .env、移除 LAN_IP**，心跳 30s 自動清乾淨。
 
+## 提交準則（2026-09-22 定案，三台嚴格執行）
+**commit message 首行必須以 tailscale 機器名前綴開頭：`msi:` / `mbp:` / `x570:`。**
+
+- 三台 git 身份相同（Solomon Lee/solo4study@gmail.com→solo0920），單看 git log 無法分辨
+  主機；改以主機前綴標記，`git log --oneline` 一眼可讀。
+- 前綴對應：`msi`=MSI（100.65.68.106）、`mbp`=Lees-MacBook-Pro（100.64.121.9）、
+  `x570`=Linux solo-X570（100.119.83.111，tailscale 名統一寫 x570）。
+- **強制執行**：repo 內 `.githooks/commit-msg`（違反首行前綴直接拒絕；Merge/Revert 自動放行）。
+  各機啟用一次：`git config core.hooksPath .githooks`。
+- 正文格式不拘，範例：`msi: 修正 registry 過濾邏輯`。
+
 ## 三機分工（連線一律 tailscale，見 IP 準則）
 * Linux 100.119.83.111：主力，`OLLAMA_URLS=http://127.0.0.1:11434,http://100.119.83.111:11434`，
   `LLM_MODEL=qwen3:14b`，api/qdrant/pg 全跑（docker compose），資料唯一來源
