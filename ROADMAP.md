@@ -228,6 +228,14 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ### 4.3 公網接手（Cloudflare）
 - 一台 tunnel（放 x570）指三個 hostname：api-x570/api-mbp/api-msi.ragdemo.win → 各機 8000。
 - Worker `+server.ts` 加 `?backend=` 白名單路由，Pages 設 `API_ORIGIN`＋`nodejs_compat`。
+- **已完成（2026-09-22，x570）**：
+  - 本地型 tunnel `ragdemo-x570`（id 6539736a-...）＋DNS `api-linux.ragdemo.win` → `http://localhost:8000`；
+    config 在 `~/.cloudflared/config.yml`，binary 在 `~/.local/bin/cloudflared`。
+  - Pages production 已設：`API_ORIGIN=https://api-linux.ragdemo.win`、`GOOGLE_CLIENT_ID`、
+    `GOOGLE_CLIENT_SECRET`、`SESSION_SECRET`（wrangler `pages secret put`）。
+  - `/api/ingest`、`/api/eval` 由 worker 擋 Google 登入（401）；`/api/query` 公網放行。
+  - **待辦**：tunnel 目前手動啟動（setsid nohup），未做開機自動拉起；替換 hostname 時改 config.yml
+    ingress 即可。憑證（credentials json）勿外洩。
 
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
