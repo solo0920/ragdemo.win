@@ -1,18 +1,68 @@
 <script>
+  const BACKENDS = [
+    { id: 'auto', label: '自動', base: '' },
+    { id: 'linux', label: 'Linux .99', base: 'http://100.119.83.111:8000' },
+    { id: 'mbp', label: 'mbp .93.85', base: 'http://100.64.121.9:8000' },
+    { id: 'msi', label: 'MSI .2', base: 'http://100.65.68.106:8000' },
+  ];
+
   let question = '';
   let loading = false;
   let result = null;
   let error = '';
+  let backendId = 'auto';
+  let health = null;
+  let healthLoading = false;
+  let healthError = '';
+
+  function base() {
+    const b = BACKENDS.find((x) => x.id === backendId);
+    return b ? b.base : '';
+  }
+
+  async function switchBackend(id) {
+    backendId = id;
+    localStorage.setItem('ragdemo-backend', id);
+    result = null;
+    error = '';
+    await checkHealth();
+  }
+
+  async function checkHealth() {
+    healthLoading = true;
+    healthError = '';
+    health = null;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5000);
+      const t0 = performance.now();
+      const r = await fetch(base() + '/health', { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const ms = Math.round(performance.now() - t0);
+      health = { ...(await r.json()), ms };
+    } catch (e) {
+      healthError = e.name === 'AbortError' ? '連線逾時（5s）' : e.message;
+    } finally {
+      healthLoading = false;
+    }
+  }
 
   async function ask() {
-    loading = true; error = ''; result = null;
+    loading = true;
+    error = '';
+    result = null;
     try {
-      const r = await fetch('/api/query', {
+      const r = await fetch(base() + '/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question })
       });
-      if (!r.ok) throw new Error('後端錯誤 ' + r.status);
+      if (!r.ok) {
+        let msg = '後端錯誤 ' + r.status;
+        try { msg += '：' + ((await r.json()).detail || ''); } catch (_) {}
+        throw new Error(msg);
+      }
       result = await r.json();
     } catch (e) {
       error = e.message;
@@ -20,17 +70,42 @@
       loading = false;
     }
   }
+
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('ragdemo-backend');
+    if (saved && BACKENDS.some((x) => x.id === saved)) backendId = saved;
+  }
+  checkHealth();
 </script>
 
 <main>
   <h1>法規判決 RAG</h1>
+
+  <section class="switcher">
+    <span class="sw-label">後端：</span>
+    {#each BACKENDS as b}
+      <button
+        class:active={backendId === b.id}
+        onclick={() => switchBackend(b.id)}>
+        {b.label}
+      </button>
+    {/each}
+    {#if healthLoading}
+      <span class="health">連線中…</span>
+    {:else if health}
+      <span class="health ok">⦿ {health.llm} ｜ {health.collection} ｜ {health.ms}ms</span>
+    {:else if healthError}
+      <span class="health bad">✗ {healthError}</span>
+    {/if}
+  </section>
+
   <textarea bind:value={question} rows="3" placeholder="輸入法律問題…"></textarea>
-  <button on:click={ask} disabled={loading || !question.trim()}>
+  <button onclick={ask} disabled={loading || !question.trim()}>
     {loading ? '檢索生成中…' : '送出'}
   </button>
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
-    <h2>回答</h2>
+    <h2>回答（{BACKENDS.find((x) => x.id === backendId)?.label}）</h2>
     <p class="ans">{result.answer}</p>
     <h2>引用（top {result.hits.length}）</h2>
     <ol>
@@ -46,4 +121,14 @@
   textarea { width: 100%; }
   .ans { white-space: pre-wrap; }
   .err { color: red; }
+  .switcher { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+  .sw-label { font-weight: bold; }
+  .switcher button {
+    border: 1px solid #888; background: #fff; border-radius: 6px;
+    padding: 0.25rem 0.75rem; cursor: pointer;
+  }
+  .switcher button.active { background: #1e90ff; color: #fff; border-color: #1e90ff; }
+  .health { font-size: 0.85rem; }
+  .health.ok { color: #2e7d32; }
+  .health.bad { color: #c62828; }
 </style>

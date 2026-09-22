@@ -1,5 +1,7 @@
-"""FastAPI：/health /ingest /query /eval，模型與服務全走環境變數。"""
+"""FastAPI：/health /ingest /query /eval /hosts，模型與服務全走環境變數。"""
+import asyncio
 import json
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,19 +9,34 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import rag
+from . import rag, registry
+
+logger = logging.getLogger("ragdemo")
+
+
+async def heartbeat_loop():
+    while True:
+        try:
+            await registry.heartbeat(await rag.local_models(), rag.LLM_MODEL)
+        except Exception as e:
+            logger.warning("heartbeat skipped: %s", e)
+        await asyncio.sleep(registry.HEARTBEAT)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await rag.ensure_collection()
+    loop = asyncio.get_running_loop()
+    task = loop.create_task(heartbeat_loop())
     yield
+    task.cancel()
+    await registry.close()
 
 
-app = FastAPI(title="RagDemo API")
+app = FastAPI(title="RagDemo API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -40,7 +57,20 @@ class Query(BaseModel):
 
 @app.get("/health")
 async def health():
-    return {"ok": True, "collection": rag.COLLECTION, "llm": rag.LLM_MODEL}
+    return {
+        "ok": True,
+        "collection": rag.COLLECTION,
+        "llm": rag.LLM_MODEL,
+        "host_id": registry.HOST_ID,
+        "hostname": registry._my_hostname(),
+        "machine_id": registry._system_id(),
+        "ips": registry._ips(),
+    }
+
+
+@app.get("/hosts")
+async def hosts():
+    return {"hosts": await registry.list_hosts()}
 
 
 @app.post("/ingest")
@@ -57,7 +87,7 @@ async def query(q: Query):
 @app.post("/eval")
 async def evaluate():
     """跑 evals/questions.json，回報引註命中率。"""
-    path = Path(__file__).resolve().parents[2] / "evals" / "questions.json"
+    path = Path(__file__).resolve().parents[1] / "evals" / "questions.json"
     items = json.loads(path.read_text(encoding="utf-8"))
     hit = 0
     tested = 0

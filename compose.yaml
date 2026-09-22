@@ -21,11 +21,19 @@ services:
       QDRANT_URL: http://qdrant:6333
       POSTGRES_DSN: postgresql://rag:${POSTGRES_PASSWORD:-changeme}@postgres:5432/ragdemo
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://192.168.0.99:11434}
+      OLLAMA_URLS: ${OLLAMA_URLS:-http://100.119.83.111:11434,http://192.168.0.99:11434}
+      HOST_ID: ${HOST_ID:-linux}
+      TS_IP: ${TS_IP:-100.119.83.111}
+      LAN_IP: ${LAN_IP:-192.168.0.99}
       LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
       EMBED_MODEL: bge-m3:latest
       RERANK_MODEL: qllama/bge-reranker-v2-m3:latest
       COLLECTION: ${COLLECTION:-laws}
     depends_on: [qdrant, postgres]
+    volumes:
+      - ./evals:/app/evals:ro
+      - /etc/machine-id:/run/secrets/host-machine-id:ro
+      - /etc/hostname:/run/secrets/host-hostname:ro
     restart: unless-stopped
 volumes:
   qdrant_data:
