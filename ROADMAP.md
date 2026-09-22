@@ -156,11 +156,14 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ## 4. 下一步工作（Step 2+，未啟動）
 
 ### 4.1 精簡包 snapshot/restore（讓 mbp/msi 無 Linux 也能跑）
-> **2026-09-22 進度**：MSI 已完成一半 ✅（現況見下方「已建立」）。剩餘：自動化 snapshot 同步＋mbp。
+> **2026-09-22 進度**：MSI 已完成 ✅（本機 qdrant 備援＋自動同步）。剩餘：mbp。
 
 **已建立（MSI）**：
 - MSI WSL 本機 qdrant 1.19.1（`~/qdrant/qdrant`，port 6333），`start-msi.sh` 啟動時一併拉起。
-- 備援資料：從 Linux qdrant 快照還原到本機（`laws.snapshot` 目前 3 筆，與 Linux 同步）。
+- 備援資料：從 Linux qdrant 快照還原到本機（目前 3 筆，與 Linux 同步；有測試資料驗證增減偵測）。
+- **自動同步**：`scripts/sync-snapshot.sh`（Linux 建快照→下載→本機刪舊重建還原→驗證點數一致；
+  用點數變化偵測新資料，沒變化就 skip；同步後清理 Linux 舊快照只留最新）。
+  crontab 每 10 分鐘跑一次＋開機後跑；log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`。
 - MSI `.env`：`QDRANT_URLS=100.119.83.111:6333,192.168.0.99:6333,127.0.0.1:6333`
   （Linux 優先最新資料，x570 離線自動降級本機）。`POSTGRES_DSN` 仍指 Linux —— 離線時心跳只是
   warning、不影響 query（`/hosts` 會暫時沒資料，可接受）。
@@ -168,10 +171,7 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
   Windows ollama 192.168.0.2:11434）完整作答，答案內容正確。
 
 **待做**：
-- Linux：`scripts/snapshot.sh` → Qdrant snapshot（`POST /collections/laws/snapshot`）＋
-  `pg_dump`，產出一個 tar。
-- MSI/mbp：`scripts/restore.ps1` / `.sh` → qdrant 建 collections + snapshot recovery ＋
-  `psql` 還原；然後把本機 `.env` 的 `QDRANT_URLS`/`POSTGRES_DSN` 首位指到自己。
+- mbp：同法建本機 qdrant＋快照（`scripts/sync-snapshot.sh` 可直接指定 dest 使用）
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
 - 驗收：MSI 上拔掉 Linux 連線後 `/query` 仍能答（目前 3 筆已通過）。
 
