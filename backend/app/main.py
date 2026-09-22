@@ -87,7 +87,7 @@ async def query(q: Query):
 @app.post("/eval")
 async def evaluate():
     """跑 evals/questions.json，回報引註命中率。"""
-    path = Path(__file__).resolve().parents[1] / "evals" / "questions.json"
+    path = Path(__file__).resolve().parents[2] / "evals" / "questions.json"
     items = json.loads(path.read_text(encoding="utf-8"))
     hit = 0
     tested = 0

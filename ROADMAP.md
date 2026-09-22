@@ -132,6 +132,8 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 - 啟動腳本：`backend/start-msi.sh`（冪等：8000 已有服務就跳過；`setsid nohup` 脫離 session；
   log 寫 `backend/uvicorn.log`、pid 寫 `backend/.uvicorn.pid`）。手動啟動：
   `bash backend/start-msi.sh`
+- 1.19.1 起還會一併啟動**本機 qdrant 備援**（`~/qdrant/qdrant`，port 6333，log
+  `~/qdrant/qdrant.log`）—— x570 離線時 MSI 的自立資料層，見 §4.1。
 - Windows 開機啟動：`solog` 的「啟動」資料夾放 `ragdemo-msi-api.vbs`（隱藏視窗執行
   `wsl.exe -d Ubuntu -u solo -e bash /home/solo/projects/ragdemo.win/backend/start-msi.sh`），
   比照 Ollama.lnk 的作法；**只在 solog 登入時跑**。
@@ -154,12 +156,24 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ## 4. 下一步工作（Step 2+，未啟動）
 
 ### 4.1 精簡包 snapshot/restore（讓 mbp/msi 無 Linux 也能跑）
+> **2026-09-22 進度**：MSI 已完成一半 ✅（現況見下方「已建立」）。剩餘：自動化 snapshot 同步＋mbp。
+
+**已建立（MSI）**：
+- MSI WSL 本機 qdrant 1.19.1（`~/qdrant/qdrant`，port 6333），`start-msi.sh` 啟動時一併拉起。
+- 備援資料：從 Linux qdrant 快照還原到本機（`laws.snapshot` 目前 3 筆，與 Linux 同步）。
+- MSI `.env`：`QDRANT_URLS=100.119.83.111:6333,192.168.0.99:6333,127.0.0.1:6333`
+  （Linux 優先最新資料，x570 離線自動降級本機）。`POSTGRES_DSN` 仍指 Linux —— 離線時心跳只是
+  warning、不影響 query（`/hosts` 會暫時沒資料，可接受）。
+- 驗證過：模擬 x570 全離線（QDRANT/OLLAMA 首位換死 IP）→ `/query` 純本機（127.0.0.1:6333＋
+  Windows ollama 192.168.0.2:11434）完整作答，答案內容正確。
+
+**待做**：
 - Linux：`scripts/snapshot.sh` → Qdrant snapshot（`POST /collections/laws/snapshot`）＋
   `pg_dump`，產出一個 tar。
 - MSI/mbp：`scripts/restore.ps1` / `.sh` → qdrant 建 collections + snapshot recovery ＋
   `psql` 還原；然後把本機 `.env` 的 `QDRANT_URLS`/`POSTGRES_DSN` 首位指到自己。
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
-- 驗收：MSI 上拔掉 Linux 連線後 `/query` 仍能答。
+- 驗收：MSI 上拔掉 Linux 連線後 `/query` 仍能答（目前 3 筆已通過）。
 
 ### 4.2 前端吃 `/hosts`
 - `+page.svelte` 改由 `GET /hosts` 動態產生切換按鈕（label=hostname + 模型清單），
