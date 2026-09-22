@@ -75,6 +75,7 @@ REGISTRY_STALE_MIN  # 心跳時清掉超過 N 分鐘未報到的 host（預設 3
 RERANK_MODEL   # 仍是 stub，注意
 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET  # frontend/.env（dev）；上線放 Cloudflare Pages 變數
 SESSION_SECRET # frontend 登入 session cookie 簽章金鑰（>=32 字元亂數）
+# Pages 專案 ragdemo-win 的 production secret：GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SESSION_SECRET 已設（2026-09-22）
 ```
 
 **檔案結構**：`compose.yaml`（qdrant+postgres+api）、`backend/`（FastAPI）、
