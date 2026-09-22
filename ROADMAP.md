@@ -195,11 +195,11 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 - **自動同步**：`scripts/sync-snapshot.sh`（Linux 建快照→下載→本機刪舊重建還原→驗證點數一致；
   用點數變化偵測新資料，沒變化就 skip；同步後清理 Linux 舊快照只留最新）。
   crontab 每 10 分鐘跑一次＋開機後跑；log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`。
-- MSI `.env`：`QDRANT_URLS=100.119.83.111:6333,192.168.0.99:6333,127.0.0.1:6333`
-  （Linux 優先最新資料，x570 離線自動降級本機）。`POSTGRES_DSN` 仍指 Linux —— 離線時心跳只是
+- MSI `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`
+  （Linux(tailscale) 優先最新資料，x570 離線自動降級本機）。`POSTGRES_DSN` 仍指 Linux —— 離線時心跳只是
   warning、不影響 query（`/hosts` 會暫時沒資料，可接受）。
 - 驗證過：模擬 x570 全離線（QDRANT/OLLAMA 首位換死 IP）→ `/query` 純本機（127.0.0.1:6333＋
-  Windows ollama 192.168.0.2:11434）完整作答，答案內容正確。
+  Windows ollama 100.65.68.106:11434）完整作答，答案內容正確。
 
 **已建立（mbp，2026-09-22）**：
 - mbp 本機 qdrant 1.19.1（`~/qdrant/qdrant`，aarch64-apple-darwin binary，port 6333，log `~/qdrant/qdrant.log`）。
@@ -208,7 +208,7 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 - 自動化：macOS 的 crontab 被 TCC 擋 → 改用 **launchd agent**（`~/Library/LaunchAgents/`）：
   - `com.ragdemo.qdrant`（登入啟動＋KeepAlive）、`com.ragdemo.api`（uvicorn，登入啟動＋KeepAlive）、
   - `com.ragdemo.sync-snapshot`（每 10 分鐘＋RunAtLoad，log `~/qdrant/sync.log`）。
-- mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,192.168.0.99:6333,127.0.0.1:6333`（Linux 優先，離線切本機）。
+- mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`（Linux 優先，離線切本機）。
 - 前端：Node v22.23.2（brew `node@22`，PATH 已寫 `~/.zshrc`），`npm install`＋`npm run build` 過。
 
 **待做**：
