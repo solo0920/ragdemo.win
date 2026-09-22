@@ -21,14 +21,25 @@ scripts/
   資料層（qdrant）以「快照同步」維持一致；pg 只有 registry 心跳用（非 query 必需）。
 - 降級邏輯走 `QDRANT_URLS`/`OLLAMA_URLS` 候選清單：Linux 優先，離線自動切本機。
 
-## 三機分工
-* Linux .99：主力，`OLLAMA_BASE_URL=http://192.168.0.99:11434`，`LLM_MODEL=qwen3:14b`，
-  api/qdrant/pg 全跑（docker compose），資料唯一來源
-* mbp .93.85：加速，`OLLAMA_BASE_URL=http://192.168.93.85:11434`，`LLM_MODEL=qwen3-coder:latest`，
+## IP 準則（2026-09-22 定案，三台嚴格執行）
+**連線與登錄一律只留 tailscale IP（100.64.0.0/10），杜絕位址污染。**
+
+- `TS_IP` 必填；**不使用 LAN_IP**（192.168.x 一律不寫入 .env、不進 registry）。
+- `OLLAMA_URLS`/`QDRANT_URLS`/`POSTGRES_DSN` 全部用 tailscale 位址；
+  唯一例外是**本機服務**可寫 `127.0.0.1`（如本機 qdrant 備援、Linux localhost）。
+- 強制執行點：`registry.py _ips()` 已過濾，非 100.64.0.0/10 的 IP
+  （LAN/容器/loopback）不會寫入 registry 的 `ips`，`/hosts` 只會看到 tailscale。
+- 實作前有污染（eg mbp ips 混入 `192.168.0.2`）＝某台 .env 殘留 LAN_IP/
+  OLLAMA_URLS 打到別台——各台 pull 後**核對 .env、移除 LAN_IP**，心跳 30s 自動清乾淨。
+
+## 三機分工（連線一律 tailscale，見 IP 準則）
+* Linux 100.119.83.111：主力，`OLLAMA_URLS=http://127.0.0.1:11434,http://100.119.83.111:11434`，
+  `LLM_MODEL=qwen3:14b`，api/qdrant/pg 全跑（docker compose），資料唯一來源
+* mbp 100.64.121.9：加速，`LLM_MODEL=qwen3:14b`，
   api（uvicorn@8000，launchd 自動啟動）＋**本機 qdrant 備援已完成**（QDRANT/POSTGRES 指 Linux，離線降級本機）
-* MSI .0.2（demo）：api 在 WSL2 裡（`uvicorn --env-file .env`，開機自動啟動），
-  `OLLAMA_URLS=http://192.168.0.2:11434`（直連 Windows 本機 ollama），`LLM_MODEL=qwen3:4b`，
-  資料層（Qdrant/pg）暫指 Linux ＋ **本機 qdrant 1.19.1 備援（已完成）**
+* MSI 100.65.68.106（demo）：api 在 WSL2 裡（`uvicorn --env-file .env`，開機自動啟動），
+  `OLLAMA_URLS=http://100.65.68.106:11434`（tailscale 直連 Windows 本機 ollama），`LLM_MODEL=qwen3:4b`，
+  資料層（Qdrant/pg）指 Linux（tailscale）＋ **本機 qdrant 1.19.1 備援（已完成）**
 
 ## 備援機制（x570 離線時各機獨立作業）
 
@@ -49,9 +60,9 @@ scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 
 - **脆弱點**：Linux 離線期間新增的資料不會自動出現在備援（下一個快照週期才補上）——
   可接受，檢索能力仍一致。
 
-### QDRANT_URLS 降級（MSI 現況）
+### QDRANT_URLS 降級（MSI 現況，全 tailscale＋本機）
 ```
-QDRANT_URLS=http://100.119.83.111:6333,http://192.168.0.99:6333,http://127.0.0.1:6333
+QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 ```
 `rag.py _pick()`：依序試候選，首個通連者快取；連線錯誤自動降級下一個。
 → Linux 在線用 Linux（最新）；x570 離線自動切本機（快照資料），query 不中斷。
@@ -76,8 +87,10 @@ QDRANT_URLS=http://100.119.83.111:6333,http://192.168.0.99:6333,http://127.0.0.1
   5432 postgres（Linux only） / 5173 前端 dev / 11434 ollama（各機 native）
 
 ## 環境變數（backend/.env，各機一份不進版控）
-`OLLAMA_BASE_URL`（單機版）/ `OLLAMA_URLS`（候選清單）、`LLM_MODEL`、`EMBED_MODEL=bge-m3:latest`、
-`RERANK_MODEL=qllama/bge-reranker-v2-m3:latest`、`COLLECTION=laws`、`QDRANT_URLS`、`POSTGRES_DSN`、`HOST_ID`
+`HOST_ID`、`TS_IP`（必填，tailscale）、`OLLAMA_URLS`（候選清單）、`LLM_MODEL`、
+`EMBED_MODEL=bge-m3:latest`、`RERANK_MODEL=qllama/bge-reranker-v2-m3:latest`、
+`COLLECTION=laws`、`QDRANT_URLS`、`POSTGRES_DSN`。
+IP 準則：全部 tailscale 位址，本機服務才允許 127.0.0.1，不用 LAN_IP（見上方準則）。
 
 ## 評測門檻
 `POST /eval` hit_rate 未達 0.8 不進 UI，先修切分/召回。

@@ -79,16 +79,31 @@ def _mac() -> str:
     return ":".join(f"{(n >> s) & 0xFF:02X}" for s in range(40, -1, -8))
 
 
+def _in_tailscale(ip: str) -> bool:
+    """是否落在 tailscale CGNAT 100.64.0.0/10（100.64.0.0–100.127.255.255）。
+
+    IP 準則（2026-09-22 定案）：registry 的 `ips` 一律只留 tailscale IP，
+    LAN/容器/loopback 一律排除，避免錯誤位址污染與前端選址錯亂。
+    """
+    try:
+        parts = ip.split(".")
+        if len(parts) != 4 or not all(p.isdigit() for p in parts):
+            return False
+        return int(parts[0]) == 100 and 64 <= int(parts[1]) <= 127
+    except Exception:
+        return False
+
+
 def _ips() -> list[str]:
     seen, out = set(), []
     for ip in (TS_IP, LAN_IP):
-        if ip and ip not in seen:
+        if ip and ip not in seen and _in_tailscale(ip):
             seen.add(ip)
             out.append(ip)
     try:
         for info in socket.getaddrinfo(HOSTNAME, None, socket.AF_INET):
             ip = info[4][0]
-            if ip not in seen:
+            if ip not in seen and _in_tailscale(ip):
                 seen.add(ip)
                 out.append(ip)
     except Exception:

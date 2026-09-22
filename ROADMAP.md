@@ -36,9 +36,10 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 1. **MSI 8000 外網不通**：x570 直連 `100.65.68.106:8000` 逾時。uvicorn 在 WSL 內綁 0.0.0.0
    只對 WSL VM 內有效，Windows 側需 `netsh interface portproxy add v4tov4 listenport=8000
    connectaddress=<WSL IP>`＋防火牆規則才會對外開（心跳出站不受影響，registry 仍 ok）。
-2. **msi 的 models 清單與 mbp 相同**（都是 coder/coder-next/14b，獨缺 qwen3:4b）＋
-   **mbp 的 ips 內混入 192.168.0.2**＝疑似兩台 `.env` 的 LAN_IP/`OLLAMA_URLS` 重疊，
-   心跳時 local_models() 打到別台的 ollama。請 mbp/msi 各自核對 .env 設定。
+2. ~~msi 的 models 清單與 mbp 相同~~＋~~mbp 的 ips 內混入 192.168.0.2~~ **已處置**
+   （2026-09-22）：ip 污染根因＝IP 準則沿革，已定「只留 tailscale IP」準則（見
+   ARCHITECTURE「IP 準則」），`registry.py _ips()` 只收 100.64.0.0/10。各台 pull 後
+   **核對 .env 移除 LAN_IP**，心跳 30s 自動清乾淨 registry。
 
 ---
 
@@ -59,7 +60,7 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 
 ```
 HOST_ID        # registry 主鍵＋前端切換鍵：linux / mbp / msi
-TS_IP / LAN_IP # 參與 IP 清單與前端選址
+TS_IP          # 唯一身分 IP（tailscale，100.64.0.0/10）；LAN_IP 已停用，勿再寫
 OLLAMA_URLS    # 逗號分隔候選，例 http://127.0.0.1:11434,http://100.119.83.111:11434
 QDRANT_URLS    # 同上，例 http://qdrant:6333（容器內）/ http://localhost:6333（native）
 POSTGRES_DSN   # 心跳寫哪台 PG；mbp/msi 可暫時指 Linux 那台
@@ -99,18 +100,18 @@ cd ~/ragdemo
 ```
 
 ### 2.2 後端 .env（MSI WSL 用）— 寫到 backend/.env（不進版控）
+> IP 準則（2026-09-22 定案）：一律只寫 tailscale IP，不用 LAN_IP（見 ARCHITECTURE「IP 準則」）。
 
 ```bash
 HOST_ID=msi
 TS_IP=100.65.68.106
-LAN_IP=192.168.0.2
 POSTGRES_PASSWORD=changeme
 # WSL 的 127.0.0.1 是 WSL 自己，不是 Windows！
-# ollama 已綁 0.0.0.0，所以用 MSI 的 LAN/tailscale IP 直連 Windows 本機 ollama：
-OLLAMA_URLS=http://192.168.0.2:11434,http://100.65.68.106:11434,http://100.119.83.111:11434,http://192.168.0.99:11434
+# ollama 已綁 0.0.0.0，用 MSI 的 tailscale IP 直連 Windows 本機 ollama：
+OLLAMA_URLS=http://100.65.68.106:11434,http://100.119.83.111:11434
 LLM_MODEL=qwen3:4b
-# 輕量接手：資料層/Qdrant/pg 暫時仍指 Linux（tailscale 出去就有）
-QDRANT_URLS=http://100.119.83.111:6333,http://192.168.0.99:6333
+# 輕量接手：資料層/Qdrant 優先 Linux（tailscale），本機 127.0.0.1:6333 當備援（離線降級）
+QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 POSTGRES_DSN=postgresql://rag:changeme@100.119.83.111:5432/ragdemo
 EMBED_MODEL=bge-m3:latest
 RERANK_MODEL=qllama/bge-reranker-v2-m3:latest
