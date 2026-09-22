@@ -15,7 +15,7 @@
 | tailscale | 100.119.83.111 | 100.64.121.9 | 100.65.68.106 |
 | LAN | 192.168.0.99 | 192.168.93.85 | 192.168.0.2 |
 | ollama | v0.34.0（native） | v0.34.2（native） | v0.34.2（native, 0.0.0.0） |
-| api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | ✗ | ✗ |
+| api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | ✗ | api ✅（WSL2）/qdrant/pg ✗ |
 | LLM 預設 | qwen3:14b | qwen3:14b | qwen3:4b |
 | 模型 | bge-m3, bge-reranker, qwen3:14b, qwen3-coder | bge-m3, bge-reranker, qwen3:14b, qwen3-coder(+next) | bge-m3, bge-reranker, qwen3:4b, qwen2.5-coder:7b |
 
