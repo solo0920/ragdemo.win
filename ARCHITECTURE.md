@@ -1,19 +1,66 @@
 # RagDemo 架構（維護用）
 
 ```
-compose.yaml      # qdrant + postgres + api
+compose.yaml      # qdrant + postgres + api（Linux 用）
 backend/          # FastAPI：/health /ingest /query /eval
+  app/            #   main.py / rag.py / registry.py
+  start-msi.sh    #   MSI WSL 開機自動啟動（api＋本機 qdrant 備援）
+  .env            #   各機一份，不進版控
 frontend/         # SvelteKit：只打 /api/*
 evals/            # 評測題庫，目標 50 題
+scripts/
+  sync-snapshot.sh #   Linux→本機 qdrant 快照自動同步（備援核心）
 .opencode/agents/ # ingest / backend / frontend / eval 四個子代理
 ```
 
+## 設計目標（2026-09-22 定案）
+**x570（Linux）不在線時，mbp 與 MSI 都能獨立作業。**
+除硬體與 LLM 模型差異外，三台的**資料與檢索能力盡量一致、各自可獨立運作**。
+
+- 依賴關係：各機自備 ollama（LLM/embedding，硬體差異故模型不同）；
+  資料層（qdrant）以「快照同步」維持一致；pg 只有 registry 心跳用（非 query 必需）。
+- 降級邏輯走 `QDRANT_URLS`/`OLLAMA_URLS` 候選清單：Linux 優先，離線自動切本機。
+
 ## 三機分工
-* Linux .99：主力，`OLLAMA_BASE_URL=http://192.168.0.99:11434`，`LLM_MODEL=qwen3:14b`，api/qdrant/pg 全跑
-* mbp .93.85：加速，`OLLAMA_BASE_URL=http://192.168.93.85:11434`，`LLM_MODEL=qwen3-coder:latest`
+* Linux .99：主力，`OLLAMA_BASE_URL=http://192.168.0.99:11434`，`LLM_MODEL=qwen3:14b`，
+  api/qdrant/pg 全跑（docker compose），資料唯一來源
+* mbp .93.85：加速，`OLLAMA_BASE_URL=http://192.168.93.85:11434`，`LLM_MODEL=qwen3-coder:latest`，
+  api 有跑（QDRANT/POSTGRES 指 Linux）；**本機 qdrant 備援待建**（同 MSI 做法）
 * MSI .0.2（demo）：api 在 WSL2 裡（`uvicorn --env-file .env`，開機自動啟動），
   `OLLAMA_URLS=http://192.168.0.2:11434`（直連 Windows 本機 ollama），`LLM_MODEL=qwen3:4b`，
-  資料層（Qdrant/pg）暫指 Linux
+  資料層（Qdrant/pg）暫指 Linux ＋ **本機 qdrant 1.19.1 備援（已完成）**
+
+## 備援機制（x570 離線時各機獨立作業）
+
+```
+Linux qdrant（資料唯一來源）
+   │  資料變更（points_count 變化）
+   ▼
+scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛）
+   │  POST /collections/laws/snapshots → 建新快照
+   │  下載 → 本機刪舊 collection → 重建 → upload?priority=snapshot 還原
+   │  驗證點數與 Linux 一致 → 更新 state；順手清 Linux 舊快照
+   ▼
+各機本機 qdrant（MSI: 127.0.0.1:6333 ✅ / mbp: 待建）
+```
+
+- **資料一致性**：備援資料等同 Linux 快照當下；快照很小（3 筆≈174KB、500~1000 筆≈10–60MB，
+  zstd 壓縮），同步成本低。
+- **脆弱點**：Linux 離線期間新增的資料不會自動出現在備援（下一個快照週期才補上）——
+  可接受，檢索能力仍一致。
+
+### QDRANT_URLS 降級（MSI 現況）
+```
+QDRANT_URLS=http://100.119.83.111:6333,http://192.168.0.99:6333,http://127.0.0.1:6333
+```
+`rag.py _pick()`：依序試候選，首個通連者快取；連線錯誤自動降級下一個。
+→ Linux 在線用 Linux（最新）；x570 離線自動切本機（快照資料），query 不中斷。
+
+### pg / registry 的定位
+- `POSTGRES_DSN` 只指 Linux：心跳寫 `backends` 表、`GET /hosts` 讀表。
+- x570 離線時：心跳失敗只是 warning（`main.py` try/except），**不影響 /query**；
+  `/hosts` 回空清單（可接受）。
+- 若需離線 `/hosts`，得在 mbp/msi 上另建 pg 副本（低優先，非 query 必需）。
 
 ## 模型清單（2026-09-21 實測後）
 * Linux：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:14b`、`qwen3-coder:latest`
@@ -25,7 +72,8 @@ evals/            # 評測題庫，目標 50 題
 * 結論：重推理放 Linux，日常寫碼可用 mbp coder，MSI 只跑輕量
 
 ## 服務埠
-* 8000 api（Linux docker compose＋MSI WSL 各一） / 6333 qdrant（Linux）/ 5432 postgres（Linux） / 5173 前端 dev / 11434 ollama（各機 native）
+* 8000 api（Linux docker compose＋mbp＋MSI WSL） / 6333 qdrant（Linux＋MSI 本機備援） /
+  5432 postgres（Linux only） / 5173 前端 dev / 11434 ollama（各機 native）
 
 ## 環境變數（backend/.env，各機一份不進版控）
 `OLLAMA_BASE_URL`（單機版）/ `OLLAMA_URLS`（候選清單）、`LLM_MODEL`、`EMBED_MODEL=bge-m3:latest`、
@@ -38,6 +86,8 @@ evals/            # 評測題庫，目標 50 題
 * `rag.py rerank()` 還是 stub，待接真正 reranker 打分
 * `evals/questions.json` 佔位 3 題，待擴 50 題
 * 判決注意個資去識別化，回答僅供參考非法律意見
+* mbp 本機 qdrant 備援（同 MSI：`scripts/sync-snapshot.sh` 指定 dest 即可用）
+* 需離線 `/hosts` → mbp/msi 另建 pg 副本（低優先）
 
 ## 啟動
 **Linux（docker compose）**：
@@ -49,10 +99,20 @@ cd frontend && npm install && npm run dev
 ```
 **MSI（WSL2，吃 Windows 本機 ollama）**：
 ```bash
-bash backend/start-msi.sh        # 冪等：已啟動就跳過（開機自動啟動見 ROADMAP §2.5）
+bash backend/start-msi.sh        # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5）
 curl localhost:8000/health       # 回 host_id=msi, llm=qwen3:4b
 ```
-MSI 資料層（Qdrant/pg）目前仍指 Linux，離線接手靠精簡包（見下）。
+MSI 資料層：Linux 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
+
+## 備援同步操作
+```bash
+bash scripts/sync-snapshot.sh [source_url] [dest_url] [collection]
+# 例（MSI）：  bash scripts/sync-snapshot.sh            # Linux→本機，預設
+# 例（mbp）：  bash scripts/sync-snapshot.sh http://100.119.83.111:6333 http://127.0.0.1:6333
+# crontab（MSI 已掛）： */10 * * * * .../sync-snapshot.sh
+```
+log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`（點數＋快照名，未變化即 skip）。
 
 ## Demo 精簡包
-Linux 全量 → `Qdrant snapshot + PG dump` → MSI 匯入精選 500~1000 筆，離線可跑。
+Linux 全量 → 精選 500~1000 筆 → 靠 `sync-snapshot.sh` 快照機制同步到各機本機 qdrant，
+x570 離線時各機照常 `/query`（檢索能力一致，LLM 各機自備）。
