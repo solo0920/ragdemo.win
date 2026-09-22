@@ -112,6 +112,8 @@ QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 
 ### pg / registry 的定位
 - `POSTGRES_DSN` 只指 x570：心跳寫 `backends` 表、`GET /hosts` 讀表。
+- 心跳時自動清掉超過 `REGISTRY_STALE_MIN`（預設 3 分鐘）未報到的 host row
+  （離線/改名殘留自動消失）；PG 離線時此清理不跑、無害。
 - x570 離線時：心跳失敗只是 warning（`main.py` try/except），**不影響 /query**；
   `/hosts` 回空清單（可接受）。
 - 若需離線 `/hosts`，得在 mbp/msi 上另建 pg 副本（低優先，非 query 必需）。

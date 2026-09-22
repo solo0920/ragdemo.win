@@ -70,6 +70,8 @@ TS_IP          # 唯一身分 IP（tailscale，100.64.0.0/10）；LAN_IP 已停�
 OLLAMA_URLS    # 逗號分隔候選，例 http://127.0.0.1:11434,http://100.119.83.111:11434
 QDRANT_URLS    # 同上，例 http://qdrant:6333（容器內）/ http://localhost:6333（native）
 POSTGRES_DSN   # 心跳寫哪台 PG；mbp/msi 可暫時指 x570 那台
+REGISTRY_HEARTBEAT  # 心跳間隔秒數（預設 30）
+REGISTRY_STALE_MIN  # 心跳時清掉超過 N 分鐘未報到的 host（預設 3）
 RERANK_MODEL   # 仍是 stub，注意
 ```
 

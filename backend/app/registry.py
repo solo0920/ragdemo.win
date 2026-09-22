@@ -17,6 +17,7 @@ HOSTNAME = os.getenv("HOST_NAME", "") or socket.gethostname()
 TS_IP = os.getenv("TS_IP", "")
 LAN_IP = os.getenv("LAN_IP", "")
 HEARTBEAT = int(os.getenv("REGISTRY_HEARTBEAT", "30"))
+STALE_MIN = int(os.getenv("REGISTRY_STALE_MIN", "3"))
 HOST_MACHINE_ID = os.getenv("HOST_MACHINE_ID_FILE", "/run/secrets/host-machine-id")
 HOST_HOSTNAME = os.getenv("HOST_HOSTNAME_FILE", "/run/secrets/host-hostname")
 
@@ -138,6 +139,12 @@ async def heartbeat(models: list[str], llm: str, ok: bool = True) -> None:
                 """,
                 HOST_ID, _my_hostname(), _system_id(), _mac(), _ips(), TS_IP, LAN_IP,
                 json.dumps(models, ensure_ascii=False), llm, ok,
+            )
+            # 清掉超過 STALE_MIN 分鐘未報到的 host（離線/改名殘留自動消失）。
+            # 只在心跳連得上 PG 時執行：x570 離線時 PG 也離線，此句自然不跑、無害。
+            await con.execute(
+                "DELETE FROM backends WHERE last_seen < now() - make_interval(mins => $1)",
+                STALE_MIN,
             )
     except Exception as e:
         if _pool is not None:
