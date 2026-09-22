@@ -23,6 +23,23 @@
 模型注意：**qwen3.5:4b 已棄用**（template `{{ .Prompt }}` 壞掉），MSI 一律用 `qwen3:4b`。
 qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃光輸出、回空字串。
 
+### 0.1 x570 最新狀態（2026-09-22 x570 側 smoke）
+- api/qdrant/pg 三容器 up（`docker compose ps`），`/health` host_id=linux，
+  `hostname=solo-X570-I-AORUS-PRO-WIFI`、`machine_id=af8eaa67…`、`ips=[100.119.83.111, 192.168.0.99, 172.18.0.3]`
+- `/hosts` 三台都在線（linux/mbp/msi `ok:true`，心跳 30s 正常寫入 Linux PG）
+- `/query`「契約解除後雙方有何回復原狀義務？」hits [0.736, 0.638, 0.369]、答案引 `民法第259條`，
+  全程約 1.5s（think:false 生效）
+- `/eval`（POST）`{tested:0, hit_rate:0.0}`（3 題皆佔位無 expect_case，屬預期）
+- Linux 模型 4 個：bge-m3 / bge-reranker / qwen3:14b / qwen3-coder
+
+**本輪觀察（留給各機 opencode 處理）**：
+1. **MSI 8000 外網不通**：x570 直連 `100.65.68.106:8000` 逾時。uvicorn 在 WSL 內綁 0.0.0.0
+   只對 WSL VM 內有效，Windows 側需 `netsh interface portproxy add v4tov4 listenport=8000
+   connectaddress=<WSL IP>`＋防火牆規則才會對外開（心跳出站不受影響，registry 仍 ok）。
+2. **msi 的 models 清單與 mbp 相同**（都是 coder/coder-next/14b，獨缺 qwen3:4b）＋
+   **mbp 的 ips 內混入 192.168.0.2**＝疑似兩台 `.env` 的 LAN_IP/`OLLAMA_URLS` 重疊，
+   心跳時 local_models() 打到別台的 ollama。請 mbp/msi 各自核對 .env 設定。
+
 ---
 
 ## 1. Step 1 已完成（commit aef1138）
