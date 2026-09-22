@@ -1,4 +1,31 @@
 import type { RequestHandler } from './$types';
+import { env } from '$env/dynamic/private';
+import { readCookie, verifySession } from '$lib/google';
+
+const SENSITIVE = new Set(['ingest', 'eval']);
+
+async function guard(request: Request, path: string): Promise<Response | null> {
+  if (!SENSITIVE.has(path)) return null;
+  const secret = env.SESSION_SECRET;
+  if (!secret) {
+    return new Response(JSON.stringify({ detail: 'SESSION_SECRET 未設定，無法驗證寫入權限' }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  const user = await verifySession(readCookie(request.headers.get('cookie'), 'ragdemo_session'), secret);
+  if (!user) {
+    return new Response(JSON.stringify({ detail: '請先登入（僅登入者可寫入）' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+  return null;
+}
+
+function parsed(path: string): string {
+  return path.split('/')[0];
+}
 
 interface Env {
   API_ORIGIN?: string;
@@ -28,7 +55,14 @@ async function through(method: string, path: string, body: string | undefined, p
   });
 }
 
-export const GET: RequestHandler = ({ params, platform }) => through('GET', params.path, undefined, platform);
+export const GET: RequestHandler = async ({ params, request, platform }) => {
+  const blocked = await guard(request, parsed(params.path));
+  if (blocked) return blocked;
+  return through('GET', params.path, undefined, platform);
+};
 
-export const POST: RequestHandler = async ({ params, request, platform }) =>
-  through('POST', params.path, await request.text(), platform);
+export const POST: RequestHandler = async ({ params, request, platform }) => {
+  const blocked = await guard(request, parsed(params.path));
+  if (blocked) return blocked;
+  return through('POST', params.path, await request.text(), platform);
+};
