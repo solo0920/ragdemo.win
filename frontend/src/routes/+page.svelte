@@ -1,7 +1,7 @@
 <script>
   const BACKENDS = [
     { id: 'auto', label: '自動', base: '' },
-    { id: 'linux', label: 'Linux .99', base: 'http://100.119.83.111:8000' },
+    { id: 'x570', label: 'x570 .99', base: 'http://100.119.83.111:8000' },
     { id: 'mbp', label: 'mbp .93.85', base: 'http://100.64.121.9:8000' },
     { id: 'msi', label: 'MSI .2', base: 'http://100.65.68.106:8000' },
   ];

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# sync-snapshot.sh — 把 Linux(主) qdrant 的 laws 快照同步還原到本機(備援) qdrant
+# sync-snapshot.sh — 把 x570(主) qdrant 的 laws 快照同步還原到本機(備援) qdrant
 # 用法： scripts/sync-snapshot.sh [source_url] [dest_url]
-#   預設 source=http://100.119.83.111:6333（Linux tailscale） dest=http://127.0.0.1:6333（本機）
+#   預設 source=http://100.119.83.111:6333（x570 tailscale） dest=http://127.0.0.1:6333（本機）
 # 設計：
-#   - Linux 離線 → 直接跳過（不破壞本機現有資料，log 記錄）
+#   - x570 離線 → 直接跳過（不破壞本機現有資料，log 記錄）
 #   - 用「點數變化」偵測新資料：metadata(.sync-state) 記上次 points_count，
-#     Linux 點數與上次不同才建新快照→下載→本機刪舊→重建→上傳還原→驗證點數一致才更新 state
-#   - 每次同步後順手刪除 Linux 上的舊快照（只留最新的），避免 stack 無限累積
+#     x570 點數與上次不同才建新快照→下載→本機刪舊→重建→上傳還原→驗證點數一致才更新 state
+#   - 每次同步後順手刪除 x570 上的舊快照（只留最新的），避免 stack 無限累積
 #   - log 寫 ~/qdrant/sync.log
 set -euo pipefail
 
@@ -71,7 +71,7 @@ DST_PTS="$(pts_of "$DEST" "$COLLECTION")"
 if [ "$SRC_PTS" = "$DST_PTS" ] && [ "$SRC_PTS" != "-1" ] && [ "$DST_PTS" != "-1" ]; then
   echo "$SRC_PTS $SNAP_NAME" >"$STATE"
   log "SYNC OK: $SNAP_NAME (${DST_PTS} points) local=$DEST ready"
-  # 清理 Linux 舊快照，只留最新（避免無限累積）
+  # 清理 x570 舊快照，只留最新（避免無限累積）
   OLD="$(curl -sf -m 10 "$SOURCE/collections/$COLLECTION/snapshots" \
     | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin)['result'] if s['name'] != '$SNAP_NAME']" 2>/dev/null)"
   if [ -n "$OLD" ]; then

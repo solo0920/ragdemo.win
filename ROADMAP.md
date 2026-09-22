@@ -15,7 +15,7 @@
 
 ## 0. 三台主機總覽（2026-09-22 現況）
 
-| | Linux .99（主力） | mbp .93.85（加速） | MSI .0.2（demo/接手） |
+| | x570 .99（主力） | mbp .93.85（加速） | MSI .0.2（demo/接手） |
 |---|---|---|---|
 | 硬體 | X570 + 3950X + RTX 5070 Ti + 64G RAM | Mac M1 Max + 64G unified | RTX 5060 + 64G RAM |
 | tailscale | 100.119.83.111 | 100.64.121.9 | 100.65.68.106 |
@@ -29,13 +29,14 @@
 qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃光輸出、回空字串。
 
 ### 0.1 x570 最新狀態（2026-09-22 x570 側 smoke）
-- api/qdrant/pg 三容器 up（`docker compose ps`），`/health` host_id=linux，
+- api/qdrant/pg 三容器 up（`docker compose ps`），`/health` host_id=x570（
+  x570 機 `.env` 的 `HOST_ID` 已一併改為 x570），
   `hostname=solo-X570-I-AORUS-PRO-WIFI`、`machine_id=af8eaa67…`、`ips=[100.119.83.111, 192.168.0.99, 172.18.0.3]`
-- `/hosts` 三台都在線（linux/mbp/msi `ok:true`，心跳 30s 正常寫入 Linux PG）
+- `/hosts` 三台都在線（x570/mbp/msi `ok:true`，心跳 30s 正常寫入 x570 PG）
 - `/query`「契約解除後雙方有何回復原狀義務？」hits [0.736, 0.638, 0.369]、答案引 `民法第259條`，
   全程約 1.5s（think:false 生效）
 - `/eval`（POST）`{tested:0, hit_rate:0.0}`（3 題皆佔位無 expect_case，屬預期）
-- Linux 模型 4 個：bge-m3 / bge-reranker / qwen3:14b / qwen3-coder
+- x570 模型 4 個：bge-m3 / bge-reranker / qwen3:14b / qwen3-coder
 
 **本輪觀察（留給各機 opencode 處理）**：
 1. **MSI 8000 外網不通**：x570 直連 `100.65.68.106:8000` 逾時。uvicorn 在 WSL 內綁 0.0.0.0
@@ -58,17 +59,17 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
   連線錯誤自動降級到下一個；新增 `local_models()`。
 - `main.py`：`/health` 附 host 欄位、`GET /hosts`、lifespan 內起心跳 loop。
 - compose 掛載宿主 `/etc/machine-id`、`/etc/hostname`，避免容器身分混入。
-- Linux 驗證過：`/health` 回真實主機名 `solo-X570-I-AORUS-PRO-WIFI`、`/hosts` 含 4 個模型、
+- x570 驗證過：`/health` 回真實主機名 `solo-X570-I-AORUS-PRO-WIFI`、`/hosts` 含 4 個模型、
   fallback 死點自動跳過、`/query` 0.736 分帶法條引註。
 
 關鍵變數（`backend/.env.example` 有完整三台 profile）：
 
 ```
-HOST_ID        # registry 主鍵＋前端切換鍵：linux / mbp / msi
+HOST_ID        # registry 主鍵＋前端切換鍵：x570 / mbp / msi
 TS_IP          # 唯一身分 IP（tailscale，100.64.0.0/10）；LAN_IP 已停用，勿再寫
 OLLAMA_URLS    # 逗號分隔候選，例 http://127.0.0.1:11434,http://100.119.83.111:11434
 QDRANT_URLS    # 同上，例 http://qdrant:6333（容器內）/ http://localhost:6333（native）
-POSTGRES_DSN   # 心跳寫哪台 PG；mbp/msi 可暫時指 Linux 那台
+POSTGRES_DSN   # 心跳寫哪台 PG；mbp/msi 可暫時指 x570 那台
 RERANK_MODEL   # 仍是 stub，注意
 ```
 
@@ -119,7 +120,7 @@ POSTGRES_PASSWORD=changeme
 # ollama 已綁 0.0.0.0，用 MSI 的 tailscale IP 直連 Windows 本機 ollama：
 OLLAMA_URLS=http://100.65.68.106:11434,http://100.119.83.111:11434
 LLM_MODEL=qwen3:4b
-# 輕量接手：資料層/Qdrant 優先 Linux（tailscale），本機 127.0.0.1:6333 當備援（離線降級）
+# 輕量接手：資料層/Qdrant 優先 x570（tailscale），本機 127.0.0.1:6333 當備援（離線降級）
 QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 POSTGRES_DSN=postgresql://rag:changeme@100.119.83.111:5432/ragdemo
 EMBED_MODEL=bge-m3:latest
@@ -140,9 +141,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env   # 一定要帶
 # 驗證（另開終端，可在 Mac/別台測）：
 curl http://100.65.68.106:8000/health          # 回 ok+host_id=msi，llm=qwen3:4b
 curl http://100.65.68.106:8000/query -H 'content-type: application/json' \
-     -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # LLM 吃本機 ollama，資料吃 Linux
-# 重點：等 30s 心跳後，回 Linux 查：
-curl http://100.119.83.111:8000/hosts          # 應看到 linux + msi 兩筆
+     -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # LLM 吃本機 ollama，資料吃 x570
+# 重點：等 30s 心跳後，回 x570 查：
+curl http://100.119.83.111:8000/hosts          # 應看到 x570 + msi 兩筆
 ```
 
 Windows 防火牆（若 8000 不通）：PowerShell（管理員）
@@ -173,9 +174,9 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 
 ## 3. 常見坑筆記（跨機 opencode 都要知道）
 
-- 埠被佔：Linux 上曾撞 CUPS/legacy-printer-app 搶 8000，已停用；新機若 8000 被佔先查。
+- 埠被佔：x570 上曾撞 CUPS/legacy-printer-app 搶 8000，已停用；新機若 8000 被佔先查。
 - `pkill -f` 會自匹配自己的 cmdline 而卡死 → 用括號技巧：`pkill -f 'wor[k]erd'`。
-- wrangler 需 Node ≥22：Linux 用 nvm Node v22.23.2（系統 v20 太舊）。
+- wrangler 需 Node ≥22：x570 用 nvm Node v22.23.2（系統 v20 太舊）。
 - Cloudflare Worker proxy 未設 `API_ORIGIN` 時回 503：Pages 變數＋`nodejs_compat` flag。
 - qdrant scroll 是 POST 不是 GET（`.points/scroll`）。
 - **commit 前綴準則（2026-09-22）**：commit message 首行必須 `msi:`/`mbp:`/`x570:`
@@ -186,41 +187,41 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 
 ## 4. 下一步工作（Step 2+，未啟動）
 
-### 4.1 精簡包 snapshot/restore（讓 mbp/msi 無 Linux 也能跑）
+### 4.1 精簡包 snapshot/restore（讓 mbp/msi 無 x570 也能跑）
 > **2026-09-22 進度**：MSI、mbp 本機 qdrant 備援＋自動同步皆已完成 ✅。剩餘：擴資料到 500~1000 筆。
 
 **已建立（MSI）**：
 - MSI WSL 本機 qdrant 1.19.1（`~/qdrant/qdrant`，port 6333），`start-msi.sh` 啟動時一併拉起。
-- 備援資料：從 Linux qdrant 快照還原到本機（目前 3 筆，與 Linux 同步；有測試資料驗證增減偵測）。
-- **自動同步**：`scripts/sync-snapshot.sh`（Linux 建快照→下載→本機刪舊重建還原→驗證點數一致；
-  用點數變化偵測新資料，沒變化就 skip；同步後清理 Linux 舊快照只留最新）。
+- 備援資料：從 x570 qdrant 快照還原到本機（目前 3 筆，與 x570 同步；有測試資料驗證增減偵測）。
+- **自動同步**：`scripts/sync-snapshot.sh`（x570 建快照→下載→本機刪舊重建還原→驗證點數一致；
+  用點數變化偵測新資料，沒變化就 skip；同步後清理 x570 舊快照只留最新）。
   crontab 每 10 分鐘跑一次＋開機後跑；log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`。
 - MSI `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`
-  （Linux(tailscale) 優先最新資料，x570 離線自動降級本機）。`POSTGRES_DSN` 仍指 Linux —— 離線時心跳只是
+  （x570(tailscale) 優先最新資料，x570 離線自動降級本機）。`POSTGRES_DSN` 仍指 x570 —— 離線時心跳只是
   warning、不影響 query（`/hosts` 會暫時沒資料，可接受）。
 - 驗證過：模擬 x570 全離線（QDRANT/OLLAMA 首位換死 IP）→ `/query` 純本機（127.0.0.1:6333＋
   Windows ollama 100.65.68.106:11434）完整作答，答案內容正確。
 
 **已建立（mbp，2026-09-22）**：
 - mbp 本機 qdrant 1.19.1（`~/qdrant/qdrant`，aarch64-apple-darwin binary，port 6333，log `~/qdrant/qdrant.log`）。
-- 快照同步：`scripts/sync-snapshot.sh` 從 Linux 還原（目前 3 筆）；`~/qdrant/.sync-state` 記點數，
+- 快照同步：`scripts/sync-snapshot.sh` 從 x570 還原（目前 3 筆）；`~/qdrant/.sync-state` 記點數，
   未變化自動 skip；第二次跑已驗證 unchanged。
 - 自動化：macOS 的 crontab 被 TCC 擋 → 改用 **launchd agent**（`~/Library/LaunchAgents/`）：
   - `com.ragdemo.qdrant`（登入啟動＋KeepAlive）、`com.ragdemo.api`（uvicorn，登入啟動＋KeepAlive）、
   - `com.ragdemo.sync-snapshot`（每 10 分鐘＋RunAtLoad，log `~/qdrant/sync.log`）。
-- mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`（Linux 優先，離線切本機）。
+- mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`（x570 優先，離線切本機）。
 - 前端：Node v22.23.2（brew `node@22`，PATH 已寫 `~/.zshrc`），`npm install`＋`npm run build` 過。
 
 **待做**：
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
-- 驗收：MSI 上拔掉 Linux 連線後 `/query` 仍能答（目前 3 筆已通過）。
+- 驗收：MSI 上拔掉 x570 連線後 `/query` 仍能答（目前 3 筆已通過）。
 
 ### 4.2 前端吃 `/hosts`
 - `+page.svelte` 改由 `GET /hosts` 動態產生切換按鈕（label=hostname + 模型清單），
-  不再寫死 linux/mbp/msi；localStorage key `ragdemo-backend` 保留。
+  不再寫死 x570/mbp/msi；localStorage key `ragdemo-backend` 保留。
 
 ### 4.3 公網接手（Cloudflare）
-- 一台 tunneel（放 Linux）指三個 hostname：api-linux/api-mbp/api-msi.ragdemo.win → 各機 8000。
+- 一台 tunnel（放 x570）指三個 hostname：api-x570/api-mbp/api-msi.ragdemo.win → 各機 8000。
 - Worker `+server.ts` 加 `?backend=` 白名單路由，Pages 設 `API_ORIGIN`＋`nodejs_compat`。
 
 ### 4.4 評測上線門檻
@@ -230,7 +231,7 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 
 ---
 
-## 5. MB 參考：Linux 主要指令
+## 5. MB 參考：x570 主要指令
 
 ```bash
 docker compose up -d --build   # 改碼後重建 api
