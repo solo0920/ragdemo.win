@@ -1,4 +1,6 @@
 <script>
+  import { onMount } from 'svelte';
+
   const BACKENDS = [
     { id: 'auto', label: '自動', base: '' },
     { id: 'x570', label: 'x570 .99', base: 'http://100.119.83.111:8000' },
@@ -14,6 +16,15 @@
   let health = null;
   let healthLoading = false;
   let healthError = '';
+  let user = null;
+
+  onMount(async () => {
+    try {
+      const r = await fetch('/auth/me');
+      const d = await r.json();
+      if (d.ok) user = d.user;
+    } catch (_) {}
+  });
 
   function base() {
     const b = BACKENDS.find((x) => x.id === backendId);
@@ -79,6 +90,15 @@
 </script>
 
 <main>
+  <section class="auth">
+    {#if user}
+      <span class="user">已登入：{user.email}</span>
+      <a href="/auth/logout" class="btn">登出</a>
+    {:else}
+      <a href="/auth/login" class="btn">使用 Google 登入</a>
+    {/if}
+  </section>
+
   <h1>法規判決 RAG</h1>
 
   <section class="switcher">
@@ -121,6 +141,12 @@
   textarea { width: 100%; }
   .ans { white-space: pre-wrap; }
   .err { color: red; }
+  .auth { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .btn {
+    border: 1px solid #888; background: #fff; border-radius: 6px;
+    padding: 0.25rem 0.75rem; cursor: pointer; text-decoration: none; color: #222;
+  }
+  .btn:hover { background: #f0f0f0; }
   .switcher { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
   .sw-label { font-weight: bold; }
   .switcher button {

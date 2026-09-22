@@ -73,6 +73,8 @@ POSTGRES_DSN   # 心跳寫哪台 PG；mbp/msi 可暫時指 x570 那台
 REGISTRY_HEARTBEAT  # 心跳間隔秒數（預設 30）
 REGISTRY_STALE_MIN  # 心跳時清掉超過 N 分鐘未報到的 host（預設 3）
 RERANK_MODEL   # 仍是 stub，注意
+GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET  # frontend/.env（dev）；上線放 Cloudflare Pages 變數
+SESSION_SECRET # frontend 登入 session cookie 簽章金鑰（>=32 字元亂數）
 ```
 
 **檔案結構**：`compose.yaml`（qdrant+postgres+api）、`backend/`（FastAPI）、

@@ -140,6 +140,13 @@ IP 準則：全部 tailscale 位址，本機服務才允許 127.0.0.1，不用 L
 ## 評測門檻
 `POST /eval` hit_rate 未達 0.8 不進 UI，先修切分/召回。
 
+## Google 登入（frontend，OAuth2 PKCE）
+- Server routes：`/auth/login`（PKCE＋state cookie → 302 Google）、`/auth/callback`（code 換 token、
+  JWKS RS256 驗證、HMAC session cookie 12h）、`/auth/logout`、`/auth/me`。
+- env：`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `SESSION_SECRET`（dev 填 `frontend/.env`，上線填 Pages 變數）。
+- Google Cloud 端重導 URI 需登記：`http://localhost:5173/auth/callback`、`https://ragdemo.win/auth/callback`。
+- 目前為「身份辨識」（登入才看得到是誰）；尚未擋查詢/寫入，下一步接寫入端點保護。
+
 ## TODO
 * `rag.py rerank()` 還是 stub，待接真正 reranker 打分
 * `evals/questions.json` 佔位 3 題，待擴 50 題
