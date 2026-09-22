@@ -31,6 +31,11 @@
     return b ? b.base : '';
   }
 
+  function api(path) {
+    const b = base();
+    return b ? b + path : '/api' + path;
+  }
+
   async function switchBackend(id) {
     backendId = id;
     localStorage.setItem('ragdemo-backend', id);
@@ -47,7 +52,7 @@
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 5000);
       const t0 = performance.now();
-      const r = await fetch(base() + '/health', { signal: ctrl.signal });
+      const r = await fetch(api('/health'), { signal: ctrl.signal });
       clearTimeout(timer);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const ms = Math.round(performance.now() - t0);
@@ -64,7 +69,7 @@
     error = '';
     result = null;
     try {
-      const r = await fetch(base() + '/query', {
+      const r = await fetch(api('/query'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question })
