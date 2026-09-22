@@ -25,7 +25,7 @@ scripts/
 * Linux .99：主力，`OLLAMA_BASE_URL=http://192.168.0.99:11434`，`LLM_MODEL=qwen3:14b`，
   api/qdrant/pg 全跑（docker compose），資料唯一來源
 * mbp .93.85：加速，`OLLAMA_BASE_URL=http://192.168.93.85:11434`，`LLM_MODEL=qwen3-coder:latest`，
-  api 有跑（QDRANT/POSTGRES 指 Linux）；**本機 qdrant 備援待建**（同 MSI 做法）
+  api（uvicorn@8000，launchd 自動啟動）＋**本機 qdrant 備援已完成**（QDRANT/POSTGRES 指 Linux，離線降級本機）
 * MSI .0.2（demo）：api 在 WSL2 裡（`uvicorn --env-file .env`，開機自動啟動），
   `OLLAMA_URLS=http://192.168.0.2:11434`（直連 Windows 本機 ollama），`LLM_MODEL=qwen3:4b`，
   資料層（Qdrant/pg）暫指 Linux ＋ **本機 qdrant 1.19.1 備援（已完成）**
@@ -36,12 +36,12 @@ scripts/
 Linux qdrant（資料唯一來源）
    │  資料變更（points_count 變化）
    ▼
-scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛）
+scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 同頻率）
    │  POST /collections/laws/snapshots → 建新快照
    │  下載 → 本機刪舊 collection → 重建 → upload?priority=snapshot 還原
    │  驗證點數與 Linux 一致 → 更新 state；順手清 Linux 舊快照
    ▼
-各機本機 qdrant（MSI: 127.0.0.1:6333 ✅ / mbp: 待建）
+各機本機 qdrant（MSI: 127.0.0.1:6333 ✅ / mbp: 127.0.0.1:6333 ✅）
 ```
 
 - **資料一致性**：備援資料等同 Linux 快照當下；快照很小（3 筆≈174KB、500~1000 筆≈10–60MB，
@@ -86,7 +86,7 @@ QDRANT_URLS=http://100.119.83.111:6333,http://192.168.0.99:6333,http://127.0.0.1
 * `rag.py rerank()` 還是 stub，待接真正 reranker 打分
 * `evals/questions.json` 佔位 3 題，待擴 50 題
 * 判決注意個資去識別化，回答僅供參考非法律意見
-* mbp 本機 qdrant 備援（同 MSI：`scripts/sync-snapshot.sh` 指定 dest 即可用）
+* 精簡包擴到 500~1000 筆（目前 3 筆，同步機制已就位）
 * 需離線 `/hosts` → mbp/msi 另建 pg 副本（低優先）
 
 ## 啟動
@@ -103,13 +103,22 @@ bash backend/start-msi.sh        # 冪等：api＋本機 qdrant 一起拉起（�
 curl localhost:8000/health       # 回 host_id=msi, llm=qwen3:4b
 ```
 MSI 資料層：Linux 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
+**mbp（launchd，登入自動跑）**：
+```bash
+launchctl load ~/Library/LaunchAgents/com.ragdemo.qdrant.plist    # qdrant @127.0.0.1:6333
+launchctl load ~/Library/LaunchAgents/com.ragdemo.api.plist       # uvicorn @8000（--env-file .env）
+launchctl load ~/Library/LaunchAgents/com.ragdemo.sync-snapshot.plist  # 每10分鐘快照同步
+curl localhost:8000/health       # 回 host_id=mbp
+cd frontend && npm run dev       # 前端 dev（proxy → localhost:8000，需 Node≥22）
+```
+mbp 資料層：Linux 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
 
 ## 備援同步操作
 ```bash
 bash scripts/sync-snapshot.sh [source_url] [dest_url] [collection]
 # 例（MSI）：  bash scripts/sync-snapshot.sh            # Linux→本機，預設
 # 例（mbp）：  bash scripts/sync-snapshot.sh http://100.119.83.111:6333 http://127.0.0.1:6333
-# crontab（MSI 已掛）： */10 * * * * .../sync-snapshot.sh
+# 排程：MSI 用 crontab（*/10，已掛）；mbp 用 launchd com.ragdemo.sync-snapshot（每 10 分鐘＋登入）
 ```
 log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`（點數＋快照名，未變化即 skip）。
 

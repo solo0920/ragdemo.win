@@ -48,7 +48,12 @@ SNAP_NAME="$(echo "$SNAP_JSON" | python3 -c 'import sys,json; print(json.load(sy
 if ! curl -sf -m 120 -o "$TMP" "$SOURCE/collections/$COLLECTION/snapshots/$SNAP_NAME"; then
   log "download failed for $SNAP_NAME"; rm -f "$TMP"; exit 1
 fi
-log "downloaded $SNAP_NAME ($(stat -c%s "$TMP") bytes, src_pts=$SRC_PTS)"
+if command -v stat >/dev/null 2>&1 && stat -c%s "$TMP" >/dev/null 2>&1; then
+  SZ="$(stat -c%s "$TMP")"
+else
+  SZ="$(stat -f%z "$TMP" 2>/dev/null || echo "?")"
+fi
+log "downloaded $SNAP_NAME ($SZ bytes, src_pts=$SRC_PTS)"
 
 # 5) 本機：刪舊 → 重建 → 上傳還原
 curl -sf -m 30 -X DELETE "$DEST/collections/$COLLECTION" >/dev/null 2>&1 \

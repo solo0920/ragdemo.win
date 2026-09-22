@@ -14,8 +14,8 @@
 |---|---|---|---|
 | tailscale | 100.119.83.111 | 100.64.121.9 | 100.65.68.106 |
 | LAN | 192.168.0.99 | 192.168.93.85 | 192.168.0.2 |
-| ollama | v0.34.0（native） | v0.34.2（native） | v0.34.2（native, 0.0.0.0） |
-| api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | ✗ | api ✅（WSL2）/qdrant/pg ✗ |
+| ollama | v0.34.0（native） | v0.34.2（native, 0.0.0.0） | v0.34.2（native, 0.0.0.0） |
+| api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | api ✅（launchd）/qdrant ✅（本機備援）/pg ✗ | api ✅（WSL2）/qdrant ✅（本機備援）/pg ✗ |
 | LLM 預設 | qwen3:14b | qwen3:14b | qwen3:4b |
 | 模型 | bge-m3, bge-reranker, qwen3:14b, qwen3-coder | bge-m3, bge-reranker, qwen3:14b, qwen3-coder(+next) | bge-m3, bge-reranker, qwen3:4b, qwen2.5-coder:7b |
 
@@ -156,7 +156,7 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ## 4. 下一步工作（Step 2+，未啟動）
 
 ### 4.1 精簡包 snapshot/restore（讓 mbp/msi 無 Linux 也能跑）
-> **2026-09-22 進度**：MSI 已完成 ✅（本機 qdrant 備援＋自動同步）。剩餘：mbp。
+> **2026-09-22 進度**：MSI、mbp 本機 qdrant 備援＋自動同步皆已完成 ✅。剩餘：擴資料到 500~1000 筆。
 
 **已建立（MSI）**：
 - MSI WSL 本機 qdrant 1.19.1（`~/qdrant/qdrant`，port 6333），`start-msi.sh` 啟動時一併拉起。
@@ -170,8 +170,17 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 - 驗證過：模擬 x570 全離線（QDRANT/OLLAMA 首位換死 IP）→ `/query` 純本機（127.0.0.1:6333＋
   Windows ollama 192.168.0.2:11434）完整作答，答案內容正確。
 
+**已建立（mbp，2026-09-22）**：
+- mbp 本機 qdrant 1.19.1（`~/qdrant/qdrant`，aarch64-apple-darwin binary，port 6333，log `~/qdrant/qdrant.log`）。
+- 快照同步：`scripts/sync-snapshot.sh` 從 Linux 還原（目前 3 筆）；`~/qdrant/.sync-state` 記點數，
+  未變化自動 skip；第二次跑已驗證 unchanged。
+- 自動化：macOS 的 crontab 被 TCC 擋 → 改用 **launchd agent**（`~/Library/LaunchAgents/`）：
+  - `com.ragdemo.qdrant`（登入啟動＋KeepAlive）、`com.ragdemo.api`（uvicorn，登入啟動＋KeepAlive）、
+  - `com.ragdemo.sync-snapshot`（每 10 分鐘＋RunAtLoad，log `~/qdrant/sync.log`）。
+- mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,192.168.0.99:6333,127.0.0.1:6333`（Linux 優先，離線切本機）。
+- 前端：Node v22.23.2（brew `node@22`，PATH 已寫 `~/.zshrc`），`npm install`＋`npm run build` 過。
+
 **待做**：
-- mbp：同法建本機 qdrant＋快照（`scripts/sync-snapshot.sh` 可直接指定 dest 使用）
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
 - 驗收：MSI 上拔掉 Linux 連線後 `/query` 仍能答（目前 3 筆已通過）。
 
