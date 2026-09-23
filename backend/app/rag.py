@@ -4,14 +4,18 @@
 - 首選「優先權最高且目前可用（TCP＋模型齊備）」者，快取一段時間（PICK_TTL）。
 - 連線錯誤 / model 404 自動降級到下一台；PICK_TTL 過期會重新掃描，率先主機回復即自動切回。
 - 每台 ollama 主機可配不同 LLM model（OLLAMA_MODELS 與 OLLAMA_URLS 同順序對應）。
+- 模型 keepalive：要求常駐（KEEP_ALIVE，預設 -1 永久），api 啟動時 warmup 預載，避免首個 query 冷載入。
 """
 import asyncio
+import logging
 import os
 import time
 import uuid
 from urllib.parse import urlparse
 
 import httpx
+
+logger = logging.getLogger("ragdemo")
 
 OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://100.119.83.111:11434").rstrip("/")
 OLLAMA_URLS = [u.strip().rstrip("/") for u in os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT).split(",") if u.strip()] or [OLLAMA_DEFAULT]
@@ -27,6 +31,14 @@ DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
 # 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
 PICK_TTL = float(os.getenv("PICK_TTL", "30"))
+# 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
+KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
+
+
+def keep_alive_value():
+    """ollama 的 keep_alive：純數字（含 -1）要傳 number，其餘（如 "30m"）傳字串。"""
+    s = str(KEEP_ALIVE).strip()
+    return int(s) if s.lstrip("-").isdigit() else s
 
 SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；找不到就說找不到，不要編造。"
 
@@ -147,7 +159,8 @@ async def _req(kind: str, candidates: list[str], method: str, path: str,
 
 async def embed(texts: list[str]) -> list[list[float]]:
     r = await _req("ollama", OLLAMA_URLS, "post", "/api/embed",
-                   json={"model": EMBED_MODEL, "input": texts}, retry_on=(404,))
+                   json={"model": EMBED_MODEL, "input": texts, "keep_alive": keep_alive_value()},
+                   retry_on=(404,))
     r.raise_for_status()
     return r.json()["embeddings"]
 
@@ -201,7 +214,8 @@ async def generate(question: str, contexts: list[dict]) -> str:
             async with httpx.AsyncClient(timeout=300) as c:
                 r = await c.post(f"{base}/api/generate",
                                  json={"model": model, "prompt": prompt, "stream": False,
-                                       "think": False, "options": {"num_predict": 500}})
+                                       "think": False, "keep_alive": keep_alive_value(),
+                                       "options": {"num_predict": 500}})
         except (httpx.ConnectError, httpx.ConnectTimeout):
             _drop("ollama")
             continue
@@ -220,6 +234,35 @@ async def local_models() -> list[str]:
         return [m["name"] for m in r.json().get("models", [])]
     except Exception:
         return []
+
+
+async def warmup() -> None:
+    """啟動時預載「選中主機」的預設 LLM 與 embedding 模型並常駐（keep_alive=KEEP_ALIVE）。
+
+    best-effort：ollama 未就緒就跳過，首個 query 再載；萬一失敗不影響 api 上線。
+    """
+    try:
+        base = await _pick("ollama", OLLAMA_URLS, probe=_ollama_probe)
+    except Exception:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=300) as c:
+            results = await asyncio.gather(
+                c.post(f"{base}/api/generate",
+                       json={"model": _llm_model_for(base), "prompt": "", "stream": False,
+                             "think": False, "keep_alive": keep_alive_value(),
+                             "options": {"num_predict": 1}}),
+                c.post(f"{base}/api/embed",
+                       json={"model": EMBED_MODEL, "input": "", "keep_alive": keep_alive_value()}),
+                return_exceptions=True,
+            )
+        for r in results:
+            if isinstance(r, Exception) or (hasattr(r, "status_code") and r.status_code >= 400):
+                logger.warning("warmup 部分失敗（%s），將在首個 query 載入", r)
+                return
+        logger.info("warmup 完成：%s 常駐 %s ＋ %s", base, _llm_model_for(base), EMBED_MODEL)
+    except Exception as e:
+        logger.warning("warmup 失敗（%s），將在首個 query 載入", e)
 
 
 async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:

@@ -27,6 +27,7 @@ async def heartbeat_loop():
 async def lifespan(app: FastAPI):
     await rag.ensure_collection()
     loop = asyncio.get_running_loop()
+    loop.create_task(rag.warmup())  # 預載預設模型並常駐，避免首個 query 冷載入
     task = loop.create_task(heartbeat_loop())
     yield
     task.cancel()

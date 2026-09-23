@@ -380,6 +380,14 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
       `curl -s https://api-<host>.ragdemo.win/health` 回 `host_id`
 - [ ] **崩潰復活測試**：`kill` 掉 cloudflared，5 秒後 restart loop / launchd 自動拉回
 
+#### 模型 keepalive（2026-09-23 定案，各機預設 model 啟動即常駐）
+
+> 規範見 ARCHITECTURE「模型 keepalive」。**三台 pull＋重啟 api 後即自動生效**：
+> - `rag.py` embed/generate 帶 `keep_alive=KEEP_ALIVE`（預設 `-1` 常駐，可在 `.env` 覆寫）；
+>   api 啟動時 `warmup()` 預載該機預設 LLM＋`bge-m3`，首個 query 不再冷載入。
+> - 驗證：`ollama ps` 看到預設模型在列且 UNLOAD 為空白（常駐）；重啟 api 後首個 `/query` 不慢。
+> - mbp 已實作並驗證（commit `mbp:`）；x570 / msi pull 後 `launchctl kickstart -k`／`start-msi.sh` 重啟即可。
+
 #### 接管整備與來源可追溯（2026-09-23 定案）
 
 > **Q：x570 斷聯時 msi/mbp 能否自己回應？**

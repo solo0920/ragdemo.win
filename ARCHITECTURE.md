@@ -211,6 +211,23 @@ curl -s https://api-<host>.ragdemo.win/health
   但跨 NAT/容器/虛擬網路（WSL2、docker bridge）常因 UDP 被擋而失去保活。
 - 為一致性與穩定性，**三台統一 `--protocol http2`**（macOS／原生 Linux 也可用，不虧）。
 
+## 模型 keepalive（ollama 常駐，2026-09-23 定案）
+**各主機的預設 LLM 與 embedding 模型啟動後即常駐記憶體，避免首個 query 冷載入慢。**
+
+- 背景：ollama 模型預設閒置 5 分鐘就卸載，下一個 query 要重新載入（冷載入慢、tok/s 掉）。
+- 機制（backend 共用，pull＋重啟 api 即生效）：
+  - `rag.py` 的 embed / generate 都帶 `keep_alive: KEEP_ALIVE`（request 層指定常駐）。
+  - `KEEP_ALIVE` 環境變數（`backend/.env`，各主機可覆寫）：`-1`＝永久常駐（預設）、
+    `0`＝即時卸載、`"30m"`＝30 分鐘。Qdrant/RAG 層不變。
+  - api 啟動（`main.py` lifespan）跑 `rag.warmup()`：以 `_pick()` 選中當前最高優先且可用的
+    ollama 主機，預載該機預設 LLM（`OLLAMA_MODELS` 對應）＋ `EMBED_MODEL`，best-effort、
+    失敗只 log 不擋 api 上線（ollama 尚未就緒時首個 query 自動補載）。
+- 驗證：
+  ```bash
+  ollama ps   # 預設模型在列、UNLOAD 欄為空白/「直到」（keep_alive=-1 常駐）
+  # 重啟 api 後首個 /query 不應再看到冷載入等待
+  ```
+
 ## 環境變數（backend/.env，各機一份不進版控）
 `HOST_ID`、`TS_IP`（必填，tailscale）、`OLLAMA_URLS`（候選清單）、`LLM_MODEL`、
 `EMBED_MODEL=bge-m3:latest`、`RERANK_MODEL=qllama/bge-reranker-v2-m3:latest`、
