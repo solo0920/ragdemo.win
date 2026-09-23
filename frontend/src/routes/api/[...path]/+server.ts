@@ -4,6 +4,14 @@ import { readCookie, verifySession } from '$lib/google';
 
 const SENSITIVE = new Set(['ingest', 'eval']);
 
+// 公網後端依優先序（自動模式依此順序即時備援：先通者勝）。
+// 可用 Pages 變數 API_ORIGINS（逗號分隔）覆寫；未設則用內建三台。
+const DEFAULT_ORIGINS = [
+  'https://api-x570.ragdemo.win',
+  'https://api-mbp.ragdemo.win',
+  'https://api-msi.ragdemo.win',
+];
+
 async function guard(request: Request, path: string): Promise<Response | null> {
   if (!SENSITIVE.has(path)) return null;
   const secret = env.SESSION_SECRET;
@@ -29,29 +37,64 @@ function parsed(path: string): string {
 
 interface Env {
   API_ORIGIN?: string;
+  API_ORIGINS?: string;
 }
 
-function originOf(platform?: { env?: Env }): string {
-  if (platform?.env?.API_ORIGIN) return platform.env.API_ORIGIN;
+// 展開成依序清單：API_ORIGINS 優先；其次 API_ORIGIN 若命中我們三台之一，
+// 就展開成完整三台（一律 x570 優先，符合同一優先序）；其餘自架單一台原樣。
+function originsOf(platform?: { env?: Env }): string[] {
+  const fromEnv = (s?: string) => (s || '').split(',').map((x) => x.trim().replace(/\/$/, '')).filter(Boolean);
   const pe = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-  if (pe?.env?.API_ORIGIN) return pe.env.API_ORIGIN;
-  return '';
+  if (platform?.env?.API_ORIGINS) return fromEnv(platform.env.API_ORIGINS);
+  if (pe?.env?.API_ORIGINS) return fromEnv(pe.env.API_ORIGINS);
+  const singleA = (platform?.env?.API_ORIGIN || '').trim().replace(/\/$/, '');
+  const singleB = (pe?.env?.API_ORIGIN || '').trim().replace(/\/$/, '');
+  const single = singleA || singleB;
+  if (single) {
+    if (DEFAULT_ORIGINS.includes(single)) return [...DEFAULT_ORIGINS];
+    return [single];
+  }
+  return DEFAULT_ORIGINS;
+}
+
+// 判斷該後端是否「已離線（不值得重試）」：網路層失敗，或 Cloudflare
+// tunnel 離線的典型回應（502/503/504/530/1033）。其他 4xx（如 401/404）視為
+// 後端正常回應，直接回傳不切換。
+function dead(status: number): boolean {
+  return status === 502 || status === 503 || status === 504 || status === 530 || status === 1033;
 }
 
 async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }): Promise<Response> {
-  const origin = originOf(platform).replace(/\/$/, '');
-  if (!origin) {
-    return new Response(JSON.stringify({ detail: 'API_ORIGIN 未設定（請在 Cloudflare Pages 變數加 API_ORIGIN）' }), {
+  const origins = originsOf(platform);
+  if (origins.length === 0) {
+    return new Response(JSON.stringify({ detail: 'API_ORIGINS/API_ORIGIN 未設定（請在 Cloudflare Pages 變數設定）' }), {
       status: 503,
       headers: { 'content-type': 'application/json' },
     });
   }
   const init: RequestInit = { method, headers: { 'content-type': 'application/json' } };
   if (body !== undefined) init.body = body;
-  const r = await fetch(`${origin}/${path}`, init);
-  return new Response(r.body, {
-    status: r.status,
-    headers: { 'content-type': r.headers.get('content-type') ?? 'application/json' },
+
+  const failures: string[] = [];
+  for (const origin of origins) {
+    try {
+      const r = await fetch(`${origin}/${path}`, init);
+      if (dead(r.status)) {
+        failures.push(`${origin} HTTP ${r.status}`);
+        continue; // 這台離線／壞了 → 依序試下一台
+      }
+      const h = new Headers(r.headers);
+      h.set('content-type', r.headers.get('content-type') ?? 'application/json');
+      h.set('x-ragdemo-origin', origin); // 前端可顯示「自動→實際服務主機」
+      return new Response(r.body, { status: r.status, headers: h });
+    } catch (e) {
+      failures.push(`${origin} ${(e as Error).message}`);
+    }
+  }
+  const detail = failures.length ? failures.join('；') : '後端全數不可達';
+  return new Response(JSON.stringify({ detail: `全數後端備援失敗：${detail}` }), {
+    status: 502,
+    headers: { 'content-type': 'application/json' },
   });
 }
 

@@ -227,6 +227,11 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ### 4.2 前端吃 `/hosts`
 - `+page.svelte` 改由 `GET /hosts` 動態產生切換按鈕（label=hostname + 模型清單），
   不再寫死 x570/mbp/msi；localStorage key `ragdemo-backend` 保留。
+- **自動模式後端 failover（2026-09-23）**：`自動` 走 Pages worker（`api/[...path]/+server.ts`），
+  worker 依 `API_ORIGINS`（或內建 `api-x570→api-mbp→api-msi`）依序嘗試，
+  x570 離線（502/503/504/530/1033 或網路失敗）自動切下一台；成功回應帶
+  `x-ragdemo-origin` header，health 顯示實際 `host_id`。API_ORIGIN 若命中國內三台
+  也展開成完整三台（x570 優先）。前端手動按鈕（x570/mbp/msi）仍直連各台。
 
 ### 4.3 公網接手（Cloudflare）
 - 一台 tunnel（放 x570）指三個 hostname：api-x570/api-mbp/api-msi.ragdemo.win → 各機 8000。

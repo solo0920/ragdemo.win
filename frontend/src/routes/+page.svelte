@@ -118,7 +118,7 @@
     {#if healthLoading}
       <span class="health">連線中…</span>
     {:else if health}
-      <span class="health ok">⦿ {health.llm} ｜ {health.collection} ｜ {health.ms}ms</span>
+      <span class="health ok">⦿ {health.host_id}｜{health.llm} ｜ {health.collection} ｜ {health.ms}ms</span>
     {:else if healthError}
       <span class="health bad">✗ {healthError}</span>
     {/if}
