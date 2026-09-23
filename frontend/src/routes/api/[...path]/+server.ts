@@ -12,6 +12,13 @@ const DEFAULT_ORIGINS = [
   'https://api-msi.ragdemo.win',
 ];
 
+// /query 連線 log 用的三台識別（id → 公網 URL）。
+const HOSTS = [
+  { id: 'x570', url: DEFAULT_ORIGINS[0] },
+  { id: 'mbp', url: DEFAULT_ORIGINS[1] },
+  { id: 'msi', url: DEFAULT_ORIGINS[2] },
+];
+
 async function guard(request: Request, path: string): Promise<Response | null> {
   if (!SENSITIVE.has(path)) return null;
   const secret = env.SESSION_SECRET;
@@ -98,6 +105,69 @@ async function through(method: string, path: string, body: string | undefined, p
   });
 }
 
+async function probe(url: string): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const r = await fetch(`${url}/health`, { signal: ctrl.signal });
+    return r.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+// /api/query?backend=auto|x570|mbp|msi
+// 先列出三台連線 log，再依指定或自動選一台生成回答。
+async function queryRoute(request: Request, platform?: { env?: Env }): Promise<Response> {
+  const want = new URL(request.url).searchParams.get('backend');
+  const id = HOSTS.some((h) => h.id === want) ? want : 'auto';
+
+  const probes = await Promise.all(HOSTS.map((h) => probe(h.url)));
+  const log: Record<string, string> = {};
+  const okHosts: string[] = [];
+  HOSTS.forEach((h, i) => {
+    log[h.id] = probes[i] ? '連線成功' : '連線失敗';
+    if (probes[i]) okHosts.push(h.id);
+  });
+
+  let host: string | null = null;
+  let base = '';
+  if (id !== 'auto' && okHosts.includes(id)) {
+    host = id;
+    base = HOSTS.find((h) => h.id === id)!.url;
+  } else if (id === 'auto') {
+    const first = okHosts[0] ?? null;
+    host = first;
+    if (first) base = HOSTS.find((h) => h.id === first)!.url;
+  }
+  if (!host || !base) {
+    return json({ ok: false, host: null, log, detail: '所有後端皆無法連線' });
+  }
+
+  const body = await request.text();
+  try {
+    const r = await fetch(`${base}/query`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body,
+    });
+    const data = await r.json();
+    if (!r.ok) return json({ ok: false, host, log, detail: data.detail ?? `後端錯誤 ${r.status}` });
+    return json({ ok: true, host, log, answer: data.answer, hits: data.hits });
+  } catch (e) {
+    return json({ ok: false, host, log, detail: `轉發失敗：${(e as Error).message}` });
+  }
+}
+
 export const GET: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, parsed(params.path));
   if (blocked) return blocked;
@@ -107,5 +177,6 @@ export const GET: RequestHandler = async ({ params, request, platform }) => {
 export const POST: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, parsed(params.path));
   if (blocked) return blocked;
+  if (parsed(params.path) === 'query') return queryRoute(request, platform);
   return through('POST', params.path, await request.text(), platform);
 };

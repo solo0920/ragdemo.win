@@ -69,22 +69,33 @@
     error = '';
     result = null;
     try {
-      const r = await fetch(api('/query'), {
+      const r = await fetch(`/api/query?backend=${backendId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question })
       });
+      result = await r.json();
       if (!r.ok) {
         let msg = '後端錯誤 ' + r.status;
-        try { msg += '：' + ((await r.json()).detail || ''); } catch (_) {}
+        if (result?.detail) msg += '：' + result.detail;
         throw new Error(msg);
       }
-      result = await r.json();
+      if (!result?.ok) throw new Error(result.detail || '查詢失敗');
     } catch (e) {
       error = e.message;
     } finally {
       loading = false;
     }
+  }
+
+  function logText(r) {
+    const L = [];
+    for (const id of ['x570', 'mbp', 'msi']) L.push(`${id}: ${r.log?.[id] ?? '-'}`);
+    if (r.host) {
+      L.push('');
+      L.push(`由 ${r.host} 生成本次response`);
+    }
+    return L.join('\n');
   }
 
   if (typeof localStorage !== 'undefined') {
@@ -130,14 +141,18 @@
   </button>
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
-    <h2>回答（{BACKENDS.find((x) => x.id === backendId)?.label}）</h2>
-    <p class="ans">{result.answer}</p>
-    <h2>引用（top {result.hits.length}）</h2>
-    <ol>
-      {#each result.hits as h}
-        <li>{h.payload.case_no}｜{h.payload.law}｜{h.score.toFixed(3)}<br />{h.payload.text.slice(0, 200)}…</li>
-      {/each}
-    </ol>
+    <h2>連線狀態</h2>
+    <p class="ans">{logText(result)}</p>
+    {#if result.ok}
+      <h2>回答（{result.host}）</h2>
+      <p class="ans">{result.answer}</p>
+      <h2>引用（top {result.hits.length}）</h2>
+      <ol>
+        {#each result.hits as h}
+          <li>{h.payload.case_no}｜{h.payload.law}｜{h.score.toFixed(3)}<br />{h.payload.text.slice(0, 200)}…</li>
+        {/each}
+      </ol>
+    {/if}
   {/if}
 </main>
 
