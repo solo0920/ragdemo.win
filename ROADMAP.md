@@ -244,7 +244,7 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
     config 在 `~/.cloudflared/config.yml`，binary 在 `~/.local/bin/cloudflared`。
   - Pages production 已設：`API_ORIGIN=https://api-x570.ragdemo.win`、`GOOGLE_CLIENT_ID`、
     `GOOGLE_CLIENT_SECRET`、`SESSION_SECRET`（wrangler `pages secret put`）。
-  - `/api/ingest`、`/api/eval` 由 worker 擋 Google 登入（401）；`/api/query` 公網放行。
+  - `/api/ingest`、`/api/eval` 由 worker 擋 Google 登入（401）；`/api/query` **2026-09-24 起也需登入**（見 §4.8）。
   - **開機自啟（2026-09-23）**：crontab `@reboot` 已掛（免 sudo）：
     `@reboot setsid ~/.local/bin/cloudflared tunnel --config ~/.cloudflared/config.yml run ragdemo-x570`
     （原手動 setsid nohup 已停用；若要改 systemd，unit 範本見交接清單註解，sudo 執行後關掉 crontab 即可）
@@ -517,6 +517,21 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   前端引用改為「**機率｜法名+條號｜款位｜內容**」。
 - **評測：`/eval` hit_rate=1.0（14/14 real questions，expect_law 比對）**，公網 ragdemo.win 全通。
 - 舊 demo 3 點備份 `laws_demo_backup`；後續：判決語料、msi/mbp 同步（見 DESIGN §5）。
+
+### 4.8 登入管制＋前端 UI（2026-09-24 定案，x570）
+- **`/api/query` 需 Google 登入（commit 669966b）**：Pages worker `+server.ts` 的 `SENSITIVE`
+  從 `{ingest, eval}` 加入 `query`——未登入（無有效 `ragdemo_session` HMAC cookie）回 **401**
+  「請先登入 Google 後再操作」；`SESSION_SECRET` 未設則 503。前端未登入時禁用
+  textarea/送出＋顯示登入引導，`ask()` 先檢查 `user`。
+  限制：guard 只在 **Pages 代理層**，三台後端直達 URL（`api-<host>.ragdemo.win/query`）本身仍
+  無驗證（若要連後端一起鎖，需後端以同 `SESSION_SECRET` 驗同一 cookie，列後續）。
+- **UI 調整（commit bd85cc0、05ebc0c、126ee11）**：
+  - Google 登入按鈕併進標題列（`.head` flex `space-between`），不再獨立成列突起。
+  - 「連線與來源」表格改為後端列最右側「**連線詳細 ▸**」按鈕：點擊才浮出小彈窗
+    （含三角形箭頭、`position:absolute` 貼在按鈕下）顯示三台探測 log＋Qdrant 檢索／
+    LLM 生成來源；僅查詢過（有 `result`）時才出現。原永久表格移除。
+- 今日檢查：工作樹乾淨、無密鑰外洩（僅 `.env.example`/compose fallback 的佔位 `changeme`）、
+  前端 `npm run build`＋svelte-check 0 error、`/eval` 14/14=1.0。
 
 ---
 
