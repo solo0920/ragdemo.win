@@ -65,6 +65,10 @@
   }
 
   async function ask() {
+    if (!user) {
+      error = '請先登入 Google 才能查詢';
+      return;
+    }
     loading = true;
     error = '';
     result = null;
@@ -139,8 +143,11 @@
     {/if}
   </section>
 
-  <textarea bind:value={question} rows="3" placeholder="輸入法律問題…"></textarea>
-  <button onclick={ask} disabled={loading || !question.trim()}>
+  <textarea bind:value={question} rows="3" placeholder="輸入法律問題…" disabled={!user}></textarea>
+  {#if !user}
+    <p class="hint">尚未登入，請先 <a href="/auth/login" rel="external">使用 Google 登入</a> 後才能查詢。</p>
+  {/if}
+  <button onclick={ask} disabled={loading || !question.trim() || !user}>
     {loading ? '檢索生成中…' : '送出'}
   </button>
   {#if error}<p class="err">{error}</p>{/if}
@@ -186,6 +193,8 @@
   .tx { color: #444; }
   .byline { font-weight: bold; margin: 0 0 0.5rem; }
   .err { color: red; }
+  .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
+  textarea:disabled { background: #f5f5f5; }
   .auth { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
   .btn {
     border: 1px solid #888; background: #fff; border-radius: 6px;

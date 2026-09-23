@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { readCookie, verifySession } from '$lib/google';
 
-const SENSITIVE = new Set(['ingest', 'eval']);
+const SENSITIVE = new Set(['query', 'ingest', 'eval']);
 
 // 公網後端依優先序（自動模式依此順序即時備援：先通者勝）。
 // 可用 Pages 變數 API_ORIGINS（逗號分隔）覆寫；未設則用內建三台。
@@ -23,14 +23,14 @@ async function guard(request: Request, path: string): Promise<Response | null> {
   if (!SENSITIVE.has(path)) return null;
   const secret = env.SESSION_SECRET;
   if (!secret) {
-    return new Response(JSON.stringify({ detail: 'SESSION_SECRET 未設定，無法驗證寫入權限' }), {
+    return new Response(JSON.stringify({ detail: 'SESSION_SECRET 未設定，無法驗證登入狀態' }), {
       status: 503,
       headers: { 'content-type': 'application/json' },
     });
   }
   const user = await verifySession(readCookie(request.headers.get('cookie'), 'ragdemo_session'), secret);
   if (!user) {
-    return new Response(JSON.stringify({ detail: '請先登入（僅登入者可寫入）' }), {
+    return new Response(JSON.stringify({ detail: '請先登入 Google 後再操作（查詢與寫入皆需登入）' }), {
       status: 401,
       headers: { 'content-type': 'application/json' },
     });
