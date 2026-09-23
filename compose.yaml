@@ -25,6 +25,7 @@ services:
       HOST_ID: ${HOST_ID:-x570}
       TS_IP: ${TS_IP:-100.119.83.111}
       LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
+      KEEP_ALIVE: ${KEEP_ALIVE:--1}
       EMBED_MODEL: bge-m3:latest
       RERANK_MODEL: qllama/bge-reranker-v2-m3:latest
       COLLECTION: ${COLLECTION:-laws}
