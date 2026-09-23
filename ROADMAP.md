@@ -41,9 +41,10 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 - x570 模型 4 個：bge-m3 / bge-reranker / qwen3:14b / qwen3-coder
 
 **本輪觀察（留給各機 opencode 處理）**：
-1. **MSI 8000 外網不通**：x570 直連 `100.65.68.106:8000` 逾時。uvicorn 在 WSL 內綁 0.0.0.0
-   只對 WSL VM 內有效，Windows 側需 `netsh interface portproxy add v4tov4 listenport=8000
-   connectaddress=<WSL IP>`＋防火牆規則才會對外開（心跳出站不受影響，registry 仍 ok）。
+1. ~~MSI 8000 外網不通~~ **已處置（2026-09-23）**：棄用 portproxy 方案。uvicorn 在 WSL 內綁 0.0.0.0
+   只對 WSL VM 內有效，改由 **cloudflared（WSL 內）tunnel 直連 localhost:8000** 對外，
+   `netsh portproxy`＋防火牆規則已刪（公網 api-msi.ragdemo.win 實測直達）。
+   （心跳出站不受影響，registry 仍 ok。）
 2. ~~msi 的 models 清單與 mbp 相同~~＋~~mbp 的 ips 內混入 192.168.0.2~~ **已處置**
    （2026-09-22）：ip 污染根因＝IP 準則沿革，已定「只留 tailscale IP」準則（見
    ARCHITECTURE「IP 準則」），`registry.py _ips()` 只收 100.64.0.0/10。各台 pull 後
