@@ -536,6 +536,10 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
     LLM 生成來源；僅查詢過（有 `result`）時才出現。原永久表格移除。
 - 今日檢查：工作樹乾淨、無密鑰外洩（僅 `.env.example`/compose fallback 的佔位 `changeme`）、
   前端 `npm run build`＋svelte-check 0 error、`/eval` 14/14=1.0。
+- **dev 登入注意**：`auth/login` 的 `redirect_uri`＝「目前 origin + `/auth/callback`」，所以用
+  tailscale IP（如 `100.119.83.111:5173`）開 dev 登入前，要先到 Google Console 的該 OAuth
+  Client 把該 origin 加入授權重導 URI（無萬用字元），否則 `redirect_uri_mismatch`；本機
+  `http://localhost:5173` 已在白名單可直接用（`+server.ts:16` 逐 origin 組 redirect）。
 
 ---
 
