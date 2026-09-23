@@ -114,16 +114,17 @@
 </script>
 
 <main>
-  <section class="auth">
-    {#if user}
-      <span class="user">已登入：{user.email}</span>
-      <a href="/auth/logout" class="btn">登出</a>
-    {:else}
-      <a href="/auth/login" class="btn">使用 Google 登入</a>
-    {/if}
+  <section class="head">
+    <h1>法規判決 RAG</h1>
+    <section class="auth">
+      {#if user}
+        <span class="user">已登入：{user.email}</span>
+        <a href="/auth/logout" class="btn">登出</a>
+      {:else}
+        <a href="/auth/login" class="btn">使用 Google 登入</a>
+      {/if}
+    </section>
   </section>
-
-  <h1>法規判決 RAG</h1>
 
   <section class="switcher">
     <span class="sw-label">後端：</span>
@@ -195,7 +196,9 @@
   .err { color: red; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
   textarea:disabled { background: #f5f5f5; }
-  .auth { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .head h1 { margin: 0.5rem 0; }
+  .auth { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; white-space: nowrap; }
   .btn {
     border: 1px solid #888; background: #fff; border-radius: 6px;
     padding: 0.25rem 0.75rem; cursor: pointer; text-decoration: none; color: #222;
