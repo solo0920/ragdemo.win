@@ -71,13 +71,15 @@ _KNOWN_IPS = {"100.119.83.111": "x570", "100.64.121.9": "mbp", "100.65.68.106": 
 
 
 def host_label(url: str) -> str:
-    """把服務 URL 映射成主機 id（無法辨識則回主機名稱）。"""
+    """把服務 URL 映射成主機 id（無法辨識則回本機宣告）。"""
     host = (urlparse(url).hostname or "").lower()
     if host in ("127.0.0.1", "localhost"):
         return HOST_ID
     for ip, name in _KNOWN_IPS.items():
         if ip in host:
             return name
+    if "." not in host:  # compose service 名（如 qdrant）在本機跑 → 標本機
+        return HOST_ID
     return host
 
 

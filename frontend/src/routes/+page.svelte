@@ -93,19 +93,13 @@
     return p ? `${p.host}（${u}${p.model ? '｜' + p.model : ''}）` : '-';
   }
 
-  function logText(r) {
+  function statusRows(r) {
     const ok = (id) => r.log?.[id] === '連線成功';
-    const L = ['| 終端/來源 | 狀態 |', '| :-- | :-- |'];
-    for (const id of ['x570', 'mbp', 'msi']) {
-      L.push(`| ${id} | ${ok(id) ? '✅ 連線成功' : '❌ 連線失敗'} |`);
-    }
-    L.push(`| Qdrant 檢索 | ${provName(r.src?.qdrant)} |`);
-    L.push(`| LLM 生成 | ${provName(r.src?.llm)} |`);
-    if (r.host) {
-      L.push('');
-      L.push(`由 ${r.host} 生成本次response`);
-    }
-    return L.join('\n');
+    const rows = [];
+    for (const id of ['x570', 'mbp', 'msi']) rows.push({ k: id, v: ok(id) ? '✅ 連線成功' : '❌ 連線失敗' });
+    rows.push({ k: 'Qdrant 檢索', v: provName(r.src?.qdrant) });
+    rows.push({ k: 'LLM 生成', v: provName(r.src?.llm) });
+    return rows;
   }
 
   if (typeof localStorage !== 'undefined') {
@@ -152,7 +146,17 @@
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
     <h2>連線與來源</h2>
-    <p class="ans">{logText(result)}</p>
+    <table>
+      <thead>
+        <tr><th>終端/來源</th><th>狀態</th></tr>
+      </thead>
+      <tbody>
+        {#each statusRows(result) as row}
+          <tr><td>{row.k}</td><td>{row.v}</td></tr>
+        {/each}
+      </tbody>
+    </table>
+    {#if result.host}<p class="byline">由 {result.host} 生成本次response</p>{/if}
     {#if result.ok}
       <h2>回答（{result.host}）</h2>
       <p class="ans">{result.answer}</p>
@@ -170,6 +174,10 @@
   main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
   textarea { width: 100%; }
   .ans { white-space: pre-wrap; }
+  table { border-collapse: collapse; margin: 0.5rem 0 1rem; }
+  th, td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
+  th { background: #f0f0f0; }
+  .byline { font-weight: bold; margin: 0 0 0.5rem; }
   .err { color: red; }
   .auth { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
   .btn {
