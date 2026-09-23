@@ -19,6 +19,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
 RERANK_MODEL = os.getenv("RERANK_MODEL", "qllama/bge-reranker-v2-m3:latest")
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
+HOST_ID = os.getenv("HOST_ID", "x570")
 
 SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；找不到就說找不到，不要編造。"
 
@@ -139,5 +140,6 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     hits = await search(vecs[0], limit=recall)
     top = rerank(question, hits, top_k)
     text = await generate(question, top)
+    text = f"{HOST_ID}: {text}"
     return {"answer": text, "hits": [
         {"score": h["score"], "payload": h["payload"]} for h in top]}
