@@ -145,7 +145,7 @@ tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷�
    - 目標：crontab 改用 `restart loop` 包裝（見下方範本），或改用 systemd（x570，需 sudo）
 2. **edge 連線層（cloudflared↔Cloudflare edge 長連線）**
    - 統一用 `--protocol http2`（http2 為長連線＋內建 keepalive，WSL2 上 QUIC/UDP 全 timeout，見 §http2 說明）
-   - msi ✅、mbp ✅ 已加；**x570 待確認/補上**
+   - msi ✅、mbp ✅ 已加；**x570 ✅（2026-09-23，crontab restart loop 已含 `--protocol http2`）**
 3. **origin 連線層（cloudflared↔本機 :8000 的 HTTP 連線池）**
    - `config.yml` 的 `ingress` 可用 `originRequest` 覆寫 keepalive 參數：
      `proxyTCPKeepAlive`（預設 30s）、`proxyKeepAliveConnections`（預設 100）、
@@ -156,7 +156,7 @@ tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷�
 
 | 主機 | 進程自動重啟 | `--protocol http2` | originRequest keepalive |
 |---|---|---|---|
-| x570 | crontab restart loop（或 systemd） | 加入 | 預設（不用改）|
+| x570 | crontab restart loop ✅ | ✅ | 預設 |
 | mbp | launchd KeepAlive ✅ | ✅ | 預設 |
 | msi | crontab restart loop | ✅ | 預設 |
 
