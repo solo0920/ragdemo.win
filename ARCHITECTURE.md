@@ -112,6 +112,17 @@ QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 `rag.py _pick()`：依序試候選，首個通連者快取；連線錯誤自動降級下一個。
 → x570 在線用 x570（最新）；離線自動切本機（快照資料），query 不中斷。
 
+### 外出 demo 模式（2026-09-23 定案：零改造）
+
+把「x570 斷線」當常態：帶出門時 x570 在家離線，**mbp 自動扮演主力**，msi 當備援。
+不需 Docker、不需改架構——沿用現有自動 failover：
+- worker 自動模式依 x570→mbp→msi 探測，x570 離線自然落到 **mbp**（本機全棧：
+  api＋qdrant＋qwen3:14b＋bge-m3 都經 launchd 管理，見 keepalive 規範）
+- 僅 mbp 也掛時才落 msi（本機 qwen3:8b＋qdrant）
+- **出發前必做**：mbp 上跑 `bash scripts/sync-snapshot.sh`（預設 x570→mbp 本機），
+  確認 `laws` points_count 為最新——外出後 x570 不在線，快照只有行前能補
+  （詳見 ROADMAP §4.6）
+
 ### pg / registry 的定位
 - `POSTGRES_DSN` 只指 x570：心跳寫 `backends` 表、`GET /hosts` 讀表。
 - 心跳時自動清掉超過 `REGISTRY_STALE_MIN`（預設 3 分鐘）未報到的 host row

@@ -465,6 +465,21 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   （每 30s 冪等檢查，WSL 重啟/崩潰自動拉起 uvicorn＋qdrant，見 ARCHITECTURE keepalive 規範）。
 - 教訓：**「隧道有在跑」≠「api 在跑」**；公網 502 先查 origin（localhost:8000）而非 tunnel。
 
+### 4.6 外出 demo 模式（2026-09-23 定案）
+
+- 原則：**出門＝當 x570 斷線**，現有自動 failover 已涵蓋、零設定：
+  開 ragdemo.win → worker 探到 x570 離線 → 自動用 **mbp**（本機 qwen3:14b＋qdrant）；
+  僅 mbp 也掛 → msi 本機 qwen3:8b 頂上（品質略降仍可 demo）。
+  不用 Docker：角色仍是單一備援主機，launchd/crontab 原生棧已達標（見 ARCHITECTURE keepalive）。
+- 出發前檢查（在 mbp）：
+  ```bash
+  bash scripts/sync-snapshot.sh                          # 同步最新 laws 到 mbp 本機
+  curl -s http://127.0.0.1:6333/collections/laws | python3 -c "import sys,json;print(json.load(sys.stdin)['result']['points_count'])"
+  curl -s http://127.0.0.1:8000/health                   # 本機 api 活著
+  ```
+- demo 驗收：前端「自動」顯示 `⦿ mbp｜qwen3:14b｜laws｜~xxxms`、來源表 mbp ✅；
+  若落 msi 表示 mbp 離線（正常降級）。
+
 ---
 
 ## 5. MB 參考：x570 主要指令
