@@ -3,9 +3,9 @@
 
   const BACKENDS = [
     { id: 'auto', label: '自動', base: '' },
-    { id: 'x570', label: 'x570 .99', base: 'http://100.119.83.111:8000' },
-    { id: 'mbp', label: 'mbp .93.85', base: 'http://100.64.121.9:8000' },
-    { id: 'msi', label: 'MSI .2', base: 'http://100.65.68.106:8000' },
+    { id: 'x570', label: 'x570', base: 'https://api-x570.ragdemo.win' },
+    { id: 'mbp', label: 'mbp', base: 'https://api-mbp.ragdemo.win' },
+    { id: 'msi', label: 'msi', base: 'https://api-msi.ragdemo.win' },
   ];
 
   let question = '';
