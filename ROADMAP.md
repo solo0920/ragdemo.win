@@ -377,6 +377,33 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
       `curl -s https://api-<host>.ragdemo.win/health` 回 `host_id`
 - [ ] **崩潰復活測試**：`kill` 掉 cloudflared，5 秒後 restart loop / launchd 自動拉回
 
+#### 接管整備與來源可追溯（2026-09-23 定案）
+
+> **Q：x570 斷聯時 msi/mbp 能否自己回應？**
+> A：RAG 資料主源在 x570（Qdrant 向量、Postgres registry、ollama）。msi/mbp 要能獨自回答，
+> 必須「自給三條件」全過：本機 ollama 有 embed(bge-m3)＋LLM、本機 qdrant 有 `laws` 資料、
+> tunnel keepalive 正常。**x570 不在，任何一台要回答 = 那台的 127.0.0.1 qdrant 要真有資料**，
+> 資料單點是 x570 的向量庫（§4.1 snapshot/restore 就是為了解這題，尚未做）。
+
+**三機自給檢查清單（各自在某機執行）**
+```bash
+# 1) 本機 ollama：embed + LLM 都要有
+curl -s 127.0.0.1:11434/api/tags | python3 -c "import sys,json;print([m['name'] for m in json.load(sys.stdin)['models']])"
+#    需要包含：bge-m3:latest、qwen3:14b（或 qwen3:4b）；缺 embedding 就是答不了
+# 2) 本機 qdrant：laws 是否真的有資料
+curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.load(sys.stdin);print('points:',d['result']['points_count'])"
+#    >0 = x570 斷聯時這台可完整回答；0/404 = 只剩「找不到」或 502
+# 3) tunnel keepalive（見上節 checklist）
+```
+
+**本次回應來源表（已上線，2026-09-23 x570）**
+- `/query` 會在回應最前面印出 md 來源表：三台連線狀態＋**本次 Qdrant 由哪台提供**＋**LLM 由哪台提供**
+  （愈來愈像「通訊簿＋履歷」可做前後對照的除錯利器）。
+- 資料流：worker `?backend=` 先探三台 → 挑台 → 該後端 `rag.py::answer()` 回傳 `src`
+  （`{qdrant:{host,url}, llm:{host,url,model}}`，URL 依 `_KNOWN_IPS` 映射成 x570/mbp/msi）→
+  worker 原封轉傳 → 前端 `+page.svelte` 的 `logText()` 組 md 表格顯示。
+- 測試：`curl -s -X POST 'https://ragdemo.win/api/query?backend=auto' ...` 回應應含 `src`。
+
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
 - `evals/questions.json` 佔位 3 題 → 擴 50 題含 `expect_case`；`hit_rate ≥ 0.8` 才進 UI。

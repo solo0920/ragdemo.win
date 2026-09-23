@@ -66,6 +66,21 @@ def active_llm_source() -> str:
     return f"{base} -> {_llm_model_for(base)}"
 
 
+# 已知三機 tailscale IP → 主機 id（供來源標註用）；127.0.0.1/localhost 視為本機。
+_KNOWN_IPS = {"100.119.83.111": "x570", "100.64.121.9": "mbp", "100.65.68.106": "msi"}
+
+
+def host_label(url: str) -> str:
+    """把服務 URL 映射成主機 id（無法辨識則回主機名稱）。"""
+    host = (urlparse(url).hostname or "").lower()
+    if host in ("127.0.0.1", "localhost"):
+        return HOST_ID
+    for ip, name in _KNOWN_IPS.items():
+        if ip in host:
+            return name
+    return host
+
+
 async def _ollama_probe(url: str) -> bool:
     """ollama 主機可用：TCP 通，且同時具備該機對應的 LLM model 與 EMBED_MODEL（避免 404）。"""
     if not await _tcp_open(url):
@@ -211,5 +226,12 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     top = rerank(question, hits, top_k)
     text = await generate(question, top)
     text = f"{HOST_ID}: {text}"
-    return {"answer": text, "hits": [
+    src = {
+        "qdrant": {"host": host_label(_bases.get("qdrant", QDRANT_URLS[0])),
+                   "url": _bases.get("qdrant", QDRANT_URLS[0])},
+        "llm": {"host": host_label(_bases.get("ollama", OLLAMA_URLS[0])),
+                "url": _bases.get("ollama", OLLAMA_URLS[0]),
+                "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
+    }
+    return {"answer": text, "src": src, "hits": [
         {"score": h["score"], "payload": h["payload"]} for h in top]}

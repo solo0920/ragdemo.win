@@ -162,7 +162,7 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
     });
     const data = await r.json();
     if (!r.ok) return json({ ok: false, host, log, detail: data.detail ?? `後端錯誤 ${r.status}` });
-    return json({ ok: true, host, log, answer: data.answer, hits: data.hits });
+    return json({ ok: true, host, log, answer: data.answer, hits: data.hits, src: data.src ?? null });
   } catch (e) {
     return json({ ok: false, host, log, detail: `轉發失敗：${(e as Error).message}` });
   }

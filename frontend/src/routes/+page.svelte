@@ -88,9 +88,19 @@
     }
   }
 
+  function provName(p) {
+    const u = (p?.url || '').replace(/^https?:\/\//, '');
+    return p ? `${p.host}（${u}${p.model ? '｜' + p.model : ''}）` : '-';
+  }
+
   function logText(r) {
-    const L = [];
-    for (const id of ['x570', 'mbp', 'msi']) L.push(`${id}: ${r.log?.[id] ?? '-'}`);
+    const ok = (id) => r.log?.[id] === '連線成功';
+    const L = ['| 終端/來源 | 狀態 |', '| :-- | :-- |'];
+    for (const id of ['x570', 'mbp', 'msi']) {
+      L.push(`| ${id} | ${ok(id) ? '✅ 連線成功' : '❌ 連線失敗'} |`);
+    }
+    L.push(`| Qdrant 檢索 | ${provName(r.src?.qdrant)} |`);
+    L.push(`| LLM 生成 | ${provName(r.src?.llm)} |`);
     if (r.host) {
       L.push('');
       L.push(`由 ${r.host} 生成本次response`);
@@ -141,7 +151,7 @@
   </button>
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
-    <h2>連線狀態</h2>
+    <h2>連線與來源</h2>
     <p class="ans">{logText(result)}</p>
     {#if result.ok}
       <h2>回答（{result.host}）</h2>
