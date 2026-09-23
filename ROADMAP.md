@@ -235,12 +235,63 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
     `GOOGLE_CLIENT_SECRET`、`SESSION_SECRET`（wrangler `pages secret put`）。
   - `/api/ingest`、`/api/eval` 由 worker 擋 Google 登入（401）；`/api/query` 公網放行。
   - **待辦（2026-09-23 交接）**：
-    1. hostname 已從 `api-linux` 統一改名 `api-x570`（主機命名準則，見 ARCHITECTURE「主機命名」）。
-       需重跑：改 `~/.cloudflared/config.yml` ingress → dashboard/DNS CNAME 改名 → Pages
-       `API_ORIGIN` 更新 → 重啟 `cloudflared tunnel run ragdemo-x570`。
-    2. tunnel 目前手動啟動（setsid nohup），已 Down（dashboard 0 replicas，1033）；
-       補 systemd 自動啟動＋KeepAlive（`cloudflared service install`）一勞永逸。
-    3. 憑證（credentials json）勿外洩。
+  1. hostname 已從 `api-linux` 統一改名 `api-x570`（主機命名準則，見 ARCHITECTURE「主機命名」）。
+  2. tunnel 目前手動啟動（setsid nohup），已 Down（dashboard 0 replicas，1033）；
+     補 systemd 自動啟動＋KeepAlive（`cloudflared service install`）一勞永逸。
+  3. 憑證（credentials json）勿外洩。
+
+#### x570 tunnel 修復＋改名 checklist（x570 opencode 照此執行）
+
+```bash
+# 0) 前置驗證（你必須在 x570 上，且有 git 權限）
+cd ~/ragdemo && git pull origin main
+# 若你看到的 config 仍是 api-linux → 本 checklist 適用；若已是 api-x570 → 跳過改名步驟
+
+# 1) 確認 cloudflared binary 與 tunnel id
+~/.local/bin/cloudflared tunnel list | grep ragdemo-x570   # 應列 id 6539736a-…
+ls ~/.cloudflared/                                        # 應有 config.yml + <id>.json
+
+# 2) 改 config ingress hostname：api-linux → api-x570（勿動 service/tunnel 欄位）
+sed -i 's/api-linux\.ragdemo\.win/api-x570.ragdemo.win/g' ~/.cloudflared/config.yml
+grep hostname ~/.cloudflared/config.yml   # 應只剩 api-x570.ragdemo.win
+
+# 3) DNS 改名（在 x570 已認證 cloudflared 的情況下；否則請使用者在 dashboard 改）
+~/.local/bin/cloudflared tunnel route dns ragdemo-x570 api-x570.ragdemo.win
+#   驗證： dig +short CNAME api-x570.ragdemo.win → 應回 <tunnel-id>.cfargotunnel.com
+#   舊記錄 api-linux 可留（指到同一 tunnel）或刪除——避免誤連先不管
+
+# 4) 更新 Pages secret API_ORIGIN（x570 已用 wrangler 認證過)
+npx wrangler pages secret put API_ORIGIN --project-name ragdemo-win
+#   輸入 https://api-x570.ragdemo.win
+
+# 5) 設開機自動啟動（systemd，取代手動 setsid nohup → 根治 Down）
+sudo ~/.local/bin/cloudflared service install      # 用憑證建 systemd unit（會 prompt 路徑）
+#   或手動 unit（若 service install 不支援本地型）：
+#   sudo tee /etc/systemd/system/cloudflared-ragdemo.service >/dev/null <<'EOF'
+#   [Unit]
+#   Description=Cloudflare Tunnel ragdemo-x570
+#   After=network-online.target
+#   Wants=network-online.target
+#   [Service]
+#   ExecStart=/home/<user>/.local/bin/cloudflared tunnel --config /home/<user>/.cloudflared/config.yml run ragdemo-x570
+#   Restart=always
+#   RestartSec=5
+#   [Install]
+#   WantedBy=multi-user.target
+#   EOF
+#   sudo systemctl daemon-reload && sudo systemctl enable --now cloudflared-ragdemo
+#   （principal 記得把 /home/<user> 換成實際路徑）
+
+# 6) 驗證
+systemctl status cloudflared-ragdemo --no-pager | head -8     # active (running)
+curl -s https://api-x570.ragdemo.win/health                    # 回 host_id=x570 即完成
+curl -s https://ragdemo.win/api/health                         # 回 x570 health = Pages 鏈路 OK
+
+# 7) 更新本段 ROADMAP：把「待辦 1-2」標記完成，commit 前綴用 x570:
+```
+> **分工註記（2026-09-23）**：tunnel 各機管各機——x570 管 `api-x570`、mbp 管 `api-mbp`、
+> msi 管 `api-msi`（名稱已定，實體待建）。Dashboard 層（建 tunnel/DNS）只有使用者能操作；
+> opencode 負責各自機器上的 cloudflared 安裝、config、自動啟動與驗證。
 
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
