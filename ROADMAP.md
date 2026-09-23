@@ -228,17 +228,16 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ### 4.3 公網接手（Cloudflare）
 - 一台 tunnel（放 x570）指三個 hostname：api-x570/api-mbp/api-msi.ragdemo.win → 各機 8000。
 - Worker `+server.ts` 加 `?backend=` 白名單路由，Pages 設 `API_ORIGIN`＋`nodejs_compat`。
-- **已完成（2026-09-22，x570）**：
+- **已完成（2026-09-22~23，x570）**：
   - 本地型 tunnel `ragdemo-x570`（id 6539736a-...）＋DNS `api-x570.ragdemo.win` → `http://localhost:8000`；
     config 在 `~/.cloudflared/config.yml`，binary 在 `~/.local/bin/cloudflared`。
   - Pages production 已設：`API_ORIGIN=https://api-x570.ragdemo.win`、`GOOGLE_CLIENT_ID`、
     `GOOGLE_CLIENT_SECRET`、`SESSION_SECRET`（wrangler `pages secret put`）。
   - `/api/ingest`、`/api/eval` 由 worker 擋 Google 登入（401）；`/api/query` 公網放行。
-  - **待辦（2026-09-23 交接）**：
-  1. hostname 已從 `api-linux` 統一改名 `api-x570`（主機命名準則，見 ARCHITECTURE「主機命名」）。
-  2. tunnel 目前手動啟動（setsid nohup），已 Down（dashboard 0 replicas，1033）；
-     補 systemd 自動啟動＋KeepAlive（`cloudflared service install`）一勞永逸。
-  3. 憑證（credentials json）勿外洩。
+  - **開機自啟（2026-09-23）**：crontab `@reboot` 已掛（免 sudo）：
+    `@reboot setsid ~/.local/bin/cloudflared tunnel --config ~/.cloudflared/config.yml run ragdemo-x570`
+    （原手動 setsid nohup 已停用；若要改 systemd，unit 範本見交接清單註解，sudo 執行後關掉 crontab 即可）
+  - 憑證（credentials json）勿外洩。
 
 #### x570 tunnel 修復＋改名 checklist（x570 opencode 照此執行）
 
