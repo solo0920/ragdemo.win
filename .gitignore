@@ -10,3 +10,5 @@ __pycache__/
 .uvicorn.pid
 dist/
 .wrangler/
+data/laws/*
+!data/laws/.gitkeep

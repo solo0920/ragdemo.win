@@ -488,6 +488,22 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - demo 驗收：前端「自動」顯示 `⦿ mbp｜qwen3:14b｜laws｜~xxxms`、來源表 mbp ✅；
   若落 msi 表示 mbp 離線（正常降級）。
 
+### 4.7 法規全量數據管線（law.moj.gov.tw，2026-09-23 定案）
+- 資料源：`https://law.moj.gov.tw/api/ch/law/json`（帶 UA；回傳其實是 ZIP）。2026-09-11 版
+  ＝**1347 部**（憲法9＋法律1338）、條文 **47,281**（另 4,062 章節標題）；已廢止 322、刪除條文 1,019。
+- 落點：`data/laws/`（`laws.json`=原始 ZIP、`ChLaw.json`、`manifest.csv`、`schema.csv`；
+  `laws_flat.jsonl`、`laws_flat.parquet`＝條目扁平＋備份；`laws_meta.jsonl/.parquet`＝法規層）。
+  原始與 parquet/json 進 .gitignore，腳本進版控。
+- 清洗規則與 Qdrant/PG 策略：**`ingest/laws/DESIGN.md`**（已寫）＋腳本：
+  `ingest/laws/normalize.py`（stdlib 清洗→JSONL）、`ingest/laws/eda.py`（duckdb 分析→parquet）。
+- duckdb 筆記：本機 pypi/github 下大檔極慢，建 venv 後用清華鏡像秒裝：
+  `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple duckdb pandas`。
+- 重點分析結論：條文中位數 79 字、p99 638、僅 4 則 >3000 字→**一條一向量**為主；
+  bge-m3 是 hybrid 模型 → Qdrant `dense+sparse` 雙向量＋RRF fusion，條號/專有名詞精準；
+  payload 帶 `pcode/law_name/article_seq/article_no/chapter/is_repealed/is_abandoned/category`。
+- 待辦：PG `law/article/law_import` DDL 落庫（content_hash 增量）＋Qdrant 重建（加 sparse）
+  ＋全量 ingest＋評測（見 DESIGN §5）。
+
 ---
 
 ## 5. MB 參考：x570 主要指令
