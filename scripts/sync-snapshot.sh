@@ -55,12 +55,17 @@ else
 fi
 log "downloaded $SNAP_NAME ($SZ bytes, src_pts=$SRC_PTS)"
 
-# 5) 本機：刪舊 → 重建 → 上傳還原
+# 5) 本機：刪舊 → 重建（沿用來源 collection config，dense+sparse 相容）→ 上傳還原
+#    註：2026-09-24 前硬編碼 {"vectors":{"size":1024,"distance":"Cosine"}}；x570 改成
+#    named dense+sparse 後 snapshot 相容性檢查失敗（restore upload failed），故改抓來源 config。
+SRC_CFG="$(curl -sf -m 10 "$SOURCE/collections/$COLLECTION" \
+  | python3 -c 'import sys,json; p=json.load(sys.stdin)["result"]["config"]["params"]; print(json.dumps({"vectors":p.get("vectors"),"sparse_vectors":p.get("sparse_vectors")}))' 2>/dev/null)"
+[ -n "$SRC_CFG" ] || SRC_CFG='{"vectors":{"size":1024,"distance":"Cosine"}}'
 curl -sf -m 30 -X DELETE "$DEST/collections/$COLLECTION" >/dev/null 2>&1 \
   && log "deleted local $COLLECTION" || log "delete local: (原本不存在或失敗)"
 curl -sf -m 30 -X PUT "$DEST/collections/$COLLECTION" \
   -H 'content-type: application/json' \
-  -d '{"vectors":{"size":1024,"distance":"Cosine"}}' >/dev/null \
+  -d "$SRC_CFG" >/dev/null \
   || { log "create local collection failed"; rm -f "$TMP"; exit 1; }
 curl -sf -m 120 -X POST -F "snapshot=@$TMP" \
   "$DEST/collections/$COLLECTION/snapshots/upload?priority=snapshot" >/dev/null \

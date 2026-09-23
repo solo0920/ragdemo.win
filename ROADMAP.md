@@ -517,6 +517,10 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   前端引用改為「**機率｜法名+條號｜款位｜內容**」。
 - **評測：`/eval` hit_rate=1.0（14/14 real questions，expect_law 比對）**，公網 ragdemo.win 全通。
 - 舊 demo 3 點備份 `laws_demo_backup`；後續：判決語料、msi/mbp 同步（見 DESIGN §5）。
+- **msi 同步修復（2026-09-24，commit 後 mbp 需 pull 同步使用）**：`laws` 改 named dense+sparse
+  後，`sync-snapshot.sh` 用舊單向量 config 重建本機 → snapshot 相容性失敗（`restore upload failed`
+  → 本機 0 點，備援失效）。修法＝重建前抓來源 collection config（`vectors`＋`sparse_vectors`）
+  沿用；msi 已還原 39,879 點並以「x570 離線」模式實測本機 hybrid 檢索正常（條號題 top1 民法259）。
 
 ### 4.8 登入管制＋前端 UI（2026-09-24 定案，x570）
 - **`/api/query` 需 Google 登入（commit 669966b）**：Pages worker `+server.ts` 的 `SENSITIVE`
