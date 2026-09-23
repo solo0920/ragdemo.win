@@ -162,6 +162,7 @@
                 {/each}
               </tbody>
             </table>
+            {#if result.host}<p class="byline">由 {result.host} 生成本次response</p>{/if}
           </div>
         {/if}
       </div>
@@ -177,7 +178,6 @@
   </button>
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
-    {#if result.host}<p class="byline">由 {result.host} 生成本次response</p>{/if}
     {#if result.ok}
       <h2>回答（{result.host}）</h2>
       <p class="ans">{result.answer}</p>
@@ -206,6 +206,7 @@
   .sc { font-weight: bold; color: #b01; }
   .tx { color: #444; }
   .byline { font-weight: bold; margin: 0 0 0.5rem; }
+  .info-pop .byline { margin: 0.5rem 0 0; font-size: 0.85rem; }
   .err { color: red; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
   textarea:disabled { background: #f5f5f5; }
