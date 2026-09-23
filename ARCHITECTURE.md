@@ -102,6 +102,10 @@ scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 
 
 - **資料一致性**：備援資料等同 x570 快照當下；快照很小（3 筆≈174KB、500~1000 筆≈10–60MB，
   zstd 壓縮），同步成本低。
+- **快照還原（2026-09-24 修正）**：laws 改 dense+sparse 雙向量後，sync-snapshot.sh 原本
+  「先建 dense-only collection 再上傳」會 400 mismatch；改為**刪本機後直接上傳**
+  （`priority=snapshot` 用快照內建設定重建，含 sparse）；清 x570 舊快照移至下載後，失敗不累積。
+  三台 pull 即得新版，MSI 比照。
 - **脆弱點**：x570 離線期間新增的資料不會自動出現在備援（下一個快照週期才補上）——
   可接受，檢索能力仍一致。
 

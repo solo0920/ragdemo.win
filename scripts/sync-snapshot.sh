@@ -55,19 +55,21 @@ else
 fi
 log "downloaded $SNAP_NAME ($SZ bytes, src_pts=$SRC_PTS)"
 
-# 5) 本機：刪舊 → 重建（沿用來源 collection config，dense+sparse 相容）→ 上傳還原
-#    註：2026-09-24 前硬編碼 {"vectors":{"size":1024,"distance":"Cosine"}}；x570 改成
-#    named dense+sparse 後 snapshot 相容性檢查失敗（restore upload failed），故改抓來源 config。
-SRC_CFG="$(curl -sf -m 10 "$SOURCE/collections/$COLLECTION" \
-  | python3 -c 'import sys,json; p=json.load(sys.stdin)["result"]["config"]["params"]; print(json.dumps({"vectors":p.get("vectors"),"sparse_vectors":p.get("sparse_vectors")}))' 2>/dev/null)"
-[ -n "$SRC_CFG" ] || SRC_CFG='{"vectors":{"size":1024,"distance":"Cosine"}}'
+# 4b) 順手清 x570 其他快照（只留剛下載的這份）——即使後續 restore 失敗也不累積
+OLD="$(curl -sf -m 10 "$SOURCE/collections/$COLLECTION/snapshots" \
+  | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin)['result'] if s['name'] != '$SNAP_NAME']" 2>/dev/null)"
+if [ -n "$OLD" ]; then
+  while IFS= read -r n; do
+    curl -sf -m 30 -X DELETE "$SOURCE/collections/$COLLECTION/snapshots/$n" >/dev/null 2>&1 && log "cleaned remote snapshot $n"
+  done <<<"$OLD"
+fi
+
+# 5) 本機：刪舊 → 直接上傳還原（不預建 collection！快照含 dense+sparse 雙向量，
+#    priority=snapshot 會以快照內建設定重建 collection；2026-09-24 前預建的
+#    dense-only config 反而 400 config mismatch → 本機 0 點）
 curl -sf -m 30 -X DELETE "$DEST/collections/$COLLECTION" >/dev/null 2>&1 \
   && log "deleted local $COLLECTION" || log "delete local: (原本不存在或失敗)"
-curl -sf -m 30 -X PUT "$DEST/collections/$COLLECTION" \
-  -H 'content-type: application/json' \
-  -d "$SRC_CFG" >/dev/null \
-  || { log "create local collection failed"; rm -f "$TMP"; exit 1; }
-curl -sf -m 120 -X POST -F "snapshot=@$TMP" \
+curl -sf -m 180 -X POST -F "snapshot=@$TMP" \
   "$DEST/collections/$COLLECTION/snapshots/upload?priority=snapshot" >/dev/null \
   || { log "restore upload failed"; rm -f "$TMP"; exit 1; }
 
@@ -76,14 +78,6 @@ DST_PTS="$(pts_of "$DEST" "$COLLECTION")"
 if [ "$SRC_PTS" = "$DST_PTS" ] && [ "$SRC_PTS" != "-1" ] && [ "$DST_PTS" != "-1" ]; then
   echo "$SRC_PTS $SNAP_NAME" >"$STATE"
   log "SYNC OK: $SNAP_NAME (${DST_PTS} points) local=$DEST ready"
-  # 清理 x570 舊快照，只留最新（避免無限累積）
-  OLD="$(curl -sf -m 10 "$SOURCE/collections/$COLLECTION/snapshots" \
-    | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin)['result'] if s['name'] != '$SNAP_NAME']" 2>/dev/null)"
-  if [ -n "$OLD" ]; then
-    while IFS= read -r n; do
-      curl -sf -m 30 -X DELETE "$SOURCE/collections/$COLLECTION/snapshots/$n" >/dev/null 2>&1 && log "cleaned remote snapshot $n"
-    done <<<"$OLD"
-  fi
   rm -f "$TMP"
   exit 0
 else
