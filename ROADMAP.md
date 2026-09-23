@@ -336,6 +336,19 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 # 8) 不 push API_ORIGIN（Pages 仍指 x570）；接管時才改 Pages API_ORIGIN 或前端 ?backend=
 ```
 
+**已完成（msi，2026-09-23，commit 前綴 msi:）**：
+- cloudflared 2026.9.1 放 WSL 內 `~/.local/bin/cloudflared`；tunnel `ragdemo-msi`
+  （id `c2280387-c2b7-484f-ab8e-691534516db4`）＋ DNS `api-msi.ragdemo.win` → `http://localhost:8000`。
+- `~/.cloudflared/config.yml`：ingress `api-msi.ragdemo.win` → `http://localhost:8000` + 404 fallback。
+- 開機自啟：crontab `@reboot` 已掛（**用絕對路徑＋`--protocol http2`**，見下方心得）。
+- 驗證：`curl https://api-msi.ragdemo.win/health` → 回 `host_id=msi`；dashboard Connections 2x。
+
+**實戰心得（2026-09-23，msi）**：
+- WSL2 的 UDP/QUIC 連 edge 會 timeout（所有 edge 失敗、1033）→ **必須加 `--protocol http2`**
+  （precheck 也是降級建議 http2）。已寫進 @reboot。
+- crontab 環境**不展開 `~`** → @reboot 用 `/bin/bash -lc "... 絕對路徑 ..."` 包起來。
+- mbp 是 macOS（可 QUIC），但仍建議同樣加 `--protocol http2` 以穩定。
+
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
 - `evals/questions.json` 佔位 3 題 → 擴 50 題含 `expect_case`；`hit_rate ≥ 0.8` 才進 UI。
