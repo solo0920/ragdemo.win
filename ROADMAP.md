@@ -447,6 +447,24 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   是**資料量問題，非系統故障**；擴 500~1000 筆精選後自然改善（見 §4.4）。
 - 排查：`/collections/laws/points/scroll` 看實際筆數與摘要，勿直接歸咎模型選擇。
 
+**特殊狀況：msi 公網 502 → 前端「✗ Failed to fetch／所有後端皆無法連線」**
+- 現象（2026-09-23）：前端「連線與來源」顯示 x570 ✅／mbp ✅／**msi ❌**，選 msi 即「所有後端皆
+  無法連線」；但 x570/mbp 都正常，看似無理。
+- 原因：**msi 的 uvicorn（WSL 內）已死**——log 末行 `INFO: Shutting down`（WSL 重啟時被收掉）。
+  WSL 重啟後 crontab `@reboot` 只拉起 cloudflared（tunnel 有在跑），**api 沒有 keepalive**，
+  靠「Windows 登入 startup」才啟動 → WSL 重啟不觸發 → 本機 8000 無 listener →
+  tunnel 轉發得到 502 → worker 探測失敗。是**進程層缺口，非連線/模型問題**。
+- 排查指令（在該機）：
+  ```bash
+  ps aux | grep [u]vicorn                      # 空 = uvicorn 掛了
+  curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health   # 000 = 沒在聽
+  curl -s -o /dev/null -w '%{http_code}' https://api-msi.ragdemo.win/health  # 502 = tunnel 通但 origin 死
+  tail -5 backend/uvicorn.log                  # 末行 Shutting down = WSL 重啟收掉，非崩潰
+  ```
+- 修復（2026-09-23 已做）：msi crontab 新增 `restart loop` 包 `backend/start-msi.sh`
+  （每 30s 冪等檢查，WSL 重啟/崩潰自動拉起 uvicorn＋qdrant，見 ARCHITECTURE keepalive 規範）。
+- 教訓：**「隧道有在跑」≠「api 在跑」**；公網 502 先查 origin（localhost:8000）而非 tunnel。
+
 ---
 
 ## 5. MB 參考：x570 主要指令

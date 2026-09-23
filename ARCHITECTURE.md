@@ -142,10 +142,14 @@ tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷�
 
 ### keepalive 三層（缺一不可）
 
-1. **進程層（tunnel 崩潰自動重啟）**——最關鍵
-   - mbp：launchd `com.ragdemo.tunnel`（`KeepAlive=true`，崩潰自動拉起）✅ 已達標
-   - msi / x570：目前只有 crontab `@reboot`，**只開機起一次，進程崩潰不會自動復活** ❌
-   - 目標：crontab 改用 `restart loop` 包裝（見下方範本），或改用 systemd（x570，需 sudo）
+1. **進程層（服務崩潰自動重啟）**——最關鍵
+   - **tunnel**：mbp launchd `com.ragdemo.tunnel`（`KeepAlive=true`）✅；
+     msi / x570 用 crontab `restart loop`（崩潰每 5s 自動重拉）✅
+   - **api（uvicorn ＋ qdrant）**：2026-09-23 起 **msi 用 crontab `restart loop` 包
+     `backend/start-msi.sh`**（每 30s 檢查，WSL 重啟／崩潰自動拉起，公網不再 502；
+     起因與診斷見 ROADMAP §4.5）。x570 的 api 在 docker compose（須確認 restart policy）
+   - 重點：只靠「Windows 登入 startup」不夠——WSL 重啟不會觸發，會像 2026-09-23
+     msi 那樣 api 死透、公網 502、前端「Failed to fetch／所有後端皆無法連線」
 2. **edge 連線層（cloudflared↔Cloudflare edge 長連線）**
    - 統一用 `--protocol http2`（http2 為長連線＋內建 keepalive，WSL2 上 QUIC/UDP 全 timeout，見 §http2 說明）
    - msi ✅、mbp ✅ 已加；**x570 ✅（2026-09-23，crontab restart loop 已含 `--protocol http2`）**
@@ -161,13 +165,16 @@ tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷�
 |---|---|---|---|
 | x570 | crontab restart loop ✅ | ✅ | 預設 |
 | mbp | launchd KeepAlive ✅ | ✅ | 預設 |
-| msi | crontab restart loop | ✅ | 預設 |
+| msi | crontab restart loop ✅（tunnel 5s＋api/qdrant 30s） | ✅ | 預設 |
 
 ### crontab restart loop 範本（msi / x570）
 
 ```bash
-# 取代原本 @reboot 單次啟動：崩潰後每 5 秒自動重拉
+# 取代原本 @reboot 單次啟動：崩潰後每 5 秒自動重拉（tunnel）
 @reboot /bin/bash -lc 'while true; do /home/solo/.local/bin/cloudflared tunnel --protocol http2 --config /home/solo/.cloudflared/config.yml run ragdemo-<host> >> /tmp/cfd.log 2>&1; echo "[tunnel] exit $? at $(date)" >> /tmp/cfd.log; sleep 5; done' &
+
+# api（uvicorn＋qdrant）進程層（msi 2026-09-23 起）：每 30s 冪等檢查，WSL 重啟/崩潰自動拉起
+@reboot /bin/bash -lc 'while true; do bash /home/solo/projects/ragdemo.win/backend/start-msi.sh; sleep 30; done >> /home/solo/projects/ragdemo.win/backend/uvicorn.log 2>&1' &
 ```
 
 > 注意：crontab 不展開 `~`，一律用絕對路徑；`setsid` 讓它脫離終端，`&` 避免 crontab 等待。
