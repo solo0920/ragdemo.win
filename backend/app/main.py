@@ -61,6 +61,7 @@ async def health():
         "ok": True,
         "collection": rag.COLLECTION,
         "llm": rag.LLM_MODEL,
+        "llm_src": rag.active_llm_source(),
         "host_id": registry.HOST_ID,
         "hostname": registry._my_hostname(),
         "machine_id": registry._system_id(),

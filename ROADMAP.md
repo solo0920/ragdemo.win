@@ -55,8 +55,11 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 
 - `backend/app/registry.py`：`backends` 表記錄每台硬體身分（hostname/machine_id/mac/ips）＋
   ollama 模型清單（心跳每 30s 自報），`GET /hosts` 可查全員。
-- `rag.py`：`OLLAMA_URLS`/`QDRANT_URLS` 候選清單（逗號分隔，前者優先），首位通連者快取，
-  連線錯誤自動降級到下一個；新增 `local_models()`。
+- `rag.py`：`OLLAMA_URLS`/`QDRANT_URLS` 候選清單（逗號分隔，前者優先），
+  `_pick()` 選「優先權最高且可用（TCP＋模型齊備）」者快取，連線錯誤 / model 404 自動降級，
+  過 `PICK_TTL`（30s）重掃，高位主機回復自動切回；新增 `local_models()`。
+- LLM model 依選中主機而定：`OLLAMA_MODELS` 與 `OLLAMA_URLS` 同順序對應
+  （如 msi：`x570/mbp=qwen3:14b, msi=qwen3:4b`），`/health` 附 `llm_src` 供診斷。
 - `main.py`：`/health` 附 host 欄位、`GET /hosts`、lifespan 內起心跳 loop。
 - compose 掛載宿主 `/etc/machine-id`、`/etc/hostname`，避免容器身分混入。
 - x570 驗證過：`/health` 回真實主機名 `solo-X570-I-AORUS-PRO-WIFI`、`/hosts` 含 4 個模型、

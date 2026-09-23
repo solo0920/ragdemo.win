@@ -1,10 +1,13 @@
 """RAG 管線：embed -> Qdrant 召回 -> rerank(預留) -> LLM 生成。
 
 服務位址一律走候選清單（OLLAMA_URLS / QDRANT_URLS），先後順序即優先權：
-首選通連者被快取，後續發生連線錯誤自動降級到下一個候選。
+- 首選「優先權最高且目前可用（TCP＋模型齊備）」者，快取一段時間（PICK_TTL）。
+- 連線錯誤 / model 404 自動降級到下一台；PICK_TTL 過期會重新掃描，率先主機回復即自動切回。
+- 每台 ollama 主機可配不同 LLM model（OLLAMA_MODELS 與 OLLAMA_URLS 同順序對應）。
 """
 import asyncio
 import os
+import time
 import uuid
 from urllib.parse import urlparse
 
@@ -16,14 +19,19 @@ QDRANT_DEFAULT = os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
 QDRANT_URLS = [u.strip().rstrip("/") for u in os.getenv("QDRANT_URLS", QDRANT_DEFAULT).split(",") if u.strip()] or [QDRANT_DEFAULT]
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
+# OLLAMA_MODELS：與 OLLAMA_URLS 同順序的 LLM model 清單；未設則全部用 LLM_MODEL。
+OLLAMA_MODELS = [m.strip() for m in os.getenv("OLLAMA_MODELS", LLM_MODEL).split(",") if m.strip()] or [LLM_MODEL]
 RERANK_MODEL = os.getenv("RERANK_MODEL", "qllama/bge-reranker-v2-m3:latest")
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
+# 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
+PICK_TTL = float(os.getenv("PICK_TTL", "30"))
 
 SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；找不到就說找不到，不要編造。"
 
 _bases: dict[str, str] = {}
+_base_ts: dict[str, float] = {}
 _base_lock = asyncio.Lock()
 
 
@@ -41,39 +49,88 @@ async def _tcp_open(url: str, timeout: float = 2.0) -> bool:
         return False
 
 
-async def _pick(kind: str, candidates: list[str]) -> str:
-    if kind in _bases:
-        return _bases[kind]
+def _llm_model_for(url: str) -> str:
+    """該 ollama 主機對應的 LLM model（OLLAMA_MODELS 與 OLLAMA_URLS 同順序）。"""
+    try:
+        i = OLLAMA_URLS.index(url)
+        return OLLAMA_MODELS[i] if i < len(OLLAMA_MODELS) else LLM_MODEL
+    except ValueError:
+        return LLM_MODEL
+
+
+def active_llm_source() -> str:
+    """目前快取的 ollama 主機與其 model（未 pick 前回本機宣告）。"""
+    base = _bases.get("ollama")
+    if not base:
+        return f"{OLLAMA_URLS[0]} -> {_llm_model_for(OLLAMA_URLS[0])}"
+    return f"{base} -> {_llm_model_for(base)}"
+
+
+async def _ollama_probe(url: str) -> bool:
+    """ollama 主機可用：TCP 通，且同時具備該機對應的 LLM model 與 EMBED_MODEL（避免 404）。"""
+    if not await _tcp_open(url):
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=5) as c:
+            r = await c.get(f"{url}/api/tags")
+        r.raise_for_status()
+        have = {m["name"] for m in r.json().get("models", [])}
+        need = {_llm_model_for(url), EMBED_MODEL}
+        return need <= have
+    except Exception:
+        return False
+
+
+async def _pick(kind: str, candidates: list[str], probe=None) -> str:
+    """依優先權選取可用主機：快取新鮮（PICK_TTL 內）直接用；過期重新掃描，
+    先位主機回復即自動切回。全部不通時退回候選首位（由 _req 依錯誤降級）。"""
+    now = time.monotonic()
+    cur = _bases.get(kind)
+    if cur and now - _base_ts.get(kind, 0) < PICK_TTL:
+        return cur
     async with _base_lock:
-        if kind in _bases:
-            return _bases[kind]
+        cur = _bases.get(kind)
+        if cur and now - _base_ts.get(kind, 0) < PICK_TTL:
+            return cur
         for url in candidates:
-            if await _tcp_open(url):
+            ok = await _tcp_open(url)
+            if ok and probe is not None:
+                ok = await probe(url)
+            if ok:
                 _bases[kind] = url
+                _base_ts[kind] = now
                 return url
     _bases[kind] = candidates[0]
+    _base_ts[kind] = now
     return candidates[0]
 
 
 def _drop(kind: str) -> None:
     _bases.pop(kind, None)
+    _base_ts.pop(kind, None)
 
 
 async def _req(kind: str, candidates: list[str], method: str, path: str,
-               *, timeout: float = 120, **kw) -> httpx.Response:
+               *, timeout: float = 120, retry_on: tuple = (), **kw) -> httpx.Response:
+    probe = _ollama_probe if kind == "ollama" else None
     for _ in range(2):
-        base = await _pick(kind, candidates)
+        base = await _pick(kind, candidates, probe=probe)
         try:
             async with httpx.AsyncClient(timeout=timeout) as c:
-                return await getattr(c, method)(f"{base}{path}", **kw)
+                r = await getattr(c, method)(f"{base}{path}", **kw)
         except (httpx.ConnectError, httpx.ConnectTimeout):
             _drop(kind)
+            continue
+        if r.status_code in retry_on:
+            _drop(kind)  # 例如 404 model not found → 換下一台
+            continue
+        return r
     raise httpx.ConnectError(f"{kind} unreachable")
 
 
 async def embed(texts: list[str]) -> list[list[float]]:
     r = await _req("ollama", OLLAMA_URLS, "post", "/api/embed",
-                   json={"model": EMBED_MODEL, "input": texts})
+                   json={"model": EMBED_MODEL, "input": texts}, retry_on=(404,))
     r.raise_for_status()
     return r.json()["embeddings"]
 
@@ -118,12 +175,25 @@ async def generate(question: str, contexts: list[dict]) -> str:
         for h in contexts
     )
     prompt = f"{SYSTEM}\n\n資料：\n{blocks}\n\n問題：{question}\n回答（附案號/條號）："
-    r = await _req("ollama", OLLAMA_URLS, "post", "/api/generate",
-                   json={"model": LLM_MODEL, "prompt": prompt, "stream": False,
-                         "think": False, "options": {"num_predict": 500}},
-                   timeout=300)
-    r.raise_for_status()
-    return r.json()["response"]
+    # model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應）：x570/mbp=qwen3:14b、msi=qwen3:4b。
+    # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
+    for _ in range(len(OLLAMA_URLS) + 1):
+        base = await _pick("ollama", OLLAMA_URLS, probe=_ollama_probe)
+        model = _llm_model_for(base)
+        try:
+            async with httpx.AsyncClient(timeout=300) as c:
+                r = await c.post(f"{base}/api/generate",
+                                 json={"model": model, "prompt": prompt, "stream": False,
+                                       "think": False, "options": {"num_predict": 500}})
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            _drop("ollama")
+            continue
+        if r.status_code == 404:
+            _drop("ollama")  # 該機沒有此 model → 換下一台
+            continue
+        r.raise_for_status()
+        return r.json()["response"]
+    raise httpx.ConnectError("ollama unreachable")
 
 
 async def local_models() -> list[str]:
