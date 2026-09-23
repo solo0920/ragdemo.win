@@ -54,12 +54,18 @@ is_abandoned, char_len, source=moj, updated_at, content_hash`
 ### 身分（upsert 冪等）
 `point_id = f"{pcode}-{article_seq}"`；重跑 ingest 只覆蓋內容有變的點（靠 content_hash）。
 
-## 5. 建議 ingest 流程（下一步實作）
+## 5. ingest 流程（2026-09-23 已實作、x570 上線）
 ```
 normalize.py ─→ laws_flat.jsonl ─→ eda.py（parquet 備份）
-                                  └─→ PG upsert（law/article，content_hash 比對）
-                                        └─→ 需要的新/變更條文 → bge-m3 dense+sparse
-                                             └─→ Qdrant upsert（保持 collection 名 laws）
+                                  └─→ pg_load.py（asyncpg upsert：law/article/law_import，
+                                      source_sha256+UpdateDate 審計；2.4s）
+                                  └─→ qdrant_load.py（dense(bge-m3)＋sparse(TF, modifier=idf)，
+                                      39,879 條，含條號/章節前綴進向量）
 ```
-注意：現有 `laws` collection 只有 dense 1024；要加 sparse 需「重建 collection＋重灌」，
-與 §4.4 評測一起排期（一次灌滿 5 萬點＋評測 hit_rate）。
+- **點 ID 用 unsigned int**（Qdrant 只收 u64/uuid）：`md5(f"{pcode}-{seq}[-c{i}]")[:8]`，仍是冪等。
+- **sparse indices 只收 u32**：token 用 md5 前 4 bytes（Qdrant 限制發現後修正）。
+- 超長/ASCII 膨脹文本：執行時逐筆縮短重試（`_embed_one`），直到 bge-m3 放得下。
+- **查詢端（backend/app/rag.py）已改 hybrid**：`/points/query` RRF fusion，
+  頂層 filter `is_repealed=false AND is_abandoned=false`；old/命名-only collection 自動退回舊 search。
+- 收斂結果：`/eval` **hit_rate=1.0**（14/14，expect_law 比對）；公網 ragdemo.win → api-x570 全通。
+- 舊 3 筆 demo 點備份在 `laws_demo_backup`（法令資料正式取代 demo 佔位）。

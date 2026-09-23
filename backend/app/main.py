@@ -88,18 +88,30 @@ async def query(q: Query):
 
 @app.post("/eval")
 async def evaluate():
-    """跑 evals/questions.json，回報引註命中率。"""
-    path = Path(__file__).resolve().parents[2] / "evals" / "questions.json"
+    """跑 evals/questions.json，回報引註命中率（expect_law 比對「法規名 條號」；expect_case 走路案號）。"""
+    base = Path(__file__).resolve().parents  # [1]=/app(container 內 evals 掛載), [2]=repo 根(本機)
+    path = base[1] / "evals" / "questions.json"
+    if not path.exists():
+        path = base[2] / "evals" / "questions.json"
     items = json.loads(path.read_text(encoding="utf-8"))
     hit = 0
     tested = 0
     for it in items:
-        if not it.get("expect_case"):
-            continue  # 範例佔位題跳過
+        if not (it.get("expect_law") or it.get("expect_case")):
+            continue  # 佔位題跳過
         tested += 1
         res = await rag.answer(it["q"], recall=50, top_k=5)
-        cases = [h["payload"].get("case_no", "") for h in res["hits"]]
-        if any(it["expect_case"] in c for c in cases):
+        ok = False
+        for h in res["hits"]:
+            p = h["payload"]
+            law = f"{p.get('law_name', '')} {p.get('article_no', '')}"
+            if it.get("expect_law") and it["expect_law"] in law:
+                ok = True
+                break
+            if it.get("expect_case") and it["expect_case"] in p.get("case_no", ""):
+                ok = True
+                break
+        if ok:
             hit += 1
     return {"tested": tested, "hit": hit,
             "hit_rate": round(hit / tested, 3) if tested else 0.0}

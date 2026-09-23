@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from . import sparse as _sparse
+
 logger = logging.getLogger("ragdemo")
 
 OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://100.119.83.111:11434").rstrip("/")
@@ -165,19 +167,49 @@ async def embed(texts: list[str]) -> list[list[float]]:
     return r.json()["embeddings"]
 
 
+# collection 能力偵測：有 sparse 命名向量 → 走 hybrid(RRF)；單一未命名 dense → 舊 search。
+HAS_SPARSE = False
+_HAS_NAMED = False
+# hybrid 查詢預設過濾：只找人吃得到的現行條文（demo/ingest 或 backup 舊點會被排除）
+_BASE_FILTER = {"must": [
+    {"key": "is_repealed", "match": {"value": False}},
+    {"key": "is_abandoned", "match": {"value": False}},
+]}
+
+
+async def _collection_capabilities() -> None:
+    """讀 collection 設定，記錄 HAS_SPARSE/_HAS_NAMED（供 search 選路）。"""
+    global HAS_SPARSE, _HAS_NAMED
+    try:
+        r = await _req("qdrant", QDRANT_URLS, "get", f"/collections/{COLLECTION}", timeout=30)
+        if r.status_code != 200:
+            return
+        params = r.json()["result"]["config"]["params"]
+        vectors = params.get("vectors", {})
+        _HAS_NAMED = isinstance(vectors, dict) and "size" not in vectors
+        HAS_SPARSE = bool(params.get("sparse_vectors"))
+    except Exception as e:
+        logger.warning("collection 能力偵測失敗（%s），退回舊 search", e)
+
+
 async def ensure_collection() -> None:
+    await _collection_capabilities()
     r = await _req("qdrant", QDRANT_URLS, "get", f"/collections/{COLLECTION}", timeout=30)
     if r.status_code == 200:
         return
     r = await _req("qdrant", QDRANT_URLS, "put", f"/collections/{COLLECTION}", timeout=30,
-                   json={"vectors": {"size": DIM, "distance": "Cosine"}})
+                   json={"vectors": {"dense": {"size": DIM, "distance": "Cosine"}},
+                         "sparse_vectors": {"sparse": {"modifier": "idf"}}})
     r.raise_for_status()
+    await _collection_capabilities()
 
 
 async def upsert(docs: list[dict]) -> int:
     vecs = await embed([d["text"] for d in docs])
     points = [
-        {"id": str(uuid.uuid4()), "vector": v, "payload": d}
+        {"id": str(uuid.uuid4()),
+         "vector": {"dense": v} | ({"sparse": _sparse.sparse_vector(d["text"])} if HAS_SPARSE else {}),
+         "payload": d}
         for v, d in zip(vecs, docs)
     ]
     r = await _req("qdrant", QDRANT_URLS, "put", f"/collections/{COLLECTION}/points",
@@ -186,9 +218,29 @@ async def upsert(docs: list[dict]) -> int:
     return len(points)
 
 
-async def search(vector: list[float], limit: int = 50) -> list[dict]:
+async def search(question: str, vector: list[float], limit: int = 50) -> list[dict]:
+    """召回：hybrid 用 RRF fusion（dense bge-m3＋sparse TF，頂層 filter 只吃現行條文）。"""
+    if HAS_SPARSE:
+        body = {
+            "prefetch": [
+                {"query": vector, "using": "dense", "limit": limit, "filter": _BASE_FILTER},
+                {"query": _sparse.sparse_vector(question), "using": "sparse", "limit": limit,
+                 "filter": _BASE_FILTER},
+            ],
+            "query": {"fusion": "rrf"},
+            "limit": limit,
+            "with_payload": True,
+        }
+        r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
+                       json=body, timeout=30)
+        r.raise_for_status()
+        return r.json()["result"]["points"]
+    if _HAS_NAMED:
+        body = {"vector": {"dense": vector}, "limit": limit, "with_payload": True}
+    else:
+        body = {"vector": vector, "limit": limit, "with_payload": True}
     r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/search",
-                   json={"vector": vector, "limit": limit, "with_payload": True})
+                   json=body, timeout=30)
     r.raise_for_status()
     return r.json()["result"]
 
@@ -199,11 +251,17 @@ def rerank(question: str, hits: list[dict], top_k: int = 5) -> list[dict]:
     return hits[:top_k]
 
 
+def _ref(h: dict) -> str:
+    """把 hit 渲染成可標註的引用：moj 條文有 law_name/article_no；判決/ingest 走 case_no/law。"""
+    p = h.get("payload", {})
+    if p.get("law_name"):
+        chap = f"（{p['chapter']}）" if p.get("chapter") else ""
+        return f"[法條:{p['law_name']} {p.get('article_no', '')} {chap}]"
+    return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
+
+
 async def generate(question: str, contexts: list[dict]) -> str:
-    blocks = "\n\n".join(
-        f"[案號:{h['payload'].get('case_no', '?')} 法條:{h['payload'].get('law', '?')}] {h['payload'].get('text', '')}"
-        for h in contexts
-    )
+    blocks = "\n\n".join(f"{_ref(h)} {h['payload'].get('text', '')}" for h in contexts)
     prompt = f"{SYSTEM}\n\n資料：\n{blocks}\n\n問題：{question}\n回答（附案號/條號）："
     # model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應）：x570/mbp=qwen3:14b、msi=qwen3:8b。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
@@ -267,7 +325,7 @@ async def warmup() -> None:
 
 async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     vecs = await embed([question])
-    hits = await search(vecs[0], limit=recall)
+    hits = await search(question, vecs[0], limit=recall)
     top = rerank(question, hits, top_k)
     text = await generate(question, top)
     text = f"{HOST_ID}: {text}"
