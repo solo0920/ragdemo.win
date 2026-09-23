@@ -349,6 +349,13 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 - crontab 環境**不展開 `~`** → @reboot 用 `/bin/bash -lc "... 絕對路徑 ..."` 包起來。
 - mbp 是 macOS（可 QUIC），但仍建議同樣加 `--protocol http2` 以穩定。
 
+> **已完成（2026-09-23，mbp）**：
+> - local tunnel `ragdemo-mbp`（id 2ae52a95-ed8c-4b58-84aa-20f1284d73c5）＋ DNS `api-mbp.ragdemo.win` → `http://localhost:8000`；
+>   config 在 `~/.cloudflared/config.yml`，binary 在 `~/.local/bin/cloudflared`（Apple Silicon 用 **darwin-arm64** 而非 checklist 的 amd64）。
+> - 開機自啟：mbp 的 crontab 被 macOS TCC 擋，改用 **launchd** `com.ragdemo.tunnel`（log `/tmp/cfd.log`），
+>   `--protocol http2`（採 msi 心得，穩定性優先）＋ KeepAlive，效果等同 @reboot。
+> - 驗證：`curl -s https://api-mbp.ragdemo.win/health` 回 `host_id=mbp` ✅；Pages `API_ORIGIN` 未動（仍指 x570）。
+
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
 - `evals/questions.json` 佔位 3 題 → 擴 50 題含 `expect_case`；`hit_rate ≥ 0.8` 才進 UI。
