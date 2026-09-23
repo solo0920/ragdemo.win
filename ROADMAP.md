@@ -382,6 +382,33 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 - `evals/questions.json` 佔位 3 題 → 擴 50 題含 `expect_case`；`hit_rate ≥ 0.8` 才進 UI。
 - 判決注意個資去識別化，回答僅供參考非法律意見。
 
+### 4.5 Troubleshooting（2026-09-23 實測紀錄）
+
+**特殊狀況：拔線但主機仍可達（x570 自動改走 Wi-Fi）**
+- 現象：人工拔 x570 網路線後，前端「自動」仍顯示 `⦿ x570｜qwen3:14b`，或查詢結果「明顯不對」。
+- 原因：x570 除 LAN 外另有 **Wi-Fi / tailscale direct** 路徑——拔 LAN 線後自動改用 Wi-Fi，
+  cloudflared 連 edge 沒斷，`api-x570` 實測連續 5 次 HTTP 200；tailscale ping `direct 2ms`。
+  自動模式依 x570→mbp→msi 探測看到「x570 活著」就選它，**符合設計，不是 bug**。
+- 判定離線的方法（在 msi）：
+  ```bash
+  # 1) tailscale 連線方式：direct=真通；relay=殘存
+  /c/Program\ Files/Tailscale/tailscale.exe ping -c 2 x570
+  # 2) 公網連續探測（HTTP 000/530 才算斷）
+  for i in 1 2 3; do curl -s -m 12 -o /dev/null -w "try$i: HTTP %{http_code}\n" https://api-x570.ragdemo.win/health; done
+  # 3) worker 自動模式實際選中誰
+  curl -s https://ragdemo.win/api/health
+  ```
+- 驗證（2026-09-23）：關閉分享器後 x570 才真正離線 → 自動模式正確跳 `mbp`（`⦿ mbp｜qwen3:14b｜715ms`）。
+- 教訓：**「拔線」≠「離線」**；排查時先確認目標機的實際網路路徑（LAN/Wi-Fi/tailscale），
+  勿以單次 HTTP 000 或直覺判定主機死亡。
+
+**特殊狀況：資料庫只有 3 筆 demo → /query 回「找不到，不要編造」**
+- 現象：問「欠薪/勞基法」，回答「找不到，不要編造」，但引用列出刑法271/民法259/判決123。
+- 原因：`laws` collection 目前僅 3 筆 demo（刑法271、民法259、判決123，x570/本機一致），
+  無勞基法內容 → 召回只撈得出這 3 筆（score 0.28~0.34 低分）→ LLM 誠實拒答。
+  是**資料量問題，非系統故障**；擴 500~1000 筆精選後自然改善（見 §4.4）。
+- 排查：`/collections/laws/points/scroll` 看實際筆數與摘要，勿直接歸咎模型選擇。
+
 ---
 
 ## 5. MB 參考：x570 主要指令
