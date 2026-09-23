@@ -131,6 +131,65 @@ QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 * 8000 api（x570 docker compose＋mbp＋MSI WSL） / 6333 qdrant（x570＋MSI 本機備援） /
   5432 postgres（x570 only） / 5173 前端 dev / 11434 ollama（各機 native）
 
+## 公網接手（Cloudflare tunnel keepalive 規範，2026-09-23 定案）
+
+三台各自一條 local tunnel（`ragdemo-x570`/`ragdemo-mbp`/`ragdemo-msi`），
+公網 hostname `api-x570`/`api-mbp`/`api-msi.ragdemo.win` → 各機 `http://localhost:8000`。
+tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷線不會自己回來。
+
+### keepalive 三層（缺一不可）
+
+1. **進程層（tunnel 崩潰自動重啟）**——最關鍵
+   - mbp：launchd `com.ragdemo.tunnel`（`KeepAlive=true`，崩潰自動拉起）✅ 已達標
+   - msi / x570：目前只有 crontab `@reboot`，**只開機起一次，進程崩潰不會自動復活** ❌
+   - 目標：crontab 改用 `restart loop` 包裝（見下方範本），或改用 systemd（x570，需 sudo）
+2. **edge 連線層（cloudflared↔Cloudflare edge 長連線）**
+   - 統一用 `--protocol http2`（http2 為長連線＋內建 keepalive，WSL2 上 QUIC/UDP 全 timeout，見 §http2 說明）
+   - msi ✅、mbp ✅ 已加；**x570 待確認/補上**
+3. **origin 連線層（cloudflared↔本機 :8000 的 HTTP 連線池）**
+   - `config.yml` 的 `ingress` 可用 `originRequest` 覆寫 keepalive 參數：
+     `proxyTCPKeepAlive`（預設 30s）、`proxyKeepAliveConnections`（預設 100）、
+     `proxyKeepAliveTimeout`（預設 1m30s）
+   - 三台目前都用「預設值」＝已達標，**不需改 config**（除非之後想調）
+
+### 三台目標狀態（驗收標準）
+
+| 主機 | 進程自動重啟 | `--protocol http2` | originRequest keepalive |
+|---|---|---|---|
+| x570 | crontab restart loop（或 systemd） | 加入 | 預設（不用改）|
+| mbp | launchd KeepAlive ✅ | ✅ | 預設 |
+| msi | crontab restart loop | ✅ | 預設 |
+
+### crontab restart loop 範本（msi / x570）
+
+```bash
+# 取代原本 @reboot 單次啟動：崩潰後每 5 秒自動重拉
+@reboot /bin/bash -lc 'while true; do /home/solo/.local/bin/cloudflared tunnel --protocol http2 --config /home/solo/.cloudflared/config.yml run ragdemo-<host> >> /tmp/cfd.log 2>&1; echo "[tunnel] exit $? at $(date)" >> /tmp/cfd.log; sleep 5; done' &
+```
+
+> 注意：crontab 不展開 `~`，一律用絕對路徑；`setsid` 讓它脫離終端，`&` 避免 crontab 等待。
+
+### 驗證 keepalive 是否生效
+
+```bash
+# 1) 進程在跑（三台各自）
+ps aux | grep [c]loudflared
+# 2) edge 連線數＋錯誤（已達標應看到 4 條連線、errors=0）
+curl -s http://127.0.0.1:20241/metrics | grep -E 'cloudflared_tunnel_(ha_connections|request_errors|server_locations)'
+# 3) 公網 health（三台各自）
+curl -s https://api-<host>.ragdemo.win/health
+# 4) 崩潰自動復活測試：kill 掉 cloudflared，5 秒內 restart loop / launchd 應自動拉回
+```
+
+### http2 說明（為何 keepalive 必須靠 http2）
+
+- cloudflared 連 edge 有兩種協議：**QUIC**（UDP 443）與 **http2**（TCP 443）。
+- **WSL2（msi）的 UDP 連 Cloudflare edge 全部 timeout**（登入/連線 1033 錯誤）→ 必須 `--protocol http2`，
+  這是 msi 實戰心得（2026-09-23，ROADMAP §4.3）。
+- http2 是「單一長連線＋內建 keepalive ping」，斷線自動重連；QUIC 雖也有 keepalive，
+  但跨 NAT/容器/虛擬網路（WSL2、docker bridge）常因 UDP 被擋而失去保活。
+- 為一致性與穩定性，**三台統一 `--protocol http2`**（macOS／原生 Linux 也可用，不虧）。
+
 ## 環境變數（backend/.env，各機一份不進版控）
 `HOST_ID`、`TS_IP`（必填，tailscale）、`OLLAMA_URLS`（候選清單）、`LLM_MODEL`、
 `EMBED_MODEL=bge-m3:latest`、`RERANK_MODEL=qllama/bge-reranker-v2-m3:latest`、

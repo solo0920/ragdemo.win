@@ -359,6 +359,19 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 >   `--protocol http2`（採 msi 心得，穩定性優先）＋ KeepAlive，效果等同 @reboot。
 > - 驗證：`curl -s https://api-mbp.ragdemo.win/health` 回 `host_id=mbp` ✅；Pages `API_ORIGIN` 未動（仍指 x570）。
 
+#### keepalive 補齊 checklist（2026-09-23 定案，規範見 ARCHITECTURE「公網接手」節）
+
+> 三台統一 keepalive，缺一不可。msi 已完成（crontab restart loop＋`--protocol http2`）；
+> **x570 / mbp pull 後照此補齊**：
+
+- [ ] **進程自動重啟**：mbp 已有 launchd `KeepAlive` ✅；x570 把 crontab `@reboot` 單次啟動
+      改成 restart loop 範本（ARCHITECTURE 該節，替換 `ragdemo-<host>`；或改 systemd 需 sudo）
+- [ ] **`--protocol http2`**：mbp ✅；x570 在 @reboot / systemd 的 cloudflared 命令加 `--protocol http2`
+- [ ] **驗證**：`ps aux | grep [c]loudflared` 在跑；
+      `curl http://127.0.0.1:20241/metrics | grep ha_connections`（應 4 條）；
+      `curl -s https://api-<host>.ragdemo.win/health` 回 `host_id`
+- [ ] **崩潰復活測試**：`kill` 掉 cloudflared，5 秒後 restart loop / launchd 自動拉回
+
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
 - `evals/questions.json` 佔位 3 題 → 擴 50 題含 `expect_case`；`hit_rate ≥ 0.8` 才進 UI。
