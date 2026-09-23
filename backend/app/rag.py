@@ -167,7 +167,7 @@ async def embed(texts: list[str]) -> list[list[float]]:
     return r.json()["embeddings"]
 
 
-# collection 能力偵測：有 sparse 命名向量 → 走 hybrid(RRF)；單一未命名 dense → 舊 search。
+# collection 能力偵測：有 sparse 命名向量 → 走 hybrid(DBSF)；單一未命名 dense → 舊 search。
 HAS_SPARSE = False
 _HAS_NAMED = False
 # hybrid 查詢預設過濾：只找人吃得到的現行條文（demo/ingest 或 backup 舊點會被排除）
@@ -219,15 +219,20 @@ async def upsert(docs: list[dict]) -> int:
 
 
 async def search(question: str, vector: list[float], limit: int = 50) -> list[dict]:
-    """召回：hybrid 用 RRF fusion（dense bge-m3＋sparse TF，頂層 filter 只吃現行條文）。"""
+    """召回：hybrid 用 DBSF 分數融合（dense bge-m3＋sparse TF，頂層 filter 只吃現行條文）。
+    不用 RRF：RRF 只看排名，熱門條號(如「第11條」)兩腿都被灌滿時，真身(e.g. 證交法11)
+    在 sparse 腿排到上百名，被融合丟掉；DBSF 正規化分數加總，同時命中兩組 token 的文件會勝出。"""
     if HAS_SPARSE:
+        # 每腿多抓些候選：熱門條號(如「第11條」)在 sparse 腿可排到上百名，
+        # 只取 top-limit 會把真身丟出融合。DBSF 取 top limit 做最終 fusion。
+        prefetch = max(limit, 500)
         body = {
             "prefetch": [
-                {"query": vector, "using": "dense", "limit": limit, "filter": _BASE_FILTER},
-                {"query": _sparse.sparse_vector(question), "using": "sparse", "limit": limit,
+                {"query": vector, "using": "dense", "limit": prefetch, "filter": _BASE_FILTER},
+                {"query": _sparse.sparse_vector(question), "using": "sparse", "limit": prefetch,
                  "filter": _BASE_FILTER},
             ],
-            "query": {"fusion": "rrf"},
+            "query": {"fusion": "dbsf"},
             "limit": limit,
             "with_payload": True,
         }

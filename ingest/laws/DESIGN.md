@@ -42,7 +42,8 @@ is_abandoned, char_len, source=moj, updated_at, content_hash`
   純 dense 的 bge-m3 對「只知道條號」的查詢召回差。
 - **bge-m3 是 hybrid 模型**：dense(1024)＋sparse(lexical)。
 - Qdrant 一個 collection 建兩個 vector：`dense`(1024, cosine)＋`sparse`(BM25 化)，
-  payload 同時存稀疏 index 自訂 token；查詢用 `fusion=RRF` 取 top_k。
+  payload 同時存稀疏 index 自訂 token；查詢用 `fusion=DBSF` 取 top_k
+  （不用 RRF：熱門條號兩腿被灌滿時 RRF 只看排名會漏真身，DBSF 分數正規化加總較準）。
 - 效益：條號級查詢精確命中；法學術語不漏；仍是單次 Qdrant round-trip。
 
 ### 效率：預設過濾＋索引
@@ -65,7 +66,7 @@ normalize.py ─→ laws_flat.jsonl ─→ eda.py（parquet 備份）
 - **點 ID 用 unsigned int**（Qdrant 只收 u64/uuid）：`md5(f"{pcode}-{seq}[-c{i}]")[:8]`，仍是冪等。
 - **sparse indices 只收 u32**：token 用 md5 前 4 bytes（Qdrant 限制發現後修正）。
 - 超長/ASCII 膨脹文本：執行時逐筆縮短重試（`_embed_one`），直到 bge-m3 放得下。
-- **查詢端（backend/app/rag.py）已改 hybrid**：`/points/query` RRF fusion，
+- **查詢端（backend/app/rag.py）已改 hybrid**：`/points/query` DBSF fusion（每個腿 prefetch 500），
   頂層 filter `is_repealed=false AND is_abandoned=false`；old/命名-only collection 自動退回舊 search。
 - 收斂結果：`/eval` **hit_rate=1.0**（14/14，expect_law 比對）；公網 ragdemo.win → api-x570 全通。
 - 舊 3 筆 demo 點備份在 `laws_demo_backup`（法令資料正式取代 demo 佔位）。

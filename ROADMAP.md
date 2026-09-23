@@ -425,7 +425,9 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 
 ### 4.4 評測上線門檻
 - ~~`rag.py rerank()` 接真正 reranker 打分（目前還是 stub）~~ rerank 仍走向量分數；
-  但法規語料下 hybrid(RRF) 已達 **hit_rate=1.0（14/14，2026-09-23）**，門檻 0.8 已過（法規）。
+  但法規語料下 hybrid(DBSF 分數融合) 已達 **hit_rate=1.0（14/14，2026-09-23）**，門檻 0.8 已過（法規）。
+  註：原本用 RRF 只看排名，query「證券交易法第11條」這類熱門條號會漏真身（證交法11 在 sparse
+  腿排到 193 名）；改 DBSF 後該題 top1 正確命中。
 - `evals/questions.json` 已換 14 題真實法條題（expect_law，內容見檔案）。
 - 判決語料尚未進 corpus（`laws_demo_backup` 暫存 demo 判決），/eval 目前以法規為主；
   判決 ingest 屬 ingest 分工，列後續。
@@ -502,12 +504,12 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - duckdb 筆記：本機 pypi/github 下大檔極慢，建 venv 後用清華鏡像秒裝：
   `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple duckdb pandas`。
 - 重點分析結論：條文中位數 79 字、p99 638、僅 4 則 >3000 字→**一條一向量**為主；
-  bge-m3 是 hybrid 模型 → Qdrant `dense+sparse` 雙向量＋RRF fusion，條號/專有名詞精準；
+  bge-m3 是 hybrid 模型 → Qdrant `dense+sparse` 雙向量＋**DBSF 分數融合**，條號/專有名詞精準；
   payload 帶 `pcode/law_name/article_seq/article_no/chapter/is_repealed/is_abandoned/category`。
 - **已實作上線（x570）**：`pg_load.py`→PG law/article/law_import（含 source_sha256/UpdateDate 審計，
   2.4s 落庫 1347/47281 條）；`qdrant_load.py`→laws collection dense+sparse 重灌 **39,879 條**
   （條號/章節前綴入向量、點 ID u64、sparse u32、超長文本逐步縮短容錯）；backend `rag.py`
-  查詢改 **RRF hybrid**＋payload 渲染；點 ID 用 md5 整數（Qdrant 只收 u64/uuid）。
+  查詢改 **DBSF hybrid**（每腿 prefetch 500，避免熱門條號漏真身）＋payload 渲染；點 ID 用 md5 整數（Qdrant 只收 u64/uuid）。
 - **評測：`/eval` hit_rate=1.0（14/14 real questions，expect_law 比對）**，公網 ragdemo.win 全通。
 - 舊 demo 3 點備份 `laws_demo_backup`；後續：判決語料、msi/mbp 同步（見 DESIGN §5）。
 
