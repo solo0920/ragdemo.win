@@ -150,7 +150,7 @@
         </button>
         {#if showInfo}
           <div class="info-pop">
-            <div class="tip" />
+            <div class="tip"></div>
             <h2>連線與來源</h2>
             <table>
               <thead>
