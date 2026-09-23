@@ -163,7 +163,12 @@
       <h2>引用（top {result.hits.length}）</h2>
       <ol>
         {#each result.hits as h}
-          <li>{h.payload.case_no}｜{h.payload.law}｜{h.score.toFixed(3)}<br />{h.payload.text.slice(0, 200)}…</li>
+          <li>
+            <span class="sc">{h.score.toFixed(2)}</span>
+            ｜{h.law_name}{h.art}
+            ｜{h.item}
+            <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>
+          </li>
         {/each}
       </ol>
     {/if}
@@ -177,6 +182,8 @@
   table { border-collapse: collapse; margin: 0.5rem 0 1rem; }
   th, td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
   th { background: #f0f0f0; }
+  .sc { font-weight: bold; color: #b01; }
+  .tx { color: #444; }
   .byline { font-weight: bold; margin: 0 0 0.5rem; }
   .err { color: red; }
   .auth { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }

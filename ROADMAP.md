@@ -512,6 +512,9 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   查詢改 **DBSF hybrid**（每腿 prefetch 500，避免熱門條號漏真身）＋**條號精準分支**
   （scroll 同條號候選＋本地 sparse-dot＋法名大gram 重疊計分 prepend top3，破擁擠/同分/排序外）
   ＋payload 渲染；點 ID 用 md5 整數（Qdrant 只收 u64/uuid）。
+- 條文回答與引用顯示：`backend/app/law_struct.py` 解析「項=非款行、款=一、」結構，
+  `_ref()` 附「1項6款」讓回答列舉各款要旨；`/query` hits 附 `art/item/para_count/item_count`，
+  前端引用改為「**機率｜法名+條號｜款位｜內容**」。
 - **評測：`/eval` hit_rate=1.0（14/14 real questions，expect_law 比對）**，公網 ragdemo.win 全通。
 - 舊 demo 3 點備份 `laws_demo_backup`；後續：判決語料、msi/mbp 同步（見 DESIGN §5）。
 

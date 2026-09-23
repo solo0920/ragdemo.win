@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 
 from . import sparse as _sparse
+from . import law_struct as _law
 
 logger = logging.getLogger("ragdemo")
 
@@ -43,7 +44,7 @@ def keep_alive_value():
     s = str(KEEP_ALIVE).strip()
     return int(s) if s.lstrip("-").isdigit() else s
 
-SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；找不到就說找不到，不要編造。"
+SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；找不到就說找不到，不要編造。回答某條時，除主旨外若該條含款/項，請說明其下共幾項、幾款並摘要各款要旨。"
 
 _bases: dict[str, str] = {}
 _base_ts: dict[str, float] = {}
@@ -340,7 +341,9 @@ def _ref(h: dict) -> str:
     p = h.get("payload", {})
     if p.get("law_name"):
         chap = f"（{p['chapter']}）" if p.get("chapter") else ""
-        return f"[法條:{p['law_name']} {p.get('article_no', '')} {chap}]"
+        st = _law.summarize(p.get("text", ""))
+        suffix = f"｜{st}" if st else ""
+        return f"[法條:{p['law_name']} {p.get('article_no', '')} {chap}{suffix}]"
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 
@@ -420,5 +423,17 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
-    return {"answer": text, "src": src, "hits": [
-        {"score": h["score"], "payload": h["payload"]} for h in top]}
+    return {"answer": text, "src": src, "hits": [_hit_view(h) for h in top]}
+
+
+def _hit_view(h: dict) -> dict:
+    """前端引用渲染用的精簡欄位：機率／條號／款位／內容（保留 payload 供既有 UI）。"""
+    p = h.get("payload", {})
+    view = {"score": h["score"], "payload": p,
+            "art": (p.get("article_no") or "").replace(" ", "") or p.get("law", ""),
+            "law_name": p.get("law_name", ""),
+            "item": _law.cite_item(p.get("text", ""))}
+    s = _law.structure(p.get("text", ""))
+    view["para_count"] = s["para"]
+    view["item_count"] = len(s["items"])
+    return view
