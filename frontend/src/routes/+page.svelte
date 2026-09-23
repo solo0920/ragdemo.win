@@ -17,6 +17,7 @@
   let healthLoading = false;
   let healthError = '';
   let user = null;
+  let showInfo = false;
 
   onMount(async () => {
     try {
@@ -142,6 +143,29 @@
     {:else if healthError}
       <span class="health bad">✗ {healthError}</span>
     {/if}
+    {#if result}
+      <div class="sw-right">
+        <button class="info-btn" onclick={() => (showInfo = !showInfo)} aria-expanded={showInfo}>
+          連線詳細 {showInfo ? '▾' : '▸'}
+        </button>
+        {#if showInfo}
+          <div class="info-pop">
+            <div class="tip" />
+            <h2>連線與來源</h2>
+            <table>
+              <thead>
+                <tr><th>終端/來源</th><th>狀態</th></tr>
+              </thead>
+              <tbody>
+                {#each statusRows(result) as row}
+                  <tr><td>{row.k}</td><td>{row.v}</td></tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </section>
 
   <textarea bind:value={question} rows="3" placeholder="輸入法律問題…" disabled={!user}></textarea>
@@ -153,17 +177,6 @@
   </button>
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
-    <h2>連線與來源</h2>
-    <table>
-      <thead>
-        <tr><th>終端/來源</th><th>狀態</th></tr>
-      </thead>
-      <tbody>
-        {#each statusRows(result) as row}
-          <tr><td>{row.k}</td><td>{row.v}</td></tr>
-        {/each}
-      </tbody>
-    </table>
     {#if result.host}<p class="byline">由 {result.host} 生成本次response</p>{/if}
     {#if result.ok}
       <h2>回答（{result.host}）</h2>
@@ -214,4 +227,23 @@
   .health { font-size: 0.85rem; }
   .health.ok { color: #2e7d32; }
   .health.bad { color: #c62828; }
+  .sw-right { margin-left: auto; position: relative; display: flex; }
+  .info-btn {
+    border: 1px solid #888; background: #fff; border-radius: 6px;
+    padding: 0.25rem 0.75rem; cursor: pointer; font-size: 0.85rem;
+  }
+  .info-btn:hover { background: #f0f0f0; }
+  .info-pop {
+    position: absolute; right: 0; top: calc(100% + 10px); z-index: 20;
+    background: #fff; border: 1px solid #ccc; border-radius: 8px;
+    padding: 0.6rem 0.9rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    min-width: 260px;
+  }
+  .info-pop h2 { font-size: 1rem; margin: 0 0 0.4rem; }
+  .info-pop table { margin: 0; }
+  .info-pop .tip {
+    position: absolute; top: -6px; right: 18px; width: 10px; height: 10px;
+    background: #fff; border-left: 1px solid #ccc; border-top: 1px solid #ccc;
+    transform: rotate(45deg);
+  }
 </style>
