@@ -81,7 +81,9 @@ repo 內 hook 隨版控走、各機 pull 即得；**各機啟用一次**：`git 
 * mbp 100.64.121.9：加速，`LLM_MODEL=qwen3:14b`，
   api（uvicorn@8000，launchd 自動啟動）＋**本機 qdrant 備援已完成**（QDRANT/POSTGRES 指 x570，離線降級本機）
 * MSI 100.65.68.106（demo）：api 在 WSL2 裡（`uvicorn --env-file .env`，開機自動啟動），
-  `OLLAMA_URLS=http://100.65.68.106:11434`（tailscale 直連 Windows 本機 ollama），`LLM_MODEL=qwen3:4b`，
+  `OLLAMA_URLS=http://100.65.68.106:11434`（tailscale 直連 Windows 本機 ollama），`LLM_MODEL=qwen3:8b`
+  （2026-09-23 由 qwen3:4b 換上：4b 的 `think:false` 是已知 bug，連簡答都會思考 1000+ token 吃光
+  回答空間；8b 實測開關正常、回應簡短），
   資料層（Qdrant/pg）指 x570（tailscale）＋ **本機 qdrant 1.19.1 備援（已完成）**
 
 ## 備援機制（x570 離線時各機獨立作業）
@@ -121,7 +123,8 @@ QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 ## 模型清單（2026-09-21 實測後）
 * x570：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:14b`、`qwen3-coder:latest`
 * mbp：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3-coder:latest`、`qwen3-coder-next:latest`、`qwen3:14b`
-* MSI：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:4b`、`qwen2.5-coder:7b`（qwen3.5:4b 已棄用）
+* MSI：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:8b`、`qwen2.5-coder:7b`
+  （qwen3.5:4b 與 qwen3:4b 均已棄用——後者 `think:false` 無效是已知 bug，見 ollama#12917）
 
 ## 實測速度（eval tok/s，同 prompt num_predict=200）
 * x570 coder 94.8 ＞ mbp coder 73 ＞ MSI 4b 79 ＞ x570 14b 熱機 82（冷機 19，待再驗）＞ mbp 14b 25
@@ -224,7 +227,7 @@ cd frontend && npm install && npm run dev
 **MSI（WSL2，吃 Windows 本機 ollama）**：
 ```bash
 bash backend/start-msi.sh        # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5）
-curl localhost:8000/health       # 回 host_id=msi, llm=qwen3:4b
+curl localhost:8000/health       # 回 host_id=msi, llm=qwen3:8b
 ```
 MSI 資料層：x570 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
 **mbp（launchd，登入自動跑）**：

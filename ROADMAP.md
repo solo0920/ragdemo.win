@@ -22,10 +22,12 @@
 | LAN | 192.168.0.99 | 192.168.93.85 | 192.168.0.2 |
 | ollama | v0.34.0（native） | v0.34.2（native, 0.0.0.0） | v0.34.2（native, 0.0.0.0） |
 | api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | api ✅（launchd）/qdrant ✅（本機備援）/pg ✗ | api ✅（WSL2）/qdrant ✅（本機備援）/pg ✗ |
-| LLM 預設 | qwen3:14b | qwen3:14b | qwen3:4b |
-| 模型 | bge-m3, bge-reranker, qwen3:14b, qwen3-coder | bge-m3, bge-reranker, qwen3:14b, qwen3-coder(+next) | bge-m3, bge-reranker, qwen3:4b, qwen2.5-coder:7b |
+| LLM 預設 | qwen3:14b | qwen3:14b | qwen3:8b |
+| 模型 | bge-m3, bge-reranker, qwen3:14b, qwen3-coder | bge-m3, bge-reranker, qwen3:14b, qwen3-coder(+next) | bge-m3, bge-reranker, qwen3:8b, qwen2.5-coder:7b |
 
-模型注意：**qwen3.5:4b 已棄用**（template `{{ .Prompt }}` 壞掉），MSI 一律用 `qwen3:4b`。
+模型注意：**qwen3.5:4b 已棄用**（template `{{ .Prompt }}` 壞掉）＋ **qwen3:4b 已棄用**（
+`think:false` 無效是已知 bug，見 ollama#12917：連「1+1=?」都思考 1000+ token 吃光輸出）。
+MSI 2026-09-23 起改用 **qwen3:8b**（實測 `think:false` 正常、回應簡短）。
 qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃光輸出、回空字串。
 
 ### 0.1 x570 最新狀態（2026-09-22 x570 側 smoke）
@@ -59,7 +61,7 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
   `_pick()` 選「優先權最高且可用（TCP＋模型齊備）」者快取，連線錯誤 / model 404 自動降級，
   過 `PICK_TTL`（30s）重掃，高位主機回復自動切回；新增 `local_models()`。
 - LLM model 依選中主機而定：`OLLAMA_MODELS` 與 `OLLAMA_URLS` 同順序對應
-  （如 msi：`x570/mbp=qwen3:14b, msi=qwen3:4b`），`/health` 附 `llm_src` 供診斷。
+  （如 msi：`x570/mbp=qwen3:14b, msi=qwen3:8b`），`/health` 附 `llm_src` 供診斷。
 - `main.py`：`/health` 附 host 欄位、`GET /hosts`、lifespan 內起心跳 loop。
 - compose 掛載宿主 `/etc/machine-id`、`/etc/hostname`，避免容器身分混入。
 - x570 驗證過：`/health` 回真實主機名 `solo-X570-I-AORUS-PRO-WIFI`、`/hosts` 含 4 個模型、
@@ -127,7 +129,7 @@ POSTGRES_PASSWORD=changeme
 # WSL 的 127.0.0.1 是 WSL 自己，不是 Windows！
 # ollama 已綁 0.0.0.0，用 MSI 的 tailscale IP 直連 Windows 本機 ollama：
 OLLAMA_URLS=http://100.65.68.106:11434,http://100.119.83.111:11434
-LLM_MODEL=qwen3:4b
+LLM_MODEL=qwen3:8b
 # 輕量接手：資料層/Qdrant 優先 x570（tailscale），本機 127.0.0.1:6333 當備援（離線降級）
 QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 POSTGRES_DSN=postgresql://rag:changeme@100.119.83.111:5432/ragdemo
@@ -147,7 +149,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env   # 一定要帶
 
 ```bash
 # 驗證（另開終端，可在 Mac/別台測）：
-curl http://100.65.68.106:8000/health          # 回 ok+host_id=msi，llm=qwen3:4b
+curl http://100.65.68.106:8000/health          # 回 ok+host_id=msi，llm=qwen3:8b
 curl http://100.65.68.106:8000/query -H 'content-type: application/json' \
      -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # LLM 吃本機 ollama，資料吃 x570
 # 重點：等 30s 心跳後，回 x570 查：
@@ -389,7 +391,7 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 ```bash
 # 1) 本機 ollama：embed + LLM 都要有
 curl -s 127.0.0.1:11434/api/tags | python3 -c "import sys,json;print([m['name'] for m in json.load(sys.stdin)['models']])"
-#    需要包含：bge-m3:latest、qwen3:14b（或 qwen3:4b）；缺 embedding 就是答不了
+#    需要包含：bge-m3:latest、qwen3:14b（或 qwen3:8b/4b）；缺 embedding 就是答不了
 # 2) 本機 qdrant：laws 是否真的有資料
 curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.load(sys.stdin);print('points:',d['result']['points_count'])"
 #    >0 = x570 斷聯時這台可完整回答；0/404 = 只剩「找不到」或 502
