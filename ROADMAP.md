@@ -509,7 +509,9 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - **已實作上線（x570）**：`pg_load.py`→PG law/article/law_import（含 source_sha256/UpdateDate 審計，
   2.4s 落庫 1347/47281 條）；`qdrant_load.py`→laws collection dense+sparse 重灌 **39,879 條**
   （條號/章節前綴入向量、點 ID u64、sparse u32、超長文本逐步縮短容錯）；backend `rag.py`
-  查詢改 **DBSF hybrid**（每腿 prefetch 500，避免熱門條號漏真身）＋payload 渲染；點 ID 用 md5 整數（Qdrant 只收 u64/uuid）。
+  查詢改 **DBSF hybrid**（每腿 prefetch 500，避免熱門條號漏真身）＋**條號精準分支**
+  （scroll 同條號候選＋本地 sparse-dot＋法名大gram 重疊計分 prepend top3，破擁擠/同分/排序外）
+  ＋payload 渲染；點 ID 用 md5 整數（Qdrant 只收 u64/uuid）。
 - **評測：`/eval` hit_rate=1.0（14/14 real questions，expect_law 比對）**，公網 ragdemo.win 全通。
 - 舊 demo 3 點備份 `laws_demo_backup`；後續：判決語料、msi/mbp 同步（見 DESIGN §5）。
 

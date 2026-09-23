@@ -9,6 +9,7 @@
 import asyncio
 import logging
 import os
+import re
 import time
 import uuid
 from urllib.parse import urlparse
@@ -224,7 +225,7 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
     在 sparse 腿排到上百名，被融合丟掉；DBSF 正規化分數加總，同時命中兩組 token 的文件會勝出。"""
     if HAS_SPARSE:
         # 每腿多抓些候選：熱門條號(如「第11條」)在 sparse 腿可排到上百名，
-        # 只取 top-limit 會把真身丟出融合。DBSF 取 top limit 做最終 fusion。
+        # 只取 top-limit 會把真身丟出融合。DBSF 取 top limit 做最終融合。
         prefetch = max(limit, 500)
         body = {
             "prefetch": [
@@ -239,7 +240,38 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
         r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
                        json=body, timeout=30)
         r.raise_for_status()
-        return r.json()["result"]["points"]
+        hits = r.json()["result"]["points"]
+        # 條號精準分支：query 含「第N條」時，同時對「同條號、跨法」候選以 dense 打分，
+        # 破除熱門條號被擁擠（例「證券交易法第20條」sparse 腿排到數百名外）與"湊巧含法名子串"
+        # 的文件搶位的問題；法名+條號組合下真正的條文會衝到最前。
+        an = extract_article_no(question)
+        if an:
+            # 同條號跨法候選：scroll 全拉（不依賴 dense 排位，避免真身被擠出小 limit），
+            # 本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
+            f2 = {"must": _BASE_FILTER["must"] + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
+            r = await _req("qdrant", QDRANT_URLS, "post",
+                           f"/collections/{COLLECTION}/points/scroll",
+                           json={"filter": f2, "limit": 1000, "with_payload": True, "with_vector": False},
+                           timeout=30)
+            r.raise_for_status()
+            exact = r.json()["result"]["points"]
+            if exact:
+                qv = _sparse.sparse_vector(question)
+                q = dict(zip(qv["indices"], qv["values"]))
+                qbig = _bigrams(question)
+                for h in exact:
+                    d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
+                    # dot＝內容/特徵重疊；＋法名 bigram 重疊破「內容不含法名詞彙引致的同分」
+                    law = h["payload"].get("law_name", "")
+                    h["_exact"] = sum(q.get(t, 0.0) * v for t, v in d.items()) + 3.0 * len(qbig & _bigrams(law))
+                exact.sort(key=lambda h: h["_exact"], reverse=True)
+                exact = [h for h in exact if h["_exact"] > 0][:3]
+                for h in exact:
+                    h["score"] = h.pop("_exact", 0.0)
+            exact_ids = {h["id"] for h in exact}
+            # exact 排最前，一併去重（可能已在 hybrid hit 中段）；top_k 才能看到真身。
+            hits = exact[:3] + [h for h in hits if h["id"] not in exact_ids]
+        return hits
     if _HAS_NAMED:
         body = {"vector": {"dense": vector}, "limit": limit, "with_payload": True}
     else:
@@ -254,6 +286,53 @@ def rerank(question: str, hits: list[dict], top_k: int = 5) -> list[dict]:
     # TODO: reranker 需走 chat/generate 逐對打分，目前先取向量分數前 top_k，
     # 模型 RERANK_MODEL 已備好，待實作後替換此函式。
     return hits[:top_k]
+
+
+_CN_DIG = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+
+
+def _cn2num(s: str) -> int:
+    """中文數字→int（支援至千位）：十一=11、二十三=23、一百零五=105、兩百=200。"""
+    s = s.replace("兩", "二").replace("零", "")
+    total = cur = 0
+    for ch in s:
+        if ch == "千":
+            total += (cur or 1) * 1000; cur = 0
+        elif ch == "百":
+            total += (cur or 1) * 100; cur = 0
+        elif ch == "十":
+            total += (cur or 1) * 10; cur = 0
+        elif ch in _CN_DIG:
+            cur = cur * 10 + _CN_DIG[ch]
+    return total + cur
+
+
+_ART_RE = re.compile(
+    r"第\s*(?:(?P<ab>[0-9]+(?:\s*-\s*[0-9]+)?)|(?P<cn>[一二三四五六七八九十百零兩]+(?:之[一二三四五六七八九十零兩]+)?))\s*條"
+)
+
+
+def _bigrams(s: str) -> set[str]:
+    """字串的 CJK bigram 集合（去掉空白），用以比對法名與 query 的重疊。"""
+    s = "".join(s.split())
+    return {s[i:i + 2] for i in range(len(s) - 1)} if len(s) >= 2 else set()
+
+
+def extract_article_no(question: str) -> str | None:
+    """從查詢抽出「條」的標準格式（例:「第20條」→「第 20 條」、「第10條之1」→「第 10-1 條」）。"""
+    m = _ART_RE.search(question)
+    if not m:
+        return None
+    if m.group("cn"):
+        raw = m.group("cn")
+        if "之" in raw:
+            head, tail = raw.split("之", 1)
+            s = f"{_cn2num(head)}-{_cn2num(tail)}"
+        else:
+            s = str(_cn2num(raw))
+    else:
+        s = m.group("ab").strip()
+    return f"第 {s.strip()} 條"
 
 
 def _ref(h: dict) -> str:

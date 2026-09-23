@@ -68,5 +68,8 @@ normalize.py ─→ laws_flat.jsonl ─→ eda.py（parquet 備份）
 - 超長/ASCII 膨脹文本：執行時逐筆縮短重試（`_embed_one`），直到 bge-m3 放得下。
 - **查詢端（backend/app/rag.py）已改 hybrid**：`/points/query` DBSF fusion（每個腿 prefetch 500），
   頂層 filter `is_repealed=false AND is_abandoned=false`；old/命名-only collection 自動退回舊 search。
+- **條號精準分支**：query 偵測到「第N條」（阿拉伯+中文數字+條之X）時，scroll 拉同條號跨法候選，
+  本地「sparse dot＋法名 bigram 重疊×3」計分，取 top3 prepend——破解熱門條號（第11/20條）crowding、
+  以及「內容不含法名詞彙引致的同分」與「sparse 腿排到數百名外」的召回問題。
 - 收斂結果：`/eval` **hit_rate=1.0**（14/14，expect_law 比對）；公網 ragdemo.win → api-x570 全通。
 - 舊 3 筆 demo 點備份在 `laws_demo_backup`（法令資料正式取代 demo 佔位）。
