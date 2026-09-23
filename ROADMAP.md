@@ -292,6 +292,50 @@ curl -s https://ragdemo.win/api/health                         # 回 x570 health
 > msi 管 `api-msi`（名稱已定，實體待建）。Dashboard 層（建 tunnel/DNS）只有使用者能操作；
 > opencode 負責各自機器上的 cloudflared 安裝、config、自動啟動與驗證。
 
+#### mbp / msi 各自建 tunnel checklist（在該機執行，host=mbp|msi 替換）
+> 前置：該機已有 git repo、tailscale 在線、8000 後端可跑（mbp launchd／msi start-msi.sh）。
+> credentials json 必須存在該機自己（本地型 create 就是在該機產生），所以由各機執行，勿搬移。
+
+```bash
+# 1) 裝 cloudflared（免 sudo，~/.local/bin）
+mkdir -p ~/.local/bin
+curl -fsSL -o /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64   # MSI 用; mbp 用 darwin: cloudflared-darwin-amd64
+chmod +x /tmp/cloudflared && mv /tmp/cloudflared ~/.local/bin/cloudflared
+
+# 2) 登入（裝置碼，選 zone ragdemo.win）
+~/.local/bin/cloudflared tunnel login
+
+# 3) 建本地型 tunnel（名字 = ragdemo-<host>；同時生 credentials json）
+~/.local/bin/cloudflared tunnel create ragdemo-<host>
+#   記下輸出的 id（形如 xxxxxxxx-xxxx-...）
+
+# 4) DNS
+~/.local/bin/cloudflared tunnel route dns ragdemo-<host> api-<host>.ragdemo.win
+
+# 5) config：service 指本機後端。
+#    mbp：hostname api-mbp.ragdemo.win → http://localhost:8000
+#    msi：hostname api-msi.ragdemo.win  → http://localhost:8000（WSL 內，cloudflared 也放 WSL 內）
+cat > ~/.cloudflared/config.yml <<EOF
+tunnel: <建立的 id>
+credentials-file: $HOME/.cloudflared/<id>.json
+ingress:
+  - hostname: api-<host>.ragdemo.win
+    service: http://localhost:8000
+  - service: http_status:404
+EOF
+
+# 6) 開機自啟（免 sudo 版：crontab @reboot）
+( crontab -l 2>/dev/null | grep -v 'cloudflared tunnel.*run ragdemo-<host>'; \
+  echo '@reboot setsid ~/.local/bin/cloudflared tunnel --config ~/.cloudflared/config.yml run ragdemo-<host> >> /tmp/cfd.log 2>&1' ) | crontab -
+
+# 7) 全起 + 驗證
+~/.local/bin/cloudflared tunnel run ragdemo-<host> &
+sleep 3
+curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
+
+# 8) 不 push API_ORIGIN（Pages 仍指 x570）；接管時才改 Pages API_ORIGIN 或前端 ?backend=
+```
+
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
 - `evals/questions.json` 佔位 3 題 → 擴 50 題含 `expect_case`；`hit_rate ≥ 0.8` 才進 UI。
