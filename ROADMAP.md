@@ -396,13 +396,21 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 # 3) tunnel keepalive（見上節 checklist）
 ```
 
-**本次回應來源表（已上線，2026-09-23 x570）**
-- `/query` 會在回應最前面印出 md 來源表：三台連線狀態＋**本次 Qdrant 由哪台提供**＋**LLM 由哪台提供**
-  （愈來愈像「通訊簿＋履歷」可做前後對照的除錯利器）。
+**本次回應來源表（已上線並驗證，2026-09-23 x570，mbp/msi 比照辦理）**
+- 前端在回答最前面顯示**來源表**：三台連線狀態＋**本次 Qdrant 由哪台提供**＋**LLM 由哪台提供**；
+  目的是做「前後對照」的除錯利器（可立刻看出資料/模型被誰供給）。
 - 資料流：worker `?backend=` 先探三台 → 挑台 → 該後端 `rag.py::answer()` 回傳 `src`
-  （`{qdrant:{host,url}, llm:{host,url,model}}`，URL 依 `_KNOWN_IPS` 映射成 x570/mbp/msi）→
-  worker 原封轉傳 → 前端 `+page.svelte` 的 `logText()` 組 md 表格顯示。
-- 測試：`curl -s -X POST 'https://ragdemo.win/api/query?backend=auto' ...` 回應應含 `src`。
+  （`{qdrant:{host,url}, llm:{host,url,model}}`，URL 依 `_KNOWN_IPS`（100.119.83.111=x570、
+  100.64.121.9=mbp、100.65.68.106=msi）映射成主機 id；**裸主機名/127.0.0.1/localhost 一律標本機**）
+  → worker 原封轉傳 → 前端 `+page.svelte` 的 `statusRows()` 組 **HTML `<table>`** 顯示
+  （不用純文字 md，瀏覽器才不會整排錯位）。
+- **mbp / msi 交接：比照 x570 設計**，pull＋重啟後端後即自動生效：
+  - `git pull origin main`；msi 先 `pkill -f 'uvicorn.*8000'` 再 `bash backend/start-msi.sh`
+    （start-msi.sh 偵到 8000 在跑會跳過，不重拉新碼）；mbp 用 launchd 重啟
+    （`launchctl kickstart -k`）。
+  - 前端由 Pages 自動部署，不需動手；worker 已有 `?backend=` 與轉傳邏輯。
+  - 驗收：`curl -s -X POST 'https://ragdemo.win/api/query?backend=<host>' ...` 回應須含 `src`；
+    未含 = 那台還在跑舊 rag.py。前端來源表該格會顯示 `-`。
 
 ### 4.4 評測上線門檻
 - `rag.py rerank()` 接真正 reranker 打分（目前還是 stub）。
