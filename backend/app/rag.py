@@ -225,6 +225,7 @@ async def _collection_capabilities() -> None:
 
 async def ensure_collection() -> None:
     await _collection_capabilities()
+    await _ensure_law_names()  # 法名清單：collection 通常已存在，也會提前建
     r = await _req("qdrant", QDRANT_URLS, "get", f"/collections/{COLLECTION}", timeout=30)
     if r.status_code == 200:
         return
@@ -233,6 +234,113 @@ async def ensure_collection() -> None:
                          "sparse_vectors": {"sparse": {"modifier": "idf"}}})
     r.raise_for_status()
     await _collection_capabilities()
+    await _ensure_law_names()
+
+
+# corpus 法名清單（啟動時快取）：供「裸法名查詢」走法名分支（例:「證券交易法」→ 列出該法來源）。
+# _LAW_COUNTS＝各法條文數（基本敘述用）。_LAW_ALIASES＝常見簡稱 → 全名。
+_LAW_NAMES: list[str] = []
+_LAW_COUNTS: dict[str, int] = {}
+_LAW_ALIASES = {
+    "證交法": "證券交易法",
+    "證交稅": "證券交易稅條例",
+    "勞基法": "勞動基準法",
+    "消保法": "消費者保護法",
+    "個資法": "個人資料保護法",
+    "民訴": "民事訴訟法",
+    "刑訴": "刑事訴訟法",
+    "行訴": "行政訴訟法",
+    "道交條例": "道路交通管理處罰條例",
+    "遺贈稅法": "遺產及贈與稅法",
+    "強執法": "強制執行法",
+    "公司法": "公司法",
+}
+
+
+async def _ensure_law_names() -> None:
+    """scroll 全量 payload（只取 law_name）收集法名與條文數，best-effort：失敗則留空、法名分支略過。"""
+    global _LAW_NAMES, _LAW_COUNTS
+    if _LAW_NAMES:
+        return
+    names: dict[str, int] = {}
+    offset = None
+    prev = None
+    try:
+        while True:
+            body = {"limit": 5000, "with_payload": ["law_name"], "with_vector": False}
+            if offset is not None:
+                body["offset"] = offset
+            r = await _req("qdrant", QDRANT_URLS, "post",
+                           f"/collections/{COLLECTION}/points/scroll", json=body, timeout=60)
+            r.raise_for_status()
+            pts = r.json()["result"]["points"]
+            for p in pts:
+                n = p.get("payload", {}).get("law_name")
+                if n:
+                    names[n] = names.get(n, 0) + 1
+            if not pts:
+                break
+            prev, offset = offset, pts[-1]["id"]
+            # 近 u64 上限的點（u64 id 換算高於 i64 等）scroll 永不前進 → 防死循環
+            if offset == prev:
+                break
+    except Exception:
+        return
+    _LAW_COUNTS = names
+    _LAW_NAMES = sorted(names, key=lambda x: (-names[x], x))
+
+
+def _alias_to_law(qq: str) -> str | None:
+    """簡稱 → 全名：簡稱精準等於查詢 → 或簡稱嵌在查詢內（長度>=3）。"""
+    for alias, name in _LAW_ALIASES.items():
+        if qq == alias:
+            return name
+    for alias, name in _LAW_ALIASES.items():
+        if not qq.endswith("條") and len(alias) >= 3 and alias in qq:
+            return name
+    return None
+
+
+def _detect_law(question: str) -> str | None:
+    """查詢是否對應 corpus 某部法名：簡稱 → 法名精準等於 → 法名以此開頭 → 法名包含 → 法名嵌於問句。"""
+    qq = "".join(question.split())
+    if not qq:
+        return None
+    law = _alias_to_law(qq)
+    if law:
+        return law
+    for name in _LAW_NAMES:
+        if qq == name.replace(" ", ""):
+            return name
+    for name in _LAW_NAMES:
+        n = name.replace(" ", "")
+        if n.startswith(qq) and len(qq) >= 3:
+            return name
+    for name in _LAW_NAMES:
+        n = name.replace(" ", "")
+        if qq in n and len(qq) >= 4 and not qq.endswith("條"):
+            return name
+    for name in _LAW_NAMES:  # 法名嵌在問句內（例:「什麼是證券交易法」）
+        n = name.replace(" ", "")
+        if len(n) >= 3 and n in qq:
+            return name
+    return None
+
+
+def _law_brief(law: str) -> str:
+    """法規基本敘述（不含條號）：《法名》（共N條）。"""
+    n = _LAW_COUNTS.get(law)
+    return f"《{law}》（共{n}條）" if n else f"《{law}》"
+
+
+_ART_HEAD_RE = re.compile(r"^第\s*(\d+)")
+
+
+def _art_sort_key(article_no: str) -> tuple[int, int]:
+    """條號排序鍵：主號（負數排最前，讓「第1條」先於其他）＋子號。"""
+    m = _ART_HEAD_RE.match(article_no or "")
+    head = int(m.group(1)) if m else 10 ** 9
+    return (head, 0) if m else (10 ** 9, 0)
 
 
 async def upsert(docs: list[dict]) -> int:
@@ -327,6 +435,27 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
             exact_ids = {h["id"] for h in exact}
             # exact 排最前，一併去重（可能已在 fused hit 中段）；top_k 才能看到真身。
             hits = exact + [h for h in hits if h["id"] not in exact_ids]
+        else:
+            # 法名分支：查詢即法名（例:「證券交易法」）時，dense 前段常被「提及該法名」的其他法
+            # 條文佔據，本法條文反而排不進 top；滾出本法條文（條號升序）prepend 當「來源」。
+            law = _detect_law(question)
+            if law:
+                r = await _req("qdrant", QDRANT_URLS, "post",
+                               f"/collections/{COLLECTION}/points/scroll",
+                               json={"filter": {"must": _BASE_FILTER["must"] +
+                                                [{"key": "law_name", "match": {"value": law}}]},
+                                     "limit": 300, "with_payload": True, "with_vector": False},
+                               timeout=30)
+                r.raise_for_status()
+                arts = sorted(r.json()["result"]["points"],
+                              key=lambda h: _art_sort_key(h["payload"].get("article_no", "")))
+                top = arts[:3]
+                for h in top:
+                    h["score"] = 0.0          # 穩定排序用（rerank 的精準分支維持輸入順序）
+                    h["_brief"] = _law_brief(law)
+                    h["_exact_rank"] = True   # 視同精準命中（法名精準），rerank 置頂
+                lid = {h["id"] for h in top}
+                hits = top + [h for h in hits if h["id"] not in lid]
         return hits
     if _HAS_NAMED:
         body = {"vector": {"dense": vector}, "limit": limit, "with_payload": True}
@@ -407,9 +536,14 @@ def _decide(question: str, hits: list[dict], dense_max: float,
             min_dense: float = MIN_DENSE, mid: float = MID_DENSE,
             high: float = HIGH_DENSE) -> tuple[str, str]:
     """信心分級（純計算）：corpus 無密合語意（dense_max 太低）→ no_match（不問 LLM）；
-    中間區間要「法律語意」才放行。dense_max＝該 query 在 corpus 的最佳 dense 餘弦（跨候選）。"""
+    中間區間要「法律語意」才放行。dense_max＝該 query 在 corpus 的最佳 dense 餘弦（跨候選）。
+    法名精準命中（例:「證券交易法」及其簡稱）→ 意圖明確、永不放 no_match（來源由法名分支列出）。"""
     if not hits:
         return "no_match", "empty"
+    law = _detect_law(question)
+    if law and any((h.get("payload") or {}).get("law_name") == law for h in hits):
+        cos = max(dense_max, 0.0)
+        return "high", f"law_name@{cos:.2f}"
     cos = max(dense_max, 0.0)
     if cos < min_dense:
         # 條號精準命中不因 dense 偏低被誤判（精準分支本為破「熱門條號被擁擠」而生）
@@ -482,11 +616,18 @@ def _ref(h: dict) -> str:
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 
-async def generate(question: str, contexts: list[dict], cautious: bool = False) -> str:
+async def generate(question: str, contexts: list[dict], cautious: bool = False,
+                   brief_law: str | None = None) -> str:
     blocks = "\n\n".join(f"{_ref(h)} {h['payload'].get('text', '')}" for h in contexts)
-    guard = ("材料與問題僅中度相關：若不確定或材料不足以支持清楚結論，"
-             "直接說「沒有符合比對的法條」，不要用材料以外的知識臆測。\n\n"
-             if cautious else "")
+    if brief_law:
+        guard = (f"使用者查詢的是《{brief_law}》這部法本身。請只用一到三句話做基本敘述"
+                 "（規範領域、大致內容），不要引用任何條號原文，尤其不要引用第1條。\n\n")
+    elif cautious:
+        guard = ("材料與問題為中度相關：請依材料回答，並明確標註引用來源（法名＋條號）。"
+                 "不要直接說「沒有符合比對的法條」；只有材料確實無法回答該問題（無關或未收錄）"
+                 "才回「沒有符合比對的法條」，並於回答時列出已檢索到的相關來源。\n\n")
+    else:
+        guard = ""
     prompt = f"{SYSTEM}\n\n資料：\n{blocks}\n\n{guard}問題：{question}\n回答（附案號/條號）："
     # model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應）：x570/mbp=qwen3:14b、msi=qwen3:8b。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
@@ -574,6 +715,18 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
         base["no_match"] = True
         base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"
         return base
+    brief_law = _detect_law(question)
+    if brief_law and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
+        brief = _law_brief(brief_law)
+        try:
+            text = await generate(question, top, cautious=level == "medium", brief_law=brief_law)
+        except (httpx.ConnectError, httpx.TimeoutException):
+            base["answer"] = f"{HOST_ID}: {brief}"  # LLM 掛了也要回應基本敘述
+            return base
+        if not (text.startswith(f"《{brief_law}") or text.startswith(brief.split("共")[0])):
+            text = f"{brief}：{text}"
+        base["answer"] = f"{HOST_ID}: {text}"
+        return base
     text = await generate(question, top, cautious=level == "medium")
     base["answer"] = f"{HOST_ID}: {text}"
     return base
@@ -583,14 +736,19 @@ def _hit_view(h: dict) -> dict:
     """前端引用渲染用的精簡欄位：語意相似度%／精準旗標／判斷值／條號／款位／內容（保留 payload）。"""
     p = h.get("payload", {})
     d = h.get("_dense")
-    if h.get("_exact_rank"):
+    law = bool(h.get("_brief"))
+    if law:
+        jud = f"法名:{p.get('law_name', '')}｜{h['_brief']}"
+    elif h.get("_exact_rank"):
         dstr = f"{d:.4f}" if d is not None else "n/a"
         jud = f"dense cosine:{dstr}|exact:{h['score']:.4f}"
     else:
         sp = h.get("_sparse", 0.0)
         jud = f"dense cosine:{d or 0.0:.4f}|sparse idf:{sp:.4f}|sum:{h['score']:.4f}"
-    view = {"score": h["score"], "payload": p, "jud": jud,
-            "rel": None if d is None else int(round(d * 100)),
+    # 精準分支（條號/法名）：不給相對%語意（rel=None），前端顯示「精準/簡介」徽章
+    rel = None if (law or h.get("_exact_rank")) else (None if d is None else int(round(d * 100)))
+    view = {"score": h["score"], "payload": p, "jud": jud, "law": law,
+            "rel": rel,
             "exact": bool(h.get("_exact_rank")),
             "art": (p.get("article_no") or "").replace(" ", "") or p.get("law", ""),
             "law_name": p.get("law_name", ""),

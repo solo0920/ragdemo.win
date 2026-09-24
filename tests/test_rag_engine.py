@@ -4,6 +4,119 @@ import pytest
 from app import rag
 
 
+def test_detect_law_recognizes_bare_law_name():
+    rag._LAW_NAMES = ["民法", "刑法", "證券交易法", "勞動基準法", "證券投資人及期貨交易人保護法"]
+    try:
+        assert rag._detect_law("證券交易法") == "證券交易法"
+        assert rag._detect_law("請說明什麼是證券交易法") == "證券交易法"   # 法名開頭
+        assert rag._detect_law("民法第259條的返還義務") is None           # 有條號時不誤觸
+        assert rag._detect_law("今天天氣如何？") is None
+        assert rag._detect_law("勞基法") == "勞動基準法"                     # 簡稱（別名）也認得
+    finally:
+        rag._LAW_NAMES = []
+
+
+def test_decide_high_for_detected_law_in_hits():
+    rag._LAW_NAMES = ["證券交易法"]
+    try:
+        top = [_hit(1)]  # 預設 law_name=民法 → 不該被判 high
+        level, reason = rag._decide("證券交易法", top, 0.63)
+        assert (level, reason) == ("medium", "cos@0.63")
+        top2 = [{"id": 5, "score": 100.0, "_exact_rank": True,
+                 "payload": {"law_name": "證券交易法", "article_no": "第 1 條",
+                             "chapter": "", "text": "立法目的。"}}]
+        level2, reason2 = rag._decide("證券交易法", top2, 0.63)
+        assert level2 == "high" and "law_name" in reason2
+    finally:
+        rag._LAW_NAMES = []
+
+
+def test_art_sort_key_orders_articles():
+    assert rag._art_sort_key("第 1 條") < rag._art_sort_key("第 2 條")
+    assert rag._art_sort_key("第 20-1 條") < rag._art_sort_key("第 100 條")
+    assert rag._art_sort_key("第 3 條") < rag._art_sort_key("條文內容不分條")
+
+
+# 基本法名與簡稱：最基本的名稱不能沒回應，答案只給基本敘述（不引用第1條）
+LAW_QUERIES = [
+    ("民法", "民法"),
+    ("刑法", "刑法"),
+    ("公司法", "公司法"),
+    ("證券交易法", "證券交易法"),
+    ("證交法", "證券交易法"),
+    ("勞動基準法", "勞動基準法"),
+    ("勞基法", "勞動基準法"),
+    ("消費者保護法", "消費者保護法"),
+    ("消保法", "消費者保護法"),
+    ("個人資料保護法", "個人資料保護法"),
+    ("個資法", "個人資料保護法"),
+    ("民事訴訟法", "民事訴訟法"),
+    ("民訴", "民事訴訟法"),
+    ("刑事訴訟法", "刑事訴訟法"),
+    ("刑訴", "刑事訴訟法"),
+    ("行政訴訟法", "行政訴訟法"),
+    ("行訴", "行政訴訟法"),
+    ("道路交通管理處罰條例", "道路交通管理處罰條例"),
+    ("道交條例", "道路交通管理處罰條例"),
+    ("遺產及贈與稅法", "遺產及贈與稅法"),
+    ("遺贈稅法", "遺產及贈與稅法"),
+    ("證券交易稅條例", "證券交易稅條例"),
+    ("證交稅", "證券交易稅條例"),
+    ("所得稅法", "所得稅法"),
+    ("稅捐稽徵法", "稅捐稽徵法"),
+    ("戶籍法", "戶籍法"),
+    ("土地法", "土地法"),
+    ("強制執行法", "強制執行法"),
+    ("強執法", "強制執行法"),
+]
+
+
+def _law_full_names() -> list[str]:
+    return sorted({v for _, v in LAW_QUERIES})
+
+
+def test_detect_law_basic_names_and_abbreviations():
+    rag._LAW_NAMES = _law_full_names()
+    rag._LAW_COUNTS = {n: 100 for n in _law_full_names()}
+    try:
+        for q, want in LAW_QUERIES:
+            got = rag._detect_law(q)
+            assert got == want, f"{q!r} 應對應 {want!r}，實際 {got!r}"
+    finally:
+        rag._LAW_NAMES = []
+        rag._LAW_COUNTS = {}
+
+
+def test_law_names_never_no_match():
+    """最基本的名稱不能沒回應：即使 dense 偏低，法名精準命中仍判 high（不 no_match）。"""
+    rag._LAW_NAMES = _law_full_names()
+    try:
+        for q, want in LAW_QUERIES:
+            top = [{"id": 1, "score": 100.0, "_exact_rank": True,
+                    "payload": {"law_name": want, "article_no": "第 1 條",
+                                "chapter": "", "text": "立法目的。"}}]
+            level, reason = rag._decide(q, top, 0.40)  # dense 極低也要有回應
+            assert level != "no_match", f"{q!r} 不能沒回應（{level}/{reason}）"
+            assert level == "high", f"{q!r} 法名命中應 high"
+    finally:
+        rag._LAW_NAMES = []
+
+
+def test_law_brief_is_basic_without_article():
+    rag._LAW_COUNTS = {"證券交易法": 209}
+    try:
+        brief = rag._law_brief("證券交易法")
+        assert brief == "《證券交易法》（共209條）"
+        assert "第1條" not in brief
+    finally:
+        rag._LAW_COUNTS = {}
+    for name in _law_full_names():
+        b = rag._law_brief(name)
+        assert name in b
+        assert "第1條" not in b, f"{name} 的基本敘述不該引第1條"
+    assert rag._law_brief("未收錄之法") == "《未收錄之法》"  # 無篇數也不崩、仍有回應
+
+
 def test_trace_joins_steps_with_fullwidth_bar():
     t = rag._trace("契約解除後回復原狀義務依何規定？", "第 259 條", 3, 0.73,
                    "high", "cos@0.73")
@@ -38,6 +151,16 @@ def test_hit_view_jud_lists_all_judgment_values():
     h3 = _hit(3, exact=True, dense=0.8123)
     h3["score"] = 5.0
     assert rag._hit_view(h3)["jud"] == "dense cosine:0.8123|exact:5.0000"
+
+
+def test_hit_view_law_brief_jud_and_badge():
+    h = {"id": 9, "score": 0.0, "_exact_rank": True,
+         "_brief": "《證券交易法》（共209條）",
+         "payload": {"law_name": "證券交易法", "article_no": "第 2 條", "chapter": "", "text": "適用本法。"}}
+    v = rag._hit_view(h)
+    assert v["law"] is True
+    assert v["jud"] == "法名:證券交易法｜《證券交易法》（共209條）"
+    assert v["rel"] is None
 
 
 def test_hit_view_rel_percent_and_exact_flag():
