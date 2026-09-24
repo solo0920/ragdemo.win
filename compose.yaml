@@ -29,6 +29,8 @@ services:
       EMBED_MODEL: bge-m3:latest
       RERANK_MODEL: qllama/bge-reranker-v2-m3:latest
       COLLECTION: ${COLLECTION:-laws}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
     depends_on: [qdrant, postgres]
     volumes:
       - ./evals:/app/evals:ro

@@ -35,6 +35,18 @@ RERANK_MODEL = os.getenv("RERANK_MODEL", "qllama/bge-reranker-v2-m3:latest")
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
+# JEV（TypeSafe System One 決策模型）：只做 Noul 驗證，不當計數/日期/主管機關的題庫。
+# 全走 fail-open：任何失敗（網路／超時／無 key）回 None，退回原本規則邏輯，絕不擋 query。
+TYPESAFE_KEY = os.getenv("TYPESAFE_API_KEY", "").strip()
+TYPESAFE_URL = os.getenv("TYPESAFE_URL", "https://api.typesafe.ai/v1/systemone").rstrip("/")
+JEV_MODEL = os.getenv("JEV_MODEL", "jev-latest")
+JEV_DISABLED = os.getenv("JEV_DISABLED", "") in ("1", "true", "True", "yes")
+try:
+    JEV_VERIFY_MIN = float(os.getenv("JEV_VERIFY_MIN", "0.4"))  # 校準樣本：0.26 該退、0.5/0.89 該留
+except ValueError:
+    JEV_VERIFY_MIN = 0.4
+_jev_fails = 0        # 連續失敗次數（熔斷用）
+_jev_until = 0.0      # 熔斷截止（unix 秒）；期間直接跳過，避免每 query 卡 timeout
 # 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
 PICK_TTL = float(os.getenv("PICK_TTL", "30"))
 # 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
@@ -405,7 +417,8 @@ _RULE_INTENTS = [
     ("count", re.compile(r"(多少條|幾條|條文數|幾個條文|有多少條|共有?)")),
     ("authority", re.compile(r"(主管機關|主責機關|管轄機關|哪個機關|哪個單位|何機關)")),
     ("effective", re.compile(r"(何時施行|施行日期|生效日期|何時生效|何時實施|哪時施行|何時公布|公布日期)")),
-    ("revised", re.compile(r"(何時修正|修正日期|最近修正|什麼時候修正|修改日期)")),
+    ("revised", re.compile(r"(何時修正|什麼時候修正|修正日期|最近修正|修改日期)")),
+    ("rev_count", re.compile(r"(幾次修正|修正幾次|修正次數|共修正|改過幾次|修過幾次|修改幾次|修正過幾次)")),
     ("level", re.compile(r"(法律還是|還是法律|法規命令|位階|中央法規|地方自治還是|屬於.{0,8}法規?)")),
     ("active", re.compile(r"(是否廢止|已廢止|還有在用|還有效|仍然有效|是否有效)")),
     ("brief", re.compile(r"(什麼是|是什麼|介紹一下|簡介)")),
@@ -443,6 +456,12 @@ def _rule_answer(intent: str, law: str) -> str | None:
     if intent == "revised":
         md = _fmt_rm_date((m.get("law_modified_date") or "").strip() or None)
         return f"《{law}》最近一次修正公布：{md}。" if md else None
+    if intent == "rev_count":
+        c = len(re.findall(r"(?:^|\r?\n)\s*\d+\.", m.get("law_histories") or ""))
+        md = _fmt_rm_date((m.get("law_modified_date") or "").strip() or None)
+        if not c:
+            return None
+        return f"《{law}》歷來共修正 {c} 次" + (f"（最近：{md}）" if md else "") + "。"
     if intent == "level":
         lv = m.get("law_level")
         return f"《{law}》位階屬「{lv}」。" if lv else None
@@ -916,6 +935,64 @@ async def warmup() -> None:
         logger.warning("warmup 失敗（%s），將在首個 query 載入", e)
 
 
+def _jev_enabled() -> bool:
+    return bool(TYPESAFE_KEY) and not JEV_DISABLED
+
+
+def _jev_snippets(top: list[dict], max_chars: int = 160) -> list[dict]:
+    """把 top hits 壓成驗證用的摘錄（law/article/截斷 text）。"""
+    out = []
+    for h in list(top)[:3]:
+        p = h.get("payload", {}) or {}
+        out.append({
+            "law": p.get("law_name", ""),
+            "article": (p.get("article_no") or "").replace(" ", ""),
+            "text": _cw(p.get("text", ""))[:max_chars],
+        })
+    return out
+
+
+async def _jev_noul(state, instructions: str, true_note: str, false_note: str) -> float | None:
+    """TypeSafe systemone 單一 Noul 呼叫。失敗回 None（fail-open），不 raise。"""
+    global _jev_fails, _jev_until
+    if time.time() < _jev_until:
+        return None
+    body = {"model": JEV_MODEL, "state": state,
+            "questions": {"v": {"type": "noul", "instructions": instructions,
+                                "true": true_note, "false": false_note}}}
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.post(TYPESAFE_URL, json=body,
+                             headers={"authorization": f"Bearer {TYPESAFE_KEY}"})
+            r.raise_for_status()
+            prob = float(r.json()["answers"]["v"]["noul"])
+        _jev_fails = 0
+        return prob
+    except Exception as e:
+        _jev_fails += 1
+        if _jev_fails >= 2:  # 連兩次失敗 → 熔斷 60 秒，避免每 query 卡 10 秒
+            _jev_until = time.time() + 60
+            _jev_fails = 0
+            logger.warning("JEV 連續失敗，熔斷 60 秒（%s）", e)
+        else:
+            logger.warning("JEV 呼叫失敗（%s）", e)
+        return None
+
+
+async def _jev_verify(question: str, text: str, top: list[dict]) -> float | None:
+    """Noul：答案的每個事實主張是否都被摘錄的法條支持（防 LLM 編故事）。"""
+    if not _jev_enabled():
+        return None
+    state = {"question": question, "answer": text, "excerpts": _jev_snippets(top)}
+    return await _jev_noul(
+        state,
+        "Is every factual claim in the answer supported by the excerpted legal provisions, "
+        "with no invented article numbers, counts, dates, or institutions?",
+        "All factual claims are traceable to the excerpts",
+        "Any factual claim is unsupported or invented",
+    )
+
+
 async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     vecs = await embed([question])
     hits = await search(question, vecs[0], limit=recall)
@@ -970,10 +1047,19 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
             text = brief
         if not (text.startswith(f"《{brief_law}") or text.startswith(brief.split("共")[0])):
             text = f"{brief}：{text}"
+        if text != brief:  # 已退回規則卡就沒 LLM 敘述可驗，直接回
+            jv = await _jev_verify(question, text, top)
+            if jv is not None and jv < JEV_VERIFY_MIN:
+                text = brief  # 驗證不通過 → 整段退回可核實的規則卡，不讓 LLM 敘述留著編造
+            if jv is not None:
+                base["trace"] += f"｜JEV:{jv:.2f}{'(退回規則卡)' if jv < JEV_VERIFY_MIN else '(keep)'}"
         base["answer"] = f"{HOST_ID}: {text}"
         return base
     text = await generate(question, top, cautious=level == "medium")
+    jv = await _jev_verify(question, text, top)  # 一般分支先只記錄分數，供校準閾值
     base["answer"] = f"{HOST_ID}: {text}"
+    if jv is not None:
+        base["trace"] += f"｜JEV:{jv:.2f}(keep)"
     return base
 
 

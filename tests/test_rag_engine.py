@@ -155,6 +155,7 @@ def test_law_intent_router_and_rule_answer():
     assert rag._route_law_intent("證交法的主管機關是") == "authority"
     assert rag._route_law_intent("證交法何時施行") == "effective"
     assert rag._route_law_intent("證交法何時修正") == "revised"
+    assert rag._route_law_intent("證交法修過幾次") == "rev_count"
     assert rag._route_law_intent("中華民國刑法是法律還是法規命令") == "level"
     assert rag._route_law_intent("證交法是否已廢止") == "active"
     assert rag._route_law_intent("什麼是證券交易法") == "brief"
@@ -168,6 +169,26 @@ def test_law_intent_router_and_rule_answer():
     assert rag._meta_authority({"law_category": "行政＞金融監督管理委員會＞證券暨期貨管理目"}) == "金融監督管理委員會"
     assert rag._meta_authority({"law_category": "行政＞臺北市政府"}) == "臺北市政府"
     assert rag._meta_authority({"law_category": ""}) is None
+
+
+def test_jev_gating_and_snippets():
+    old_key, old_dis = rag.TYPESAFE_KEY, rag.JEV_DISABLED
+    rag.TYPESAFE_KEY, rag.JEV_DISABLED = "", False
+    try:
+        assert not rag._jev_enabled()
+    finally:
+        rag.TYPESAFE_KEY, rag.JEV_DISABLED = old_key, old_dis
+
+    hits = [
+        {"payload": {"law_name": "證券交易法", "article_no": " 22 ",
+                     "text": "有價證券之募集、發行、買賣之管理、監督之主管機關為金融監督管理委員會。"}},
+        {"payload": {"law_name": "勞動基準法", "article_no": "38",
+                     "text": "勞工在同一雇主或事業單位，繼續工作滿一定期間者，每年應依左列規定給予特別休假。"}},
+    ]
+    snips = rag._jev_snippets(hits)
+    assert snips[0]["law"] == "證券交易法" and snips[0]["article"] == "22"
+    assert snips[1]["law"] == "勞動基準法"
+    assert len(rag._jev_snippets(hits, max_chars=8)[0]["text"]) <= 8
 
 
 def test_rule_answer_from_meta():
@@ -198,6 +219,8 @@ def test_rule_answer_from_meta():
         assert rag._rule_answer("effective", "已廢止法") is None
         a = rag._rule_answer("revised", "證券交易法")
         assert "最近一次修正公布：民國 113 年 8 月 7 日" in a
+        a = rag._rule_answer("rev_count", "證券交易法")
+        assert "歷來共修正 1 次" in a
         a = rag._rule_answer("level", "證券交易法")
         assert a == "《證券交易法》位階屬「法律」。"
         a = rag._rule_answer("active", "證券交易法")
