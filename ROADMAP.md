@@ -584,6 +584,11 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   - 「連線與來源」表格改為後端列最右側「**連線詳細 ▸**」按鈕：點擊才浮出小彈窗
     （含三角形箭頭、`position:absolute` 貼在按鈕下）顯示三台探測 log＋Qdrant 檢索／
     LLM 生成來源；僅查詢過（有 `result`）時才出現。原永久表格移除。
+- **連線詳細按鈕常駐（2026-09-24，commit msi）**：按鈕不再包在 `{#if result}`（原本要送出後才浮現），
+  改為常駐 `.sw-right`。新增 backend `GET /status`（直接回 `rag._host_probe_log()` 的三台探測 log）；
+  未查詢時點開彈窗＝**即時探測**「主機狀態」（頁面載入＋每次開彈窗＋切換主機時刷新），
+  檢索方式區塊顯示「尚未送出查詢」；查詢過仍以該次 query 的 log/src 為準（語意不變）。
+  路徑：dev proxy `/api/status`→本機 8000、prod worker 轉發、手動選主機直連，三路皆通。
 - 今日檢查：工作樹乾淨、無密鑰外洩（僅 `.env.example`/compose fallback 的佔位 `changeme`）、
   前端 `npm run build`＋svelte-check 0 error、`/eval` 14/14=1.0。
 - **dev 登入注意**：`auth/login` 的 `redirect_uri`＝「目前 origin + `/auth/callback`」，所以用

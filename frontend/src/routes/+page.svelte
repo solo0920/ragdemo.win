@@ -18,6 +18,8 @@
   let healthError = '';
   let user = null;
   let showInfo = false;
+  let status = null;
+  let statusLoading = false;
 
   onMount(async () => {
     try {
@@ -43,6 +45,25 @@
     result = null;
     error = '';
     await checkHealth();
+    await loadStatus();
+  }
+
+  async function loadStatus() {
+    statusLoading = true;
+    try {
+      const r = await fetch(api('/status'));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      status = await r.json();
+    } catch (_) {
+      status = { ok: false, host: '-', log: null };
+    } finally {
+      statusLoading = false;
+    }
+  }
+
+  async function toggleInfo() {
+    showInfo = !showInfo;
+    if (showInfo && !result) loadStatus();
   }
 
   async function checkHealth() {
@@ -103,7 +124,7 @@
   }
 
   function hostRows(r) {
-    const ok = (id) => r.log?.[id] === '連線成功';
+    const ok = (id) => r?.log?.[id] === '連線成功';
     return ['x570', 'mbp', 'msi'].map((id) => ({
       k: id,
       ip: HOST_IPS[id],
@@ -124,6 +145,7 @@
     if (saved && BACKENDS.some((x) => x.id === saved)) backendId = saved;
   }
   checkHealth();
+  loadStatus();
 </script>
 
 <main>
@@ -154,25 +176,29 @@
     {:else if healthError}
       <span class="health bad">✗ {healthError}</span>
     {/if}
-    {#if result}
-      <div class="sw-right">
-        <button class="info-btn" onclick={() => (showInfo = !showInfo)} aria-expanded={showInfo}>
-          連線詳細 {showInfo ? '▾' : '▸'}
-        </button>
-        {#if showInfo}
-          <div class="info-pop">
-            <div class="tip"></div>
-            {#if user}<p class="pop-user">已登入：{user.email}</p>{/if}
-            <h2>連線與來源</h2>
-            <h3 class="pop-sub">主機狀態</h3>
+    <div class="sw-right">
+      <button class="info-btn" onclick={toggleInfo} aria-expanded={showInfo}>
+        連線詳細 {showInfo ? '▾' : '▸'}
+      </button>
+      {#if showInfo}
+        <div class="info-pop">
+          <div class="tip"></div>
+          {#if user}<p class="pop-user">已登入：{user.email}</p>{/if}
+          <h2>連線與來源</h2>
+          <h3 class="pop-sub">主機狀態{result ? '' : '（即時探測）'}</h3>
+          {#if statusLoading && !status}
+            <p class="muted">探測中…</p>
+          {:else}
             <table>
               <tbody>
-                {#each hostRows(result) as row}
+                {#each hostRows(result ?? status) as row}
                   <tr><td>{row.k}</td><td>{row.ip}</td><td>{row.v}</td></tr>
                 {/each}
               </tbody>
             </table>
-            <h3 class="pop-sub">本次檢索方式</h3>
+          {/if}
+          <h3 class="pop-sub">本次檢索方式</h3>
+          {#if result}
             <table>
               <tbody>
                 {#each srcRows(result) as row}
@@ -180,10 +206,12 @@
                 {/each}
               </tbody>
             </table>
-          </div>
-        {/if}
-      </div>
-    {/if}
+          {:else}
+            <p class="muted">尚未送出查詢——送出後顯示實際檢索／LLM 來源。</p>
+          {/if}
+        </div>
+      {/if}
+    </div>
   </section>
 
   <div class="ask-wrap">
@@ -267,6 +295,7 @@
   .tx { color: #444; }
   .pop-sub { font-size: 0.9rem; margin: 0.6rem 0 0.2rem; }
   .err { color: red; }
+  .muted { color: #666; font-size: 0.8rem; margin: 0.25rem 0; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
   textarea:disabled { background: transparent; }
   .ask-wrap:has(textarea:disabled) { opacity: 0.65; }

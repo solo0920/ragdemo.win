@@ -75,6 +75,12 @@ async def hosts():
     return {"hosts": await registry.list_hosts()}
 
 
+@app.get("/status")
+async def status():
+    """三台主機連線探測（連線詳細彈窗用；不依賴 query，供按鈕常駐顯示）。"""
+    return {"ok": True, "host": registry.HOST_ID, "log": await rag._host_probe_log()}
+
+
 @app.post("/ingest")
 async def ingest(docs: list[Doc]):
     n = await rag.upsert([d.model_dump() for d in docs])
