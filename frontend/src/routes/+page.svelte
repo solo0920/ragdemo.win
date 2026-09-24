@@ -98,13 +98,17 @@
     return p ? `${p.host}（${u}${p.model ? '｜' + p.model : ''}）` : '-';
   }
 
-  function statusRows(r) {
+  function hostRows(r) {
     const ok = (id) => r.log?.[id] === '連線成功';
-    const rows = [];
-    for (const id of ['x570', 'mbp', 'msi']) rows.push({ k: id, v: ok(id) ? '✅ 連線成功' : '❌ 連線失敗' });
-    rows.push({ k: 'Qdrant 檢索', v: provName(r.src?.qdrant) });
-    rows.push({ k: 'LLM 生成', v: provName(r.src?.llm) });
-    return rows;
+    return ['x570', 'mbp', 'msi'].map((id) => ({ k: id, v: ok(id) ? '✅ 連線成功' : '❌ 連線失敗' }));
+  }
+
+  function srcRows(r) {
+    return [
+      { k: '本次檢索後端', v: r.host ?? '-' },
+      { k: 'Qdrant 檢索', v: provName(r.src?.qdrant) },
+      { k: 'LLM 生成', v: provName(r.src?.llm) },
+    ];
   }
 
   if (typeof localStorage !== 'undefined') {
@@ -152,17 +156,22 @@
           <div class="info-pop">
             <div class="tip"></div>
             <h2>連線與來源</h2>
+            <h3 class="pop-sub">主機狀態</h3>
             <table>
-              <thead>
-                <tr><th>終端/來源</th><th>狀態</th></tr>
-              </thead>
               <tbody>
-                {#each statusRows(result) as row}
+                {#each hostRows(result) as row}
                   <tr><td>{row.k}</td><td>{row.v}</td></tr>
                 {/each}
               </tbody>
             </table>
-            {#if result.host}<p class="byline">由 {result.host} 生成本次response</p>{/if}
+            <h3 class="pop-sub">檢索方式</h3>
+            <table>
+              <tbody>
+                {#each srcRows(result) as row}
+                  <tr><td>{row.k}</td><td>{row.v}</td></tr>
+                {/each}
+              </tbody>
+            </table>
           </div>
         {/if}
       </div>
@@ -201,12 +210,10 @@
   textarea { width: 100%; }
   .ans { white-space: pre-wrap; }
   table { border-collapse: collapse; margin: 0.5rem 0 1rem; }
-  th, td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
-  th { background: #f0f0f0; }
+  td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
   .sc { font-weight: bold; color: #b01; }
   .tx { color: #444; }
-  .byline { font-weight: bold; margin: 0 0 0.5rem; }
-  .info-pop .byline { margin: 0.5rem 0 0; font-size: 0.85rem; }
+  .pop-sub { font-size: 0.9rem; margin: 0.6rem 0 0.2rem; }
   .err { color: red; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
   textarea:disabled { background: #f5f5f5; }
