@@ -37,6 +37,14 @@ HOST_ID = os.getenv("HOST_ID", "x570")
 PICK_TTL = float(os.getenv("PICK_TTL", "30"))
 # 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
 KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
+# 前端「連線與來源」彈窗的主機探測（與 Pages worker 同語意：公網 api /health）。
+# dev（vite proxy 直連 backend、繞過 worker）由 backend 補 log；prod 的 worker 會自行覆蓋此欄位。
+HOST_API = {
+    "x570": os.getenv("HOST_API_X570", "https://api-x570.ragdemo.win").rstrip("/"),
+    "mbp": os.getenv("HOST_API_MBP", "https://api-mbp.ragdemo.win").rstrip("/"),
+    "msi": os.getenv("HOST_API_MSI", "https://api-msi.ragdemo.win").rstrip("/"),
+}
+PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT", "2.5"))
 
 
 def keep_alive_value():
@@ -97,6 +105,20 @@ def host_label(url: str) -> str:
     if "." not in host:  # compose service 名（如 qdrant）在本機跑 → 標本機
         return HOST_ID
     return host
+
+
+async def _host_probe_log() -> dict[str, str]:
+    """並行探測三台公網 api /health，回傳前端「連線與來源」的 log（與 worker 同字串）。
+    worker 在 prod 會用自己探的 log 覆蓋；此函式主要服務 dev（vite proxy 直連 backend）。"""
+    async def _one(url: str) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
+                r = await c.get(f"{url}/health")
+                return r.status_code < 500
+        except Exception:
+            return False
+    ok = await asyncio.gather(*(_one(u) for u in HOST_API.values()))
+    return {hid: ("連線成功" if o else "連線失敗") for hid, o in zip(HOST_API, ok)}
 
 
 async def _ollama_probe(url: str) -> bool:
@@ -423,7 +445,8 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
-    return {"answer": text, "src": src, "hits": [_hit_view(h) for h in top]}
+    return {"answer": text, "src": src, "hits": [_hit_view(h) for h in top],
+            "host": HOST_ID, "log": await _host_probe_log()}
 
 
 def _hit_view(h: dict) -> dict:
