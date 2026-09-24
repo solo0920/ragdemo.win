@@ -189,7 +189,7 @@
   <div class="ask-wrap">
     <textarea
       bind:value={question}
-      rows="3"
+      rows="1"
       placeholder="輸入法律問題…（Enter 送出，Shift+Enter 換行）"
       disabled={!user}
       onkeydown={(e) => {
@@ -234,10 +234,15 @@
 
 <style>
   main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
-  textarea { width: 100%; resize: none; border: 1px solid #999; border-radius: 0.25rem; }
+  textarea {
+    width: 100%; resize: none; height: 2.4rem;
+    border: 1px solid #999; border-radius: 0.25rem;
+    padding: 0 4.5rem 0 0.6rem; line-height: 1.4; text-align: left;
+    font-family: inherit;
+  }
   .ask-wrap { position: relative; }
   .send {
-    position: absolute; right: 8px; bottom: 8px;
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
     height: 2rem; padding: 0 0.9rem; border-radius: 0.375rem;
     display: flex; align-items: center;
     background: #fff; color: #333; border: 1px solid #999;
