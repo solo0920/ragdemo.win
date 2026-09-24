@@ -153,6 +153,30 @@ def test_hit_view_jud_lists_all_judgment_values():
     assert rag._hit_view(h3)["jud"] == "dense cosine:0.8123|exact:5.0000"
 
 
+def test_law_urls_law_all_and_single_article():
+    assert rag._law_url("A0000001") == "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=A0000001"
+    assert rag._law_url("A0000001", "第 259 條") == \
+        "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=A0000001&flno=259"
+    assert rag._law_url("A0000001", "第 10-1 條") == \
+        "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=A0000001&flno=10-1"
+    assert rag._law_url(None) is None
+    assert rag._law_url("A0000001", "不分條") == "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=A0000001"
+
+
+def test_hit_view_url_law_only_vs_article():
+    h = {"id": 9, "score": 0.5,
+         "payload": {"pcode": "A0000001", "law_name": "民法", "article_no": "第 259 條",
+                     "chapter": "", "text": "一段。"}}
+    assert rag._hit_view(h)["url"] == \
+        "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=A0000001&flno=259"
+    # law_only（法名查詢）→ 整部法連結
+    assert rag._hit_view(h, law_only=True)["url"] == \
+        "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=A0000001"
+    # 無 pcode（判決等）→ 無連結
+    h2 = {"id": 8, "score": 0.5, "payload": {"case_no": "111上1", "law": "刑法"}}
+    assert rag._hit_view(h2)["url"] is None
+
+
 def test_hit_view_law_brief_jud_and_badge():
     h = {"id": 9, "score": 0.0, "_exact_rank": True,
          "_brief": "《證券交易法》（共209條）",

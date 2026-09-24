@@ -258,7 +258,7 @@
           {#each result.hits as h}
             <li>
               <span class="sc">{#if h.law}簡介{:else if h.exact}精準{:else}{h.rel ?? '?'}%{/if}</span>
-              ｜{h.law_name}{h.art}
+              ｜{#if h.url}<a class="lnk" href={h.url} target="_blank" rel="noreferrer">{h.law_name}{h.art} ↗</a>{:else}{h.law_name}{h.art}{/if}
               ｜{h.item}
               <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>
               <br /><span class="jud">{h.jud}</span>
@@ -309,6 +309,8 @@
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
   .trace { color: #999; font-size: 0.8rem; margin: 0.25rem 0; font-family: monospace; }
   .jud { color: #a7b; font-size: 0.75rem; font-family: monospace; }
+  .lnk { color: #05b; text-decoration: none; }
+  .lnk:hover { text-decoration: underline; }
   textarea:disabled { background: transparent; }
   .ask-wrap:has(textarea:disabled) { opacity: 0.65; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

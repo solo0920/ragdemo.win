@@ -336,6 +336,24 @@ def _law_brief(law: str) -> str:
 _ART_HEAD_RE = re.compile(r"^第\s*(\d+)")
 
 
+def _art_flno(article_no: str) -> str | None:
+    """條號 → moj 單條文 flno 參數（例:「第 10-1 條」→「10-1」）。"""
+    m = re.match(r"^第\s*([0-9]+(?:\s*-\s*[0-9]+)?)", article_no or "")
+    return m.group(1).replace(" ", "") if m else None
+
+
+def _law_url(pcode: str | None, article_no: str | None = None) -> str | None:
+    """法規來源連結（全國法規資料庫 law.moj.gov.tw）：給條號→單條文頁；否則→整部法頁。"""
+    if not pcode:
+        return None
+    base = "https://law.moj.gov.tw/LawClass/"
+    if article_no:
+        flno = _art_flno(article_no)
+        if flno:
+            return f"{base}LawSingle.aspx?pcode={pcode}&flno={flno}"
+    return f"{base}LawAll.aspx?pcode={pcode}"
+
+
 def _art_sort_key(article_no: str) -> tuple[int, int]:
     """條號排序鍵：主號（負數排最前，讓「第1條」先於其他）＋子號。"""
     m = _ART_HEAD_RE.match(article_no or "")
@@ -705,10 +723,12 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
+    brief_law = _detect_law(question)
+    views = [_hit_view(h, law_only=bool(brief_law)) for h in top]
     base = {"ok": True, "host": HOST_ID, "confidence": level, "relevance": reason,
             "no_match": False,
             "trace": _trace(question, an, exact_n, dense_max, level, reason),
-            "src": src, "hits": [_hit_view(h) for h in top],
+            "src": src, "hits": views,
             "log": await _host_probe_log()}
     if level == "no_match":
         # 低相關/不明語意：不問 LLM，直接如實回報，避免臆測
@@ -732,8 +752,9 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     return base
 
 
-def _hit_view(h: dict) -> dict:
-    """前端引用渲染用的精簡欄位：語意相似度%／精準旗標／判斷值／條號／款位／內容（保留 payload）。"""
+def _hit_view(h: dict, law_only: bool = False) -> dict:
+    """前端引用渲染用的精簡欄位：語意相似度%／精準旗標／判斷值／條號／款位／來源連結／內容。
+    law_only＝法名查詢（例:「證券交易法」）→ 整部法連結；否則依條號給單條文連結。"""
     p = h.get("payload", {})
     d = h.get("_dense")
     law = bool(h.get("_brief"))
@@ -747,10 +768,12 @@ def _hit_view(h: dict) -> dict:
         jud = f"dense cosine:{d or 0.0:.4f}|sparse idf:{sp:.4f}|sum:{h['score']:.4f}"
     # 精準分支（條號/法名）：不給相對%語意（rel=None），前端顯示「精準/簡介」徽章
     rel = None if (law or h.get("_exact_rank")) else (None if d is None else int(round(d * 100)))
+    art_no = p.get("article_no")
     view = {"score": h["score"], "payload": p, "jud": jud, "law": law,
             "rel": rel,
             "exact": bool(h.get("_exact_rank")),
-            "art": (p.get("article_no") or "").replace(" ", "") or p.get("law", ""),
+            "url": _law_url(p.get("pcode"), None if law_only else art_no),
+            "art": (art_no or "").replace(" ", "") or p.get("law", ""),
             "law_name": p.get("law_name", ""),
             "item": _law.cite_item(p.get("text", ""))}
     s = _law.structure(p.get("text", ""))
