@@ -20,6 +20,7 @@ import httpx
 
 from . import sparse as _sparse
 from . import law_struct as _law
+from . import rules_store as _rules
 
 logger = logging.getLogger("ragdemo")
 
@@ -472,6 +473,34 @@ def _rule_answer(intent: str, law: str) -> str | None:
     if intent == "brief":
         return _meta_card(law, m)
     return None
+
+
+_RULE_INTENT_LABELS = {
+    "count": "條數問句（主條＋子條、現行有效；不含刪除空號）",
+    "authority": "主管機關（法規分類第二段）",
+    "effective": "施行／生效日期",
+    "revised": "最近修正公布日期",
+    "rev_count": "歷來修正次數（沿革編號計數）",
+    "level": "位階（法律／法規命令…）",
+    "active": "現行有效或已廢止",
+    "brief": "什麼是X法 → 位階＋分類＋條數＋沿革卡",
+}
+
+
+def builtin_catalog(sample_law: str = "證券交易法") -> list[dict]:
+    """題庫頁顯示用：內建 intent → 觸發關鍵字／範例／規則作答範本。"""
+    _try_load_law_meta()
+    out = []
+    for intent, pat in _RULE_INTENTS:
+        line = _rule_answer(intent, sample_law) or ""
+        out.append({
+            "id": intent,
+            "category": "內建",
+            "label": _RULE_INTENT_LABELS.get(intent, intent),
+            "pattern": getattr(pat, "pattern", ""),
+            "sample_answer": line,
+        })
+    return out
 
 
 def _alias_to_law(qq: str) -> str | None:
@@ -1018,7 +1047,17 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
             "trace": _trace(question, an, exact_n, dense_max, level, reason),
             "src": src, "hits": views,
             "log": await _host_probe_log()}
-    # 規則題庫（不進 LLM）：法名問句若命中 count/authority/effective/revised/level/active/brief
+    # 使用者題庫優先（高於內建 intent）：手動校正的 Q→A 或關鍵字覆寫，命中直接答。
+    try:
+        user_rule = _rules.match_rule(question, brief_law)
+    except Exception:
+        user_rule = None
+    if user_rule:
+        base["answer"] = f"{HOST_ID}: {user_rule.get('answer', '')}"
+        base["confidence"] = "user_rule"
+        base["trace"] += f"｜題庫:{_cw(user_rule.get('match', ''))[:24]}"
+        return base
+    # 內建規則題庫（不進 LLM）：法名問句若命中 count/authority/effective/revised/level/active/brief
     # 任一 intent，直接以規則答，避免 LLM 編故事。
     if brief_law is not None and an is None:
         _try_load_law_meta()

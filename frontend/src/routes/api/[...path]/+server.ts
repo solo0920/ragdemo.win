@@ -2,7 +2,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { readCookie, verifySession } from '$lib/google';
 
-const SENSITIVE = new Set(['query', 'ingest', 'eval']);
+const SENSITIVE = new Set(['query', 'ingest', 'eval', 'rules']);
 
 // 公網後端依優先序（自動模式依此順序即時備援：先通者勝）。
 // 可用 Pages 變數 API_ORIGINS（逗號分隔）覆寫；未設則用內建三台。
@@ -71,7 +71,7 @@ function dead(status: number): boolean {
   return status === 502 || status === 503 || status === 504 || status === 530 || status === 1033;
 }
 
-async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }): Promise<Response> {
+async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }, headers?: Headers): Promise<Response> {
   const origins = originsOf(platform);
   if (origins.length === 0) {
     return new Response(JSON.stringify({ detail: 'API_ORIGINS/API_ORIGIN 未設定（請在 Cloudflare Pages 變數設定）' }), {
@@ -80,6 +80,9 @@ async function through(method: string, path: string, body: string | undefined, p
     });
   }
   const init: RequestInit = { method, headers: { 'content-type': 'application/json' } };
+  // 透傳管理 token（/rules 寫入用），不落入 cookie
+  const ah = headers?.get('authorization');
+  if (ah) init.headers['authorization'] = ah;
   if (body !== undefined) init.body = body;
 
   const failures: string[] = [];
@@ -182,12 +185,12 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
 export const GET: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, parsed(params.path));
   if (blocked) return blocked;
-  return through('GET', params.path, undefined, platform);
+  return through('GET', params.path, undefined, platform, request.headers);
 };
 
 export const POST: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, parsed(params.path));
   if (blocked) return blocked;
   if (parsed(params.path) === 'query') return queryRoute(request, platform);
-  return through('POST', params.path, await request.text(), platform);
+  return through('POST', params.path, await request.text(), platform, request.headers);
 };

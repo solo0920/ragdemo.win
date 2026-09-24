@@ -2,14 +2,15 @@
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import rag, registry
+from . import rag, registry, rules_store as rules
 
 logger = logging.getLogger("ragdemo")
 
@@ -90,6 +91,62 @@ async def ingest(docs: list[Doc]):
 @app.post("/query")
 async def query(q: Query):
     return await rag.answer(q.question, q.recall, q.top_k)
+
+
+@app.get("/rules")
+async def rules_list():
+    """題庫頁：內建 intent 目錄＋使用者自定規則（讀取不需 token）。"""
+    _ = rules
+    return {
+        "builtins": rag.builtin_catalog(),
+        "user": rules.load(),
+        "counts": rules.counts(),
+        "source_file": str(rules._pick()),
+    }
+
+
+def _require_admin(authorization: str | None) -> None:
+    token = os.getenv("ADMIN_TOKEN", "").strip()
+    if not token:
+        raise HTTPException(status_code=403, detail="本主機未設定 ADMIN_TOKEN，題庫寫入停用")
+    if authorization != f"Bearer {token}":
+        raise HTTPException(status_code=401, detail="管理權限不符")
+
+
+class RuleIn(BaseModel):
+    kind: str = "contains"
+    match: str
+    law: str = ""
+    answer: str
+    note: str = ""
+    enabled: bool = True
+
+
+@app.post("/rules")
+async def rules_add(body: RuleIn, authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    r = rules.add(body.model_dump())
+    if not r or "error" in r:
+        raise HTTPException(status_code=400, detail=(r or {}).get("error", "新增失敗"))
+    return r["rule"]
+
+
+@app.post("/rules/{rid}/toggle")
+async def rules_toggle(rid: str, authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    r = rules.toggle(rid)
+    if not r or "error" in r:
+        raise HTTPException(status_code=404, detail=(r or {}).get("error", "操作失敗"))
+    return r["rule"]
+
+
+@app.post("/rules/{rid}/delete")
+async def rules_delete(rid: str, authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    r = rules.delete(rid)
+    if not r or "error" in r:
+        raise HTTPException(status_code=404, detail=(r or {}).get("error", "操作失敗"))
+    return r
 
 
 @app.post("/eval")

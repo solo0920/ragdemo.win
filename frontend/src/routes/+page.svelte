@@ -153,6 +153,7 @@
     <h1>法規判決 RAG</h1>
     <section class="auth">
       {#if user}
+        <a href="/rules" class="btn">題庫管理</a>
         <a href="/auth/logout" class="btn">登出</a>
       {:else}
         <a href="/auth/login" class="btn">使用 Google 登入</a>
@@ -248,11 +249,13 @@
         <p class="ans">{result.answer}</p>
         <p class="hint">信心：{result.confidence}（{result.relevance}）— 已跳過 LLM，不進行臆測。</p>
         <p class="trace">流程：{result.trace}</p>
+        <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案不對？把這題加入題庫 →</a></p>
       {:else}
         <h2>回答（{result.host}）</h2>
         <p class="ans">{result.answer.replace(/^[a-z0-9]+: /, '')}</p>
         <p class="hint">信心：{result.confidence}（{result.relevance}）</p>
         <p class="trace">流程：{result.trace}</p>
+        <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案有誤或想固定這題答案？加入題庫 →</a></p>
         <h2>引用（top {result.hits.length}）</h2>
         <ol>
           {#each result.hits as h}
