@@ -70,6 +70,7 @@
       error = '請先登入 Google 才能查詢';
       return;
     }
+    if (!question.trim()) return;
     loading = true;
     error = '';
     result = null;
@@ -185,7 +186,18 @@
     {/if}
   </section>
 
-  <textarea bind:value={question} rows="3" placeholder="輸入法律問題…" disabled={!user}></textarea>
+  <textarea
+      bind:value={question}
+      rows="3"
+      placeholder="輸入法律問題…（Enter 送出，Shift+Enter 換行）"
+      disabled={!user}
+      onkeydown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          ask();
+        }
+      }}
+    ></textarea>
   {#if !user}
     <p class="hint">尚未登入，請先 <a href="/auth/login" rel="external">使用 Google 登入</a> 後才能查詢。</p>
   {/if}
