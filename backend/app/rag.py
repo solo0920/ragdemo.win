@@ -445,7 +445,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
-    return {"answer": text, "src": src, "hits": [_hit_view(h) for h in top],
+    return {"ok": True, "answer": text, "src": src, "hits": [_hit_view(h) for h in top],
             "host": HOST_ID, "log": await _host_probe_log()}
 
 

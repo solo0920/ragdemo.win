@@ -512,10 +512,12 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   而「主機狀態」的 `log` 是 worker 每支 query 並行探測三台公網 api 後注入的。backend `/query`
   原本沒回 `host`/`log` 欄位 → 前端 `result.log[id]==='連線成功'` 永不成立、`result.host` undefined。
   是 **dev/prod 資料來源落差，非連線故障**（點的「連線詳細」吃的是 `result`，不是 health）。
-- 修復（2026-09-24，commit `d3fd386`）：backend `answer()` 補 `host: HOST_ID`＋`log`；
-  新增 `_host_probe_log()` 並行探測三台公網 `api-*.ragdemo.win/health`（與 worker 同語意、
-  同字串；`HOST_API`/`PROBE_TIMEOUT` 環境變數可覆寫）。**prod 的 worker 會自行覆蓋這兩個欄位**，
-  不衝突。實測三台連線成功、probe 約 1.3s（tunnel 往返）。
+- 修復（2026-09-24，commit `d3fd386` + 後續補 ok）：backend `answer()` 補 `host: HOST_ID`＋
+  `log`＋`ok: True`；新增 `_host_probe_log()` 並行探測三台公網 `api-*.ragdemo.win/health`
+  （與 worker 同語意、同字串；`HOST_API`/`PROBE_TIMEOUT` 環境變數可覆寫）。**prod 的 worker
+  會自行覆蓋這三個欄位**，不衝突。實測三台連線成功、probe 約 1.3s（tunnel 往返）。
+  另坑：光補 host/log 後 dev query 仍「查詢失敗」——前端 `ask()` 有 `result.ok` 斷言，
+  backend 原本沒回 `ok`；補上後 dev/prod 皆通。
 - 教訓：**dev 與 prod 的資訊來源不同（backend vs worker）**；排查「資訊型 UI」問題時，
   先確認該請求實際打到誰（`vite proxy` → backend，還是 `worker`）。
 - 操作備註：重啟服務忌用 `pkill -f 'uvicorn app.main'` 這類未加 bracket 的 pattern——執行中的
