@@ -237,8 +237,8 @@
   textarea {
     width: 100%; resize: none; height: 2.4rem;
     border: 1px solid #999; border-radius: 0.25rem;
-    padding: 0 4.5rem 0 0.6rem; line-height: 1.4; text-align: left;
-    font-family: inherit;
+    padding: 0 4.5rem 0 0.6rem; line-height: 2.2rem; text-align: left;
+    font-size: 0.9rem; font-family: inherit;
   }
   .ask-wrap { position: relative; }
   .send {
