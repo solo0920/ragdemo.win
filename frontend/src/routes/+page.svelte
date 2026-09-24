@@ -206,7 +206,7 @@
       aria-label="送出查詢"
       title="送出（Enter）"
     >
-      送出
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
     </button>
   </div>
   {#if !user}
@@ -236,20 +236,30 @@
   main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
   textarea {
     flex: 1 1 0%; min-width: 0; resize: none; height: 2.4rem;
-    border: 1px solid #999; border-radius: 0.25rem;
-    padding: 0 0.6rem; line-height: 2.2rem; text-align: left;
-    font-size: 0.9rem; font-family: inherit;
+    border: none; outline: none; background: transparent;
+    padding: 0 0.25rem; line-height: 2.4rem; text-align: left;
+    font-size: 1rem; font-family: inherit;
   }
-  .ask-wrap { display: flex; align-items: center; gap: 0.5rem; }
+  .ask-wrap {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.75rem;
+    border: 1px solid #d7d7d7; border-radius: 1rem;
+    background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .ask-wrap:focus-within {
+    border-color: #1e90ff; box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.12);
+  }
   .send {
-    flex-shrink: 0; height: 1.8rem; padding: 0 0.9rem; border-radius: 0.375rem;
-    display: flex; align-items: center; line-height: 1;
-    background: #fff; color: #333; border: 1px solid #999;
-    font-size: 0.9rem; cursor: pointer;
-    transition: background 0.15s;
+    flex-shrink: 0; width: 2.3rem; height: 2.3rem; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 0.6rem;
+    background: #1e90ff; color: #fff;
+    cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    transition: background 0.15s, opacity 0.15s;
   }
-  .send:hover:not(:disabled) { background: #f0f0f0; }
-  .send:disabled { opacity: 0.5; cursor: default; }
+  .send:hover:not(:disabled) { background: #1c86ee; }
+  .send:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
   .ans { white-space: pre-wrap; }
   table { border-collapse: collapse; margin: 0.5rem 0 1rem; }
   td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
@@ -258,7 +268,8 @@
   .pop-sub { font-size: 0.9rem; margin: 0.6rem 0 0.2rem; }
   .err { color: red; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
-  textarea:disabled { background: #f5f5f5; }
+  textarea:disabled { background: transparent; }
+  .ask-wrap:has(textarea:disabled) { opacity: 0.65; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
   .head h1 { margin: 0.5rem 0; }
   .auth { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; white-space: nowrap; }
