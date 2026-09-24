@@ -261,6 +261,7 @@
               ｜{h.law_name}{h.art}
               ｜{h.item}
               <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>
+              <br /><span class="jud">{h.jud}</span>
             </li>
           {/each}
         </ol>
@@ -307,6 +308,7 @@
   .muted { color: #666; font-size: 0.8rem; margin: 0.25rem 0; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
   .trace { color: #999; font-size: 0.8rem; margin: 0.25rem 0; font-family: monospace; }
+  .jud { color: #a7b; font-size: 0.75rem; font-family: monospace; }
   textarea:disabled { background: transparent; }
   .ask-wrap:has(textarea:disabled) { opacity: 0.65; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

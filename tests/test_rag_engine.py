@@ -22,6 +22,24 @@ def test_trace_joins_steps_with_fullwidth_bar():
     assert p2[4] == "判定:no_match(low_relevance@0.50)"
 
 
+def test_hit_view_jud_lists_all_judgment_values():
+    # 一般命中：dense cosine｜sparse idf｜sum（融合分），以 「|」 分隔
+    h = _hit(1, sparse=1.1012)
+    h["_dense"] = 0.7350
+    h["score"] = 1.2843
+    v = rag._hit_view(h)
+    assert v["jud"] == "dense cosine:0.7350|sparse idf:1.1012|sum:1.2843"
+    # 條號精準分支：dense cosine（可能 n/a）＋ exact 分
+    h2 = _hit(2, exact=True)
+    h2["score"] = 12.3456
+    v2 = rag._hit_view(h2)
+    assert v2["jud"] == "dense cosine:n/a|exact:12.3456"
+    # 精準分支有 dense 時也列出
+    h3 = _hit(3, exact=True, dense=0.8123)
+    h3["score"] = 5.0
+    assert rag._hit_view(h3)["jud"] == "dense cosine:0.8123|exact:5.0000"
+
+
 def test_hit_view_rel_percent_and_exact_flag():
     h = _hit(1, dense=0.735)
     v = rag._hit_view(h)
@@ -43,13 +61,15 @@ def test_rerank_keeps_pool_dense_over_top_leg():
     assert out[1]["_dense"] == 0.65
 
 
-def _hit(iid, dense=None, exact=False):
+def _hit(iid, dense=None, exact=False, sparse=None):
     h = {"id": iid, "score": 0.5, "payload": {"law_name": "民法", "article_no": "第1條",
                                               "chapter": "", "text": "一段。"}}
     if exact:
         h["_exact_rank"] = True
     if dense is not None:
         h["_dense"] = dense
+    if sparse is not None:
+        h["_sparse"] = sparse
     return h
 
 

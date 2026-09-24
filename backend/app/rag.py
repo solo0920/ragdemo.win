@@ -580,10 +580,16 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
 
 
 def _hit_view(h: dict) -> dict:
-    """前端引用渲染用的精簡欄位：語意相似度%／精準旗標／條號／款位／內容（保留 payload）。"""
+    """前端引用渲染用的精簡欄位：語意相似度%／精準旗標／判斷值／條號／款位／內容（保留 payload）。"""
     p = h.get("payload", {})
     d = h.get("_dense")
-    view = {"score": h["score"], "payload": p,
+    if h.get("_exact_rank"):
+        dstr = f"{d:.4f}" if d is not None else "n/a"
+        jud = f"dense cosine:{dstr}|exact:{h['score']:.4f}"
+    else:
+        sp = h.get("_sparse", 0.0)
+        jud = f"dense cosine:{d or 0.0:.4f}|sparse idf:{sp:.4f}|sum:{h['score']:.4f}"
+    view = {"score": h["score"], "payload": p, "jud": jud,
             "rel": None if d is None else int(round(d * 100)),
             "exact": bool(h.get("_exact_rank")),
             "art": (p.get("article_no") or "").replace(" ", "") or p.get("law", ""),
