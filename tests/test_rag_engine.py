@@ -117,6 +117,21 @@ def test_law_brief_is_basic_without_article():
     assert rag._law_brief("未收錄之法") == "《未收錄之法》"  # 無篇數也不崩、仍有回應
 
 
+def test_strip_article_refs_removes_any_article_mention():
+    s = rag._strip_article_refs(
+        "《證券交易法》規範有價證券之募集、發行與買賣等事項。"
+        "相關內容可參見《證券交易法》第2條。本法共209條。")
+    assert "第2條" not in s
+    assert "可參見" not in s
+    assert "《證券交易法》規範有價證券" in s
+    assert "本法共209條" in s  # 非「第X條」的句尾保留
+
+    assert rag._strip_article_refs("詳見勞基法第 10-1 條。") == ""
+    assert rag._strip_article_refs("全是第2條。參見第1條。") == ""
+    assert rag._strip_article_refs("") == ""
+    assert rag._strip_article_refs("《刑法》規範犯罪與刑罰。") == "《刑法》規範犯罪與刑罰。"
+
+
 def test_trace_joins_steps_with_fullwidth_bar():
     t = rag._trace("契約解除後回復原狀義務依何規定？", "第 259 條", 3, 0.73,
                    "high", "cos@0.73")

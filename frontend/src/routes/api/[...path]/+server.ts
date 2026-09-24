@@ -162,7 +162,18 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
     });
     const data = await r.json();
     if (!r.ok) return json({ ok: false, host, log, detail: data.detail ?? `後端錯誤 ${r.status}` });
-    return json({ ok: true, host, log, answer: data.answer, hits: data.hits, src: data.src ?? null });
+    // 注意：confidence/relevance/trace/no_match 必須透傳，前端要顯示「信心/流程」
+    // 與 no_match 專屬區塊（此處只補 host/log/ok，勿把後端欄位過濾掉）。
+    return json({
+      ok: true, host, log,
+      answer: data.answer ?? null,
+      hits: data.hits ?? [],
+      src: data.src ?? null,
+      no_match: data.no_match ?? false,
+      confidence: data.confidence ?? null,
+      relevance: data.relevance ?? null,
+      trace: data.trace ?? null,
+    });
   } catch (e) {
     return json({ ok: false, host, log, detail: `轉發失敗：${(e as Error).message}` });
   }

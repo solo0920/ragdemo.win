@@ -333,6 +333,15 @@ def _law_brief(law: str) -> str:
     return f"《{law}》（共{n}條）" if n else f"《{law}》"
 
 
+_ART_REF_RE = re.compile(r"第\s*[0-9]+(?:\s*-\s*[0-9]+)?\s*條")
+
+
+def _strip_article_refs(text: str) -> str:
+    """去掉含「第X條」的句子（法名查詢的基本敘述不該指名任何條號）。"""
+    parts = [s for s in text.split("。") if s and not _ART_REF_RE.search(s)]
+    return "。".join(parts) + ("。" if parts else "")
+
+
 _ART_HEAD_RE = re.compile(r"^第\s*(\d+)")
 
 
@@ -639,7 +648,8 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     blocks = "\n\n".join(f"{_ref(h)} {h['payload'].get('text', '')}" for h in contexts)
     if brief_law:
         guard = (f"使用者查詢的是《{brief_law}》這部法本身。請只用一到三句話做基本敘述"
-                 "（規範領域、大致內容），不要引用任何條號原文，尤其不要引用第1條。\n\n")
+                 "（規範領域、大致內容）。嚴禁出現任何條號（第1條、第2條……），"
+                 "不得寫『參見／詳見／依／見 第X條』，也不要引用或轉述特定條文的內容。\n\n")
     elif cautious:
         guard = ("材料與問題為中度相關：請依材料回答，並明確標註引用來源（法名＋條號）。"
                  "不要直接說「沒有符合比對的法條」；只有材料確實無法回答該問題（無關或未收錄）"
@@ -745,6 +755,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
         except (httpx.ConnectError, httpx.TimeoutException):
             base["answer"] = f"{HOST_ID}: {brief}"  # LLM 掛了也要回應基本敘述
             return base
+        text = _strip_article_refs(text) or brief
         if not (text.startswith(f"《{brief_law}") or text.startswith(brief.split("共")[0])):
             text = f"{brief}：{text}"
         base["answer"] = f"{HOST_ID}: {text}"
