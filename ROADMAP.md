@@ -548,6 +548,20 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   （`ps aux | grep [c]loudflared` 看 bash loop＋cloudflared 兩 PID 是否同在）。
   另：接手時 running api 容器缺最新碼（`GET /status` 404）→ `docker compose build api && up -d api` 後才通，同 §4.5 前一條「pull 進樹≠重啟生效」，改後端碼一律重建容器。
 
+**特殊狀況：開機照常登入後 tunnel 才起來（2026-09-24 x570 實測，root cause 定案）**
+- 現象：按電源開機後公網 530，**直到使用者登入並開 opencode 才變 200**；看起來像「服務等登入」。
+- timeline：boot 13:15:42 → cronie loop（PID 1876）13:15:49 就已啟動 → cloudflared 卻拖到 **13:40:32**，與登入 session（13:40:16）差 16 秒。
+- root cause：**crontab `@reboot` loop 的 log 導向 `>> /tmp/opencode/cfdrun.log`，但 `/tmp` 開機是空的、
+  `/tmp/opencode` 只有 opencode 工具會建** → loop 每 5s 重跑一次 `>> ...` 時 bash 開 redirect 失敗
+  （目錄不存在）→ **cloudflared 根本沒被執行**，且失敗無任何 log（連 `[tunnel] exit` 標記都沒寫）。
+  登入＋開 opencode 建出 `/tmp/opencode` 後，下一次 loop 才真正跑起 cloudflared。docker 容器不受影響
+  （`unless-stopped`，postgres/qdrant 13:15:55 隨開機起）。
+- 判定：`stat -c%y /tmp/opencode` 的 ctime 與 cloudflared 新 PID／log 首行**同一秒** → 實錘。
+- 修復（`x570:`）：crontab 內兩處導向改為 `/home/solo/.cloudflared/cfd.log`（home 在 `/`、開機即存在、
+  不依賴工具；與 TUNNEL-530 文件的 log 位置一致），已重拉 loop 即刻生效。
+- 教訓：**keepalive 的 log 路徑不能依賴工具專用臨時目錄（`/tmp/opencode`）**；shell redirect 失敗會讓
+  被包的程式根本不執行且「無聲失敗」。排查「登入才起服務」先對開機時間軸＋`ps -o lstart`。
+
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
 - 原則：**出門＝當 x570 斷線**，現有自動 failover 已涵蓋、零設定：
