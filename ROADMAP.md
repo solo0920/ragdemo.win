@@ -505,6 +505,23 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   （每 30s 冪等檢查，WSL 重啟/崩潰自動拉起 uvicorn＋qdrant，見 ARCHITECTURE keepalive 規範）。
 - 教訓：**「隧道有在跑」≠「api 在跑」**；公網 502 先查 origin（localhost:8000）而非 tunnel。
 
+**特殊狀況：dev（localhost:5173）「連線與來源」彈窗主機狀態全 ❌＋檢索後端「-」**
+- 現象（2026-09-24）：msi 本機跑 dev server，登入後 query 正常、Qdrant/LLM 來源也正常
+  （x570），但同一彈窗的**主機狀態三台全 ❌**、檢索後端顯示「-」。
+- 原因：**dev 的 vite proxy 把 `/api/*` 直送本機 backend（localhost:8000），繞過 Pages worker**；
+  而「主機狀態」的 `log` 是 worker 每支 query 並行探測三台公網 api 後注入的。backend `/query`
+  原本沒回 `host`/`log` 欄位 → 前端 `result.log[id]==='連線成功'` 永不成立、`result.host` undefined。
+  是 **dev/prod 資料來源落差，非連線故障**（點的「連線詳細」吃的是 `result`，不是 health）。
+- 修復（2026-09-24，commit `d3fd386`）：backend `answer()` 補 `host: HOST_ID`＋`log`；
+  新增 `_host_probe_log()` 並行探測三台公網 `api-*.ragdemo.win/health`（與 worker 同語意、
+  同字串；`HOST_API`/`PROBE_TIMEOUT` 環境變數可覆寫）。**prod 的 worker 會自行覆蓋這兩個欄位**，
+  不衝突。實測三台連線成功、probe 約 1.3s（tunnel 往返）。
+- 教訓：**dev 與 prod 的資訊來源不同（backend vs worker）**；排查「資訊型 UI」問題時，
+  先確認該請求實際打到誰（`vite proxy` → backend，還是 `worker`）。
+- 操作備註：重啟服務忌用 `pkill -f 'uvicorn app.main'` 這類未加 bracket 的 pattern——執行中的
+  shell 自身 cmdline 含有同字串，**會把自己一起殺掉**（輸出截斷、後續命令沒跑）。請用
+  `pkill -f '[u]vicorn app.main'` 的 `[x]` 寫法（re 匹配 x 但不匹配字面 `[x]`）。
+
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
 - 原則：**出門＝當 x570 斷線**，現有自動 failover 已涵蓋、零設定：
