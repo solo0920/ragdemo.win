@@ -4,6 +4,27 @@ import pytest
 from app import rag
 
 
+def test_hit_view_rel_percent_and_exact_flag():
+    h = _hit(1, dense=0.735)
+    v = rag._hit_view(h)
+    assert v["rel"] == 74            # 語意相似度 73.5% → 74%
+    assert v["exact"] is False
+    h2 = _hit(2, exact=True)         # 條號精準分支：無 dense 亦可顯示「精準」
+    v2 = rag._hit_view(h2)
+    assert v2["exact"] is True
+    assert v2["rel"] is None
+    h3 = _hit(3)                     # 無 dense 資料：保留 '?' 由前端兜底
+    assert rag._hit_view(h3)["rel"] is None
+
+
+def test_rerank_keeps_pool_dense_over_top_leg():
+    # pool 已附真實 dense 時（_dense 非 None），頂層 dense leg map 不該覆寫成 None
+    hits = [_hit(1, dense=0.73), _hit(2, dense=0.65)]
+    out = rag.rerank("q", hits, dense_scores={}, top_k=2)
+    assert out[0]["_dense"] == 0.73
+    assert out[1]["_dense"] == 0.65
+
+
 def _hit(iid, dense=None, exact=False):
     h = {"id": iid, "score": 0.5, "payload": {"law_name": "民法", "article_no": "第1條",
                                               "chapter": "", "text": "一段。"}}
@@ -16,13 +37,18 @@ def _hit(iid, dense=None, exact=False):
 
 # ---------- 純函式 ----------
 
-def test_rerank_exact_first_then_preserve_fusion_order():
-    hits = [_hit(2, exact=True), _hit(3), _hit(1)]
-    out = rag.rerank("q", hits, dense_scores={1: 0.9, 2: 0.4, 3: 0.7}, top_k=3)
-    assert [h["id"] for h in out] == [2, 3, 1]        # exact 領先；其餘保持輸入（融合）順序
-    assert out[0]["_dense"] == 0.4
-    assert out[1]["_dense"] == 0.7
-    assert out[2]["_dense"] == 0.9
+def test_rerank_exact_first_then_rest_by_dense():
+    hits = [_hit(2, exact=True, dense=0.4), _hit(3, dense=0.7), _hit(1, dense=0.9)]
+    out = rag.rerank("q", hits, dense_scores={}, top_k=3)
+    assert [h["id"] for h in out] == [2, 1, 3]   # exact 領先；其餘依 dense 0.9 > 0.7 降序
+    assert [h["_dense"] for h in out] == [0.4, 0.9, 0.7]
+
+
+def test_rerank_sparse_only_sinks_to_bottom():
+    # 稀疏方有分、dense 無（-1）→ 沉到最後
+    hits = [_hit(1, dense=0.6), _hit(2)]
+    out = rag.rerank("q", hits, dense_scores={}, top_k=2)
+    assert [h["id"] for h in out] == [1, 2]
 
 
 def test_rerank_top_k_cut():

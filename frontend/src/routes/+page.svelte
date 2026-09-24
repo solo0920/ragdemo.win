@@ -255,7 +255,7 @@
         <ol>
           {#each result.hits as h}
             <li>
-              <span class="sc">{h.score.toFixed(2)}</span>
+              <span class="sc">{#if h.exact}精準{:else}{h.rel ?? '?'}%{/if}</span>
               ｜{h.law_name}{h.art}
               ｜{h.item}
               <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>

@@ -685,7 +685,10 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   回不同 id/分數尺度的非決定性，改 dense(bge-m3)+sparse(TF) 各 prefetch 500 分開查、min-max 正規化
   加總融合（`_fusion_sort`）；順帶保證每個 hit 都拿得到真實 dense 餘弦（原「伺服端融合」拿不到）。
 - **本地 rerank**（`rerank`）：條號精準分支（`_exact_rank`，scroll＋sparse dot＋法名 bigram）保持領先，
-  其餘維持融合順序，只切 top_k；不做重量重排以免傷 hit_rate。
+  其餘依「真實 dense 語意相似度」降序（pool 每筆都有 dense，稀疏僅主導的噪音沉底）。
+- **引用顯示「語意相似度 %」**：`/query` hits 新增 `rel`（dense 餘弦×100，整數%）與 `exact` 旗標；
+  前端引用列顯示 `73%`（精準分支顯示「精準」）——原 `score.toFixed(2)` 是融合分數(0–2)/精準分數（不同
+  尺度），直接加 `%` 會誤導，故改以 0–100 的語意相似度呈現。
 - **信心分級 `_decide`（不問 LLM 的閘門）**：
   - `dense_max < 0.58` → **no_match** 直回「沒有符合比對的法條」（~1.3–1.6s，不問 LLM）；
     但「條號精準命中」例外放行 medium（破熱門條號被擁擠的正確答案不誤殺）。

@@ -350,14 +350,17 @@ async def _dense_leg(vector: list[float], limit: int) -> dict[int, float]:
 
 def rerank(question: str, hits: list[dict], dense_scores: dict | None = None,
            top_k: int = 5) -> list[dict]:
-    """本地重排（純計算）：條號精準分支（_exact_rank）領先；其餘保持本端 DBSF 融合順序。
-    附帶把 dense 餘弦標到每個 hit（_dense）供閘門/前端使用。"""
+    """本地重排（純計算）：條號精準分支（_exact_rank）領先；其餘依「真實 dense 語意相似度」降序
+    （pool 已附每筆 dense，稀疏僅主導的噪音自然沉底）。_dense 缺時補自頂層 dense leg。"""
     dense = dense_scores or {}
     exact = [h for h in hits if h.get("_exact_rank")]
-    rest = [h for h in hits if not h.get("_exact_rank")]
+    rest = sorted((h for h in hits if not h.get("_exact_rank")),
+                  key=lambda h: h.get("_dense") if h.get("_dense") is not None else -1.0,
+                  reverse=True)
     out = (exact + rest)[:top_k]
     for h in out:
-        h["_dense"] = dense.get(h["id"])
+        if h.get("_dense") is None:
+            h["_dense"] = dense.get(h["id"])
     return out
 
 
@@ -563,9 +566,12 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
 
 
 def _hit_view(h: dict) -> dict:
-    """前端引用渲染用的精簡欄位：機率／條號／款位／內容（保留 payload 供既有 UI）。"""
+    """前端引用渲染用的精簡欄位：語意相似度%／精準旗標／條號／款位／內容（保留 payload）。"""
     p = h.get("payload", {})
+    d = h.get("_dense")
     view = {"score": h["score"], "payload": p,
+            "rel": None if d is None else int(round(d * 100)),
+            "exact": bool(h.get("_exact_rank")),
             "art": (p.get("article_no") or "").replace(" ", "") or p.get("law", ""),
             "law_name": p.get("law_name", ""),
             "item": _law.cite_item(p.get("text", ""))}
