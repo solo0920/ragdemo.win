@@ -700,6 +700,12 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 評測題庫 `evals/questions.json` 補 **5 道負面題**（`expect_none`），`/eval` 回報 `neg_rate`：
   實測 **hit_rate=14/14=1.000、neg_rate=5/5=1.000**（負面全 no_match，正面全正確）。
 - 測試：`tests/test_rag_engine.py`（rerank/_decide/_legal_signal/answer 閘門，44 tests 全過）。
+- 修補（msi，2026-09-24）：法名＋條號（含簡稱「勞基法第38條」）改**先滾「該法該條」當精準 top1**。
+  原「跨法同條號」競爭下實測兩個缺口：① sparse tokenizer 的 CJK run 先吃掉「第」（法名 bigram
+  吸收），數字被 latin 拆出 → query 根本缺「第N條」條號 token；② doc 端 `min(tf,4)` 飽和讓罰責類
+  條文的「規定/條規」拿 3~4 權重，與 query「規定什麼」假重疊灌分（「勞基法第38條」top1 曾命中
+  事業用爆炸物管理條例第38條，正確條文掉到 top5）；簡稱對法名 bigram 重疊=0 使加分失效。
+  僅條號查詢（無法名）維持跨法競爭不變。`/eval` 19 題 hit_rate=1.0 維持。
 
 ### 4.12 法名/簡稱查詢分支（2026-09-24 上線）
 - 問題：裸法名（例:「證券交易法」）dense 前段被「提及該法名」的其他法條文佔據，本法條文進不

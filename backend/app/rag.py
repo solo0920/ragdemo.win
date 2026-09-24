@@ -436,8 +436,38 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
         # 的文件搶位的問題；法名+條號組合下真正的條文會衝到最前。
         an = extract_article_no(question)
         if an:
-            # 同條號跨法候選：scroll 全拉（不依賴 dense 排位，避免真身被擠出小 limit），
-            # 本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
+            # 法名＋條號（含簡稱，例:「勞基法第38條」）：直接滾「該法該條」當精準來源。
+            # 為什麼不能只靠「跨法同條號」競爭（實測）：
+            # ① query 為「法名＋第N條」時 sparse tokenizer 的 CJK run 把「第」吃進法名 bigram，
+            #    數字被 latin 拆出 → 根本沒有「第38條」條號 token；② doc 端 min(tf,4) 飽和讓
+            #    罰責類條文的「規定/條規」高頻字拿 3~4 權重，與 query「規定什麼」假重疊→虛高
+            #    sparse dot（事業用爆炸物管理條例38 got 7 vs 勞動基準法38 got 2，語意無關卻霸榜）；
+            #    ③ 簡稱「勞基法」對法名「勞動基準法」bigram 重疊=0，加分失效、正確條文掉到 top5。
+            # 偵測到法名→鎖該法該條；僅條號查詢（無法名）仍走下方跨法競爭。
+            law = _detect_law(question)
+            if law:
+                f_law = {"must": _BASE_FILTER["must"] +
+                         [{"key": "law_name", "match": {"value": law}},
+                          {"key": "article_no", "match": {"value": an}}]}
+                r = await _req("qdrant", QDRANT_URLS, "post",
+                               f"/collections/{COLLECTION}/points/scroll",
+                               json={"filter": f_law, "limit": 10,
+                                     "with_payload": True, "with_vector": False}, timeout=30)
+                r.raise_for_status()
+                solo = [h for h in r.json()["result"]["points"] if h.get("payload")]
+                if solo:
+                    qv = _sparse.sparse_vector(question)
+                    q = dict(zip(qv["indices"], qv["values"]))
+                    for h in solo:
+                        d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
+                        h["score"] = sum(q.get(t, 0.0) * v for t, v in d.items())
+                        h["_exact_rank"] = True  # 精準命中，rerank 置頂
+                    exact = solo[:3]
+                    exact_ids = {h["id"] for h in exact}
+                    hits = exact + [h for h in hits if h["id"] not in exact_ids]
+                    return hits
+            # 同條號跨法候選（僅條號查詢）：scroll 全拉（不依賴 dense 排位，避免真身被擠出
+            # 小 limit），本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
             f2 = {"must": _BASE_FILTER["must"] + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
             r = await _req("qdrant", QDRANT_URLS, "post",
                            f"/collections/{COLLECTION}/points/scroll",
