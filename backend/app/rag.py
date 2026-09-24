@@ -830,6 +830,10 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
             base["answer"] = f"{HOST_ID}: {brief}"  # LLM 掛了也要回應基本敘述
             return base
         text = _strip_article_refs(text) or brief
+        # 模型若誤回「沒有符合比對的法條」等拒答（法名本身已確認存在），直接退回基本敘述，
+        # 避免拼出「《公司法》（共..條）：沒有符合比對的法條」這種多餘句。
+        if "沒有符合比對的法條" in text or "未收錄" in text:
+            text = brief
         if not (text.startswith(f"《{brief_law}") or text.startswith(brief.split("共")[0])):
             text = f"{brief}：{text}"
         base["answer"] = f"{HOST_ID}: {text}"
