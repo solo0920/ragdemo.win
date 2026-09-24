@@ -724,7 +724,9 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
     brief_law = _detect_law(question)
-    views = [_hit_view(h, law_only=bool(brief_law)) for h in top]
+    # 純法名查詢（無條號）→ 整部法連結；其餘（含條號/語意命中具體條文）→ 單條文連結
+    law_only = bool(brief_law) and an is None
+    views = [_hit_view(h, law_only=law_only) for h in top]
     base = {"ok": True, "host": HOST_ID, "confidence": level, "relevance": reason,
             "no_match": False,
             "trace": _trace(question, an, exact_n, dense_max, level, reason),
