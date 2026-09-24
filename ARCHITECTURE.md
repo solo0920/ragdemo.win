@@ -182,6 +182,18 @@ tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷�
 | mbp | launchd KeepAlive ✅ | ✅ | 預設 |
 | msi | crontab restart loop ✅（tunnel 5s＋api/qdrant 30s） | ✅ | 預設 |
 
+### mbp 限制：使用者 LaunchAgent 需「登入後」才載入（2026-09-24 確認）
+
+- mbp 四個 `com.ragdemo.{tunnel,api,qdrant,sync-snapshot}` 放在 **`~/Library/LaunchAgents/`**
+  （使用者 agent，`gui/<uid>` domain）→ **只有該使用者 GUI 登入後才會載入並 `RunAtLoad`**；
+  壓電源開機停在登入畫面（未指紋登入）時，這些 agent 不會跑 → 公網 `api-mbp` 530 且本機 8000/6333 無服務。
+  （2026-09-24 530 事件即此 root cause；登入後全自動恢復，`KeepAlive` 後續照常。）
+- Ollama.app（`com.ollama.ollama`）同樣是登入後才起 → **api 即使開機先起，embedding/LLM 也要等 ollama**。
+- 現況（2026-09-24 定案）：**接受此行為**——mbp 是本機 GUI Mac，指紋登入即全起；headless 遠端預登入不支援。
+- 若要「開機不等登入」：把 4 個 plist 移到 `/Library/LaunchDaemons`（`launchctl bootstrap system`，
+  需 sudo＋daemon 加 `UserName=leesolomon`）；ollama 另以 wrapper daemon 啟動 `ollama serve`
+  （Ollama.app 與 wrapper 不可同時跑）。有需要再轉換。
+
 ### crontab restart loop 範本（msi / x570）
 
 ```bash

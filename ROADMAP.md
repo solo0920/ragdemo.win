@@ -530,6 +530,11 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 **特殊狀況：x570/mbp 開機但公網 530（2026-09-24，msi 記錄，交 x570/mbp 接手）**
 - 現象：x570/mbp 已開機、tailscale 可達（x570 22 通但無 key），但 `api-x570`/`api-mbp.ragdemo.win`
   回 **530**（tunnel 離線）；msi 200。worker 自動模式落到 msi，「連線詳細」x570/mbp ❌。
+- root cause（mbp，2026-09-24）：**開機未登入 → 使用者 LaunchAgent 不載入**。mbp 的四個
+  `com.ragdemo.*` 放 `~/Library/LaunchAgents/`，屬 `gui/<uid>` domain，帳號 GUI 登入（指紋）前不會跑
+  → tunnel/api/qdrant 全無 → 公網 530。指紋登入後 `RunAtLoad` 自動全起、KeepAlive 照常。
+  2026-09-24 上午 msi 量測到 530 即落在 mbp 開機後未登入期間；登入後三台皆 200、無須其他修復。
+  （Ollama.app 亦登入後才起；規範與 LaunchDaemons 升級選項見 ARCHITECTURE「公網接手」。）
 - 交接：詳細診斷＋各機修復 checklist（systemd/launchd/crontab keepalive、`--protocol http2`）見
   **`TUNNEL-530-2026-09-24.md`**（repo 根）；修完回報並在本節補 root cause。
 - （**x570 接手 2026-09-24 已修/自癒**）現況：三台公網皆回 200
