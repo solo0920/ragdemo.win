@@ -130,7 +130,6 @@
     <h1>法規判決 RAG</h1>
     <section class="auth">
       {#if user}
-        <span class="user">已登入：{user.email}</span>
         <a href="/auth/logout" class="btn">登出</a>
       {:else}
         <a href="/auth/login" class="btn">使用 Google 登入</a>
@@ -162,6 +161,7 @@
         {#if showInfo}
           <div class="info-pop">
             <div class="tip"></div>
+            {#if user}<p class="pop-user">已登入：{user.email}</p>{/if}
             <h2>連線與來源</h2>
             <h3 class="pop-sub">主機狀態</h3>
             <table>
@@ -255,6 +255,7 @@
     min-width: 260px;
   }
   .info-pop h2 { font-size: 1rem; margin: 0 0 0.4rem; }
+  .pop-user { font-size: 0.8rem; color: #555; margin: 0 0 0.4rem; padding-bottom: 0.4rem; border-bottom: 1px dashed #ccc; }
   .info-pop table { margin: 0; }
   .info-pop .tip {
     position: absolute; top: -6px; right: 18px; width: 10px; height: 10px;
