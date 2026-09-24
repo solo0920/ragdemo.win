@@ -132,6 +132,24 @@ def test_strip_article_refs_removes_any_article_mention():
     assert rag._strip_article_refs("《刑法》規範犯罪與刑罰。") == "《刑法》規範犯罪與刑罰。"
 
 
+def test_count_question_and_law_count_line():
+    assert rag._is_count_question("證交法有多少條？")
+    assert rag._is_count_question("勞基法共有幾條")
+    assert rag._is_count_question("民法條文數是多少")
+    assert not rag._is_count_question("證交法條文內容是什麼")
+    assert not rag._is_count_question("證交法第22條")
+
+    old_c, old_s = rag._LAW_COUNTS, rag._LAW_SUBS
+    rag._LAW_COUNTS = {"證券交易法": 209}
+    rag._LAW_SUBS = {"證券交易法": 43}
+    try:
+        line = rag._law_count_line("證券交易法")
+        assert "共 209 條" in line and "主條 166" in line and "增訂子條 43" in line
+        assert rag._law_count_line("不存在之法") is None
+    finally:
+        rag._LAW_COUNTS, rag._LAW_SUBS = old_c, old_s
+
+
 def test_trace_joins_steps_with_fullwidth_bar():
     t = rag._trace("契約解除後回復原狀義務依何規定？", "第 259 條", 3, 0.73,
                    "high", "cos@0.73")

@@ -238,9 +238,11 @@ async def ensure_collection() -> None:
 
 
 # corpus 法名清單（啟動時快取）：供「裸法名查詢」走法名分支（例:「證券交易法」→ 列出該法來源）。
-# _LAW_COUNTS＝各法條文數（基本敘述用）。_LAW_ALIASES＝常見簡稱 → 全名。
+# _LAW_COUNTS＝各法「現行有效條文單元數」（主條＋增訂子條，不含刪除空號、不含拆段）。
+# _LAW_SUBS＝其中帶 '-' 的增訂子條數。_LAW_ALIASES＝常見簡稱 → 全名。
 _LAW_NAMES: list[str] = []
 _LAW_COUNTS: dict[str, int] = {}
+_LAW_SUBS: dict[str, int] = {}
 _LAW_ALIASES = {
     "證交法": "證券交易法",
     "證交稅": "證券交易稅條例",
@@ -258,16 +260,17 @@ _LAW_ALIASES = {
 
 
 async def _ensure_law_names() -> None:
-    """scroll 全量 payload（只取 law_name）收集法名與條文數，best-effort：失敗則留空、法名分支略過。"""
-    global _LAW_NAMES, _LAW_COUNTS
+    """scroll 全量 payload（law_name＋article_no）收集法名與條文數，best-effort：失敗則留空、法名分支略過。"""
+    global _LAW_NAMES, _LAW_COUNTS, _LAW_SUBS
     if _LAW_NAMES:
         return
-    names: dict[str, int] = {}
+    seen: dict[str, set[str]] = {}
+    subs: dict[str, int] = {}
     offset = None
     prev = None
     try:
         while True:
-            body = {"limit": 5000, "with_payload": ["law_name"], "with_vector": False}
+            body = {"limit": 5000, "with_payload": ["law_name", "article_no"], "with_vector": False}
             if offset is not None:
                 body["offset"] = offset
             r = await _req("qdrant", QDRANT_URLS, "post",
@@ -275,9 +278,15 @@ async def _ensure_law_names() -> None:
             r.raise_for_status()
             pts = r.json()["result"]["points"]
             for p in pts:
-                n = p.get("payload", {}).get("law_name")
-                if n:
-                    names[n] = names.get(n, 0) + 1
+                pl = p.get("payload", {})
+                n, an = pl.get("law_name"), pl.get("article_no")
+                if not (n and an):
+                    continue
+                s = seen.setdefault(n, set())
+                if an not in s:
+                    s.add(an)
+                    if "-" in an.replace(" ", ""):
+                        subs[n] = subs.get(n, 0) + 1
             if not pts:
                 break
             prev, offset = offset, pts[-1]["id"]
@@ -286,8 +295,29 @@ async def _ensure_law_names() -> None:
                 break
     except Exception:
         return
-    _LAW_COUNTS = names
-    _LAW_NAMES = sorted(names, key=lambda x: (-names[x], x))
+    _LAW_COUNTS = {n: len(s) for n, s in seen.items()}
+    _LAW_SUBS = subs
+    _LAW_NAMES = sorted(seen, key=lambda n: (-len(seen[n]), n))
+
+
+_COUNT_RE = re.compile(r"(多少條|幾條|條文數|幾個條文|有多少條|共有?)")
+
+
+def _is_count_question(q: str) -> bool:
+    """「證交法有多少條？」這類條數問句 → 直接回答條文數，不必走 LLM。"""
+    return bool(_COUNT_RE.search(q)) and "條文內容" not in q
+
+
+def _law_count_line(law: str) -> str | None:
+    """現行有效條文數的一句話（例：「《證券交易法》現行有效條文共 209 條…」）。"""
+    n = _LAW_COUNTS.get(law)
+    if not n:
+        return None
+    sub = _LAW_SUBS.get(law, 0)
+    s = f"《{law}》現行有效條文共 {n} 條。"
+    if sub:
+        s += f"（主條 {n - sub} 則＋增訂子條 {sub} 則；主條編號依原序，號碼間含已刪除空號，因此最大值未滿 {n}）"
+    return s
 
 
 def _alias_to_law(qq: str) -> str | None:
@@ -296,7 +326,11 @@ def _alias_to_law(qq: str) -> str | None:
         if qq == alias:
             return name
     for alias, name in _LAW_ALIASES.items():
-        if not qq.endswith("條") and len(alias) >= 3 and alias in qq:
+        if len(alias) >= 3 and alias in qq:
+            # 結尾為「第N條」= 具體條號查詢，推給條號分支，不當法名簡稱；
+            # 結尾只是「幾條/多少條」仍算法名問句（如「勞基法共有幾條」）。
+            if qq.endswith("條") and _ART_REF_RE.search(qq):
+                continue
             return name
     return None
 
@@ -774,10 +808,20 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
             "log": await _host_probe_log()}
     if level == "no_match":
         # 低相關/不明語意：不問 LLM，直接如實回報，避免臆測
+        # 但「法名＋條數」問句仍值得直接給數字（語意分低不影響條文數）
+        if brief_law is not None and an is None and _is_count_question(question):
+            line = _law_count_line(brief_law)
+            if line:
+                base["answer"] = f"{HOST_ID}: {line}"
+                return base
         base["no_match"] = True
         base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"
         return base
-    brief_law = _detect_law(question)
+    if brief_law and an is None and _is_count_question(question):
+        line = _law_count_line(brief_law)
+        if line:
+            base["answer"] = f"{HOST_ID}: {line}"  # 條數問句：直接給現行有效條文數，不問 LLM
+            return base
     if brief_law and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
         brief = _law_brief(brief_law)
         try:
