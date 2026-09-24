@@ -167,7 +167,34 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 - 本機 tailnet 內：瀏覽器直連 `http://100.65.68.106:8000`（前端 msi 按鈕已是直連 tailscale URL）。
 - 公網/外出：需 Cloudflare Tunnel 路由 `api-msi.ragdemo.win` → `http://100.65.68.106:8000`（見 §4.3）。
 
-### 2.5 WSL 開機自動啟動 api（2026-09-22 已設定）
+### 2.6 在 msi 本機跑前端 dev（2026-09-24 定案，勿在 x570 SSH 上開 dev）
+
+> 背景：之前習慣 SSH 到 x570 開 dev，但用 tailscale IP（如 `100.119.83.111:5173`）開畫面時
+> Google 登入會被擋（redirect_uri 必須 HTTPS 白名單，免費 Tailscale 沒 TLS cert，見 §4.8），
+> 查詢又被 `disabled={!user}` 卡住。改成在**各機自己 WSL** 跑 dev server 才是正解：
+>
+> - `localhost:5173` 的 Google redirect 是「瀏覽器所在那台」的 localhost（已在白名單），
+>   所以 **msi 自己的瀏覽器開 `http://localhost:5173` 就能登入**（WSL2 自動 bridge 5173↔Windows）。
+> - dev 的 vite proxy 把 `/api/*` 打到本機 `localhost:8000`（msi 自己的 api，資料吃 x570 或本機備援），
+>   **即時 HMR、不用等 Pages 重部署**；只有正式上線才 push 等 Pages。
+
+msi 一次性準備：
+
+```bash
+cd ~/ragdemo && git config core.hooksPath .githooks
+cd frontend && npm ci                     # msi 已有 Node v22
+vim ../backend/.env                       # msi profile（見 §2.2）
+vim .env                                  # frontend/.env：GOOGLE_CLIENT_ID/SECRET/SESSION_SECRET
+                                          #   （值從 x570 frontend/.env 抄，不進 git）
+npm run dev -- --host                     # msi 瀏覽器開 http://localhost:5173
+```
+
+- 手機/其他 tailnet 裝置要看 dev：仍建議只開公網 `https://ragdemo.win`（tailnet http 登入無解，
+  Tailscale 免費版不給 TLS cert）。
+- 分工不變：dev 畫面在哪台開都行（各自機 opencode 管各自 dev server），
+  **資料主源仍 x570**；`ragdemo.win` 仍由 GitHub Pages 自動部署。
+
+### 2.7 WSL 開機自動啟動 api（2026-09-22 已設定）
 
 - 啟動腳本：`backend/start-msi.sh`（冪等：8000 已有服務就跳過；`setsid nohup` 脫離 session；
   log 寫 `backend/uvicorn.log`、pid 寫 `backend/.uvicorn.pid`）。手動啟動：
