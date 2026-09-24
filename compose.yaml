@@ -32,6 +32,7 @@ services:
     depends_on: [qdrant, postgres]
     volumes:
       - ./evals:/app/evals:ro
+      - ./data/laws:/app/data/laws:ro
       - /etc/machine-id:/run/secrets/host-machine-id:ro
       - /etc/hostname:/run/secrets/host-hostname:ro
     restart: unless-stopped

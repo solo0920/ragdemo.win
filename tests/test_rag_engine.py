@@ -150,6 +150,68 @@ def test_count_question_and_law_count_line():
         rag._LAW_COUNTS, rag._LAW_SUBS = old_c, old_s
 
 
+def test_law_intent_router_and_rule_answer():
+    assert rag._route_law_intent("證交法有多少條") == "count"
+    assert rag._route_law_intent("證交法的主管機關是") == "authority"
+    assert rag._route_law_intent("證交法何時施行") == "effective"
+    assert rag._route_law_intent("證交法何時修正") == "revised"
+    assert rag._route_law_intent("中華民國刑法是法律還是法規命令") == "level"
+    assert rag._route_law_intent("證交法是否已廢止") == "active"
+    assert rag._route_law_intent("什麼是證券交易法") == "brief"
+    assert rag._route_law_intent("證交法管什麼事項") is None
+    assert rag._route_law_intent("證交法和勞基法有什麼不同") is None
+
+    assert rag._fmt_rm_date("19470101") == "民國 36 年 1 月 1 日（西元 1947）"
+    assert rag._fmt_rm_date("20240807") == "民國 113 年 8 月 7 日（西元 2024）"
+    assert rag._fmt_rm_date("") is None
+    assert rag._fmt_rm_date("三十六年") == "三十六年"
+    assert rag._meta_authority({"law_category": "行政＞金融監督管理委員會＞證券暨期貨管理目"}) == "金融監督管理委員會"
+    assert rag._meta_authority({"law_category": "行政＞臺北市政府"}) == "臺北市政府"
+    assert rag._meta_authority({"law_category": ""}) is None
+
+
+def test_rule_answer_from_meta():
+    meta = {
+        "證券交易法": {
+            "law_level": "法律",
+            "law_category": "行政＞金融監督管理委員會＞證券暨期貨管理目",
+            "law_modified_date": "20240807",
+            "law_effective_date": "20240807",
+            "law_effective_note": "本法自公布日施行",
+            "is_abandoned": False,
+            "law_histories": "1.中華民國五十七年四月三十日總統令制定公布全文一百八十三條",
+        },
+        "已廢止法": {"law_level": "法律", "is_abandoned": True, "law_abandon_note": "已停止適用",
+                      "law_category": "行政＞某部", "law_modified_date": "19900101"},
+    }
+    old_m, old_c, old_s = rag._LAW_META, rag._LAW_COUNTS, rag._LAW_SUBS
+    rag._LAW_META = meta
+    rag._LAW_COUNTS = {"證券交易法": 209}
+    rag._LAW_SUBS = {"證券交易法": 43}
+    try:
+        a = rag._rule_answer("count", "證券交易法")
+        assert "共 209 條" in a
+        a = rag._rule_answer("authority", "證券交易法")
+        assert a == "《證券交易法》的主管機關是 金融監督管理委員會。"
+        a = rag._rule_answer("effective", "證券交易法")
+        assert "民國 113 年 8 月 7 日" in a and "起施行" in a and "本法自公布日施行" in a
+        assert rag._rule_answer("effective", "已廢止法") is None
+        a = rag._rule_answer("revised", "證券交易法")
+        assert "最近一次修正公布：民國 113 年 8 月 7 日" in a
+        a = rag._rule_answer("level", "證券交易法")
+        assert a == "《證券交易法》位階屬「法律」。"
+        a = rag._rule_answer("active", "證券交易法")
+        assert "現行有效（未廢止）" in a
+        a = rag._rule_answer("active", "已廢止法")
+        assert "已廢止" in a and "已停止適用" in a
+        a = rag._rule_answer("brief", "證券交易法")
+        assert "金融監督管理委員會" in a and "現行有效條文 209 條" in a and "制定公布" in a
+        assert rag._rule_answer("brief", "不存在之法") is None
+        assert rag._rule_answer("count", "不存在之法") is None
+    finally:
+        rag._LAW_META, rag._LAW_COUNTS, rag._LAW_SUBS = old_m, old_c, old_s
+
+
 def test_trace_joins_steps_with_fullwidth_bar():
     t = rag._trace("契約解除後回復原狀義務依何規定？", "第 259 條", 3, 0.73,
                    "high", "cos@0.73")

@@ -7,11 +7,13 @@
 - 模型 keepalive：要求常駐（KEEP_ALIVE，預設 -1 永久），api 啟動時 warmup 預載，避免首個 query 冷載入。
 """
 import asyncio
+import json
 import logging
 import os
 import re
 import time
 import uuid
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
@@ -240,9 +242,11 @@ async def ensure_collection() -> None:
 # corpus 法名清單（啟動時快取）：供「裸法名查詢」走法名分支（例:「證券交易法」→ 列出該法來源）。
 # _LAW_COUNTS＝各法「現行有效條文單元數」（主條＋增訂子條，不含刪除空號、不含拆段）。
 # _LAW_SUBS＝其中帶 '-' 的增訂子條數。_LAW_ALIASES＝常見簡稱 → 全名。
+# _LAW_META＝各法靜態後設資料（位階/分類/日期/沿革），規則題庫用。
 _LAW_NAMES: list[str] = []
 _LAW_COUNTS: dict[str, int] = {}
 _LAW_SUBS: dict[str, int] = {}
+_LAW_META: dict[str, dict] = {}
 _LAW_ALIASES = {
     "證交法": "證券交易法",
     "證交稅": "證券交易稅條例",
@@ -298,6 +302,7 @@ async def _ensure_law_names() -> None:
     _LAW_COUNTS = {n: len(s) for n, s in seen.items()}
     _LAW_SUBS = subs
     _LAW_NAMES = sorted(seen, key=lambda n: (-len(seen[n]), n))
+    _try_load_law_meta()
 
 
 _COUNT_RE = re.compile(r"(多少條|幾條|條文數|幾個條文|有多少條|共有?)")
@@ -318,6 +323,136 @@ def _law_count_line(law: str) -> str | None:
     if sub:
         s += f"（主條 {n - sub} 則＋增訂子條 {sub} 則；主條編號依原序，號碼間含已刪除空號，因此最大值未滿 {n}）"
     return s
+
+
+def _try_load_law_meta() -> None:
+    """載入 laws_meta.jsonl（容器 /app/data/laws 或 repo data/laws）；失敗留空＝題庫退守 LLM。"""
+    global _LAW_META
+    if _LAW_META:
+        return
+    cands = [Path("data/laws/laws_meta.jsonl"), Path("/app/data/laws/laws_meta.jsonl")]
+    for p in cands:
+        try:
+            if not p.exists():
+                continue
+            with p.open(encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    m = json.loads(line)
+                    n = m.get("law_name")
+                    if n:
+                        _LAW_META[n] = m
+            logger.info("題庫後設資料載入 %d 部法（%s）", len(_LAW_META), p)
+            return
+        except Exception:
+            _LAW_META = {}
+    logger.warning("laws_meta 未找到，規則題庫拿不到後設資料")
+
+
+def _cw(s: str) -> str:
+    """歸一連續空白（含全形）為單一空格並去頭尾。"""
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _fmt_rm_date(s: str | None) -> str | None:
+    """YYYYMMDD → 「民國 Y年 M月 D 日（西元 YYYY）」。非該格式原樣回。"""
+    if not s:
+        return None
+    m = re.match(r"^(\d{4})(\d{2})?(\d{2})?$", s.strip())
+    if not m:
+        return s
+    y, mo, d = m.group(1), m.group(2), m.group(3)
+    rm = int(y) - 1911
+    seg = f"民國 {rm} 年"
+    if mo:
+        seg += f" {int(mo)} 月"
+    if d:
+        seg += f" {int(d)} 日"
+    return f"{seg}（西元 {y}）"
+
+
+def _meta_authority(m: dict) -> str | None:
+    """主管機關：法規分類開頭為「行政＞…」取第二段，否則回整個分類。"""
+    cat = _cw(m.get("law_category") or "")
+    if cat.startswith("行政") and "＞" in cat:
+        return cat.split("＞")[1] or (cat or None)
+    return cat or None
+
+
+def _meta_history(m: dict) -> str | None:
+    h = (m.get("law_histories") or "").strip()
+    if not h:
+        return None
+    return _cw(h.split("\r\n")[0].split("\n")[0]) or None
+
+
+def _meta_card(law: str, m: dict) -> str:
+    """「什麼是X法」的規則卡：位階＋分類＋條數＋沿革首行（不進 LLM，零編造）。"""
+    lv = m.get("law_level") or "法規"
+    cat = _cw(m.get("law_category") or "")
+    n = _LAW_COUNTS.get(law)
+    cnt = f"現行有效條文 {n} 條" if n else "條文數不明"
+    hist = _meta_history(m)
+    s = f"{lv}《{law}》：{cat}；{cnt}。"
+    if hist:
+        s += f" 沿革：{hist}。"
+    return s
+
+
+_RULE_INTENTS = [
+    ("count", re.compile(r"(多少條|幾條|條文數|幾個條文|有多少條|共有?)")),
+    ("authority", re.compile(r"(主管機關|主責機關|管轄機關|哪個機關|哪個單位|何機關)")),
+    ("effective", re.compile(r"(何時施行|施行日期|生效日期|何時生效|何時實施|哪時施行|何時公布|公布日期)")),
+    ("revised", re.compile(r"(何時修正|修正日期|最近修正|什麼時候修正|修改日期)")),
+    ("level", re.compile(r"(法律還是|還是法律|法規命令|位階|中央法規|地方自治還是|屬於.{0,8}法規?)")),
+    ("active", re.compile(r"(是否廢止|已廢止|還有在用|還有效|仍然有效|是否有效)")),
+    ("brief", re.compile(r"(什麼是|是什麼|介紹一下|簡介)")),
+]
+
+
+def _route_law_intent(question: str) -> str | None:
+    """規則題庫路由：法名校準後（由呼叫端保證），此處判斷問句該由哪條規則直接答。"""
+    q = "".join(question.split())
+    for intent, pat in _RULE_INTENTS:
+        if pat.search(q):
+            return intent
+    return None
+
+
+def _rule_answer(intent: str, law: str) -> str | None:
+    """給定法名與題庫 intent，回規則答案；無資料回 None（呼叫端退守 LLM）。"""
+    if intent == "count":
+        return _law_count_line(law)
+    m = _LAW_META.get(law)
+    if not m:
+        return None
+    if intent == "authority":
+        a = _meta_authority(m)
+        return f"《{law}》的主管機關是 {a}。" if a else None
+    if intent == "effective":
+        sd = _fmt_rm_date((m.get("law_effective_date") or "").strip() or None)
+        note = (m.get("law_effective_note") or "").strip()
+        parts = []
+        if sd:
+            parts.append(f"自 {sd} 起施行")
+        if note:
+            parts.append(f"（{_cw(note[:80])}）")
+        return f"《{law}》{''.join(parts)}。" if parts else None
+    if intent == "revised":
+        md = _fmt_rm_date((m.get("law_modified_date") or "").strip() or None)
+        return f"《{law}》最近一次修正公布：{md}。" if md else None
+    if intent == "level":
+        lv = m.get("law_level")
+        return f"《{law}》位階屬「{lv}」。" if lv else None
+    if intent == "active":
+        if not m.get("is_abandoned"):
+            return f"《{law}》現行有效（未廢止）。"
+        return f"《{law}》已廢止：{m.get('law_abandon_note') or '（無說明）'}。"
+    if intent == "brief":
+        return _meta_card(law, m)
+    return None
 
 
 def _alias_to_law(qq: str) -> str | None:
@@ -806,22 +941,21 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
             "trace": _trace(question, an, exact_n, dense_max, level, reason),
             "src": src, "hits": views,
             "log": await _host_probe_log()}
-    if level == "no_match":
-        # 低相關/不明語意：不問 LLM，直接如實回報，避免臆測
-        # 但「法名＋條數」問句仍值得直接給數字（語意分低不影響條文數）
-        if brief_law is not None and an is None and _is_count_question(question):
-            line = _law_count_line(brief_law)
+    # 規則題庫（不進 LLM）：法名問句若命中 count/authority/effective/revised/level/active/brief
+    # 任一 intent，直接以規則答，避免 LLM 編故事。
+    if brief_law is not None and an is None:
+        _try_load_law_meta()
+        intent = _route_law_intent(question)
+        if intent:
+            line = _rule_answer(intent, brief_law)
             if line:
                 base["answer"] = f"{HOST_ID}: {line}"
+                base["confidence"] = "rule"
                 return base
+    if level == "no_match":
         base["no_match"] = True
         base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"
         return base
-    if brief_law and an is None and _is_count_question(question):
-        line = _law_count_line(brief_law)
-        if line:
-            base["answer"] = f"{HOST_ID}: {line}"  # 條數問句：直接給現行有效條文數，不問 LLM
-            return base
     if brief_law and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
         brief = _law_brief(brief_law)
         try:
