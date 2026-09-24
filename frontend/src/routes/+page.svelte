@@ -247,10 +247,12 @@
         <h2>沒有符合比對的法條</h2>
         <p class="ans">{result.answer}</p>
         <p class="hint">信心：{result.confidence}（{result.relevance}）— 已跳過 LLM，不進行臆測。</p>
+        <p class="trace">流程：{result.trace}</p>
       {:else}
         <h2>回答（{result.host}）</h2>
         <p class="ans">{result.answer.replace(/^[a-z0-9]+: /, '')}</p>
         <p class="hint">信心：{result.confidence}（{result.relevance}）</p>
+        <p class="trace">流程：{result.trace}</p>
         <h2>引用（top {result.hits.length}）</h2>
         <ol>
           {#each result.hits as h}
@@ -304,6 +306,7 @@
   .err { color: red; }
   .muted { color: #666; font-size: 0.8rem; margin: 0.25rem 0; }
   .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
+  .trace { color: #999; font-size: 0.8rem; margin: 0.25rem 0; font-family: monospace; }
   textarea:disabled { background: transparent; }
   .ask-wrap:has(textarea:disabled) { opacity: 0.65; }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

@@ -4,6 +4,24 @@ import pytest
 from app import rag
 
 
+def test_trace_joins_steps_with_fullwidth_bar():
+    t = rag._trace("契約解除後回復原狀義務依何規定？", "第 259 條", 3, 0.73,
+                   "high", "cos@0.73")
+    p = t.split("｜")
+    assert len(p) == 5
+    assert p[0] == "條號:第 259 條"
+    assert p[1] == "精準:3篇"
+    assert p[2] == "dense:0.73(門檻0.58/0.62/0.70)"
+    assert p[3] == "語意:有"
+    assert p[4] == "判定:high(cos@0.73)"
+
+    t2 = rag._trace("今天天氣如何？", None, 0, 0.50, "no_match", "low_relevance@0.50")
+    p2 = t2.split("｜")
+    assert p2[0] == "條號:無"
+    assert p2[3] == "語意:無"
+    assert p2[4] == "判定:no_match(low_relevance@0.50)"
+
+
 def test_hit_view_rel_percent_and_exact_flag():
     h = _hit(1, dense=0.735)
     v = rag._hit_view(h)

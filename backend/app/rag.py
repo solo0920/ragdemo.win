@@ -374,6 +374,17 @@ _LAW_HINTS = ("法條", "條文", "契約", "債", "侵權", "賠償", "損害",
               "特別休假", "資遣費", "退休金", "職災", "工時", "調解", "公證", "執行" )
 
 
+def _trace(question: str, an: str | None, exact_n: int, dense_max: float,
+           level: str, reason: str,
+           min_dense: float = MIN_DENSE, mid: float = MID_DENSE,
+           high: float = HIGH_DENSE) -> str:
+    """流程判定摘要（以「｜」間隔，便於人讀）：條號 → 精準命中 → 語意相似度/門檻 → 語意訊號 → 信心判定。"""
+    sig = "有" if _legal_signal(question) else "無"
+    return (f"條號:{an or '無'}｜精準:{exact_n}篇｜"
+            f"dense:{dense_max:.2f}(門檻{min_dense:.2f}/{mid:.2f}/{high:.2f})｜"
+            f"語意:{sig}｜判定:{level}({reason})")
+
+
 def _legal_signal(question: str) -> bool:
     """整題有無「法律語意」：含條號、含法律語彙即可。"""
     if extract_article_no(question):
@@ -544,6 +555,8 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     dense_max = max(dense.values(), default=0.0)
     top = rerank(question, hits, dense, top_k)
     level, reason = _decide(question, top, dense_max, MIN_DENSE, MID_DENSE, HIGH_DENSE)
+    an = extract_article_no(question)
+    exact_n = sum(1 for h in hits if h.get("_exact_rank"))
     src = {
         "qdrant": {"host": host_label(_bases.get("qdrant", QDRANT_URLS[0])),
                    "url": _bases.get("qdrant", QDRANT_URLS[0])},
@@ -553,6 +566,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     }
     base = {"ok": True, "host": HOST_ID, "confidence": level, "relevance": reason,
             "no_match": False,
+            "trace": _trace(question, an, exact_n, dense_max, level, reason),
             "src": src, "hits": [_hit_view(h) for h in top],
             "log": await _host_probe_log()}
     if level == "no_match":
