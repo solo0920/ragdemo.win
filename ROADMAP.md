@@ -527,6 +527,12 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   shell 自身 cmdline 含有同字串，**會把自己一起殺掉**（輸出截斷、後續命令沒跑）。請用
   `pkill -f '[u]vicorn app.main'` 的 `[x]` 寫法（re 匹配 x 但不匹配字面 `[x]`）。
 
+**特殊狀況：x570/mbp 開機但公網 530（2026-09-24，msi 記錄，交 x570/mbp 接手）**
+- 現象：x570/mbp 已開機、tailscale 可達（x570 22 通但無 key），但 `api-x570`/`api-mbp.ragdemo.win`
+  回 **530**（tunnel 離線）；msi 200。worker 自動模式落到 msi，「連線詳細」x570/mbp ❌。
+- 交接：詳細診斷＋各機修復 checklist（systemd/launchd/crontab keepalive、`--protocol http2`）見
+  **`TUNNEL-530-2026-09-24.md`**（repo 根）；修完回報並在本節補 root cause。
+
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
 - 原則：**出門＝當 x570 斷線**，現有自動 failover 已涵蓋、零設定：
