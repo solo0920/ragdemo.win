@@ -701,6 +701,20 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   實測 **hit_rate=14/14=1.000、neg_rate=5/5=1.000**（負面全 no_match，正面全正確）。
 - 測試：`tests/test_rag_engine.py`（rerank/_decide/_legal_signal/answer 閘門，44 tests 全過）。
 
+### 4.12 法名/簡稱查詢分支（2026-09-24 上線）
+- 問題：裸法名（例:「證券交易法」）dense 前段被「提及該法名」的其他法條文佔據，本法條文進不
+  了 top（原本回 medium＋cautious guard 誤導 LLM 回「沒有符合比對的法條」）。
+- 法名分支：啟動時 scroll 全量 payload（只取 law_name，1025 部法 0.3s）建清單＋各法條文數；
+  無條號查詢滾出該法條文（條號升序）prepend 當來源。修了 u64 接近上限的點使 scroll 不前進的
+  死迴圈。
+- 簡稱對照 `_LAW_ALIASES`（證交法/證交稅/勞基法/消保法/個資法/民訴/刑訴/行訴/道交條例/
+  遺贈稅法/強執法）；`_detect_law` 解析順序：簡稱→法名精準→法名開頭→包含→嵌入問句。
+- 信心：法名命中**永不 no_match**（`law_name@` → high，即使 dense 偏低）。
+- 答案＝**基本敘述**（`_law_brief`：《法名》（共N條）＋ LLM 一到三句概括，禁止引用第1條）；
+  LLM 掛了 fallback 基本敘述，保證有回應。jud 對法名命中顯示「法名｜《…》」，前端標「簡介」徽章。
+- pytest：`LAW_QUERIES` 29 組法名/簡稱表，驗證 detect、永不 no_match、基本敘述不含第1條
+  （56 tests 全過）；`/eval` hit_rate 14/14、neg 5/5 維持。
+
 ---
 
 ## 5. MB 參考：x570 主要指令
