@@ -196,7 +196,7 @@
   {#if result}
     {#if result.ok}
       <h2>回答（{result.host}）</h2>
-      <p class="ans">{result.answer}</p>
+      <p class="ans">{result.answer.replace(/^[a-z0-9]+: /, '')}</p>
       <h2>引用（top {result.hits.length}）</h2>
       <ol>
         {#each result.hits as h}
