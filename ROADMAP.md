@@ -177,6 +177,9 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 >   所以 **msi 自己的瀏覽器開 `http://localhost:5173` 就能登入**（WSL2 自動 bridge 5173↔Windows）。
 > - dev 的 vite proxy 把 `/api/*` 打到本機 `localhost:8000`（msi 自己的 api，資料吃 x570 或本機備援），
 >   **即時 HMR、不用等 Pages 重部署**；只有正式上線才 push 等 Pages。
+> - 提醒：dev 下按「**自動**」＝**本機 backend（msi）回答**，「連線詳細」的檢索後端格顯示 msi 屬預期
+>   （資料/模型仍依 `QDRANT_URLS`/`OLLAMA_URLS` 優先序走 x570，見 §4.5「dev 自動」條目）；
+>   真正的 failover 順序選擇只在 Pages worker（prod）。
 
 msi 一次性準備：
 
@@ -526,6 +529,19 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 操作備註：重啟服務忌用 `pkill -f 'uvicorn app.main'` 這類未加 bracket 的 pattern——執行中的
   shell 自身 cmdline 含有同字串，**會把自己一起殺掉**（輸出截斷、後續命令沒跑）。請用
   `pkill -f '[u]vicorn app.main'` 的 `[x]` 寫法（re 匹配 x 但不匹配字面 `[x]`）。
+
+**特殊狀況：dev 按「自動」但檢索後端顯示 msi（2026-09-24）**
+- 現象：dev（localhost:5173）按「自動」送出 query，「連線詳細」主機狀態 x570 ✅、
+  但檢索後端顯示 msi，看似「x570 通卻不選 x570」。
+- 原因：**dev 的 vite proxy 把 `/api/*` 直送本機 backend（msi），不做 failover**（§2.6 設計）；
+  「自動」挑選順序（x570→mbp→msi）只存在於 Pages worker（prod）。dev 下實際為：
+  - 主機狀態（log）＝本機 backend 即時探測三台公網（真實，故 x570 ✅）
+  - 檢索後端（host）＝「回答的 API 實例」→ msi（dev 就是 msi 本機在答）
+  - 資料/模型仍依 `QDRANT_URLS`/`OLLAMA_URLS` 優先序走 x570 → src 的 Qdrant/LLM 兩格顯示 x570
+- 實測證據：`curl -s -X POST 'http://localhost:5173/api/query?backend=auto' -d '{"question":...}'`
+  → host=msi、log 三台全「連線成功」、src.qdrant/src.llm=x570；prod `ragdemo.win/api/health`
+  自動路由回 api-x570。**不是選錯**：資料與模型都照 x570 優先，msi 只是 dev 的 API 外殼。
+- 教訓：dev 驗證「檢索後端」格＝本機 backend；要驗證真正的 failover 順序請看 prod（ragdemo.win）。
 
 **特殊狀況：x570/mbp 開機但公網 530（2026-09-24，msi 記錄，交 x570/mbp 接手）**
 - 現象：x570/mbp 已開機、tailscale 可達（x570 22 通但無 key），但 `api-x570`/`api-mbp.ragdemo.win`
