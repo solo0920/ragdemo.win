@@ -235,16 +235,15 @@
 <style>
   main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
   textarea {
-    width: 100%; resize: none; height: 2.4rem;
+    flex: 1 1 0%; min-width: 0; resize: none; height: 2.4rem;
     border: 1px solid #999; border-radius: 0.25rem;
-    padding: 0 4.5rem 0 0.6rem; line-height: 2.2rem; text-align: left;
+    padding: 0 0.6rem; line-height: 2.2rem; text-align: left;
     font-size: 0.9rem; font-family: inherit;
   }
-  .ask-wrap { position: relative; }
+  .ask-wrap { display: flex; align-items: center; gap: 0.5rem; }
   .send {
-    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-    height: 2rem; padding: 0 0.9rem; border-radius: 0.375rem;
-    display: flex; align-items: center;
+    flex-shrink: 0; height: 1.8rem; padding: 0 0.9rem; border-radius: 0.375rem;
+    display: flex; align-items: center; line-height: 1;
     background: #fff; color: #333; border: 1px solid #999;
     font-size: 0.9rem; cursor: pointer;
     transition: background 0.15s;
