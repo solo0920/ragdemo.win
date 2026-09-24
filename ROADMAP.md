@@ -532,6 +532,16 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   回 **530**（tunnel 離線）；msi 200。worker 自動模式落到 msi，「連線詳細」x570/mbp ❌。
 - 交接：詳細診斷＋各機修復 checklist（systemd/launchd/crontab keepalive、`--protocol http2`）見
   **`TUNNEL-530-2026-09-24.md`**（repo 根）；修完回報並在本節補 root cause。
+- （**x570 接手 2026-09-24 已修/自癒**）現況：三台公網皆回 200
+  （`for h in x570 mbp msi; do curl -s -m 12 -o /dev/null -w "$h %{http_code}\n" https://api-$h.ragdemo.win/health; done`），
+  backend `/status`＝三台全「連線成功」。root cause：x570 的 cloudflared 曾有段無人執行
+  （bash loop PID 起於 13:15、cloudflared 新 PID 8571 起於 13:40，兩者之間即 msi 觀測到的 530 窗口），
+  **由 crontab `@reboot` restart loop（`--protocol http2`）如設計自動拉回，非 keepalive 缺口**。
+  x570 無 systemd unit（`cloudflared-ragdemo.service` 不存在）、keepalive 僅 crontab 一套、單實例無互搶，
+  log 無 `[tunnel] exit` 標記即代表 loop 從未斷裂。
+  教訓：**530＝cloudflared 進程短暫死亡，restart loop 會自癒；數小時未癒才需查 loop 本身是否也死了**
+  （`ps aux | grep [c]loudflared` 看 bash loop＋cloudflared 兩 PID 是否同在）。
+  另：接手時 running api 容器缺最新碼（`GET /status` 404）→ `docker compose build api && up -d api` 後才通，同 §4.5 前一條「pull 進樹≠重啟生效」，改後端碼一律重建容器。
 
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
