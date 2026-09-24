@@ -112,7 +112,7 @@
 
   function srcRows(r) {
     return [
-      { k: '本次檢索後端', v: r.host ?? '-' },
+      { k: '檢索後端', v: r.host ?? '-' },
       { k: 'Qdrant 檢索', v: provName(r.src?.qdrant) },
       { k: 'LLM 生成', v: provName(r.src?.llm) },
     ];
@@ -171,7 +171,7 @@
                 {/each}
               </tbody>
             </table>
-            <h3 class="pop-sub">檢索方式</h3>
+            <h3 class="pop-sub">本次檢索方式</h3>
             <table>
               <tbody>
                 {#each srcRows(result) as row}
