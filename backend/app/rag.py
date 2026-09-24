@@ -37,6 +37,13 @@ HOST_ID = os.getenv("HOST_ID", "x570")
 PICK_TTL = float(os.getenv("PICK_TTL", "30"))
 # 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
 KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
+# 相關性/信心閘門（校準自本機量測：正題 top dense 0.64–0.76、無關語意題 0.43–0.57）：
+# - dense 命中 < RAG_MIN_DENSE   → 直接 no_match（低相關，不問 LLM）
+# - 無「法律語意訊號」且 < RAG_MID_DENSE → no_match（不明語意不猜）
+# - >= RAG_HIGH_DENSE → high；否則 medium（生成時加「不確定就明說」附註）
+MIN_DENSE = float(os.getenv("RAG_MIN_DENSE", "0.58"))
+MID_DENSE = float(os.getenv("RAG_MID_DENSE", "0.62"))
+HIGH_DENSE = float(os.getenv("RAG_HIGH_DENSE", "0.70"))
 # 前端「連線與來源」彈窗的主機探測（與 Pages worker 同語意：公網 api /health）。
 # dev（vite proxy 直連 backend、繞過 worker）由 backend 補 log；prod 的 worker 會自行覆蓋此欄位。
 HOST_API = {
@@ -52,7 +59,7 @@ def keep_alive_value():
     s = str(KEEP_ALIVE).strip()
     return int(s) if s.lstrip("-").isdigit() else s
 
-SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；找不到就說找不到，不要編造。回答某條時，除主旨外若該條含款/項，請說明其下共幾項、幾款並摘要各款要旨。"
+SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；若資料與問題無關或僅模糊相關，直接回「沒有符合比對的法條」，不要編造、不要臆測。回答某條時，除主旨外若該條含款/項，請說明其下共幾項、幾款並摘要各款要旨。"
 
 _bases: dict[str, str] = {}
 _base_ts: dict[str, float] = {}
@@ -242,28 +249,53 @@ async def upsert(docs: list[dict]) -> int:
     return len(points)
 
 
-async def search(question: str, vector: list[float], limit: int = 50) -> list[dict]:
-    """召回：hybrid 用 DBSF 分數融合（dense bge-m3＋sparse TF，頂層 filter 只吃現行條文）。
+async def _points_query(body: dict) -> list[dict]:
+    r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
+                   json=body, timeout=30)
+    r.raise_for_status()
+    return r.json()["result"]["points"]
+
+
+def _fusion_sort(hits: list[dict]) -> list[dict]:
+    """本端 DBSF 融合（決定性）：dense 餘弦與 sparse idf-score 各自 min-max 正規化後加總。
     不用 RRF：RRF 只看排名，熱門條號(如「第11條」)兩腿都被灌滿時，真身(e.g. 證交法11)
-    在 sparse 腿排到上百名，被融合丟掉；DBSF 正規化分數加總，同時命中兩組 token 的文件會勝出。"""
+    在 sparse 腿排到上百名，被融合丟掉；「同時命中兩組 token」的文件會勝出。"""
+    dvals = [h["_dense"] for h in hits if h.get("_dense") is not None]
+    svals = [h["_sparse"] for h in hits if h.get("_sparse") is not None]
+    dlo, dhi = (min(dvals), max(dvals)) if dvals else (0.0, 0.0)
+    slo, shi = (min(svals), max(svals)) if svals else (0.0, 0.0)
+
+    def norm(x, lo, hi):
+        return (x - lo) / (hi - lo) if hi > lo else 0.0
+
+    for h in hits:
+        h["_fused"] = norm(h.get("_dense") or 0.0, dlo, dhi) + norm(h.get("_sparse") or 0.0, slo, shi)
+    return sorted(hits, key=lambda h: h["_fused"], reverse=True)
+
+
+async def search(question: str, vector: list[float], limit: int = 50) -> list[dict]:
+    """召回：dense(bge-m3)＋sparse(TF) 兩腿分開查，本端 DBSF 融合（決定性、可控）。
+    filter 只吃現行條文（is_repealed/abandoned=false）。"""
+    prefetch = max(limit, 500)
     if HAS_SPARSE:
-        # 每腿多抓些候選：熱門條號(如「第11條」)在 sparse 腿可排到上百名，
-        # 只取 top-limit 會把真身丟出融合。DBSF 取 top limit 做最終融合。
-        prefetch = max(limit, 500)
-        body = {
-            "prefetch": [
-                {"query": vector, "using": "dense", "limit": prefetch, "filter": _BASE_FILTER},
-                {"query": _sparse.sparse_vector(question), "using": "sparse", "limit": prefetch,
-                 "filter": _BASE_FILTER},
-            ],
-            "query": {"fusion": "dbsf"},
-            "limit": limit,
-            "with_payload": True,
-        }
-        r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
-                       json=body, timeout=30)
-        r.raise_for_status()
-        hits = r.json()["result"]["points"]
+        dense_pts = await _points_query({"query": vector, "using": "dense", "limit": prefetch,
+                                         "filter": _BASE_FILTER, "with_payload": True})
+        sq = _sparse.sparse_vector(question)
+        sparse_pts: list[dict] = []
+        if sq["indices"]:
+            sparse_pts = await _points_query(
+                {"query": {"indices": sq["indices"], "values": sq["values"]},
+                 "using": "sparse", "limit": prefetch, "filter": _BASE_FILTER, "with_payload": True})
+        pool: dict[int, dict] = {}
+        for p in dense_pts:
+            pool[p["id"]] = {"id": p["id"], "payload": p["payload"], "_dense": p["score"], "_sparse": 0.0}
+        for p in sparse_pts:
+            e = pool.setdefault(p["id"], {"id": p["id"], "payload": p["payload"], "_dense": 0.0, "_sparse": 0.0})
+            e["_sparse"] = p["score"]
+        hits = _fusion_sort(list(pool.values()))[:limit]
+        for h in hits:
+            h["score"] = h["_fused"]
+            h.pop("_fused", None)
         # 條號精準分支：query 含「第N條」時，同時對「同條號、跨法」候選以 dense 打分，
         # 破除熱門條號被擁擠（例「證券交易法第20條」sparse 腿排到數百名外）與"湊巧含法名子串"
         # 的文件搶位的問題；法名+條號組合下真正的條文會衝到最前。
@@ -291,9 +323,10 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
                 exact = [h for h in exact if h["_exact"] > 0][:3]
                 for h in exact:
                     h["score"] = h.pop("_exact", 0.0)
+                    h["_exact_rank"] = True  # 供本地 rerank 保留精準分支的領先順序
             exact_ids = {h["id"] for h in exact}
-            # exact 排最前，一併去重（可能已在 hybrid hit 中段）；top_k 才能看到真身。
-            hits = exact[:3] + [h for h in hits if h["id"] not in exact_ids]
+            # exact 排最前，一併去重（可能已在 fused hit 中段）；top_k 才能看到真身。
+            hits = exact + [h for h in hits if h["id"] not in exact_ids]
         return hits
     if _HAS_NAMED:
         body = {"vector": {"dense": vector}, "limit": limit, "with_payload": True}
@@ -305,10 +338,76 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
     return r.json()["result"]
 
 
-def rerank(question: str, hits: list[dict], top_k: int = 5) -> list[dict]:
-    # TODO: reranker 需走 chat/generate 逐對打分，目前先取向量分數前 top_k，
-    # 模型 RERANK_MODEL 已備好，待實作後替換此函式。
-    return hits[:top_k]
+async def _dense_leg(vector: list[float], limit: int) -> dict[int, float]:
+    """dense 腿單查：回「該 query 在 corpus 的最佳 dense 餘弦」集合，供閘門（絕對值）。
+    Qdrant 的 id match any 不接受超過 i64 的 u64 id（md5 id 常超過），故不能對特定 id 回拉。"""
+    r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
+                   json={"query": vector, "using": "dense", "limit": limit,
+                         "with_payload": False}, timeout=30)
+    r.raise_for_status()
+    return {p["id"]: p["score"] for p in r.json()["result"]["points"]}
+
+
+def rerank(question: str, hits: list[dict], dense_scores: dict | None = None,
+           top_k: int = 5) -> list[dict]:
+    """本地重排（純計算）：條號精準分支（_exact_rank）領先；其餘保持本端 DBSF 融合順序。
+    附帶把 dense 餘弦標到每個 hit（_dense）供閘門/前端使用。"""
+    dense = dense_scores or {}
+    exact = [h for h in hits if h.get("_exact_rank")]
+    rest = [h for h in hits if not h.get("_exact_rank")]
+    out = (exact + rest)[:top_k]
+    for h in out:
+        h["_dense"] = dense.get(h["id"])
+    return out
+
+
+# 法律領域提示語彙（寬鬆即可；真正門檻是 dense，此僅決定「弱區間」要不要放行）
+_LAW_HINTS = ("法條", "條文", "契約", "債", "侵權", "賠償", "損害", "婚姻", "離婚", "繼承",
+              "遺產", "贈與", "買賣", "租", "工資", "勞工", "僱", "雇", "刑", "罪", "罰",
+              "訴訟", "起訴", "上訴", "判決", "被害人", "詐欺", "竊盜", "侵占", "偽造",
+              "背信", "酒駕", "肇事", "交通", "保險", "稅", "股份有限公司", "董事", "股東",
+              "親權", "扶養", "監護", "戶政", "土地", "鄰居", "噪音", "合夥", "委任", "承攬",
+              "保證", "被繼承", "特留分", "應繼分", "營業秘密", "定型化契約", "商品責任",
+              "特別休假", "資遣費", "退休金", "職災", "工時", "調解", "公證", "執行" )
+
+
+def _legal_signal(question: str) -> bool:
+    """整題有無「法律語意」：含條號、含法律語彙即可。"""
+    if extract_article_no(question):
+        return True
+    qq = "".join(question.split())
+    if any(k in qq for k in _LAW_HINTS):
+        return True
+    return False
+
+
+def _exact_match(hits: list[dict], article_no: str) -> bool:
+    """精準分支是否有命中「與條號完全相同」的點（article_no 已去空白比對）。"""
+    want = "".join(article_no.split())
+    return any(h.get("_exact_rank")
+               and "".join((h.get("payload", {}).get("article_no") or "").split()) == want
+               for h in hits)
+
+
+def _decide(question: str, hits: list[dict], dense_max: float,
+            min_dense: float = MIN_DENSE, mid: float = MID_DENSE,
+            high: float = HIGH_DENSE) -> tuple[str, str]:
+    """信心分級（純計算）：corpus 無密合語意（dense_max 太低）→ no_match（不問 LLM）；
+    中間區間要「法律語意」才放行。dense_max＝該 query 在 corpus 的最佳 dense 餘弦（跨候選）。"""
+    if not hits:
+        return "no_match", "empty"
+    cos = max(dense_max, 0.0)
+    if cos < min_dense:
+        # 條號精準命中不因 dense 偏低被誤判（精準分支本為破「熱門條號被擁擠」而生）
+        an = extract_article_no(question)
+        if an and _exact_match(hits, an):
+            return "medium", f"exact_article@cos:{cos:.2f}"
+        return "no_match", f"low_relevance@{cos:.2f}"
+    if not _legal_signal(question) and cos < mid:
+        return "no_match", f"ambiguous_no_signal@{cos:.2f}"
+    if cos >= high:
+        return "high", f"cos@{cos:.2f}"
+    return "medium", f"cos@{cos:.2f}"
 
 
 _CN_DIG = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
@@ -369,9 +468,12 @@ def _ref(h: dict) -> str:
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 
-async def generate(question: str, contexts: list[dict]) -> str:
+async def generate(question: str, contexts: list[dict], cautious: bool = False) -> str:
     blocks = "\n\n".join(f"{_ref(h)} {h['payload'].get('text', '')}" for h in contexts)
-    prompt = f"{SYSTEM}\n\n資料：\n{blocks}\n\n問題：{question}\n回答（附案號/條號）："
+    guard = ("材料與問題僅中度相關：若不確定或材料不足以支持清楚結論，"
+             "直接說「沒有符合比對的法條」，不要用材料以外的知識臆測。\n\n"
+             if cautious else "")
+    prompt = f"{SYSTEM}\n\n資料：\n{blocks}\n\n{guard}問題：{question}\n回答（附案號/條號）："
     # model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應）：x570/mbp=qwen3:14b、msi=qwen3:8b。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):
@@ -435,9 +537,10 @@ async def warmup() -> None:
 async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     vecs = await embed([question])
     hits = await search(question, vecs[0], limit=recall)
-    top = rerank(question, hits, top_k)
-    text = await generate(question, top)
-    text = f"{HOST_ID}: {text}"
+    dense = await _dense_leg(vecs[0], max(recall, 50))
+    dense_max = max(dense.values(), default=0.0)
+    top = rerank(question, hits, dense, top_k)
+    level, reason = _decide(question, top, dense_max, MIN_DENSE, MID_DENSE, HIGH_DENSE)
     src = {
         "qdrant": {"host": host_label(_bases.get("qdrant", QDRANT_URLS[0])),
                    "url": _bases.get("qdrant", QDRANT_URLS[0])},
@@ -445,8 +548,18 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
-    return {"ok": True, "answer": text, "src": src, "hits": [_hit_view(h) for h in top],
-            "host": HOST_ID, "log": await _host_probe_log()}
+    base = {"ok": True, "host": HOST_ID, "confidence": level, "relevance": reason,
+            "no_match": False,
+            "src": src, "hits": [_hit_view(h) for h in top],
+            "log": await _host_probe_log()}
+    if level == "no_match":
+        # 低相關/不明語意：不問 LLM，直接如實回報，避免臆測
+        base["no_match"] = True
+        base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"
+        return base
+    text = await generate(question, top, cautious=level == "medium")
+    base["answer"] = f"{HOST_ID}: {text}"
+    return base
 
 
 def _hit_view(h: dict) -> dict:

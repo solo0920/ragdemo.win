@@ -673,7 +673,30 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 依測試補上的 robust/一致性修正：① `normalize.law_articles` 的 `pcode` 若未預置 `_pcode`
   改自己算（原先靜默 None）；② `rag._ref` 引用標示的 `article_no` 先 strip（消除雙空白）；
   ③ `sync_daily` 把版本比對與縮水判斷抽成純函式 `version_changed`/`shrink_guard` 供測試。
-- 回歸實測：`uv run --frozen pytest -q` → **37 passed in 0.08s**。
+- 回歸實測：`uv run --frozen pytest -q` → **37 passed in 0.08s**（加上 §4.11 引擎閘門測試現共 44）。
+
+### 4.11 檢索→生成閘門（低相關/不明語意不問 LLM，2026-09-24 上線）
+- 目標：使用者搜尋後「快速有效解析語意找到最適合的法案」；**不明語意直接說找不到，低相關直接回
+  「沒有符合比對的法條」，不作過多猜測**。
+- 校準量測（本機 x570 qdrant，qwen/bge 現行資料）：正題 top dense 餘弦 **0.64–0.76**、
+  無關語意題（天氣/煮咖哩/訂機票/改作文）**0.43–0.57** → 切得開。門檻收 env：
+  `RAG_MIN_DENSE=0.58`、`RAG_MID_DENSE=0.62`、`RAG_HIGH_DENSE=0.70`。
+- **召回改「兩腿分開查＋本端 DBSF 融合」（決定性）**：偵測到 Qdrant 伺服端 `fusion:dbsf` 對同 query
+  回不同 id/分數尺度的非決定性，改 dense(bge-m3)+sparse(TF) 各 prefetch 500 分開查、min-max 正規化
+  加總融合（`_fusion_sort`）；順帶保證每個 hit 都拿得到真實 dense 餘弦（原「伺服端融合」拿不到）。
+- **本地 rerank**（`rerank`）：條號精準分支（`_exact_rank`，scroll＋sparse dot＋法名 bigram）保持領先，
+  其餘維持融合順序，只切 top_k；不做重量重排以免傷 hit_rate。
+- **信心分級 `_decide`（不問 LLM 的閘門）**：
+  - `dense_max < 0.58` → **no_match** 直回「沒有符合比對的法條」（~1.3–1.6s，不問 LLM）；
+    但「條號精準命中」例外放行 medium（破熱門條號被擁擠的正確答案不誤殺）。
+  - 無法律語意訊號（`_legal_signal`：條號/法律語彙）且 `dense_max < 0.62` → no_match（不明語意不猜）。
+  - `>=0.70` → high；其餘 → medium（生成時附「不確定就明說」guard）。
+- SYSTEM 補強：「若資料與問題無關或僅模糊相關，直接回「沒有符合比對的法條」，不要編造/臆測」。
+- `/query` 新增回傳欄位：`no_match`(bool)、`confidence`(high/medium/no_match)、`relevance`(原因)；前端
+  no_match 時顯示專屬狀態（不渲染低相關引用）。
+- 評測題庫 `evals/questions.json` 補 **5 道負面題**（`expect_none`），`/eval` 回報 `neg_rate`：
+  實測 **hit_rate=14/14=1.000、neg_rate=5/5=1.000**（負面全 no_match，正面全正確）。
+- 測試：`tests/test_rag_engine.py`（rerank/_decide/_legal_signal/answer 閘門，44 tests 全過）。
 
 ---
 

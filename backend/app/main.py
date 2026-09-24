@@ -94,7 +94,8 @@ async def query(q: Query):
 
 @app.post("/eval")
 async def evaluate():
-    """跑 evals/questions.json，回報引註命中率（expect_law 比對「法規名 條號」；expect_case 走路案號）。"""
+    """跑 evals/questions.json，回報引註命中率（expect_law 比對「法規名 條號」；expect_case 走路案號；
+    expect_none 期望引擎直接回 no_match，neg_rate 報告）。"""
     base = Path(__file__).resolve().parents  # [1]=/app(container 內 evals 掛載), [2]=repo 根(本機)
     path = base[1] / "evals" / "questions.json"
     if not path.exists():
@@ -102,7 +103,16 @@ async def evaluate():
     items = json.loads(path.read_text(encoding="utf-8"))
     hit = 0
     tested = 0
+    neg_tested = 0
+    neg_hit = 0
     for it in items:
+        if it.get("expect_none"):
+            # 負面題：期望引擎直接回「沒有符合比對的法條」（不問 LLM）
+            neg_tested += 1
+            res = await rag.answer(it["q"], recall=50, top_k=5)
+            if res.get("no_match"):
+                neg_hit += 1
+            continue
         if not (it.get("expect_law") or it.get("expect_case")):
             continue  # 佔位題跳過
         tested += 1
@@ -120,4 +130,6 @@ async def evaluate():
         if ok:
             hit += 1
     return {"tested": tested, "hit": hit,
-            "hit_rate": round(hit / tested, 3) if tested else 0.0}
+            "hit_rate": round(hit / tested, 3) if tested else 0.0,
+            "neg_tested": neg_tested, "neg_hit": neg_hit,
+            "neg_rate": round(neg_hit / neg_tested, 3) if neg_tested else 0.0}

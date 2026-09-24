@@ -243,19 +243,26 @@
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
     {#if result.ok}
-      <h2>回答（{result.host}）</h2>
-      <p class="ans">{result.answer.replace(/^[a-z0-9]+: /, '')}</p>
-      <h2>引用（top {result.hits.length}）</h2>
-      <ol>
-        {#each result.hits as h}
-          <li>
-            <span class="sc">{h.score.toFixed(2)}</span>
-            ｜{h.law_name}{h.art}
-            ｜{h.item}
-            <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>
-          </li>
-        {/each}
-      </ol>
+      {#if result.no_match}
+        <h2>沒有符合比對的法條</h2>
+        <p class="ans">{result.answer}</p>
+        <p class="hint">信心：{result.confidence}（{result.relevance}）— 已跳過 LLM，不進行臆測。</p>
+      {:else}
+        <h2>回答（{result.host}）</h2>
+        <p class="ans">{result.answer.replace(/^[a-z0-9]+: /, '')}</p>
+        <p class="hint">信心：{result.confidence}（{result.relevance}）</p>
+        <h2>引用（top {result.hits.length}）</h2>
+        <ol>
+          {#each result.hits as h}
+            <li>
+              <span class="sc">{h.score.toFixed(2)}</span>
+              ｜{h.law_name}{h.art}
+              ｜{h.item}
+              <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>
+            </li>
+          {/each}
+        </ol>
+      {/if}
     {/if}
   {/if}
 </main>
