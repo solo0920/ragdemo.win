@@ -4,7 +4,7 @@
 輸入：data/laws/laws_meta.jsonl、laws_flat.jsonl、data/laws/ChLaw.json（sha256 審計）
 輸出：ragdemo 庫的 law / article / law_import 三表（見 pg_schema.sql）
 用法：POSTGRES_DSN=postgresql://rag:changeme@localhost:5432/ragdemo python3 pg_load.py
-依賴：asyncpg（本機 pypi 慢，用清華鏡像：pip install -i https://pypi.tuna.tsinghua.edu.cn/simple asyncpg）
+依賴：asyncpg（uv 為主——根 pyproject.toml＋`uv sync`；如要鏡像用 `uv pip install -i https://pypi.tuna.tsinghua.edu.cn/simple asyncpg`）
 """
 import asyncio
 import hashlib

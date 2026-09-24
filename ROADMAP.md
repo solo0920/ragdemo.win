@@ -139,13 +139,13 @@ RERANK_MODEL=qllama/bge-reranker-v2-m3:latest
 COLLECTION=laws
 ```
 
-### 2.3 跑起來並驗證（WSL 內，建議 venv）
+### 2.3 跑起來並驗證（WSL 內，uv 為主）
 
 ```bash
 cd ~/ragdemo/backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r <(printf 'fastapi\nuvicorn[standard]\nhttpx\npydantic\nasyncpg\n')   # 或 pip install fastapi "uvicorn[standard]" httpx pydantic asyncpg
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env   # 一定要帶 --env-file，否則沒有 MSI profile
+uv sync                          # 依 backend/pyproject.toml＋uv.lock（已 commit）建 backend/.venv
+# （如裝了 uv：`uv venv .venv` + `uv pip install ...` 二選一；一律以 uv 建環境，勿 python3 -m venv）
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env   # 一定要帶 --env-file，否則沒有 MSI profile
 ```
 
 ```bash
@@ -601,8 +601,8 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   原始與 parquet/json 進 .gitignore，腳本進版控。
 - 清洗規則與 Qdrant/PG 策略：**`ingest/laws/DESIGN.md`**（已寫）＋腳本：
   `ingest/laws/normalize.py`（stdlib 清洗→JSONL）、`ingest/laws/eda.py`（duckdb 分析→parquet）。
-- duckdb 筆記：本機 pypi/github 下大檔極慢，建 venv 後用清華鏡像秒裝：
-  `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple duckdb pandas`。
+- duckdb 筆記：一律用根 `pyproject.toml`（uv 為主）——`cd ~/ragdemo && uv sync` 即得 `.venv`
+  （含 duckdb/asyncpg/httpx/numpy/pandas）；清華鏡像加速僅備援（`uv pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ...`）。
 - 重點分析結論：條文中位數 79 字、p99 638、僅 4 則 >3000 字→**一條一向量**為主；
   bge-m3 是 hybrid 模型 → Qdrant `dense+sparse` 雙向量＋**DBSF 分數融合**，條號/專有名詞精準；
   payload 帶 `pcode/law_name/article_seq/article_no/chapter/is_repealed/is_abandoned/category`。

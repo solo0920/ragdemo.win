@@ -38,7 +38,7 @@ STATE = DATA / ".law_sync.json"
 LOCK = DATA / ".sync.lock"
 LOG = DATA / "sync.log"
 URL = "https://law.moj.gov.tw/api/ch/law/json"
-VENV_PY = ROOT / ".venv-ingest" / "bin" / "python"  # 勿 .resolve()：會追 symlink 到 uv base python（無套件）
+VENV_PY = ROOT / ".venv" / "bin" / "python"  # uv 統一環境（根 pyproject.toml，uv sync）。勿 .resolve()：會追 symlink 到 uv base python（無套件）
 UA = "Mozilla/5.0 (X11; Linux x86_64) ragdemo-law-sync/1.0"
 SHRINK_GUARD = 0.80  # 新版條文數 < 上次 80% → 視為縮水，中止
 

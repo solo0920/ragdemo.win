@@ -14,8 +14,8 @@
 ## 2. Parquet 備份（`eda.py`，duckdb 產出）
 - `laws_flat.parquet`（47,281 列，~8MB，壓縮自 26MB JSON）、`laws_meta.parquet`。
 - 保留原始 ZIP＋`ChLaw.json` 當上位審計與追蹤。
-- duckdb 安裝筆記：本機 pypi/github 極慢，用 `pip install -i https://pypi.tuna.tsinghua.edu.cn/simple duckdb pandas`。
-  建議各機在專案 `.venv`（uv）內建置；目前分析腳本跑在 `/tmp/opencode/venv312`。
+- duckdb 安裝：**uv 為主**——根 `pyproject.toml` 已含依賴，`cd ~/ragdemo && uv sync` 即可（.venv 統一；
+  唯 duckdb 惰性 import、且 eda 還需要 numpy/pandas 才有 `.df()`）。
 
 ## 3. 是否把 metadata 存 Postgres？→ 是
 目的：**去重／增量／不重複 embedding**，並為前端篩選、`/hosts` 職能。
@@ -75,7 +75,7 @@ normalize.py ─→ laws_flat.jsonl ─→ eda.py（parquet 備份）
 - 舊 3 筆 demo 點備份在 `laws_demo_backup`（法令資料正式取代 demo 佔位）。
 
 ## 6. 每日同步（2026-09-24 上線，x570 crontab 06:30）
-- `sync_daily.py`（用 `.venv-ingest`，uv 建）：
+- `sync_daily.py`（用根 `.venv`，uv sync 統一環境）：
   1. 每日下載官方 ZIP（~6MB）+ sha256 比對「版本記錄」`data/laws/.law_sync.json`
   2. 無更新 → log 一行心跳，不動任何資料
   3. 有新版 → 完整性優先：舊版工件先備份 `versions/<舊sha8>/` → 驗證(Laws/UpdateDate/條文>0)
@@ -83,5 +83,6 @@ normalize.py ─→ laws_flat.jsonl ─→ eda.py（parquet 備份）
      → pg_load → qdrant_load（整庫重建，上游刪除的點也正確移除）
   4. 只要任一步失敗即中止並留 log，不回退（下次 cron 冪等重跑）
 - crontab：`30 6 * * * ... --apply`；log `data/laws/sync.log`＋`cron.out`；lock 用 `.sync.lock`(flock) 防重疊。
-- 坑：`VENV_PY` 勿 `.resolve()`——會追 symlink 到 uv base python（沒套件）；venv 需 duckdb/asyncpg/httpx/numpy/pandas。
+- **uv 為主**：根 `pyproject.toml`＋`uv sync` → `.venv`（內含 duckdb/asyncpg/httpx/numpy/pandas）；`VENV_PY=根/.venv/bin/python`。
+- 坑：`VENV_PY` 勿 `.resolve()`——會追 symlink 到 uv base python（沒套件）。
 - 2026-09-24 首跑套用 2026/9/18 版（1347 法規、47,281 A 條；可用 39,879 條），/eval hit_rate=1.0（14/14）。
