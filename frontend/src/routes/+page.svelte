@@ -93,14 +93,21 @@
     }
   }
 
+  const HOST_IPS = { x570: '100.119.83.111', mbp: '100.64.121.9', msi: '100.65.68.106' };
+
   function provName(p) {
-    const u = (p?.url || '').replace(/^https?:\/\//, '');
-    return p ? `${p.host}（${u}${p.model ? '｜' + p.model : ''}）` : '-';
+    if (!p) return '-';
+    const detail = p.model ? p.model : (p.url || '').replace(/^https?:\/\//, '');
+    return `${p.host} ${detail}`;
   }
 
   function hostRows(r) {
     const ok = (id) => r.log?.[id] === '連線成功';
-    return ['x570', 'mbp', 'msi'].map((id) => ({ k: id, v: ok(id) ? '✅ 連線成功' : '❌ 連線失敗' }));
+    return ['x570', 'mbp', 'msi'].map((id) => ({
+      k: id,
+      ip: HOST_IPS[id],
+      v: ok(id) ? '✅' : '❌',
+    }));
   }
 
   function srcRows(r) {
@@ -160,7 +167,7 @@
             <table>
               <tbody>
                 {#each hostRows(result) as row}
-                  <tr><td>{row.k}</td><td>{row.v}</td></tr>
+                  <tr><td>{row.k}</td><td>{row.ip}</td><td>{row.v}</td></tr>
                 {/each}
               </tbody>
             </table>
