@@ -664,6 +664,17 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - **開放問題（待使用者定）**：① 判決資料源格式（`judgment.judicial.gov.tw` JSON/HTML/txt？）
   ② 選樣範圍（年份＋法院層級＋案由子集）③ 要旨是否第一階段就上 LLM 抽取。
 
+### 4.10 單元測試（pytest，2026-09-24 上線）
+- 策略＝「**重點 TDD**」：純函式核心（law_struct 項/款、sparse tokenizer＋u32 索引、rag `_ref/_hit_view`
+  渲染、normalize 清洗、chunk_text 切塊、sync_daily 版本判定/縮水防呆/state 持久化/zip 解析）全部可測，
+  不碰網路/docker/LLM；RAG 整合回歸仍以 `/eval`（hit_rate=1.0）＋ pre-push HTTP smoke 把守。
+- 環境：根 `pyproject.toml` 新增 `[dependency-groups] dev=["pytest>=8"]`，`uv sync --dev` 裝進 `.venv`；
+  pre-push hook 新增強制步驟 `3)`——`tests/` 37 個測試全過才放行，機器未裝 pytest 則跳過（不擋 push）。
+- 依測試補上的 robust/一致性修正：① `normalize.law_articles` 的 `pcode` 若未預置 `_pcode`
+  改自己算（原先靜默 None）；② `rag._ref` 引用標示的 `article_no` 先 strip（消除雙空白）；
+  ③ `sync_daily` 把版本比對與縮水判斷抽成純函式 `version_changed`/`shrink_guard` 供測試。
+- 回歸實測：`uv run --frozen pytest -q` → **37 passed in 0.08s**。
+
 ---
 
 ## 5. MB 參考：x570 主要指令

@@ -365,7 +365,7 @@ def _ref(h: dict) -> str:
         chap = f"（{p['chapter']}）" if p.get("chapter") else ""
         st = _law.summarize(p.get("text", ""))
         suffix = f"｜{st}" if st else ""
-        return f"[法條:{p['law_name']} {p.get('article_no', '')} {chap}{suffix}]"
+        return f"[法條:{p['law_name']} {p.get('article_no', '').strip()} {chap}{suffix}]"
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 

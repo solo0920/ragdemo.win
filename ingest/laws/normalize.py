@@ -50,7 +50,7 @@ def law_articles(law: dict) -> list[dict]:
             chapter = content.strip("　 ")
             continue
         out.append({
-            "pcode": law.get("_pcode"),
+            "pcode": law.get("_pcode") or pcode_of(law),
             "law_name": law.get("LawName", ""),
             "law_category": law.get("LawCategory", ""),
             "is_abandoned": bool(law.get("LawAbandonNote")),
@@ -65,6 +65,11 @@ def law_articles(law: dict) -> list[dict]:
     return out
 
 
+def pcode_of(law: dict) -> str:
+    """法規 pcode：LawURL 末段 query 值（例 A0000001）。唯一鍵。"""
+    return (law.get("LawURL", "").rstrip("/").rsplit("=", 1)[-1])
+
+
 def main() -> None:
     with open(SRC, encoding="utf-8-sig") as f:
         data = json.load(f)
@@ -74,8 +79,7 @@ def main() -> None:
     flat_n = meta_n = 0
     with open(flat_path, "w", encoding="utf-8") as ff, open(meta_path, "w", encoding="utf-8") as fm:
         for law in data["Laws"]:
-            pcode = (law.get("LawURL", "").rstrip("/").rsplit("=", 1)[-1])
-            law["_pcode"] = pcode
+            law["_pcode"] = pcode_of(law)
             arts = law_articles(law)
             meta = {
                 "pcode": pcode,

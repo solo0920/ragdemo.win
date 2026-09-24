@@ -127,6 +127,18 @@ def run_step(name: str, script: str) -> None:
     log.info("── 階段完成：%s", name)
 
 
+def version_changed(prev: dict, sha: str) -> bool:
+    """依 sha256 判定是否有新版。首次（無 prev）視為有新版。"""
+    return prev.get("sha256") != sha
+
+
+def shrink_guard(prev_articles: int, new_articles: int, ratio: float = SHRINK_GUARD) -> bool:
+    """新版條文數是否大幅縮水（True=應中止）。prev_articles<=0（首次）不擋。"""
+    if prev_articles <= 0:
+        return False
+    return new_articles < prev_articles * ratio
+
+
 def main() -> int:
     apply = "--apply" in sys.argv
 
@@ -149,7 +161,7 @@ def main() -> int:
             "laws_count": laws_n, "articles_count": articles_n,
             "last_checked": datetime.now().isoformat(timespec="seconds"),
         }
-        if prev.get("sha256") == sha:
+        if not version_changed(prev, sha):
             state["applied_at"] = prev.get("applied_at")
             save_state(state)
             log.info("無更新：sha=%s… update=%s（法規 %d，條文 %d）",
@@ -161,7 +173,7 @@ def main() -> int:
                  prev.get("sha256", "-")[:12], sha[:12], update_date,
                  prev.get("laws_count", 0), laws_n, prev.get("articles_count", 0), articles_n)
 
-        if prev.get("articles_count") and articles_n < prev["articles_count"] * SHRINK_GUARD:
+        if shrink_guard(prev.get("articles_count", 0), articles_n):
             log.error("疑似資料縮水：條文 %d < 上次 %d×%.0f%%；中止並保留舊資料，請人工確認。",
                       articles_n, prev["articles_count"], SHRINK_GUARD * 100)
             return 2
