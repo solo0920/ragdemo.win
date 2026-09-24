@@ -186,7 +186,8 @@
     {/if}
   </section>
 
-  <textarea
+  <div class="ask-wrap">
+    <textarea
       bind:value={question}
       rows="3"
       placeholder="輸入法律問題…（Enter 送出，Shift+Enter 換行）"
@@ -198,12 +199,20 @@
         }
       }}
     ></textarea>
+    <button
+      class="send"
+      class:busy={loading}
+      onclick={ask}
+      disabled={loading || !question.trim() || !user}
+      aria-label="送出查詢"
+      title="送出（Enter）"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </button>
+  </div>
   {#if !user}
     <p class="hint">尚未登入，請先 <a href="/auth/login" rel="external">使用 Google 登入</a> 後才能查詢。</p>
   {/if}
-  <button onclick={ask} disabled={loading || !question.trim() || !user}>
-    {loading ? '檢索生成中…' : '送出'}
-  </button>
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
     {#if result.ok}
@@ -227,6 +236,20 @@
 <style>
   main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
   textarea { width: 100%; }
+  .ask-wrap { position: relative; }
+  .send {
+    position: absolute; right: 8px; bottom: 8px;
+    width: 2.25rem; height: 2.25rem; border-radius: 0.625rem;
+    display: flex; align-items: center; justify-content: center;
+    background: #1e90ff; color: #fff; border: none; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: background 0.15s;
+  }
+  .send:hover:not(:disabled) { background: #0f7be0; }
+  .send:disabled { opacity: 0.4; cursor: default; }
+  .send svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
+  .send.busy svg { animation: send-spin 1s linear infinite; }
+  @keyframes send-spin { to { transform: rotate(360deg); } }
   .ans { white-space: pre-wrap; }
   table { border-collapse: collapse; margin: 0.5rem 0 1rem; }
   td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
