@@ -73,3 +73,15 @@ normalize.py ─→ laws_flat.jsonl ─→ eda.py（parquet 備份）
   以及「內容不含法名詞彙引致的同分」與「sparse 腿排到數百名外」的召回問題。
 - 收斂結果：`/eval` **hit_rate=1.0**（14/14，expect_law 比對）；公網 ragdemo.win → api-x570 全通。
 - 舊 3 筆 demo 點備份在 `laws_demo_backup`（法令資料正式取代 demo 佔位）。
+
+## 6. 每日同步（2026-09-24 上線，x570 crontab 06:30）
+- `sync_daily.py`（用 `.venv-ingest`，uv 建）：
+  1. 每日下載官方 ZIP（~6MB）+ sha256 比對「版本記錄」`data/laws/.law_sync.json`
+  2. 無更新 → log 一行心跳，不動任何資料
+  3. 有新版 → 完整性優先：舊版工件先備份 `versions/<舊sha8>/` → 驗證(Laws/UpdateDate/條文>0)
+     → 縮水 20%+ 中止 → 置換 → normalize → eda(parquet) → 新版工件+ZIP 備份 `versions/<新stamp>/`
+     → pg_load → qdrant_load（整庫重建，上游刪除的點也正確移除）
+  4. 只要任一步失敗即中止並留 log，不回退（下次 cron 冪等重跑）
+- crontab：`30 6 * * * ... --apply`；log `data/laws/sync.log`＋`cron.out`；lock 用 `.sync.lock`(flock) 防重疊。
+- 坑：`VENV_PY` 勿 `.resolve()`——會追 symlink 到 uv base python（沒套件）；venv 需 duckdb/asyncpg/httpx/numpy/pandas。
+- 2026-09-24 首跑套用 2026/9/18 版（1347 法規、47,281 A 條；可用 39,879 條），/eval hit_rate=1.0（14/14）。
