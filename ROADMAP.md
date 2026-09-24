@@ -588,6 +588,23 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   Client 把該 origin 加入授權重導 URI（無萬用字元），否則 `redirect_uri_mismatch`；本機
   `http://localhost:5173` 已在白名單可直接用（`+server.ts:16` 逐 origin 組 redirect）。
 
+### 4.9 判決案例數據管線（規劃，2026-09-24 定案方向，尚未實作）
+
+> 完整設計：**`ingest/cases/DESIGN.md`**。動機：目前 qdrant 只有法條（39,879 點），
+> 之後要加判決案例，資料量會暴增——先定「三層架構」讓量級可控（50G 內極寬裕）。
+
+- **三層架構（定案）**：**parquet＝全文長期歸檔**（清洗後原文＋全 metadata，按年 partition）；
+  **Postgres＝metadata 主庫**（x570，source of truth：去重／增量／審計／faceting，比照 laws）；
+  **Qdrant `cases`＝檢索瘦身視圖**（payload 只放案號/法院/日期/案由/主文＋要旨節錄，**不放全文**）。
+- 備援離線不需要 PG：qdrant payload 自帶檢索＋回答所需 metadata，msi/mbp 離線照樣答。
+- 判決專屬設計：800~1200 字 chunk＋150 重疊（點 ID md5(case_no:idx)）；dense+sparse hybrid(同 laws)＋
+  **int8 quantization**（laws 沒有）；`sync-snapshot.sh` 改 **per-collection state**（`.sync-state-laws`/`-cases`）。
+- 量級：1,000 件 ≈ 150~450MB；5,000 件 ≈ 0.7~2GB（詳見 DESIGN §3 對照表）。
+- 里程碑：**M1** ingest 管線（normalize→PG→parquet→qdrant_load，500~1,000 件選樣）；**M2** backend
+  `rag.py` 雙 collection 檢索＋真正 reranker；**M3** eval 題庫 3→50（expect_case）＋hit_rate≥0.8。
+- **開放問題（待使用者定）**：① 判決資料源格式（`judgment.judicial.gov.tw` JSON/HTML/txt？）
+  ② 選樣範圍（年份＋法院層級＋案由子集）③ 要旨是否第一階段就上 LLM 抽取。
+
 ---
 
 ## 5. MB 參考：x570 主要指令
