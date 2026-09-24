@@ -518,6 +518,9 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   會自行覆蓋這三個欄位**，不衝突。實測三台連線成功、probe 約 1.3s（tunnel 往返）。
   另坑：光補 host/log 後 dev query 仍「查詢失敗」——前端 `ask()` 有 `result.ok` 斷言，
   backend 原本沒回 `ok`；補上後 dev/prod 皆通。
+  （2026-09-24 mbp 實例）**pull 進樹 ≠ 重啟生效**：`ok:True`（c32eb47）隨 rebase 進本地，但
+  uvicorn 仍跑舊碼 → dev query 一樣「查詢失敗」；`launchctl kickstart -k gui/$(id -u)/com.ragdemo.api`
+  後即通。改後端碼後，先打 `localhost:8000/query` 確認新欄位真的在新起的進程上。
 - 教訓：**dev 與 prod 的資訊來源不同（backend vs worker）**；排查「資訊型 UI」問題時，
   先確認該請求實際打到誰（`vite proxy` → backend，還是 `worker`）。
 - 操作備註：重啟服務忌用 `pkill -f 'uvicorn app.main'` 這類未加 bracket 的 pattern——執行中的
