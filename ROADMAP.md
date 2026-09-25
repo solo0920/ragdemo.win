@@ -578,6 +578,21 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 教訓：**keepalive 的 log 路徑不能依賴工具專用臨時目錄（`/tmp/opencode`）**；shell redirect 失敗會讓
   被包的程式根本不執行且「無聲失敗」。排查「登入才起服務」先對開機時間軸＋`ps -o lstart`。
 
+**特殊狀況：裝 zsh 後終端字變暗變細（2026-09-25）**
+- 現象：切到 zsh 後，輸入時自動補建的文字呈**淡灰暗色**，整行看起來「暗、細」。
+- 原因：`zsh-autosuggestions` 預設樣式為 `ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'`
+  （16 色板中的「亮黑」＝淡灰色），補建文字就以淡灰浮現。
+- 判定：`echo $ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE` 回 `fg=8` 即為此因。
+- 修復：在 `~/.zshrc` 載入 autosuggestions **之前**加上：
+  ```bash
+  export ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=cyan'   # 或 yellow/magenta/white,bold
+  [ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ] && \
+    source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+  ```
+  放在 source **前**才能讓該檔的 guard `(( ! ${+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE} ))` 跳過其預設值。
+- 驗證：開新終端，補建文字改為設定色即完成；喜歡其他色直接換 `cyan`→`yellow`/`magenta`/`white,bold`。
+- 教訓：**zsh 自動補建「變暗」不是字型問題，是預設 `fg=8` 淡灰樣式**；優先查 `ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE`。
+
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
 - 原則：**出門＝當 x570 斷線**，現有自動 failover 已涵蓋、零設定：
