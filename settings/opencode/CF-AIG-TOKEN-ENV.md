@@ -120,6 +120,9 @@ tr '\0' '\n' < /proc/<PID>/environ | grep CF_AIG_TOKEN
 |---|---|---|
 | 401、`Bearer` 空 | server 環境沒有 `CF_AIG_TOKEN` | §2.2 三個位置都設；已啟動的 server 要 restart |
 | 401 `code:2009` token 電子郵件無效 | **刻意遮蔽過的 token**（敏感資料，非完整真實值） | 使用 Dashboard 產出的完整真實 token；遮蔽值勿取代真實 token |
+| `OpenRouter API key is missing` | opencode 內建 openrouter 的 SDK 強制要有 `apiKey`，config 沒給 | `options` 內加 `"apiKey": "{file:<cf-aig-token 路徑>}"`（值＝gateway token；`Authorization` 直接可用，不需 cf-aig header） |
+| `Missing Authentication header`（401） | apiKey 給的是 dummy/不合法值（`sk-or-...`） | 用真 token 當 apiKey；gateway 只認可 `cfut_...` 類值的 `Authorization` |
+| 429 code 2009 | **非設定問題**，OpenRouter free 每日額度用罄（50/天共享池） | 等每日重置，或 OpenRouter 加 $10 credits 解鎖 1000/天，或 CF Dashboard→AI Gateway→Provider Keys 加自己的 OpenRouter key（BYOK） |
 | `/api/info` 401 每 100ms 重複 | client/server 認證握手失敗 | `opencode service restart` |
 | `provider request failed HTTP 401` | header 沒送到 | 確認 config 的 headers 寫法（§2.3） |
 | 429 rate limited | free model 共享額度池 | 到 CF Dashboard → Provider Keys 加 OpenRouter key（`is_byok: true`） |

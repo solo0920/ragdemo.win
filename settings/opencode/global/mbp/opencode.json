@@ -4,6 +4,7 @@
     "openrouter": {
       "options": {
         "baseURL": "https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cloudflaregateway/openrouter",
+        "apiKey": "{file:/Users/leesolomon/.config/opencode/cf-aig-token}",
         "headers": {
           "cf-aig-authorization": "Bearer {file:/Users/leesolomon/.config/opencode/cf-aig-token}"
         }
