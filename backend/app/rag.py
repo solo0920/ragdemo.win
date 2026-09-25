@@ -44,7 +44,18 @@ OPENROUTER_GATEWAY_URL = os.getenv("OPENROUTER_GATEWAY_URL", "").rstrip("/")
 CF_AIG_TOKEN = os.getenv("CF_AIG_TOKEN", "").strip()
 CF_AIG_TOKEN_FILE = os.getenv("CF_AIG_TOKEN_FILE", str(Path.home() / ".config" / "opencode" / "cf-aig-token"))
 OPENROUTER_MODELS = [m.strip() for m in os.getenv(
-    "OPENROUTER_MODELS", "inclusionai/ling-3.0-flash-fin:free,qwen/qwen3.8-27b:free"
+    "OPENROUTER_MODELS",
+    # CF AI Gateway→OpenRouter 目前提供 18 個 :free 模型（2026-09-26 實測），全部納入下拉選單；
+    # free 額度共享池（50/天），選項只是列出、額度用罄時上游回 429。
+    "cohere/north-mini-code:free,dots-studio/dots-3-note-preview:free,"
+    "google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,"
+    "inclusionai/ling-3.0-flash-fin:free,inclusionai/ling-3.0-flash-sante:free,"
+    "liquid/lfm-2.5-2.6b:free,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free,"
+    "nvidia/nemotron-3-super-120b-a12b:free,nvidia/nemotron-3-ultra-550b-a55b:free,"
+    "nvidia/nemotron-3.5-content-safety:free,nvidia/nemotron-3.5-lightning:free,"
+    "poolside/laguna-s-2.1:free,poolside/laguna-xs-2.1:free,"
+    "qwen/qwen3.8-27b:free,thinkingmachines/inkling-small:free,"
+    "thinkingmachines/inkling:free,z-ai/glm-5.2:free",
 ).split(",") if m.strip()]
 # OpenCode Zen（free 模型）：model="zen/<id>" 時走 zen 的 openai-compatible chat/completions。
 # ZEN_API_KEY 留空時路由已備好、但呼叫會回清楚錯誤（選到時前端提示「Zen key 未設定」）。

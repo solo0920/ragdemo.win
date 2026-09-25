@@ -188,7 +188,7 @@
           {#if cloudModels.length}
             <optgroup label="OpenRouter 閉源（速度）">
               {#each cloudModels as m}
-                <option value={m}>{m.replace(/^openrouter\//, '')}</option>
+                <option value={m}>{m.replace(/^openrouter\//, '').replace(/:free$/, '')}</option>
               {/each}
             </optgroup>
           {/if}
