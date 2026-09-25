@@ -593,6 +593,29 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 驗證：開新終端，補建文字改為設定色即完成；喜歡其他色直接換 `cyan`→`yellow`/`magenta`/`white,bold`。
 - 教訓：**zsh 自動補建「變暗」不是字型問題，是預設 `fg=8` 淡灰樣式**；優先查 `ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE`。
 
+**特殊狀況：openrouter 經 CF gateway 的 free model 不出現／報 missing key（2026-09-25，三台適用）**
+- 現象：設定好 CF gateway 官方寫法後，`opencode run --model openrouter/xxx:free` 報
+  `Error: OpenRouter API key is missing`，或 `/models` 看不到預期的 free 模型。
+- 原因：**內建 `openrouter` provider 的 SDK 強制要 `apiKey` 才肯發請求**；只覆寫
+  `baseURL`＋`cf-aig-authorization` header 不夠，SDK 直接擋下、根本沒發出請求。
+- 關鍵：**apiKey 的值要填 Cloudflare gateway token（`cfut_...`），不是真 OpenRouter key**。
+  gateway 只認可 `cfut_...`（`Authorization`＋`cf-aig-authorization` 都帶相同值），
+  填真實 `sk-or-...` 反而回 `401 / 2009 Unauthorized`；填 dummy 值回 `Missing Authentication header`。
+- 修復（global `~/.config/opencode/opencode.json`，三台一致）：
+  ```json
+  { "provider": { "openrouter": {
+      "options": {
+        "baseURL": "https://gateway.ai.cloudflare.com/v1/<ACCOUNT_ID>/<GATEWAY_ID>/openrouter",
+        "apiKey": "{file:~/.config/opencode/cf-aig-token}",
+        "headers": { "cf-aig-authorization": "Bearer {file:~/.config/opencode/cf-aig-token}" }
+      } } } }
+  ```
+- 驗證：`opencode run "回覆:OK" --model openrouter/inclusionai/ling-3.0-flash-fin:free`
+  通過 SDK 檢查、抵達上游；若回 `429 free-models-per-day`＝設定已通、僅免費額度用盡
+  （daily reset 約隔日 08:00 CST），換模型或待 reset。
+- 教訓：**內建 provider 的 `apiKey` 是用來通過 SDK 檢查＋當認證值送出的**；走 CF gateway 時
+  該值＝gateway token。另 config 頂層 key 是單數 `provider`，複數 `providers` 會被靜默忽略。
+
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
 - 原則：**出門＝當 x570 斷線**，現有自動 failover 已涵蓋、零設定：
