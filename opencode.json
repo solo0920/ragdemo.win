@@ -1,0 +1,40 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/qwen3:14b",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama 5070 Ti",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen2.5-coder:14b": {
+          "name": "qwen2.5-coder:14b 5070 Ti"
+        },
+        "qwen3:14b": {
+          "name": "qwen3:14b 5070 Ti"
+        }
+      }
+    },
+    "cf-gw-openrouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Cloudflare Gateway / OpenRouter (Free)",
+      "options": {
+        "baseURL": "https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cloudflaregateway/openrouter/v1"
+      },
+      "models": {
+        "inclusionai/ling-3.0-flash-fin:free": {
+          "name": "Ling 3 Flash Fin (Free)"
+        },
+        "qwen/qwen3.8-27b:free": {
+          "name": "Qwen 3.8 27B (Free)"
+        }
+      }
+    }
+  },
+  "autoupdate": true,
+  "server": {
+    "port": 4096
+  }
+}
