@@ -67,6 +67,17 @@ ZEN_FREE_MODELS = [m.strip() for m in os.getenv(
     "mimo-v2.5-free,ling-3.0-flash-fin-free,nemotron-3-ultra-free,"
     "nemotron-3.5-lightning-free,space-bunny-free",
 ).split(",") if m.strip()]
+# NVIDIA NIM（build.nvidia.com）：model="nv/<id>" 走 integrate.api.nvidia.com（OpenAI-compatible）。
+# 用 NVIDIA_API_KEY（nvapi-...）；未設時拋 GatewayUnconfigured（下拉選單標「需 NIM key」）。
+# 路由前綴用「nv/」而非「nvidia/」，避免與模型自身 org 前綴（nvidia/nemotron-…）碰撞。
+NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/")
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
+NVIDIA_MODELS = [m.strip() for m in os.getenv(
+    "NVIDIA_MODELS",
+    # build.nvidia.com 實測可呼叫的模型（2026-09-26，key nvapi-… 通過）：
+    "nvidia/nemotron-3.5-lightning-30b-a3b,nvidia/nemotron-3-super-120b-a12b,"
+    "z-ai/glm-5.3-flash,deepseek-ai/deepseek-v4.1-flash,mistralai/mistral-nemotron",
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -938,6 +949,23 @@ def _ref(h: dict) -> str:
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 
+async def _nvidia_complete(model: str, prompt: str) -> str:
+    """NVIDIA NIM（integrate.api.nvidia.com）chat/completions；需 NVIDIA_API_KEY（nvapi-...）。"""
+    if not NVIDIA_API_KEY:
+        raise GatewayUnconfigured("NVIDIA_API_KEY 未設定：無法走 NVIDIA NIM")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {NVIDIA_API_KEY}",
+    }
+    url = f"{NVIDIA_BASE_URL}/chat/completions"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                               "stream": False, "max_tokens": 500})
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
 async def _zen_complete(model: str, prompt: str) -> str:
     """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
     if not ZEN_API_KEY:
@@ -998,6 +1026,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # OpenCode Zen free 模型 → 走 zen（需 ZEN_API_KEY；無 key 拋 GatewayUnconfigured）。
     if model.startswith("zen/"):
         return await _zen_complete(model.removeprefix("zen/"), prompt)
+    # NVIDIA NIM → 走 integrate.api.nvidia.com（需 NVIDIA_API_KEY）。前綴用 nv/，避免與模型 org 前綴 nvidia/ 衝突。
+    if model.startswith("nv/"):
+        return await _nvidia_complete(model.removeprefix("nv/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):

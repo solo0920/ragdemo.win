@@ -25,6 +25,8 @@
   let cloudModels = [];
   let zenModels = [];
   let zenReady = false;
+  let nvidiaModels = [];
+  let nvidiaReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -45,6 +47,8 @@
       cloudModels = d.cloud ?? [];
       zenModels = d.zen ?? [];
       zenReady = !!d.zen_ready;
+      nvidiaModels = d.nvidia ?? [];
+      nvidiaReady = !!d.nvidia_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -196,6 +200,13 @@
             <optgroup label="OpenCode Zen Free">
               {#each zenModels as m}
                 <option value={m} disabled={!zenReady}>{m.replace(/^zen\//, '')}{!zenReady ? '（需 Zen key）' : ''}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if nvidiaModels.length}
+            <optgroup label="NVIDIA NIM">
+              {#each nvidiaModels as m}
+                <option value={m} disabled={!nvidiaReady}>{m.replace(/^nv\//, '')}{!nvidiaReady ? '（需 NIM key）' : ''}</option>
               {/each}
             </optgroup>
           {/if}

@@ -91,6 +91,8 @@ async def models():
         "gateway": bool(rag.OPENROUTER_GATEWAY_URL and rag._gateway_token()),
         "zen": [f"zen/{m}" for m in rag.ZEN_FREE_MODELS],
         "zen_ready": bool(rag.ZEN_API_KEY),
+        "nvidia": [f"nv/{m}" for m in rag.NVIDIA_MODELS],
+        "nvidia_ready": bool(rag.NVIDIA_API_KEY),
     }
 
 
