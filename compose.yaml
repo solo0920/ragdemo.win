@@ -48,6 +48,8 @@ services:
       HF_BASE_URL: ${HF_BASE_URL:-https://router.huggingface.co/v1}
       HF_TOKEN: ${HF_TOKEN:-}
       HF_MODELS: ${HF_MODELS:-deepseek-ai/DeepSeek-V4.1-Flash,Qwen/Qwen3.8-27B,zai-org/GLM-5.3-Flash,meta-llama/Llama-3.3-70B-Instruct}
+      MISTRAL_GATEWAY_URL: ${MISTRAL_GATEWAY_URL:-}
+      MISTRAL_MODELS: ${MISTRAL_MODELS:-ministral-8b-latest,codestral-latest}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}

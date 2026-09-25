@@ -45,6 +45,8 @@
   let cohereReady = false;
   let hfModels = [];
   let hfReady = false;
+  let mistralModels = [];
+  let mistralReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -76,6 +78,8 @@
       cohereReady = !!d.cohere_ready;
       hfModels = d.hf ?? [];
       hfReady = !!d.hf_ready;
+      mistralModels = d.mistral ?? [];
+      mistralReady = !!d.mistral_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -263,6 +267,13 @@
             <optgroup label="Hugging Face">
               {#each hfModels as m}
                 <option value={m} disabled={!hfReady}>{m.replace(/^hf\//, '')}{!hfReady ? '（需 HF token）' : ''}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if mistralModels.length}
+            <optgroup label="Mistral">
+              {#each mistralModels as m}
+                <option value={m} disabled={!mistralReady}>{m.replace(/^mis\//, '')}{!mistralReady ? '' : '（需 gateway 設定）'}</option>
               {/each}
             </optgroup>
           {/if}

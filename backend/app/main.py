@@ -101,6 +101,8 @@ async def models():
         "cohere_ready": bool(rag.COHERE_GATEWAY_URL and rag.COHERE_GATEWAY_URL != "-" and rag._gateway_token()),
         "hf": [f"hf/{m}" for m in rag.HF_MODELS],
         "hf_ready": bool(rag.HF_BASE_URL and rag.HF_TOKEN),
+        "mistral": [f"mis/{m}" for m in rag.MISTRAL_MODELS],
+        "mistral_ready": bool(rag.MISTRAL_GATEWAY_URL and rag.MISTRAL_GATEWAY_URL != "-" and rag._gateway_token()),
     }
 
 

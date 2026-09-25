@@ -118,6 +118,17 @@ HF_MODELS = [m.strip() for m in os.getenv(
     # router.huggingface.co 實測可呼叫、中文法律問答佳（2026-09-26）：
     "deepseek-ai/DeepSeek-V4.1-Flash,Qwen/Qwen3.8-27B,zai-org/GLM-5.3-Flash,meta-llama/Llama-3.3-70B-Instruct",
 ).split(",") if m.strip()]
+# Mistral（經 Cloudflare AI Gateway 的 mistral provider）：model="mis/<id>"（openai-compatible）。
+# Mistral key 在 gateway 後台新增、gateway 代管；此處用 CF token。
+# 註：mistral-small/medium 家族上游 rate limit（429 code 1300），實測可用 ministral-8b / codestral。
+MISTRAL_GATEWAY_URL = os.getenv("MISTRAL_GATEWAY_URL", "").rstrip("/") or (
+    OPENROUTER_GATEWAY_URL.removesuffix("/openrouter") + "/mistral/v1" if OPENROUTER_GATEWAY_URL else "-"
+)
+MISTRAL_MODELS = [m.strip() for m in os.getenv(
+    "MISTRAL_MODELS",
+    # CF gateway→mistral 實測 200：ministral-8b-latest、codestral-latest
+    "ministral-8b-latest,codestral-latest",
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -1092,6 +1103,28 @@ async def _hf_complete(model: str, prompt: str) -> str:
     return msg.get("content") or msg.get("reasoning_content") or ""
 
 
+async def _mistral_complete(model: str, prompt: str) -> str:
+    """Mistral（經 CF AI Gateway mistral provider）chat/completions（openai-compatible）；
+    Mistral key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
+    if not MISTRAL_GATEWAY_URL or MISTRAL_GATEWAY_URL == "-":
+        raise GatewayUnconfigured("MISTRAL_GATEWAY_URL 未設定：走不了 Mistral（需 CF AI Gateway 的 mistral 路由）")
+    tok = _gateway_token()
+    if not tok:
+        raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Mistral")
+    headers = {
+        "Content-Type": "application/json",
+        "cf-aig-authorization": f"Bearer {tok}",
+        "Authorization": f"Bearer {tok}",
+    }
+    url = f"{MISTRAL_GATEWAY_URL}/chat/completions"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                               "stream": False, "max_tokens": 500})
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
 async def _zen_complete(model: str, prompt: str) -> str:
     """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
     if not ZEN_API_KEY:
@@ -1167,6 +1200,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # Hugging Face Inference Providers → router.huggingface.co（需 HF_TOKEN）。
     if model.startswith("hf/"):
         return await _hf_complete(model.removeprefix("hf/"), prompt)
+    # Mistral（經 CF AI Gateway mistral provider）→ chat/completions（gateway 代管 Mistral key）。
+    if model.startswith("mis/"):
+        return await _mistral_complete(model.removeprefix("mis/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):
