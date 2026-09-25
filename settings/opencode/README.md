@@ -14,12 +14,12 @@ settings/opencode/
 ├── CF-AIG-TOKEN-ENV.md    ← token 環境變數設定方法＋疑難排解（三台共用）
 ├── global/               ← global config（openrouter → CF gateway），按機器分
 │   ├── msi/opencode.json        # MSI（✅ 已完成）
-│   ├── mbp/                     # MBP（待備份）
-│   └── x570/                    # x570（待備份）
+│   ├── mbp/opencode.json        # MBP（✅ 已完成）
+│   └── x570/opencode.json       # x570（✅ 已完成）
 └── project/              ← 專案 config（ollama → x570），按機器分
     ├── msi/opencode.json        # MSI（✅ 已完成）
-    ├── mbp/                     # MBP（待備份）
-    └── x570/                    # x570（待備份）
+    ├── mbp/opencode.json        # MBP（✅ 已完成）
+    └── x570/opencode.json       # x570（✅ 已完成）
 ```
 
 > **global 與 project 刻意分層**：global 是 `~/.config/opencode/opencode.json`
@@ -106,9 +106,13 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 
 ---
 
-## 🖥️ MBP、MSI 比照辦理（2026-09-25 定案）
+## 🖥️ MSI、MBP、x570 比照辦理（2026-09-25 定案）
 
 三台統一採 **override 內建 `openrouter`** 的寫法（全球設定走 CF gateway）＋ `{file:}` token：
+
+> ✅ **MSI 已完成**（2026-09-25）：實際 config、`global/msi` 備份、方法文件皆已修正為
+> `provider` 單數＋`options.headers`，service restart 後端到端驗證通過。
+> **MBP、x570 請檢查各自實際 config，確認已比照下列寫法（不可殘留 `providers` 複數）**。
 
 ### global config（每台各自的 `~/.config/opencode/opencode.json`）
 ```json
