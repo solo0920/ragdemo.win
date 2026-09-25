@@ -1,11 +1,11 @@
 {
-  "providers": {
+  "provider": {
     "openrouter": {
-      "settings": {
-        "baseURL": "https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cloudflaregateway/openrouter"
-      },
-      "headers": {
-        "cf-aig-authorization": "Bearer {file:/home/solo/.config/opencode/cf-aig-token}"
+      "options": {
+        "baseURL": "https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cloudflaregateway/openrouter",
+        "headers": {
+          "cf-aig-authorization": "Bearer {file:/home/solo/.config/opencode/cf-aig-token}"
+        }
       }
     }
   }

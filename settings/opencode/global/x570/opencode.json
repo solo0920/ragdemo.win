@@ -1,15 +1,12 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "ollama/qwen3-coder",
   "provider": {
-    "ollama": {
-      "settings": {
-        "baseURL": "http://127.0.0.1:11434/v1"
-      }
-    },
-    "cf-gw-openrouter": {
+    "openrouter": {
       "options": {
-        "apiKey": "{file:/home/solo/.config/opencode/cf-aig-token}"
+        "baseURL": "https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cloudflaregateway/openrouter",
+        "headers": {
+          "cf-aig-authorization": "Bearer {file:/home/solo/.config/opencode/cf-aig-token}"
+        }
       }
     }
   }

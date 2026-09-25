@@ -17,12 +17,7 @@
         }
       }
     },
-    "cf-gw-openrouter": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Cloudflare Gateway / OpenRouter (Free)",
-      "options": {
-        "baseURL": "https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cloudflaregateway/openrouter/v1"
-      },
+    "openrouter": {
       "models": {
         "inclusionai/ling-3.0-flash-fin:free": {
           "name": "Ling 3 Flash Fin (Free)"
