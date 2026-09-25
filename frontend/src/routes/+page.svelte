@@ -9,6 +9,12 @@
   ];
 
   let question = '';
+  let ta;
+  function grow() {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 240) + 'px';
+  }
   let loading = false;
   let result = null;
   let error = '';
@@ -143,6 +149,7 @@
       error = e.message;
     } finally {
       loading = false;
+      grow();
     }
   }
 
@@ -286,10 +293,12 @@
 
   <div class="ask-wrap">
     <textarea
+      bind:this={ta}
       bind:value={question}
       rows="1"
       placeholder="輸入法律問題…（Enter 送出，Shift+Enter 換行）"
       disabled={!user}
+      oninput={grow}
       onkeydown={(e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -345,10 +354,10 @@
 <style>
   main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
   textarea {
-    flex: 1 1 0%; min-width: 0; resize: none; height: 2.4rem;
+    flex: 1 1 0%; min-width: 0; resize: none; min-height: 2.4rem;
     border: none; outline: none; background: transparent;
     padding: 0 0.25rem; line-height: 2.4rem; text-align: left;
-    font-size: 1rem; font-family: inherit;
+    font-size: 1rem; font-family: inherit; overflow-y: hidden;
   }
   .ask-wrap {
     display: flex; align-items: center; gap: 0.4rem;
