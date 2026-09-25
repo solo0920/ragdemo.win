@@ -49,6 +49,7 @@
   let mistralReady = false;
   let usageMap = new Map();
   let limitedMap = new Map();
+  let quotaMap = new Map();
   let modelsReady = false;
   let modelOpen = false;
   let groups = [];
@@ -96,6 +97,7 @@
         um.set(`${p}/${u.model}`, { calls: u.calls ?? 0, tokens: u.tokens ?? 0 });
       }
       usageMap = um;
+      quotaMap = new Map(Object.entries(d.quota ?? {}));
       const lm = new Map();
       for (const s of (d.limited ?? [])) lm.set(s.key, s.until);
       limitedMap = lm;
@@ -127,8 +129,15 @@
     return b ? b + path : '/api' + path;
   }
 
-  function usageSuffix(model) {
-    const u = usageMap.get(model);
+  function usageSuffix(key) {
+    const u = usageMap.get(key);
+    const prefix = key.includes('/') ? key.split('/')[0] : key;
+    const prov = Object.keys(prefixOf).find((p) => prefixOf[p] === prefix);
+    const quota = prov ? quotaMap.get(prov) : null;
+    if (quota && quota.limit) {
+      const calls = u ? u.calls : 0;
+      return `${calls}/${quota.limit}`;
+    }
     if (!u || (u.calls === 0 && u.tokens === 0)) return '';
     if (u.tokens === 0) return `今日 ${u.calls}次`;
     const t = u.tokens >= 1000 ? (u.tokens / 1000).toFixed(1) + 'k' : String(u.tokens);
@@ -140,6 +149,15 @@
     return until && until * 1000 > Date.now() ? until : null;
   }
 
+  function isOverQuota(key) {
+    const u = usageMap.get(key);
+    if (!u) return false;
+    const prefix = key.includes('/') ? key.split('/')[0] : key;
+    const prov = Object.keys(prefixOf).find((p) => prefixOf[p] === prefix);
+    const quota = prov ? quotaMap.get(prov) : null;
+    return !!(quota && quota.limit && u.calls >= quota.limit);
+  }
+
   function resetText(key) {
     const until = isLimited(key);
     if (!until) return '';
@@ -147,6 +165,21 @@
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     return `重置 ${hh}:${mm}`;
+  }
+
+  function quotaReset(key) {
+    const prefix = key.includes('/') ? key.split('/')[0] : key;
+    const prov = Object.keys(prefixOf).find((p) => prefixOf[p] === prefix);
+    const quota = prov ? quotaMap.get(prov) : null;
+    if (!quota || !quota.period) return '';
+    if (isLimited(key)) return resetText(key);
+    const now = new Date();
+    if (quota.period === 'month') {
+      const d = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0);
+      return `重置 ${String(d.getMonth() + 1)}/1`;
+    }
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0);
+    return `重置 ${String(d.getHours()).padStart(2, '0')}:00`;
   }
 
   function modelLabel() {
@@ -293,9 +326,9 @@
                     onclick={() => { if (it.disabled) return; model = it.value; modelOpen = false; }}
                   >
                     <span class="m-name">{it.label}</span>
-                    <span class="m-meta" class:limited={!!isLimited(it.key)}>
-                      {#if isLimited(it.key)}
-                        {usageSuffix(it.key)}{resetText(it.key) ? '｜' + resetText(it.key) : ''}
+                    <span class="m-meta" class:limited={!!isLimited(it.key) || isOverQuota(it.key)}>
+                      {#if isOverQuota(it.key) || isLimited(it.key)}
+                        {usageSuffix(it.key)}{quotaReset(it.key) ? '｜' + quotaReset(it.key) : ''}
                       {:else}
                         {usageSuffix(it.key)}
                       {/if}

@@ -1162,6 +1162,23 @@ def _resp_tokens(j: dict, kind: str) -> int:
 # 由 _rstatus() 在收到 429 時記錄；成功呼叫時清除（還原）。記憶體即可（伺服器單 worker）。
 _LIMITED: dict[str, dict] = {}
 
+# 各 provider free 額度（來源 github.com/mnfst/awesome-free-llm-apis，2026-09-26）。
+# 注意：該清單對我們在用的 provider 給的全是「請求次數」型（RPD／月），
+# 無 token 型額度（"token 當分母"只存在於該站 Aion 20K TPD / SiliconFlow 50K TPM 等
+# 未接的 provider）。故分母一律為請求次數、分子為今日 calls；無公布的（HF/Mistral/Zen
+# credit 計費）標 None → 不顯示分數、維持純「今日 N次/Tk」。
+FREE_QUOTA: dict[str, dict | None] = {
+    "openrouter": {"limit": 50, "period": "day"},       # free 模型 50 RPD／20 RPM（per model）
+    "nvidia":     {"limit": 10000, "period": "day"},    # 40 RPM, 10,000 RPD
+    "gemini":     {"limit": 1500, "period": "day"},     # 15-30 RPM, 1,500 RPD
+    "groq":       {"limit": 1000, "period": "day"},     # 30 RPM, 1,000 RPD（compound 250）
+    "cohere":     {"limit": 1000, "period": "month"},   # 1,000 calls/month
+    "hf":         None,                                 # $0.10/month credit（無次數額度）
+    "mistral":    None,                                 # $10/month credit（無次數額度）
+    "zen":        None,                                 # 未公布額度
+    "ollama":     None,                                 # 本機、無額度
+}
+
 
 def _limited_snapshot() -> list[dict]:
     """當前未解除的限流 provider/model（供 /models 附帶，前端標紅）。"""

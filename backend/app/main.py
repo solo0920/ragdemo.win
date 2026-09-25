@@ -106,6 +106,7 @@ async def models():
         "mistral_ready": bool(rag.MISTRAL_GATEWAY_URL and rag.MISTRAL_GATEWAY_URL != "-" and rag._gateway_token()),
         "usage": await usage.snapshot(),
         "limited": rag._limited_snapshot(),
+        "quota": rag.FREE_QUOTA,
     }
 
 
