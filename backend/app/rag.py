@@ -21,6 +21,7 @@ import httpx
 from . import sparse as _sparse
 from . import law_struct as _law
 from . import rules_store as _rules
+from . import usage as _usage
 
 logger = logging.getLogger("ragdemo")
 
@@ -1014,7 +1015,9 @@ async def _nvidia_complete(model: str, prompt: str) -> str:
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    j = r.json()
+    await _usage.track("nvidia", model, tokens=_resp_tokens(j, "openai"))
+    return j["choices"][0]["message"]["content"]
 
 
 async def _gemini_complete(model: str, prompt: str) -> str:
@@ -1036,7 +1039,9 @@ async def _gemini_complete(model: str, prompt: str) -> str:
                          json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
                                "generationConfig": {"maxOutputTokens": 500}})
     r.raise_for_status()
-    parts = r.json()["candidates"][0]["content"]["parts"]
+    j = r.json()
+    await _usage.track("gemini", model, tokens=_resp_tokens(j, "gemini"))
+    parts = j["candidates"][0]["content"]["parts"]
     return "".join(p.get("text", "") for p in parts)
 
 
@@ -1059,7 +1064,9 @@ async def _groq_complete(model: str, prompt: str) -> str:
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    j = r.json()
+    await _usage.track("groq", model, tokens=_resp_tokens(j, "openai"))
+    return j["choices"][0]["message"]["content"]
 
 
 async def _cohere_complete(model: str, prompt: str) -> str:
@@ -1080,7 +1087,9 @@ async def _cohere_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"model": model, "message": prompt, "max_tokens": 500})
     r.raise_for_status()
-    return r.json().get("text", "")
+    j = r.json()
+    await _usage.track("cohere", model, tokens=_resp_tokens(j, "cohere"))
+    return j.get("text", "")
 
 
 async def _hf_complete(model: str, prompt: str) -> str:
@@ -1098,7 +1107,9 @@ async def _hf_complete(model: str, prompt: str) -> str:
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
     r.raise_for_status()
-    msg = r.json()["choices"][0]["message"]
+    j = r.json()
+    await _usage.track("hf", model, tokens=_resp_tokens(j, "openai"))
+    msg = j["choices"][0]["message"]
     # HF 上部分推理模型（如 DeepSeek-V4.1-Flash）把內容放 reasoning_content、content 可能 None
     return msg.get("content") or msg.get("reasoning_content") or ""
 
@@ -1122,7 +1133,29 @@ async def _mistral_complete(model: str, prompt: str) -> str:
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    j = r.json()
+    await _usage.track("mistral", model, tokens=_resp_tokens(j, "openai"))
+    return j["choices"][0]["message"]["content"]
+
+
+def _resp_tokens(j: dict, kind: str) -> int:
+    """從各 provider LLM 回應中提取 token 用量（各家格式不同；取不到回 0）。"""
+    try:
+        if kind == "gemini":
+            return int(j.get("usageMetadata", {}).get("totalTokenCount") or 0)
+        if kind == "cohere":
+            u = j.get("usage", {}) or {}
+            t = u.get("tokens", {}) or {}
+            return int(t.get("input_tokens") or 0) + int(t.get("output_tokens") or 0)
+        if kind == "ollama":
+            return int(j.get("prompt_eval_count") or 0) + int(j.get("eval_count") or 0)
+        u = j.get("usage", {}) or {}
+        tt = u.get("total_tokens") or u.get("totalTokens") or 0
+        if tt:
+            return int(tt)
+        return int(u.get("prompt_tokens") or 0) + int(u.get("completion_tokens") or 0)
+    except (KeyError, TypeError, ValueError):
+        return 0
 
 
 async def _zen_complete(model: str, prompt: str) -> str:
@@ -1139,7 +1172,9 @@ async def _zen_complete(model: str, prompt: str) -> str:
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    j = r.json()
+    await _usage.track("zen", model, tokens=_resp_tokens(j, "openai"))
+    return j["choices"][0]["message"]["content"]
 
 
 async def _openrouter_complete(model: str, prompt: str) -> str:
@@ -1161,7 +1196,9 @@ async def _openrouter_complete(model: str, prompt: str) -> str:
                                "stream": False, "max_tokens": 500})
     _ = r
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"]
+    j = r.json()
+    await _usage.track("openrouter", model, tokens=_resp_tokens(j, "openai"))
+    return j["choices"][0]["message"]["content"]
 
 
 async def generate(question: str, contexts: list[dict], cautious: bool = False,
@@ -1221,7 +1258,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
             _drop("ollama")  # 該機沒有此 model → 換下一台
             continue
         r.raise_for_status()
-        return r.json()["response"]
+        j = r.json()
+        await _usage.track("ollama", model, tokens=_resp_tokens(j, "ollama"))
+        return j["response"]
     raise httpx.ConnectError("ollama unreachable")
 
 

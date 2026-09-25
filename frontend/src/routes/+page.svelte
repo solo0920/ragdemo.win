@@ -47,6 +47,7 @@
   let hfReady = false;
   let mistralModels = [];
   let mistralReady = false;
+  let usageMap = new Map();
   let modelsReady = false;
 
   onMount(async () => {
@@ -80,6 +81,15 @@
       hfReady = !!d.hf_ready;
       mistralModels = d.mistral ?? [];
       mistralReady = !!d.mistral_ready;
+      const prefixOf = { openrouter: 'openrouter', zen: 'zen', nvidia: 'nv', gemini: 'gemini',
+                          groq: 'groq', cohere: 'cohere', hf: 'hf', mistral: 'mis', ollama: 'ollama' };
+      const um = new Map();
+      for (const u of (d.usage ?? [])) {
+        const p = prefixOf[u.provider];
+        if (!p) continue;
+        um.set(`${p}/${u.model}`, { calls: u.calls ?? 0, tokens: u.tokens ?? 0 });
+      }
+      usageMap = um;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -94,6 +104,14 @@
   function api(path) {
     const b = base();
     return b ? b + path : '/api' + path;
+  }
+
+  function usageSuffix(model) {
+    const u = usageMap.get(model);
+    if (!u || (u.calls === 0 && u.tokens === 0)) return '';
+    if (u.tokens === 0) return `　今日 ${u.calls}次`;
+    const t = u.tokens >= 1000 ? (u.tokens / 1000).toFixed(1) + 'k' : String(u.tokens);
+    return `　今日 ${u.calls}次/${t}`;
   }
 
   async function switchBackend(id) {
@@ -217,63 +235,63 @@
           {#if localModels.length}
             <optgroup label="地端 ollama（隱私）">
               {#each localModels as m}
-                <option value={m}>{m}</option>
+                <option value={m}>{m}{usageSuffix('ollama/' + m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if cloudModels.length}
             <optgroup label="OpenRouter 閉源（速度）">
               {#each cloudModels as m}
-                <option value={m}>{m.replace(/^openrouter\//, '').replace(/:free$/, '')}</option>
+                <option value={m}>{m.replace(/^openrouter\//, '').replace(/:free$/, '')}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if zenModels.length}
             <optgroup label="OpenCode Zen Free">
               {#each zenModels as m}
-                <option value={m} disabled={!zenReady}>{m.replace(/^zen\//, '')}{!zenReady ? '（需 Zen key）' : ''}</option>
+                <option value={m} disabled={!zenReady}>{m.replace(/^zen\//, '')}{!zenReady ? '（需 Zen key）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if nvidiaModels.length}
             <optgroup label="NVIDIA NIM">
               {#each nvidiaModels as m}
-                <option value={m} disabled={!nvidiaReady}>{m.replace(/^nv\//, '')}{!nvidiaReady ? '（需 NIM key）' : ''}</option>
+                <option value={m} disabled={!nvidiaReady}>{m.replace(/^nv\//, '')}{!nvidiaReady ? '（需 NIM key）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if geminiModels.length}
             <optgroup label="Google Gemini（AI Studio）">
               {#each geminiModels as m}
-                <option value={m} disabled={!geminiReady}>{m.replace(/^gemini\//, '')}{!geminiReady ? '（需 gateway 設定）' : ''}</option>
+                <option value={m} disabled={!geminiReady}>{m.replace(/^gemini\//, '')}{!geminiReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if groqModels.length}
             <optgroup label="Groq">
               {#each groqModels as m}
-                <option value={m} disabled={!groqReady}>{m.replace(/^groq\//, '')}{!groqReady ? '（需 gateway 設定）' : ''}</option>
+                <option value={m} disabled={!groqReady}>{m.replace(/^groq\//, '')}{!groqReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if cohereModels.length}
             <optgroup label="Cohere">
               {#each cohereModels as m}
-                <option value={m} disabled={!cohereReady}>{m.replace(/^cohere\//, '')}{!cohereReady ? '（需 gateway 設定）' : ''}</option>
+                <option value={m} disabled={!cohereReady}>{m.replace(/^cohere\//, '')}{!cohereReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if hfModels.length}
             <optgroup label="Hugging Face">
               {#each hfModels as m}
-                <option value={m} disabled={!hfReady}>{m.replace(/^hf\//, '')}{!hfReady ? '（需 HF token）' : ''}</option>
+                <option value={m} disabled={!hfReady}>{m.replace(/^hf\//, '')}{!hfReady ? '（需 HF token）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}
           {#if mistralModels.length}
             <optgroup label="Mistral">
               {#each mistralModels as m}
-                <option value={m} disabled={!mistralReady}>{m.replace(/^mis\//, '')}{!mistralReady ? '' : '（需 gateway 設定）'}</option>
+                <option value={m} disabled={!mistralReady}>{m.replace(/^mis\//, '')}{!mistralReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
               {/each}
             </optgroup>
           {/if}

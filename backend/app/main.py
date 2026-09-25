@@ -14,6 +14,7 @@ from pydantic import BaseModel
 import httpx
 
 from . import rag, registry, rules_store as rules
+from . import usage
 
 logger = logging.getLogger("ragdemo")
 
@@ -103,6 +104,7 @@ async def models():
         "hf_ready": bool(rag.HF_BASE_URL and rag.HF_TOKEN),
         "mistral": [f"mis/{m}" for m in rag.MISTRAL_MODELS],
         "mistral_ready": bool(rag.MISTRAL_GATEWAY_URL and rag.MISTRAL_GATEWAY_URL != "-" and rag._gateway_token()),
+        "usage": await usage.snapshot(),
     }
 
 
