@@ -92,6 +92,67 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 
 ---
 
+## ⚠️ 重大注意：頂層 key 是 `provider`（單數），不是 `providers`！
+
+> 這是三台機器最容易踩的坑（自我驗證 + 官方 schema 確認）：
+> 官方 config 頂層只有 **`provider`**；寫成複數 `providers` 會被 opencode **靜默忽略**，
+> 設定檔看起來有寫、實際上完全沒生效（會以內建 provider ＋環境變數直接連上游，不走 gateway）。
+
+- **正確**：`"provider": { "openrouter": { ... } }`
+- **錯誤**：`"providers": { "openrouter": { ... } }` ← 會被忽略
+- **同理**：`baseURL` 與 header 必須放在 **`options`** 內
+  （`settings`/`headers` 直接掛在 provider 下也不是合法 key，會被忽略）。
+  正確：`"openrouter": { "options": { "baseURL": "...", "headers": { "cf-aig-authorization": "Bearer {file:...}" } } }`
+
+---
+
+## 🖥️ MBP、MSI 比照辦理（2026-09-25 定案）
+
+三台統一採 **override 內建 `openrouter`** 的寫法（全球設定走 CF gateway）＋ `{file:}` token：
+
+### global config（每台各自的 `~/.config/opencode/opencode.json`）
+```json
+{
+  "provider": {
+    "openrouter": {
+      "options": {
+        "baseURL": "https://gateway.ai.cloudflare.com/v1/<ACCOUNT_ID>/<GATEWAY_ID>/openrouter",
+        "headers": {
+          "cf-aig-authorization": "Bearer {file:~/.config/opencode/cf-aig-token}"
+        }
+      }
+    }
+  }
+}
+```
+- token 寫到各台的 `~/.config/opencode/cf-aig-token`（`chmod 600`，內容 `cfut_...`）
+- **不可改寫成 `providers` 複數**（見上節）
+
+### 專案 config（各專案根目錄的 `opencode.json`，已含 ollama→x570 與 openrouter 模型覆寫）
+```json
+{
+  "provider": {
+    "ollama": { "options": { "baseURL": "http://x570:11434/v1" }, "models": { ... } },
+    "openrouter": { "models": { "<model>:free": {} } }
+  }
+}
+```
+- 專案 config 直接取用 repo 的 `opencode.json` 即可（無密鑰，可 commit）
+
+### 驗證
+```bash
+opencode run "回覆:OK" --model openrouter/<model>:free   # 或 ollama/qwen3:14b
+```
+- 回 401 → 檢查 token 檔與 `{file:}` 路徑、config 是否誤寫 `providers`
+- 回 429 → 免費額度用盡（非設定問題），換模型或待 reset
+
+### 備份
+- 建 `settings/opencode/global/<machinename>/opencode.json` 存 global（token 用 `{file:}` 引用，不明碼進 git）
+- 專案 config 放 `settings/opencode/project/<machinename>/opencode.json`
+- commit 訊息：`<機器前綴>: 備份 opencode global/專案設定`
+
+---
+
 ## 🔄 更新規則（建議）
 
 - **每次調整 global / 專案 config 或 token 設定**後，同步更新對應機器的備份
