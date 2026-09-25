@@ -6,7 +6,7 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "Ollama 5070 Ti",
       "options": {
-        "baseURL": "http://127.0.0.1:11434/v1"
+        "baseURL": "http://x570:11434/v1"
       },
       "models": {
         "qwen2.5-coder:14b": {
