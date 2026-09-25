@@ -416,7 +416,7 @@ async def _patch(monkeypatch, dense_scores):
 @pytest.mark.asyncio
 async def test_answer_no_match_skips_llm(monkeypatch):
     called = {}
-    async def fake_generate(q, c, cautious=False):
+    async def fake_generate(q, c, cautious=False, model=""):
         called["llm"] = True
         return "LLM 產出"
     monkeypatch = await _patch(monkeypatch, {1: 0.20})
@@ -433,7 +433,7 @@ async def test_answer_no_match_skips_llm(monkeypatch):
 @pytest.mark.asyncio
 async def test_answer_high_calls_llm(monkeypatch):
     called = {}
-    async def fake_generate(q, c, cautious=False):
+    async def fake_generate(q, c, cautious=False, model=""):
         called["cautious"] = cautious
         return "正常答案"
     monkeypatch = await _patch(monkeypatch, {1: 0.75})
@@ -448,7 +448,7 @@ async def test_answer_high_calls_llm(monkeypatch):
 @pytest.mark.asyncio
 async def test_answer_medium_cautious_flag(monkeypatch):
     called = {}
-    async def fake_generate(q, c, cautious=False):
+    async def fake_generate(q, c, cautious=False, model=""):
         called["cautious"] = cautious
         return "謹慎答案"
     monkeypatch = await _patch(monkeypatch, {1: 0.60})
@@ -510,7 +510,7 @@ async def test_answer_user_rule_reject_falls_to_rag(monkeypatch):
     monkeypatch.setattr(rag._rules, "probe", fprobe)
     monkeypatch.setattr(rag, "_jev_rule_pick", fjev)
     monkeypatch = await _patch(monkeypatch, {1: 0.75})
-    async def fake_generate(q, c, cautious=False):
+    async def fake_generate(q, c, cautious=False, model=""):
         return "LLM 產出的答案"
     monkeypatch.setattr(rag, "generate", fake_generate)
     r = await rag.answer("公司欠薪如何處理")

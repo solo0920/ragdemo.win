@@ -29,6 +29,10 @@ services:
       EMBED_MODEL: bge-m3:latest
       RERANK_MODEL: qllama/bge-reranker-v2-m3:latest
       COLLECTION: ${COLLECTION:-laws}
+      OPENROUTER_GATEWAY_URL: ${OPENROUTER_GATEWAY_URL:-}
+      CF_AIG_TOKEN: ${CF_AIG_TOKEN:-}
+      CF_AIG_TOKEN_FILE: ${CF_AIG_TOKEN_FILE:-}
+      OPENROUTER_MODELS: ${OPENROUTER_MODELS:-inclusionai/ling-3.0-flash-fin:free,qwen/qwen3.8-27b:free}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}

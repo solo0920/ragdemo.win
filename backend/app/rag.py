@@ -24,6 +24,10 @@ from . import rules_store as _rules
 
 logger = logging.getLogger("ragdemo")
 
+
+class GatewayUnconfigured(Exception):
+    """請求 openrouter 閉源模型但 CF gateway 未設定（URL／token 缺一）。"""
+
 OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://100.119.83.111:11434").rstrip("/")
 OLLAMA_URLS = [u.strip().rstrip("/") for u in os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT).split(",") if u.strip()] or [OLLAMA_DEFAULT]
 QDRANT_DEFAULT = os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
@@ -33,6 +37,15 @@ LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
 # OLLAMA_MODELS：與 OLLAMA_URLS 同順序的 LLM model 清單；未設則全部用 LLM_MODEL。
 OLLAMA_MODELS = [m.strip() for m in os.getenv("OLLAMA_MODELS", LLM_MODEL).split(",") if m.strip()] or [LLM_MODEL]
 RERANK_MODEL = os.getenv("RERANK_MODEL", "qllama/bge-reranker-v2-m3:latest")
+# 雲端閉源模型路由（OpenRouter via Cloudflare AI Gateway）：/query 指定 model="openrouter:<id>" 時走此。
+# OPENROUTER_GATEWAY_URL＝openai-compatible base（含 /openrouter 尾段）；token 用 CF_AIG_TOKEN env，
+# 未設則自動讀 CF_AIG_TOKEN_FILE（預設 ~/.config/opencode/cf-aig-token，本機 demo 即測即用）。
+OPENROUTER_GATEWAY_URL = os.getenv("OPENROUTER_GATEWAY_URL", "").rstrip("/")
+CF_AIG_TOKEN = os.getenv("CF_AIG_TOKEN", "").strip()
+CF_AIG_TOKEN_FILE = os.getenv("CF_AIG_TOKEN_FILE", str(Path.home() / ".config" / "opencode" / "cf-aig-token"))
+OPENROUTER_MODELS = [m.strip() for m in os.getenv(
+    "OPENROUTER_MODELS", "inclusionai/ling-3.0-flash-fin:free,qwen/qwen3.8-27b:free"
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -77,6 +90,16 @@ def keep_alive_value():
     """ollama 的 keep_alive：純數字（含 -1）要傳 number，其餘（如 "30m"）傳字串。"""
     s = str(KEEP_ALIVE).strip()
     return int(s) if s.lstrip("-").isdigit() else s
+
+
+def _gateway_token() -> str:
+    """CF AI Gateway token：先看 CF_AIG_TOKEN env，未設（本機 dev）讀 token 檔。"""
+    if CF_AIG_TOKEN:
+        return CF_AIG_TOKEN
+    try:
+        return Path(CF_AIG_TOKEN_FILE).read_text().strip()
+    except Exception:
+        return ""
 
 SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；若資料與問題無關或僅模糊相關，直接回「沒有符合比對的法條」，不要編造、不要臆測。回答某條時，除主旨外若該條含款/項，請說明其下共幾項、幾款並摘要各款要旨。"
 
@@ -894,8 +917,30 @@ def _ref(h: dict) -> str:
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 
+async def _openrouter_complete(model: str, prompt: str) -> str:
+    """經 Cloudflare AI Gateway 呼叫 OpenRouter 閉源模型（chat/completions）。"""
+    if not OPENROUTER_GATEWAY_URL:
+        raise GatewayUnconfigured("OPENROUTER_GATEWAY_URL 未設定：無法走 OpenRouter 閉源模型")
+    tok = _gateway_token()
+    if not tok:
+        raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 OpenRouter 閉源模型")
+    headers = {
+        "Content-Type": "application/json",
+        "cf-aig-authorization": f"Bearer {tok}",
+        "Authorization": f"Bearer {tok}",
+    }
+    url = f"{OPENROUTER_GATEWAY_URL}/chat/completions"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                               "stream": False, "max_tokens": 500})
+    _ = r
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
 async def generate(question: str, contexts: list[dict], cautious: bool = False,
-                   brief_law: str | None = None) -> str:
+                   brief_law: str | None = None, model: str = "") -> str:
     blocks = "\n\n".join(f"{_ref(h)} {h['payload'].get('text', '')}" for h in contexts)
     if brief_law:
         guard = (f"使用者查詢的是《{brief_law}》這部法本身。請只用一到三句話做基本敘述"
@@ -908,11 +953,15 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     else:
         guard = ""
     prompt = f"{SYSTEM}\n\n資料：\n{blocks}\n\n{guard}問題：{question}\n回答（附案號/條號）："
-    # model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應）：x570/mbp=qwen3:14b、msi=qwen3:8b。
+    # 指定 openrouter 閉源模型 → 走 CF gateway（demo 閉源速度／額度共享）；失敗即拋（不降級 ollama，
+    # 讓前端明確看到該雲端模型的狀態）。
+    if model.startswith("openrouter/"):
+        return await _openrouter_complete(model.removeprefix("openrouter/"), prompt)
+    # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):
         base = await _pick("ollama", OLLAMA_URLS, probe=_ollama_probe)
-        model = _llm_model_for(base)
+        model = model or _llm_model_for(base)
         try:
             async with httpx.AsyncClient(timeout=300) as c:
                 r = await c.post(f"{base}/api/generate",
@@ -1049,7 +1098,7 @@ async def _jev_rule_pick(question: str, rule: dict) -> float | None:
     )
 
 
-async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
+async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "") -> dict:
     # ── 題庫第一關（pre-RAG）：法名／條號純正則，不耗 embed＋Qdrant ──
     brief_law = _detect_law(question)
     an = extract_article_no(question)
@@ -1058,7 +1107,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                    "url": _bases.get("qdrant", QDRANT_URLS[0])},
         "llm": {"host": host_label(_bases.get("ollama", OLLAMA_URLS[0])),
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
-                "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
+                "model": model or _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
     # 使用者題庫（記憶體庫）：完全相符直接答；近似命中由 JEV 裁決；否決／無候選才進 RAG。
     bank_note = None
@@ -1122,7 +1171,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
     if brief_law and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
         brief = _law_brief(brief_law)
         try:
-            text = await generate(question, top, cautious=level == "medium", brief_law=brief_law)
+            text = await generate(question, top, cautious=level == "medium", brief_law=brief_law, model=model)
         except (httpx.ConnectError, httpx.TimeoutException):
             base["answer"] = f"{HOST_ID}: {brief}"  # LLM 掛了也要回應基本敘述
             return base
@@ -1141,7 +1190,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 base["trace"] += f"｜JEV:{jv:.2f}{'(退回規則卡)' if jv < JEV_VERIFY_MIN else '(keep)'}"
         base["answer"] = f"{HOST_ID}: {text}"
         return base
-    text = await generate(question, top, cautious=level == "medium")
+    text = await generate(question, top, cautious=level == "medium", model=model)
     jv = await _jev_verify(question, text, top)  # 一般分支先只記錄分數，供校準閾值
     base["answer"] = f"{HOST_ID}: {text}"
     if jv is not None:

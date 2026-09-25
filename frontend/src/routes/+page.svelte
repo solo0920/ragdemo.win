@@ -20,6 +20,10 @@
   let showInfo = false;
   let status = null;
   let statusLoading = false;
+  let model = '';
+  let localModels = [];
+  let cloudModels = [];
+  let modelsReady = false;
 
   onMount(async () => {
     try {
@@ -27,7 +31,21 @@
       const d = await r.json();
       if (d.ok) user = d.user;
     } catch (_) {}
+    loadModels();
   });
+
+  async function loadModels() {
+    try {
+      const r = await fetch(api('/models'));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      localModels = d.local ?? [];
+      cloudModels = d.cloud ?? [];
+      modelsReady = true;
+    } catch (_) {
+      modelsReady = false;
+    }
+  }
 
   function base() {
     const b = BACKENDS.find((x) => x.id === backendId);
@@ -46,6 +64,7 @@
     error = '';
     await checkHealth();
     await loadStatus();
+    loadModels();
   }
 
   async function loadStatus() {
@@ -99,7 +118,7 @@
       const r = await fetch(`/api/query?backend=${backendId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question })
+        body: JSON.stringify({ question, model })
       });
       result = await r.json();
       if (!r.ok) {
@@ -153,6 +172,23 @@
     <h1>法規判決 RAG</h1>
     <section class="auth">
       {#if user}
+        <select class="btn model-select" bind:value={model} aria-label="選擇 LLM model" title="選擇查詢使用的 LLM model">
+          <option value="">預設（依後端主機）</option>
+          {#if localModels.length}
+            <optgroup label="地端 ollama（隱私）">
+              {#each localModels as m}
+                <option value={m}>{m}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if cloudModels.length}
+            <optgroup label="OpenRouter 閉源（速度）">
+              {#each cloudModels as m}
+                <option value={m}>{m.replace(/^openrouter\//, '')}</option>
+              {/each}
+            </optgroup>
+          {/if}
+        </select>
         <a href="/rules" class="btn">題庫管理</a>
         <a href="/auth/logout" class="btn">登出</a>
       {:else}
@@ -324,6 +360,11 @@
     padding: 0.25rem 0.75rem; cursor: pointer; text-decoration: none; color: #222;
   }
   .btn:hover { background: #f0f0f0; }
+  .btn.model-select {
+    font-size: inherit; font-family: inherit;
+    max-width: 15rem; padding-top: 0.15rem; padding-bottom: 0.15rem;
+  }
+  .btn.model-select:hover { background: #fff; }
   .switcher { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
   .sw-label { font-weight: bold; }
   .switcher button {

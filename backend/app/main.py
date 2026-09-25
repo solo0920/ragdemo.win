@@ -8,7 +8,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+import httpx
 
 from . import rag, registry, rules_store as rules
 
@@ -56,6 +59,7 @@ class Query(BaseModel):
     question: str
     recall: int = 50
     top_k: int = 5
+    model: str = ""  # 指定模型（openrouter/… 走 CF gateway 閉源；其餘 ollama 本機）
 
 
 @app.get("/health")
@@ -69,6 +73,21 @@ async def health():
         "hostname": registry._my_hostname(),
         "machine_id": registry._system_id(),
         "ips": registry._ips(),
+    }
+
+
+@app.get("/models")
+async def models():
+    """可用 LLM 模型清單（首頁下拉選單用）：local＝地端 ollama（隱私）、cloud＝OpenRouter 閉源（速度）。"""
+    try:
+        local = await rag.local_models()
+    except Exception:
+        local = []
+    local = [m for m in local if ":embed" not in m and "reranker" not in m.lower()]
+    return {
+        "local": local,
+        "cloud": [f"openrouter/{m}" for m in rag.OPENROUTER_MODELS],
+        "gateway": bool(rag.OPENROUTER_GATEWAY_URL and rag._gateway_token()),
     }
 
 
@@ -91,7 +110,16 @@ async def ingest(docs: list[Doc]):
 
 @app.post("/query")
 async def query(q: Query):
-    return await rag.answer(q.question, q.recall, q.top_k)
+    try:
+        return await rag.answer(q.question, q.recall, q.top_k, model=q.model)
+    except httpx.HTTPStatusError as e:
+        return JSONResponse(
+            status_code=e.response.status_code,
+            content={"ok": False,
+                     "detail": f"LLM 上游（{e.response.status_code}）失敗：{e.response.text[:200]}"},
+        )
+    except rag.GatewayUnconfigured as e:
+        return JSONResponse(status_code=503, content={"ok": False, "detail": str(e)})
 
 
 @app.get("/rules")
