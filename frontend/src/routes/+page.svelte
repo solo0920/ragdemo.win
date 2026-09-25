@@ -360,7 +360,7 @@
     font-size: 1rem; font-family: inherit; overflow-y: hidden;
   }
   .ask-wrap {
-    display: flex; align-items: center; gap: 0.4rem;
+    display: flex; align-items: flex-end; gap: 0.4rem;
     padding: 0.4rem 0.5rem 0.4rem 0.75rem;
     border: 1px solid #d7d7d7; border-radius: 1rem;
     background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
