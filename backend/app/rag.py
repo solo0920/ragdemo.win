@@ -98,6 +98,16 @@ GROQ_MODELS = [m.strip() for m in os.getenv(
     # CF gateway→groq 實測可呼叫（openai-compatible chat/completions）：
     "openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b",
 ).split(",") if m.strip()]
+# Cohere（經 Cloudflare AI Gateway 的 cohere provider）：model="cohere/<id>"。
+# Cohere key 在 gateway 後台新增；走原生 /v1beta/chat（非 openai-compatible），回應取 text 欄位。
+COHERE_GATEWAY_URL = os.getenv("COHERE_GATEWAY_URL", "").rstrip("/") or (
+    OPENROUTER_GATEWAY_URL.removesuffix("/openrouter") + "/cohere/v1beta" if OPENROUTER_GATEWAY_URL else "-"
+)
+COHERE_MODELS = [m.strip() for m in os.getenv(
+    "COHERE_MODELS",
+    # CF gateway→cohere 實測可呼叫、法律中文問答佳（ep=chat）：
+    "command-a-plus-05-2026,command-a-03-2025,command-r-plus-08-2024",
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -1031,6 +1041,27 @@ async def _groq_complete(model: str, prompt: str) -> str:
     return r.json()["choices"][0]["message"]["content"]
 
 
+async def _cohere_complete(model: str, prompt: str) -> str:
+    """Cohere（經 CF AI Gateway cohere provider）原生 /v1beta/chat；
+    Cohere key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
+    if not COHERE_GATEWAY_URL or COHERE_GATEWAY_URL == "-":
+        raise GatewayUnconfigured("COHERE_GATEWAY_URL 未設定：走不了 Cohere（需 CF AI Gateway 的 cohere 路由）")
+    tok = _gateway_token()
+    if not tok:
+        raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Cohere")
+    headers = {
+        "Content-Type": "application/json",
+        "cf-aig-authorization": f"Bearer {tok}",
+        "Authorization": f"Bearer {tok}",
+    }
+    url = f"{COHERE_GATEWAY_URL}/chat"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"model": model, "message": prompt, "max_tokens": 500})
+    r.raise_for_status()
+    return r.json().get("text", "")
+
+
 async def _zen_complete(model: str, prompt: str) -> str:
     """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
     if not ZEN_API_KEY:
@@ -1100,6 +1131,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # Groq（經 CF AI Gateway groq provider）→ chat/completions（gateway 代管 Groq key）。
     if model.startswith("groq/"):
         return await _groq_complete(model.removeprefix("groq/"), prompt)
+    # Cohere（經 CF AI Gateway cohere provider）→ 原生 /v1beta/chat（gateway 代管 Cohere key）。
+    if model.startswith("cohere/"):
+        return await _cohere_complete(model.removeprefix("cohere/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):

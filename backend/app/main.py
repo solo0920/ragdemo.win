@@ -97,6 +97,8 @@ async def models():
         "gemini_ready": bool(rag.GEMINI_GATEWAY_URL and rag.GEMINI_GATEWAY_URL != "-" and rag._gateway_token()),
         "groq": [f"groq/{m}" for m in rag.GROQ_MODELS],
         "groq_ready": bool(rag.GROQ_GATEWAY_URL and rag.GROQ_GATEWAY_URL != "-" and rag._gateway_token()),
+        "cohere": [f"cohere/{m}" for m in rag.COHERE_MODELS],
+        "cohere_ready": bool(rag.COHERE_GATEWAY_URL and rag.COHERE_GATEWAY_URL != "-" and rag._gateway_token()),
     }
 
 

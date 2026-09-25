@@ -43,6 +43,8 @@ services:
       GEMINI_MODELS: ${GEMINI_MODELS:-gemini-3.8-flash,gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest}
       GROQ_GATEWAY_URL: ${GROQ_GATEWAY_URL:-}
       GROQ_MODELS: ${GROQ_MODELS:-openai/gpt-oss-120b,openai/gpt-oss-20b,qwen/qwen3.8-27b}
+      COHERE_GATEWAY_URL: ${COHERE_GATEWAY_URL:-}
+      COHERE_MODELS: ${COHERE_MODELS:-command-a-plus-05-2026,command-a-03-2025,command-r-plus-08-2024}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}

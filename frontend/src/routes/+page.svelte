@@ -41,6 +41,8 @@
   let geminiReady = false;
   let groqModels = [];
   let groqReady = false;
+  let cohereModels = [];
+  let cohereReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -68,6 +70,8 @@
       geminiReady = !!d.gemini_ready;
       groqModels = d.groq ?? [];
       groqReady = !!d.groq_ready;
+      cohereModels = d.cohere ?? [];
+      cohereReady = !!d.cohere_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -241,6 +245,13 @@
             <optgroup label="Groq">
               {#each groqModels as m}
                 <option value={m} disabled={!groqReady}>{m.replace(/^groq\//, '')}{!groqReady ? '（需 gateway 設定）' : ''}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if cohereModels.length}
+            <optgroup label="Cohere">
+              {#each cohereModels as m}
+                <option value={m} disabled={!cohereReady}>{m.replace(/^cohere\//, '')}{!cohereReady ? '（需 gateway 設定）' : ''}</option>
               {/each}
             </optgroup>
           {/if}
