@@ -1014,7 +1014,7 @@ async def _nvidia_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
-    r.raise_for_status()
+    _rstatus(r, f"nvidia/{model}")
     j = r.json()
     await _usage.track("nvidia", model, tokens=_resp_tokens(j, "openai"))
     return j["choices"][0]["message"]["content"]
@@ -1038,7 +1038,7 @@ async def _gemini_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
                                "generationConfig": {"maxOutputTokens": 500}})
-    r.raise_for_status()
+    _rstatus(r, f"gemini/{model}")
     j = r.json()
     await _usage.track("gemini", model, tokens=_resp_tokens(j, "gemini"))
     parts = j["candidates"][0]["content"]["parts"]
@@ -1063,7 +1063,7 @@ async def _groq_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
-    r.raise_for_status()
+    _rstatus(r, f"groq/{model}")
     j = r.json()
     await _usage.track("groq", model, tokens=_resp_tokens(j, "openai"))
     return j["choices"][0]["message"]["content"]
@@ -1086,7 +1086,7 @@ async def _cohere_complete(model: str, prompt: str) -> str:
     async with httpx.AsyncClient(timeout=300) as c:
         r = await c.post(url, headers=headers,
                          json={"model": model, "message": prompt, "max_tokens": 500})
-    r.raise_for_status()
+    _rstatus(r, f"cohere/{model}")
     j = r.json()
     await _usage.track("cohere", model, tokens=_resp_tokens(j, "cohere"))
     return j.get("text", "")
@@ -1106,7 +1106,7 @@ async def _hf_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
-    r.raise_for_status()
+    _rstatus(r, f"hf/{model}")
     j = r.json()
     await _usage.track("hf", model, tokens=_resp_tokens(j, "openai"))
     msg = j["choices"][0]["message"]
@@ -1132,7 +1132,7 @@ async def _mistral_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
-    r.raise_for_status()
+    _rstatus(r, f"mistral/{model}")
     j = r.json()
     await _usage.track("mistral", model, tokens=_resp_tokens(j, "openai"))
     return j["choices"][0]["message"]["content"]
@@ -1158,6 +1158,63 @@ def _resp_tokens(j: dict, kind: str) -> int:
         return 0
 
 
+# 限流標記：{ provider/model key: {"until": epoch_sec, "note": str} }
+# 由 _rstatus() 在收到 429 時記錄；成功呼叫時清除（還原）。記憶體即可（伺服器單 worker）。
+_LIMITED: dict[str, dict] = {}
+
+
+def _limited_snapshot() -> list[dict]:
+    """當前未解除的限流 provider/model（供 /models 附帶，前端標紅）。"""
+    now = time.time()
+    out = []
+    for key, info in _LIMITED.items():
+        if info["until"] > now:
+            out.append({"key": key, "until": info["until"], "note": info.get("note", "")})
+    return out
+
+
+def _mark_limited(key: str, r) -> None:
+    """記錄 429 限流：重置時間依 header 推估——
+    Retry-After 秒、X-RateLimit-Reset(epoch)、X-RateLimit-*-req-minute 每分鐘，
+    皆無 → 預設 1 小時。"""
+    try:
+        secs = None
+        for h in ("retry-after", "Retry-After", "X-RateLimit-Reset", "x-ratelimit-reset"):
+            v = r.headers.get(h)
+            if not v:
+                continue
+            try:
+                val = float(v)
+                if h.lower() == "x-ratelimit-reset" and val > 1e12:  # epoch ms
+                    val /= 1000
+                secs = val if h.lower() == "retry-after" else val - time.time()
+                break
+            except ValueError:
+                continue
+        if secs is None:
+            for h in r.headers.keys():
+                if "req-minute" in h.lower() or "req-month" in h.lower():
+                    secs = 60  # 分鐘型額度表 → 每分鐘重置
+                    break
+        until = time.time() + secs if secs and secs > 0 else time.time() + 3600
+        _LIMITED[key] = {"until": until, "note": ""}
+    except Exception:
+        _LIMITED[key] = {"until": time.time() + 3600, "note": ""}
+
+
+def _rstatus(r, key: str) -> None:
+    """取代 r.raise_for_status()：429 時標記限流再 re-raise；成功（2xx）清除限流。"""
+    if 200 <= r.status_code < 300:
+        _LIMITED.pop(key, None)
+        return
+    if r.status_code == 429:
+        _mark_limited(key, r)
+    try:
+        r.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        raise e
+
+
 async def _zen_complete(model: str, prompt: str) -> str:
     """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
     if not ZEN_API_KEY:
@@ -1171,7 +1228,7 @@ async def _zen_complete(model: str, prompt: str) -> str:
         r = await c.post(url, headers=headers,
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
-    r.raise_for_status()
+    _rstatus(r, f"zen/{model}")
     j = r.json()
     await _usage.track("zen", model, tokens=_resp_tokens(j, "openai"))
     return j["choices"][0]["message"]["content"]
@@ -1195,7 +1252,8 @@ async def _openrouter_complete(model: str, prompt: str) -> str:
                          json={"model": model, "messages": [{"role": "user", "content": prompt}],
                                "stream": False, "max_tokens": 500})
     _ = r
-    r.raise_for_status()
+    _rstatus(r, f"openrouter/{model}")
+    _ = r
     j = r.json()
     await _usage.track("openrouter", model, tokens=_resp_tokens(j, "openai"))
     return j["choices"][0]["message"]["content"]
@@ -1257,7 +1315,7 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
         if r.status_code == 404:
             _drop("ollama")  # 該機沒有此 model → 換下一台
             continue
-        r.raise_for_status()
+        _rstatus(r, f"ollama/{model}")
         j = r.json()
         await _usage.track("ollama", model, tokens=_resp_tokens(j, "ollama"))
         return j["response"]

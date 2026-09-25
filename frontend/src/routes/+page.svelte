@@ -48,9 +48,15 @@
   let mistralModels = [];
   let mistralReady = false;
   let usageMap = new Map();
+  let limitedMap = new Map();
   let modelsReady = false;
+  let modelOpen = false;
+  let groups = [];
 
   onMount(async () => {
+    document.addEventListener('click', (ev) => {
+      if (modelOpen && !ev.target.closest('.model-drop')) modelOpen = false;
+    });
     try {
       const r = await fetch('/auth/me');
       const d = await r.json();
@@ -90,6 +96,21 @@
         um.set(`${p}/${u.model}`, { calls: u.calls ?? 0, tokens: u.tokens ?? 0 });
       }
       usageMap = um;
+      const lm = new Map();
+      for (const s of (d.limited ?? [])) lm.set(s.key, s.until);
+      limitedMap = lm;
+      const item = (m, label, disabled = false) => ({ value: m, label, key: m, disabled });
+      const G = [];
+      if (localModels.length) G.push({ label: '地端 ollama（隱私）', items: localModels.map((m) => item(m, m)) });
+      if (cloudModels.length) G.push({ label: 'OpenRouter 閉源（速度）', items: cloudModels.map((m) => item(m, m.replace(/^openrouter\//, '').replace(/:free$/, ''))) });
+      if (zenModels.length) G.push({ label: 'OpenCode Zen Free', items: zenModels.map((m) => item(m, m.replace(/^zen\//, '') + (!zenReady ? '（需 Zen key）' : ''), !zenReady)) });
+      if (nvidiaModels.length) G.push({ label: 'NVIDIA NIM', items: nvidiaModels.map((m) => item(m, m.replace(/^nv\//, '') + (!nvidiaReady ? '（需 NIM key）' : ''), !nvidiaReady)) });
+      if (geminiModels.length) G.push({ label: 'Google Gemini（AI Studio）', items: geminiModels.map((m) => item(m, m.replace(/^gemini\//, '') + (!geminiReady ? '（需 gateway 設定）' : ''), !geminiReady)) });
+      if (groqModels.length) G.push({ label: 'Groq', items: groqModels.map((m) => item(m, m.replace(/^groq\//, '') + (!groqReady ? '（需 gateway 設定）' : ''), !groqReady)) });
+      if (cohereModels.length) G.push({ label: 'Cohere', items: cohereModels.map((m) => item(m, m.replace(/^cohere\//, '') + (!cohereReady ? '（需 gateway 設定）' : ''), !cohereReady)) });
+      if (hfModels.length) G.push({ label: 'Hugging Face', items: hfModels.map((m) => item(m, m.replace(/^hf\//, '') + (!hfReady ? '（需 HF token）' : ''), !hfReady)) });
+      if (mistralModels.length) G.push({ label: 'Mistral', items: mistralModels.map((m) => item(m, m.replace(/^mis\//, '') + (!mistralReady ? '（需 gateway 設定）' : ''), !mistralReady)) });
+      groups = G;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -109,9 +130,31 @@
   function usageSuffix(model) {
     const u = usageMap.get(model);
     if (!u || (u.calls === 0 && u.tokens === 0)) return '';
-    if (u.tokens === 0) return `　今日 ${u.calls}次`;
+    if (u.tokens === 0) return `今日 ${u.calls}次`;
     const t = u.tokens >= 1000 ? (u.tokens / 1000).toFixed(1) + 'k' : String(u.tokens);
-    return `　今日 ${u.calls}次/${t}`;
+    return `今日 ${u.calls}次/${t}`;
+  }
+
+  function isLimited(key) {
+    const until = limitedMap.get(key);
+    return until && until * 1000 > Date.now() ? until : null;
+  }
+
+  function resetText(key) {
+    const until = isLimited(key);
+    if (!until) return '';
+    const d = new Date(until * 1000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `重置 ${hh}:${mm}`;
+  }
+
+  function modelLabel() {
+    if (!model) return '';
+    for (const g of groups) {
+      for (const it of g.items) if (it.value === model) return it.label;
+    }
+    return model.replace(/^[a-z]+\//, '');
   }
 
   async function switchBackend(id) {
@@ -230,72 +273,39 @@
     <h1>法規判決 RAG</h1>
     <section class="auth">
       {#if user}
-        <select class="btn model-select" bind:value={model} aria-label="選擇 LLM model" title="選擇查詢使用的 LLM model">
-          <option value="">預設（依後端主機）</option>
-          {#if localModels.length}
-            <optgroup label="地端 ollama（隱私）">
-              {#each localModels as m}
-                <option value={m}>{m}{usageSuffix('ollama/' + m)}</option>
+        <div class="model-drop">
+          <button class="btn model-select" onclick={() => { modelOpen = !modelOpen; }} aria-haspopup="listbox" title="選擇查詢使用的 LLM model">
+            {modelLabel() || '預設（依後端主機）'}
+          </button>
+          {#if modelOpen}
+            <div class="model-menu" role="listbox">
+              <div class="model-row group">
+                <span class="m-name">預設</span><span class="m-meta">（依後端主機）</span>
+              </div>
+              {#each groups as g}
+                <div class="model-row group">{g.label}</div>
+                {#each g.items as it}
+                  <div
+                    class="model-row"
+                    class:selected={model === it.value}
+                    class:disabled={it.disabled}
+                    role="option"
+                    onclick={() => { if (it.disabled) return; model = it.value; modelOpen = false; }}
+                  >
+                    <span class="m-name">{it.label}</span>
+                    <span class="m-meta" class:limited={!!isLimited(it.key)}>
+                      {#if isLimited(it.key)}
+                        {usageSuffix(it.key)}{resetText(it.key) ? '｜' + resetText(it.key) : ''}
+                      {:else}
+                        {usageSuffix(it.key)}
+                      {/if}
+                    </span>
+                  </div>
+                {/each}
               {/each}
-            </optgroup>
+            </div>
           {/if}
-          {#if cloudModels.length}
-            <optgroup label="OpenRouter 閉源（速度）">
-              {#each cloudModels as m}
-                <option value={m}>{m.replace(/^openrouter\//, '').replace(/:free$/, '')}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if zenModels.length}
-            <optgroup label="OpenCode Zen Free">
-              {#each zenModels as m}
-                <option value={m} disabled={!zenReady}>{m.replace(/^zen\//, '')}{!zenReady ? '（需 Zen key）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if nvidiaModels.length}
-            <optgroup label="NVIDIA NIM">
-              {#each nvidiaModels as m}
-                <option value={m} disabled={!nvidiaReady}>{m.replace(/^nv\//, '')}{!nvidiaReady ? '（需 NIM key）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if geminiModels.length}
-            <optgroup label="Google Gemini（AI Studio）">
-              {#each geminiModels as m}
-                <option value={m} disabled={!geminiReady}>{m.replace(/^gemini\//, '')}{!geminiReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if groqModels.length}
-            <optgroup label="Groq">
-              {#each groqModels as m}
-                <option value={m} disabled={!groqReady}>{m.replace(/^groq\//, '')}{!groqReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if cohereModels.length}
-            <optgroup label="Cohere">
-              {#each cohereModels as m}
-                <option value={m} disabled={!cohereReady}>{m.replace(/^cohere\//, '')}{!cohereReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if hfModels.length}
-            <optgroup label="Hugging Face">
-              {#each hfModels as m}
-                <option value={m} disabled={!hfReady}>{m.replace(/^hf\//, '')}{!hfReady ? '（需 HF token）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-          {#if mistralModels.length}
-            <optgroup label="Mistral">
-              {#each mistralModels as m}
-                <option value={m} disabled={!mistralReady}>{m.replace(/^mis\//, '')}{!mistralReady ? '（需 gateway 設定）' : ''}{usageSuffix(m)}</option>
-              {/each}
-            </optgroup>
-          {/if}
-        </select>
+        </div>
         <a href="/rules" class="btn">題庫管理</a>
         <a href="/auth/logout" class="btn">登出</a>
       {:else}
@@ -475,6 +485,25 @@
     max-width: 15rem; padding-top: 0.15rem; padding-bottom: 0.15rem;
   }
   .btn.model-select:hover { background: #fff; }
+  .model-drop { position: relative; display: inline-block; }
+  .model-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+    min-width: 18rem; max-width: 30rem; max-height: 26rem; overflow-y: auto;
+    background: #fff; border: 1px solid #888; border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); padding: 0.25rem 0;
+  }
+  .model-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.75rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.85rem;
+  }
+  .model-row:hover { background: #f0f0f0; }
+  .model-row.selected { background: #e6f2ff; }
+  .model-row.disabled { opacity: 0.45; cursor: not-allowed; }
+  .model-row.group { font-weight: bold; color: #555; background: #fafafa; cursor: default; }
+  .model-row.group:hover { background: #fafafa; }
+  .m-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-meta { margin-left: auto; white-space: nowrap; color: #777; }
+  .m-meta.limited { color: #c62828; font-weight: bold; }
   .switcher { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
   .sw-label { font-weight: bold; }
   .switcher button {
