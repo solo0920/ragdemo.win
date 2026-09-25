@@ -116,6 +116,7 @@ tr '\0' '\n' < /proc/<PID>/environ | grep CF_AIG_TOKEN
 | 症狀 | 原因 | 解決 |
 |---|---|---|
 | 401、`Bearer` 空 | server 環境沒有 `CF_AIG_TOKEN` | §2.2 三個位置都設；已啟動的 server 要 restart |
+| 401 `code:2009` token 電子郵件無效 | **token 被截斷**（`cfut_` 只複製了一半，53 字元沒拿完） | 到 Authenticated Gateway 重新整段複製 |
 | `/api/info` 401 每 100ms 重複 | client/server 認證握手失敗 | `opencode service restart` |
 | `provider request failed HTTP 401` | header 沒送到 | 確認 config 的 headers 寫法（§2.3） |
 | 429 rate limited | free model 共享額度池 | 到 CF Dashboard → Provider Keys 加 OpenRouter key（`is_byok: true`） |
