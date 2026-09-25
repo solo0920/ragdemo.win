@@ -226,6 +226,52 @@ npm run dev -- --host                     # msi 瀏覽器開 http://localhost:51
 
 ---
 
+## 3.5 LLM 供應商路由架構（2026-09-26 現況）
+
+前端下拉選單的「使用 LLM model」提供 8 個 provider 群組＋地端 ollama。後端 `backend/app/rag.py`
+`generate()` 依 `model` 前綴路由（`ollama` 為預設本機路線）：
+
+| provider | 前綴 | 認證 | 通道 | 額度（free，來源 mnfst/awesome-free-llm-apis） |
+|---|---|---|---|---|
+| OpenRouter 閉源 | `openrouter/` | CF token（gateway 代管 key） | CF AI Gateway | 50 次/天/模型，20 RPM |
+| OpenCode Zen | `zen/` | `ZEN_API_KEY` | zen 直連 | 未公布（None） |
+| NVIDIA NIM | `nv/`（避開 nvidia/ org 碰撞） | `NVIDIA_API_KEY` | integrate.api.nvidia.com 直連 | 10,000 次/天 |
+| Google Gemini | `gemini/` | CF token（gateway 代管 key） | CF gateway google-ai-studio | 1,500 次/天 |
+| Groq | `groq/` | CF token（gateway 代管 key） | CF gateway groq | 1,000 次/天 |
+| Cohere | `cohere/` | CF token（gateway 代管 key） | CF gateway cohere | 1,000 次/月 |
+| Hugging Face | `hf/` | `HF_TOKEN` | router.huggingface.co 直連 | credit（None） |
+| Mistral | `mis/` | CF token（gateway 代管 key） | CF gateway mistral | credit（None） |
+
+- **gateway 代管**（openrouter/gemini/groq/cohere/mistral）：key 在 CF AI Gateway 後台的
+  Provider Keys 新增，本機請求只用 CF token（`cf-aig-authorization`＋`Authorization` 雙 header），
+  不需另填 provider key；gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段 `/openrouter` 換
+  `/google-ai-studio`、`/groq/v1`、`/cohere/v1beta`、`/mistral/v1` 推導。
+- **直連需 key**（zen/nvidia/hf）：`ZEN_API_KEY`、`NVIDIA_API_KEY`、`HF_TOKEN` 放各機 `.env`（gitignored）。
+- 各 provider 路由細節與實測結果見 `settings/opencode/CF-AIG-TOKEN-ENV.md`、本檔 §3 常見坑；
+  模型清單（env 預設字串）集中在 `rag.py` constants。Mistral 的 `mistral-small/medium` 家族實測
+  429（code 1300，Mistral 端限額）故未列入；可用 `ministral-8b-latest`、`codestral-latest`。
+
+### 用量統計 / 限流標記 / 額度分數（2026-09-26 commit 65c5cb4/183bfad/664a511）
+
+- **用法：`backend/app/usage.py`**（PG 表 `model_usage(provider, model, day, calls, tokens)`），
+  各 `_*_complete` 成功後提取用量記一筆（openai-compatible `usage.total_tokens`、
+  gemini `usageMetadata.totalTokenCount`、ollama `prompt_eval_count+eval_count`；
+  cohere 不回 usage → tokens 記 0）；寫失敗吞掉不影響 query。
+- **限流：`rag._rstatus()`** 取代各 LLM completion 的 `r.raise_for_status()`——
+  收到 429 記入 `_LIMITED`（重置時間依 Retry-After／X-RateLimit-Reset／req-minute header 推估，
+  皆無 +1h），成功呼叫自動清除；`/models` 附 `limited`。
+- **額度分數：`rag.FREE_QUOTA`** 對照表（見上表額度欄，均為「次數型」——該清單對我們用的
+  provider 無 token 型額度公布）；`/models` 附 `usage`+`limited`+`quota`。
+- **前端（`frontend/src/routes/+page.svelte`）**：原生 `<select>` 已改**自製下拉**
+  （`.model-drop`，原生 option 無法對內部子字串著色／右對齊）；每列 flex 左 model 名、
+  右側用量；有 quota 的顯示 `calls/limit` 分數，`calls≥limit` 或 429 時轉紅＋重置註記
+  （429 用實際 until 的 `HH:MM`；純超額 day 型 `重置 00:00`、month 型 `重置 M/1`）；
+  無 quota（hf/mistral/zen/ollama）維持舊「今日 N次/Tk」。
+- `/models` 驗證（x570 實測 2026-09-26）：`quota`、`usage`（mistral 2003 tokens、
+  cohere calls 記到）、`limited`（觸發 429 後出現 `mistral/mistral-small-latest`）齊備。
+
+---
+
 ## 4. 下一步工作（Step 2+，未啟動）
 
 ### 4.1 精簡包 snapshot/restore（讓 mbp/msi 無 x570 也能跑）

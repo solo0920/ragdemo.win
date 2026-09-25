@@ -141,6 +141,17 @@ QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 * MSI：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:8b`、`qwen2.5-coder:7b`
   （qwen3.5:4b 與 qwen3:4b 均已棄用——後者 `think:false` 無效是已知 bug，見 ollama#12917）
 
+## LLM 雲端路由（2026-09-26）
+前端下拉選單除地端 ollama 外有 7 個雲端 provider 群組，`rag.py generate()` 依 `model` 前綴切：
+`openrouter/`、`zen/`、`nv/`（NVIDIA NIM）、`gemini/`、`groq/`、`cohere/`、`hf/`（Hugging Face）、
+`mis/`（Mistral）。認證分兩類：CF AI Gateway 代管（openrouter/gemini/groq/cohere/mistral，
+本機只需 CF token；gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段推導）vs 直連需自有 key
+（zen/z 需 `ZEN_API_KEY`、nv 需 `NVIDIA_API_KEY`、hf 需 `HF_TOKEN`）。
+用量統計（PG `model_usage`）、429 限流標記（`rag._LIMITED`）、free 額度分數（`rag.FREE_QUOTA`，
+來源 mnfst/awesome-free-llm-apis，全為「次數型」額度）由 `/models` 一起回傳；
+前端為自製下拉（原生 `<select>` 無法對內部子字串著色／右對齊）。完整路由表＋額度＋驗證見
+`ROADMAP.md` §3.5；排障見 `settings/opencode/CF-AIG-TOKEN-ENV.md`。
+
 ## 實測速度（eval tok/s，同 prompt num_predict=200）
 * x570 coder 94.8 ＞ mbp coder 73 ＞ MSI 4b 79 ＞ x570 14b 熱機 82（冷機 19，待再驗）＞ mbp 14b 25
 * 結論：重推理放 x570，日常寫碼可用 mbp coder，MSI 只跑輕量
