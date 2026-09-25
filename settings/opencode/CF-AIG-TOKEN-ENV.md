@@ -50,8 +50,9 @@ CF_AIG_TOKEN="cfut_你的_token_這裡"
 
 ### 2.3 修改 opencode global config
 檔案：`~/.config/opencode/opencode.json`
-> 注意：頂層 key 是 **`provider`（單數）**，`providers` 會被靜默忽略（官方 schema 驗證）。
-> `baseURL` 與 header 都寫在 `options` 內。
+> ⚠️ **寫法注意**：
+> - top-level key 必須是**單數** `provider`（不是 `providers`！`providers` 會被靜默忽略，官方 schema 驗證）
+> - `baseURL` 與 `headers` 都放在 `options` 內（headers 寫在 `options.headers`）
 ```json
 {
   "provider": {
