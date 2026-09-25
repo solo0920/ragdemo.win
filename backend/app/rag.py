@@ -108,6 +108,16 @@ COHERE_MODELS = [m.strip() for m in os.getenv(
     # CF gateway→cohere 實測可呼叫、法律中文問答佳（ep=chat）：
     "command-a-plus-05-2026,command-a-03-2025,command-r-plus-08-2024",
 ).split(",") if m.strip()]
+# Hugging Face Inference Providers（router.huggingface.co，OpenAI-compatible）：model="hf/<id>"。
+# 註：CF AI Gateway 的 huggingface provider 目前指向已下架 api-inference.huggingface.co（530 Origin DNS error），
+# 故直接接官方新端點 router.huggingface.co/v1（FAI 2026-09-26 實測 OK）。用 HF token（hf_...）認證。
+HF_BASE_URL = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
+HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
+HF_MODELS = [m.strip() for m in os.getenv(
+    "HF_MODELS",
+    # router.huggingface.co 實測可呼叫、中文法律問答佳（2026-09-26）：
+    "deepseek-ai/DeepSeek-V4.1-Flash,Qwen/Qwen3.8-27B,zai-org/GLM-5.3-Flash,meta-llama/Llama-3.3-70B-Instruct",
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -1062,6 +1072,26 @@ async def _cohere_complete(model: str, prompt: str) -> str:
     return r.json().get("text", "")
 
 
+async def _hf_complete(model: str, prompt: str) -> str:
+    """Hugging Face Inference Providers（router.huggingface.co）chat/completions（OpenAI-compatible）；
+    需 HF_TOKEN（hf_...，Settings→Access Tokens 選 Fine-grained + Inference preset）。"""
+    if not HF_TOKEN:
+        raise GatewayUnconfigured("HF_TOKEN 未設定：無法走 Hugging Face Inference Providers")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {HF_TOKEN}",
+    }
+    url = f"{HF_BASE_URL}/chat/completions"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                               "stream": False, "max_tokens": 500})
+    r.raise_for_status()
+    msg = r.json()["choices"][0]["message"]
+    # HF 上部分推理模型（如 DeepSeek-V4.1-Flash）把內容放 reasoning_content、content 可能 None
+    return msg.get("content") or msg.get("reasoning_content") or ""
+
+
 async def _zen_complete(model: str, prompt: str) -> str:
     """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
     if not ZEN_API_KEY:
@@ -1134,6 +1164,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # Cohere（經 CF AI Gateway cohere provider）→ 原生 /v1beta/chat（gateway 代管 Cohere key）。
     if model.startswith("cohere/"):
         return await _cohere_complete(model.removeprefix("cohere/"), prompt)
+    # Hugging Face Inference Providers → router.huggingface.co（需 HF_TOKEN）。
+    if model.startswith("hf/"):
+        return await _hf_complete(model.removeprefix("hf/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):

@@ -43,6 +43,8 @@
   let groqReady = false;
   let cohereModels = [];
   let cohereReady = false;
+  let hfModels = [];
+  let hfReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -72,6 +74,8 @@
       groqReady = !!d.groq_ready;
       cohereModels = d.cohere ?? [];
       cohereReady = !!d.cohere_ready;
+      hfModels = d.hf ?? [];
+      hfReady = !!d.hf_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -252,6 +256,13 @@
             <optgroup label="Cohere">
               {#each cohereModels as m}
                 <option value={m} disabled={!cohereReady}>{m.replace(/^cohere\//, '')}{!cohereReady ? '（需 gateway 設定）' : ''}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if hfModels.length}
+            <optgroup label="Hugging Face">
+              {#each hfModels as m}
+                <option value={m} disabled={!hfReady}>{m.replace(/^hf\//, '')}{!hfReady ? '（需 HF token）' : ''}</option>
               {/each}
             </optgroup>
           {/if}

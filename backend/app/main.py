@@ -99,6 +99,8 @@ async def models():
         "groq_ready": bool(rag.GROQ_GATEWAY_URL and rag.GROQ_GATEWAY_URL != "-" and rag._gateway_token()),
         "cohere": [f"cohere/{m}" for m in rag.COHERE_MODELS],
         "cohere_ready": bool(rag.COHERE_GATEWAY_URL and rag.COHERE_GATEWAY_URL != "-" and rag._gateway_token()),
+        "hf": [f"hf/{m}" for m in rag.HF_MODELS],
+        "hf_ready": bool(rag.HF_BASE_URL and rag.HF_TOKEN),
     }
 
 
