@@ -593,15 +593,23 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 驗證：開新終端，補建文字改為設定色即完成；喜歡其他色直接換 `cyan`→`yellow`/`magenta`/`white,bold`。
 - 教訓：**zsh 自動補建「變暗」不是字型問題，是預設 `fg=8` 淡灰樣式**；優先查 `ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE`。
 
-**特殊狀況：openrouter 經 CF gateway 的 free model 不出現／報 missing key（2026-09-25，三台適用）**
-- 現象：設定好 CF gateway 官方寫法後，`opencode run --model openrouter/xxx:free` 報
-  `Error: OpenRouter API key is missing`，或 `/models` 看不到預期的 free 模型。
-- 原因：**內建 `openrouter` provider 的 SDK 強制要 `apiKey` 才肯發請求**；只覆寫
-  `baseURL`＋`cf-aig-authorization` header 不夠，SDK 直接擋下、根本沒發出請求。
-- 關鍵：**apiKey 的值要填 Cloudflare gateway token（`cfut_...`），不是真 OpenRouter key**。
-  gateway 只認可 `cfut_...`（`Authorization`＋`cf-aig-authorization` 都帶相同值），
-  填真實 `sk-or-...` 反而回 `401 / 2009 Unauthorized`；填 dummy 值回 `Missing Authentication header`。
-- 修復（global `~/.config/opencode/opencode.json`，三台一致）：
+**特殊狀況：opencode /models 看不到 openrouter free 模型／呼叫 401／429（2026-09-25，三台適用）**
+- 現象：全球設定走 CF gateway（`~/.config/opencode/opencode.json`）後，`/models` 找不到想用的
+  openrouter free 模型；叫用報 `OpenRouter API key is missing`、`Missing Authentication header`，
+  或認證通過後的 `Rate limit exceeded: free-models-per-day`（429）。
+- 原因（依序排除三層）：
+  1. **config 寫法**：頂層必須是 `provider`（單數）＋選項在 `options` 內（`baseURL`/`apiKey`/`headers`）；
+     寫 `providers`（複數）或 `settings`/provider 下直接 `headers` 會被 opencode **靜默忽略**，
+     以為有設定其實打上游 api.openrouter.ai（未認證→401）。
+  2. **apiKey 必須是真 gateway token**：內建 `openrouter` 的 SDK 強制要有 `options.apiKey`
+     （缺→ `OpenRouter API key is missing`；給 dummy `sk-or-...`→ gateway 視為不合法值回
+     `Missing Authentication header`；給真 OpenRouter `sk-or-...`→ `401/2009 Unauthorized`；
+     給遮蔽/截斷值→ 401 code 2009）。值＝**完整 CF gateway token**
+     （`{file:~/.config/opencode/cf-aig-token}`），gateway 收標準 `Authorization` 即可
+     （`cf-aig-authorization` header 非必要、但照 msi 風格同時帶亦無害）。
+  3. **429 = 額度非故障**：free 額度是 OpenRouter 帳號共享池 **50 次/天（三台合用）**，用罄即 429；
+     每日 00:00Z 重置；加 $10 credits → 1000/天，或 CF AI Gateway → Provider Keys 加自己的 OpenRouter key（BYOK）。
+- 修復（global config 範例，三台一致）：
   ```json
   { "provider": { "openrouter": {
       "options": {
@@ -610,11 +618,10 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
         "headers": { "cf-aig-authorization": "Bearer {file:~/.config/opencode/cf-aig-token}" }
       } } } }
   ```
-- 驗證：`opencode run "回覆:OK" --model openrouter/inclusionai/ling-3.0-flash-fin:free`
-  通過 SDK 檢查、抵達上游；若回 `429 free-models-per-day`＝設定已通、僅免費額度用盡
-  （daily reset 約隔日 08:00 CST），換模型或待 reset。
-- 教訓：**內建 provider 的 `apiKey` 是用來通過 SDK 檢查＋當認證值送出的**；走 CF gateway 時
-  該值＝gateway token。另 config 頂層 key 是單數 `provider`，複數 `providers` 會被靜默忽略。
+- 排查：`opencode models --provider openrouter` 看模型清單；`opencode run "回覆:OK" --model openrouter/<model>:free`
+  看錯誤碼（401=設定/token，429=額度）。
+- 教訓：**「模型沒顯示／呼叫失敗」先分三層（config 合法寫法→真 token→額度）**；401 屬設定、429 屬資源，
+  勿把額度打擊誤判成設定錯誤。設定檔本體：`settings/opencode/global/<機名>/opencode.json`、專案 `opencode.json`。
 
 ### 4.6 外出 demo 模式（2026-09-23 定案）
 
