@@ -122,6 +122,7 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
     "openrouter": {
       "options": {
         "baseURL": "https://gateway.ai.cloudflare.com/v1/<ACCOUNT_ID>/<GATEWAY_ID>/openrouter",
+        "apiKey": "{file:~/.config/opencode/cf-aig-token}",
         "headers": {
           "cf-aig-authorization": "Bearer {file:~/.config/opencode/cf-aig-token}"
         }
@@ -132,6 +133,9 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 ```
 - token 寫到各台的 `~/.config/opencode/cf-aig-token`（`chmod 600`，內容 `cfut_...`）
 - **不可改寫成 `providers` 複數**（見上節）
+- ⚠️ **`apiKey` 必填**：內建 `openrouter` provider 需 apiKey 才肯發請求；填 CF token
+  （`cfut_...`，file 引用）即可——gateway 只認 CF token，不接受真 OpenRouter key
+  （後者回 `401 / 2009 Unauthorized`）
 
 ### 專案 config（各專案根目錄的 `opencode.json`，已含 ollama→x570 與 openrouter 模型覆寫）
 ```json
