@@ -10,23 +10,12 @@
 
   let question = '';
   let ta;
-  let gapBottom = 0;
-  function keepGap() {
-    if (gapBottom || !ta) return;
-    const wrap = ta.closest('.ask-wrap');
-    const btn = wrap?.querySelector('.send');
-    if (!wrap || !btn) return;
-    wrap.classList.add('centered');
-    const padB = parseFloat(getComputedStyle(wrap).paddingBottom);
-    const gap = (wrap.clientHeight - btn.offsetHeight) / 2 - padB;
-    wrap.classList.remove('centered');
-    btn.style.marginBottom = Math.max(0, gap) + 'px';
-    gapBottom = gap;
-  }
   function grow() {
     if (!ta) return;
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 240) + 'px';
+    const wrap = ta.closest('.ask-wrap');
+    if (wrap) wrap.classList.toggle('multi', ta.scrollHeight > 40);
   }
   let loading = false;
   let result = null;
@@ -57,7 +46,7 @@
       if (d.ok) user = d.user;
     } catch (_) {}
     loadModels();
-    requestAnimationFrame(keepGap);
+    requestAnimationFrame(grow);
   });
 
   async function loadModels() {
@@ -374,13 +363,13 @@
     font-size: 1rem; font-family: inherit; overflow-y: hidden;
   }
   .ask-wrap {
-    display: flex; align-items: flex-end; gap: 0.4rem;
+    display: flex; align-items: center; gap: 0.4rem;
     padding: 0.4rem 0.5rem 0.4rem 0.75rem;
     border: 1px solid #d7d7d7; border-radius: 1rem;
     background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .ask-wrap.centered { align-items: center; }
+  .ask-wrap.multi { align-items: flex-end; }
   .ask-wrap:focus-within {
     border-color: #1e90ff; box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.12);
   }
