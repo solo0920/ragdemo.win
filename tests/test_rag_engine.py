@@ -457,3 +457,63 @@ async def test_answer_medium_cautious_flag(monkeypatch):
     assert r["confidence"] == "medium"
     assert called.get("cautious") is True      # medium 帶警示附註
     assert "謹慎答案" in r["answer"]
+
+
+# ---------- 題庫第一關（pre-RAG）：identity 直接答；近似由 JEV 裁決；否決才進 RAG ----------
+
+@pytest.mark.asyncio
+async def test_answer_user_rule_identity_skips_rag(monkeypatch):
+    rag._LAW_NAMES = []
+    def fprobe(q, law):
+        return {"rule": {"match": "惡意欠薪如何處理", "answer": "依勞基法須限期給付"}, "identity": True}
+    async def fprobe_host():
+        return {}
+    async def fembed(t):
+        raise AssertionError("identity 命中不該進 embed")
+    monkeypatch.setattr(rag._rules, "probe", fprobe)
+    monkeypatch.setattr(rag, "embed", fembed)
+    monkeypatch.setattr(rag, "_host_probe_log", fprobe_host)
+    r = await rag.answer("惡意欠薪如何處理")
+    assert r["confidence"] == "user_rule"
+    assert "限期給付" in r["answer"]
+    assert "(identity)" in r["trace"]
+
+
+@pytest.mark.asyncio
+async def test_answer_user_rule_nev_adopt(monkeypatch):
+    rag._LAW_NAMES = []
+    def fprobe(q, law):
+        return {"rule": {"match": "欠薪", "answer": "勞基法答"}, "identity": False}
+    async def fjev(q, rule):
+        return 0.85
+    async def fprobe_host():
+        return {}
+    async def fembed(t):
+        raise AssertionError("JEV 採用後不該進 embed")
+    monkeypatch.setattr(rag._rules, "probe", fprobe)
+    monkeypatch.setattr(rag, "_jev_rule_pick", fjev)
+    monkeypatch.setattr(rag, "embed", fembed)
+    monkeypatch.setattr(rag, "_host_probe_log", fprobe_host)
+    r = await rag.answer("公司欠薪如何處理")
+    assert r["confidence"] == "user_rule"
+    assert "勞基法答" in r["answer"]
+    assert "採題庫" in r["trace"]
+
+
+@pytest.mark.asyncio
+async def test_answer_user_rule_reject_falls_to_rag(monkeypatch):
+    rag._LAW_NAMES = []
+    def fprobe(q, law):
+        return {"rule": {"match": "欠薪", "answer": "勞基法答"}, "identity": False}
+    async def fjev(q, rule):
+        return 0.30
+    monkeypatch.setattr(rag._rules, "probe", fprobe)
+    monkeypatch.setattr(rag, "_jev_rule_pick", fjev)
+    monkeypatch = await _patch(monkeypatch, {1: 0.75})
+    async def fake_generate(q, c, cautious=False):
+        return "LLM 產出的答案"
+    monkeypatch.setattr(rag, "generate", fake_generate)
+    r = await rag.answer("公司欠薪如何處理")
+    assert r["confidence"] == "high"
+    assert "LLM 產出的答案" in r["answer"]
+    assert "否決" in r["trace"]

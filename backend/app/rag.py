@@ -46,6 +46,10 @@ try:
     JEV_VERIFY_MIN = float(os.getenv("JEV_VERIFY_MIN", "0.4"))  # 校準樣本：0.26 該退、0.5/0.89 該留
 except ValueError:
     JEV_VERIFY_MIN = 0.4
+try:
+    JEV_BANK_MIN = float(os.getenv("JEV_BANK_MIN", "0.6"))  # 題庫採用閘門：比驗證更嚴（採用即固定答案）
+except ValueError:
+    JEV_BANK_MIN = 0.6
 _jev_fails = 0        # 連續失敗次數（熔斷用）
 _jev_until = 0.0      # 熔斷截止（unix 秒）；期間直接跳過，避免每 query 卡 timeout
 # 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
@@ -1022,15 +1026,33 @@ async def _jev_verify(question: str, text: str, top: list[dict]) -> float | None
     )
 
 
+async def _jev_rule_pick(question: str, rule: dict) -> float | None:
+    """Noul：題庫候選的「採用」裁決——使用者問題與題庫題目（match）語意相符、
+    題庫答案能直接回答此問題。只用於近似命中；完全相符（identity）直接採用、不呼叫。
+    失敗回 None（fail-open → 不採用、進 RAG）。"""
+    if not _jev_enabled():
+        return None
+    state = {
+        "question": question,
+        "stored_question": rule.get("match", ""),
+        "stored_answer": rule.get("answer", ""),
+        "law": rule.get("law") or "",
+        "note": rule.get("note") or "",
+    }
+    return await _jev_noul(
+        state,
+        "Is the user's question asking about the same issue as the stored question, "
+        "such that the stored answer directly answers this question? Adopt only when "
+        "the question is on-topic and the stored answer fully addresses it.",
+        "The stored answer directly answers this question",
+        "The question differs meaningfully or the answer does not address it",
+    )
+
+
 async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
-    vecs = await embed([question])
-    hits = await search(question, vecs[0], limit=recall)
-    dense = await _dense_leg(vecs[0], max(recall, 50))
-    dense_max = max(dense.values(), default=0.0)
-    top = rerank(question, hits, dense, top_k)
-    level, reason = _decide(question, top, dense_max, MIN_DENSE, MID_DENSE, HIGH_DENSE)
+    # ── 題庫第一關（pre-RAG）：法名／條號純正則，不耗 embed＋Qdrant ──
+    brief_law = _detect_law(question)
     an = extract_article_no(question)
-    exact_n = sum(1 for h in hits if h.get("_exact_rank"))
     src = {
         "qdrant": {"host": host_label(_bases.get("qdrant", QDRANT_URLS[0])),
                    "url": _bases.get("qdrant", QDRANT_URLS[0])},
@@ -1038,7 +1060,51 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
                 "url": _bases.get("ollama", OLLAMA_URLS[0]),
                 "model": _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
     }
-    brief_law = _detect_law(question)
+    # 使用者題庫（記憶體庫）：完全相符直接答；近似命中由 JEV 裁決；否決／無候選才進 RAG。
+    bank_note = None
+    try:
+        p = _rules.probe(question, brief_law)
+    except Exception:
+        p = None
+    if p:
+        rule = p["rule"]
+        base = {"ok": True, "host": HOST_ID, "no_match": False, "src": src,
+                "log": await _host_probe_log()}
+        ms = _cw(rule.get("match", ""))[:24]
+        if p["identity"]:
+            base["answer"] = f"{HOST_ID}: {rule.get('answer', '')}"
+            base["confidence"] = "user_rule"
+            base["trace"] = f"題庫:{ms}(identity)"
+            return base
+        jv = await _jev_rule_pick(question, rule)
+        if jv is not None and jv >= JEV_BANK_MIN:
+            base["answer"] = f"{HOST_ID}: {rule.get('answer', '')}"
+            base["confidence"] = "user_rule"
+            base["trace"] = f"題庫:{ms}｜JEV:{jv:.2f}(採題庫)"
+            return base
+        bank_note = (f"｜題庫:{ms}否決(JEV:{jv:.2f})" if jv is not None
+                     else f"｜題庫:{ms}否決(JEV離線)")
+    # 內建規則題庫（不進 LLM）：法名問句命中 count/authority/effective/revised/level/active/brief
+    # 任一 intent，直接以規則答（metadata 精確計算），避免 LLM 編故事。
+    if brief_law is not None and an is None:
+        _try_load_law_meta()
+        intent = _route_law_intent(question)
+        if intent:
+            line = _rule_answer(intent, brief_law)
+            if line:
+                base = {"ok": True, "host": HOST_ID, "confidence": "rule",
+                        "no_match": False, "src": src, "log": await _host_probe_log()}
+                base["answer"] = f"{HOST_ID}: {line}"
+                base["trace"] = f"題庫:{intent}(內建)"
+                return base
+    # ── RAG 引擎（題庫 miss 才花 embed＋search）──
+    vecs = await embed([question])
+    hits = await search(question, vecs[0], limit=recall)
+    dense = await _dense_leg(vecs[0], max(recall, 50))
+    dense_max = max(dense.values(), default=0.0)
+    top = rerank(question, hits, dense, top_k)
+    level, reason = _decide(question, top, dense_max, MIN_DENSE, MID_DENSE, HIGH_DENSE)
+    exact_n = sum(1 for h in hits if h.get("_exact_rank"))
     # 純法名查詢（無條號）→ 整部法連結；其餘（含條號/語意命中具體條文）→ 單條文連結
     law_only = bool(brief_law) and an is None
     views = [_hit_view(h, law_only=law_only) for h in top]
@@ -1047,27 +1113,8 @@ async def answer(question: str, recall: int = 50, top_k: int = 5) -> dict:
             "trace": _trace(question, an, exact_n, dense_max, level, reason),
             "src": src, "hits": views,
             "log": await _host_probe_log()}
-    # 使用者題庫優先（高於內建 intent）：手動校正的 Q→A 或關鍵字覆寫，命中直接答。
-    try:
-        user_rule = _rules.match_rule(question, brief_law)
-    except Exception:
-        user_rule = None
-    if user_rule:
-        base["answer"] = f"{HOST_ID}: {user_rule.get('answer', '')}"
-        base["confidence"] = "user_rule"
-        base["trace"] += f"｜題庫:{_cw(user_rule.get('match', ''))[:24]}"
-        return base
-    # 內建規則題庫（不進 LLM）：法名問句若命中 count/authority/effective/revised/level/active/brief
-    # 任一 intent，直接以規則答，避免 LLM 編故事。
-    if brief_law is not None and an is None:
-        _try_load_law_meta()
-        intent = _route_law_intent(question)
-        if intent:
-            line = _rule_answer(intent, brief_law)
-            if line:
-                base["answer"] = f"{HOST_ID}: {line}"
-                base["confidence"] = "rule"
-                return base
+    if bank_note:
+        base["trace"] += bank_note
     if level == "no_match":
         base["no_match"] = True
         base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"

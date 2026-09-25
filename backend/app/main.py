@@ -26,6 +26,7 @@ async def heartbeat_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    rules.init()  # 題庫預載進記憶體（後續 mtime 自動同步）
     await rag.ensure_collection()
     loop = asyncio.get_running_loop()
     loop.create_task(rag.warmup())  # 預載預設模型並常駐，避免首個 query 冷載入

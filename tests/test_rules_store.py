@@ -73,3 +73,65 @@ def test_load_missing_or_broken_file(tmp_path, monkeypatch):
     assert rs.load() == []          # 檔案不存在 → 空（fail-safe）
     f.write_text("不是json{", encoding="utf-8")
     assert rs.load() == []          # 壞格式 → 空（fail-safe）
+
+
+def test_load_caches_by_mtime_and_refreshes(tmp_path, monkeypatch):
+    f = tmp_path / "rules.json"
+    f.write_text('{"version": 2, "rules": [{"id": "a", "kind": "contains", "match": "欠薪", "answer": "A"}]}',
+                 encoding="utf-8")
+    monkeypatch.setattr(rs, "PATHS", [f, f])
+    assert len(rs.load()) == 1
+    rs.load()
+    assert rs._cache["path"] == f and rs._cache["rules"][0]["id"] == "a"   # 快取命中
+    # 他台 git pull 換檔（mtime 改變）→ 下次讀取自動同步
+    f.write_text('{"version": 2, "rules": [{"id": "b", "kind": "contains", "match": "資遣", "answer": "B"}]}',
+                 encoding="utf-8")
+    assert rs.load()[0]["id"] == "b"
+
+
+def test_probe_identity_exact_and_contains_equality(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    rs.add({"kind": "exact", "match": "證交法有多少條", "answer": "209 條"})
+    rs.add({"kind": "contains", "match": "欠薪的救濟管道", "answer": "勞基法答"})
+    p = rs.probe("證交法   有多少條", None)
+    assert p["identity"] is True and p["rule"]["answer"] == "209 條"
+    p = rs.probe("欠薪的救濟管道", None)   # 白話字串歸一相等 → identity
+    assert p["identity"] is True and p["rule"]["match"] == "欠薪的救濟管道"
+
+
+def test_probe_approximate_contains_is_not_identity(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    rs.add({"kind": "contains", "match": "欠薪", "answer": "勞基法答"})
+    p = rs.probe("公司欠薪怎麼辦", None)
+    assert p["identity"] is False and p["rule"]["match"] == "欠薪"
+
+
+def test_probe_fuzzy_overlap_candidate(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    rs.add({"kind": "contains", "match": "證交法施行日期是", "answer": "民國 113 年 8 月 7 日"})
+    p = rs.probe("證交法施行日期為何時？", None)
+    assert p is not None and p["identity"] is False and p["rule"]["match"] == "證交法施行日期是"
+
+
+def test_probe_exact_kind_no_fuzzy_fallback(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    rs.add({"kind": "exact", "match": "證交法施行日期", "answer": "民國 113 年"})
+    assert rs.probe("證交法從何時開始施行？", None) is None   # exact 故意不命中 → 不做模糊
+    assert rs.probe("證交法施行日期", None)["identity"] is True
+
+
+def test_probe_respects_law_scope_and_disabled(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    rs.add({"kind": "contains", "match": "欠薪", "answer": "勞基法答", "law": "勞動基準法"})
+    assert rs.probe("欠薪", "證券交易法") is None      # 法名不符
+    rid = rs.load()[0]["id"]
+    rs.toggle(rid)
+    assert rs.probe("欠薪", "勞動基準法") is None      # 停用不命中
+
+
+def test_probe_priority_identity_over_approximate(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    rs.add({"kind": "contains", "match": "欠薪", "answer": "近似"})
+    rs.add({"kind": "exact", "match": "證交法有多少條", "answer": "identity"})
+    p = rs.probe("證交法有多少條", None)   # identity 分數較高，勝過順序在前者
+    assert p["identity"] is True and p["rule"]["answer"] == "identity"
