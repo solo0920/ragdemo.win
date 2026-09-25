@@ -15,14 +15,15 @@ settings/opencode/
 ├── global/               ← global config（openrouter → CF gateway），按機器分
 │   ├── msi/opencode.json        # MSI（✅ 已完成）
 │   ├── mbp/opencode.json        # MBP（✅ 已完成）
-│   └── x570/opencode.json       # x570（✅ 已完成）
+│   └── x570/opencode.jsonc      # x570（✅ 已完成，實際檔名 .jsonc）
 └── project/              ← 專案 config（ollama → x570），按機器分
     ├── msi/opencode.json        # MSI（✅ 已完成）
     ├── mbp/opencode.json        # MBP（✅ 已完成）
     └── x570/opencode.json       # x570（✅ 已完成）
 ```
 
-> **global 與 project 刻意分層**：global 是 `~/.config/opencode/opencode.json`
+> **global 與 project 刻意分層**：global 是 `~/.config/opencode/opencode.json`（或 `.jsonc`，
+> 三台以 `.json` 為主，x570 用 `.jsonc`）
 > （使用者層級，含 provider/token 設定）；project 是各專案根目錄的 `opencode.json`
 > （專案層級，含 model/provider 覆寫）。兩類設定位置不同、作用範圍不同，分層存放較好對照。
 
@@ -41,15 +42,15 @@ settings/opencode/
 mkdir -p settings/opencode/global/mbp settings/opencode/project/mbp
 
 # 備份 global config（來源：使用者層級設定）
-cp ~/.config/opencode/opencode.json settings/opencode/global/mbp/opencode.json
+cp ~/.config/opencode/opencode.jsonc settings/opencode/global/mbp/opencode.jsonc
 
 # 備份專案 config（來源：各專案根目錄；若該機器也有 ragdemo.win 或其他專案）
 cp <專案路徑>/opencode.json settings/opencode/project/mbp/opencode.json
 ```
 
 ### 步驟 3：確認 token 在該機器上可用
-- 若用 `{file:}`：把 token 寫到 `~/.config/opencode/cf-aig-token`（chmod 600），並把 config 的
-  `{env:CF_AIG_TOKEN}` 改為 `{file:/home/<user>/.config/opencode/cf-aig-token}`（路徑隨機器調整）
+- 若用 `{file:}`：把 token 寫到 `~/.config/opencode/cf-aig-token`（chmod 600，內容 `cfut_...`），
+  config 寫 `{file:<路徑>/cf-aig-token}`（路徑隨機器調整，例如 `/home/<user>/.config/opencode/cf-aig-token`）
 - 用文件 §3 的方法 A（curl）驗證 gateway 通不通
 
 ### 步驟 4：驗證 opencode 端到端
@@ -136,8 +137,8 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 ```json
 {
   "provider": {
-    "ollama": { "options": { "baseURL": "http://x570:11434/v1" }, "models": { ... } },
-    "openrouter": { "models": { "<model>:free": {} } }
+    "ollama": { "options": { "baseURL": "http://x570:11434/v1" }, "models": { "qwen3:14b": {}, "qwen2.5-coder:14b": {} } },
+    "openrouter": { "models": { "inclusionai/ling-3.0-flash-fin:free": {}, "qwen/qwen3.8-27b:free": {} } }
   }
 }
 ```
