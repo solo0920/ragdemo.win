@@ -93,6 +93,8 @@ async def models():
         "zen_ready": bool(rag.ZEN_API_KEY),
         "nvidia": [f"nv/{m}" for m in rag.NVIDIA_MODELS],
         "nvidia_ready": bool(rag.NVIDIA_API_KEY),
+        "gemini": [f"gemini/{m}" for m in rag.GEMINI_MODELS],
+        "gemini_ready": bool(rag.GEMINI_GATEWAY_URL and rag.GEMINI_GATEWAY_URL != "-" and rag._gateway_token()),
     }
 
 

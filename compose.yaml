@@ -39,6 +39,8 @@ services:
       NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_MODELS: ${NVIDIA_MODELS:-nvidia/nemotron-3.5-lightning-30b-a3b,nvidia/nemotron-3-super-120b-a12b,z-ai/glm-5.3-flash,deepseek-ai/deepseek-v4.1-flash,mistralai/mistral-nemotron}
+      GEMINI_GATEWAY_URL: ${GEMINI_GATEWAY_URL:-}
+      GEMINI_MODELS: ${GEMINI_MODELS:-gemini-3.8-flash,gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}

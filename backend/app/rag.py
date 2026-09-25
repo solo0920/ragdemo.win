@@ -78,6 +78,18 @@ NVIDIA_MODELS = [m.strip() for m in os.getenv(
     "nvidia/nemotron-3.5-lightning-30b-a3b,nvidia/nemotron-3-super-120b-a12b,"
     "z-ai/glm-5.3-flash,deepseek-ai/deepseek-v4.1-flash,mistralai/mistral-nemotron",
 ).split(",") if m.strip()]
+# Google Gemini（經 Cloudflare AI Gateway 的 google-ai-studio provider）：model="gemini/<id>"。
+# Gemini key 在 gateway 後台新增（AI Studio key）；走原生 generateContent 一 stage（非 streaming）。
+# 注意：gemini-2.5-* 對新 key 回 404「no longer available to new users」、高峰時期可能是 503 UNAVAILABLE。
+GEMINI_GATEWAY_ID = os.getenv("CF_AIG_GATEWAY_ID", "cloudflaregateway")
+GEMINI_GATEWAY_URL = os.getenv("GEMINI_GATEWAY_URL", "").rstrip("/") or (
+    OPENROUTER_GATEWAY_URL.removesuffix("/openrouter") + "/google-ai-studio" if OPENROUTER_GATEWAY_URL else "-"
+)
+GEMINI_MODELS = [m.strip() for m in os.getenv(
+    "GEMINI_MODELS",
+    # AI Studio 新 key 可用、實測 200 的模型（2026-09-26）：
+    "gemini-3.8-flash,gemini-3.5-flash,gemini-flash-latest,gemini-flash-lite-latest",
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -966,6 +978,29 @@ async def _nvidia_complete(model: str, prompt: str) -> str:
     return r.json()["choices"][0]["message"]["content"]
 
 
+async def _gemini_complete(model: str, prompt: str) -> str:
+    """Google Gemini（經 CF AI Gateway google-ai-studio provider）generateContent；
+    Gemini key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
+    if not GEMINI_GATEWAY_URL or GEMINI_GATEWAY_URL == "-":
+        raise GatewayUnconfigured("GEMINI_GATEWAY_URL 未設定：走不了 Google Gemini（需 CF AI Gateway 的 google-ai-studio 路由）")
+    tok = _gateway_token()
+    if not tok:
+        raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Google Gemini")
+    headers = {
+        "Content-Type": "application/json",
+        "cf-aig-authorization": f"Bearer {tok}",
+        "Authorization": f"Bearer {tok}",
+    }
+    url = f"{GEMINI_GATEWAY_URL}/v1beta/models/{model}:generateContent"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                               "generationConfig": {"maxOutputTokens": 500}})
+    r.raise_for_status()
+    parts = r.json()["candidates"][0]["content"]["parts"]
+    return "".join(p.get("text", "") for p in parts)
+
+
 async def _zen_complete(model: str, prompt: str) -> str:
     """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
     if not ZEN_API_KEY:
@@ -1029,6 +1064,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # NVIDIA NIM → 走 integrate.api.nvidia.com（需 NVIDIA_API_KEY）。前綴用 nv/，避免與模型 org 前綴 nvidia/ 衝突。
     if model.startswith("nv/"):
         return await _nvidia_complete(model.removeprefix("nv/"), prompt)
+    # Google Gemini（經 CF AI Gateway google-ai-studio provider）→ generateContent（gateway 代管 Google key）。
+    if model.startswith("gemini/"):
+        return await _gemini_complete(model.removeprefix("gemini/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):

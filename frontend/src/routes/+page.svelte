@@ -27,6 +27,8 @@
   let zenReady = false;
   let nvidiaModels = [];
   let nvidiaReady = false;
+  let geminiModels = [];
+  let geminiReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -49,6 +51,8 @@
       zenReady = !!d.zen_ready;
       nvidiaModels = d.nvidia ?? [];
       nvidiaReady = !!d.nvidia_ready;
+      geminiModels = d.gemini ?? [];
+      geminiReady = !!d.gemini_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -207,6 +211,13 @@
             <optgroup label="NVIDIA NIM">
               {#each nvidiaModels as m}
                 <option value={m} disabled={!nvidiaReady}>{m.replace(/^nv\//, '')}{!nvidiaReady ? '（需 NIM key）' : ''}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if geminiModels.length}
+            <optgroup label="Google Gemini（AI Studio）">
+              {#each geminiModels as m}
+                <option value={m} disabled={!geminiReady}>{m.replace(/^gemini\//, '')}{!geminiReady ? '（需 gateway 設定）' : ''}</option>
               {/each}
             </optgroup>
           {/if}
