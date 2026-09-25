@@ -46,6 +46,16 @@ CF_AIG_TOKEN_FILE = os.getenv("CF_AIG_TOKEN_FILE", str(Path.home() / ".config" /
 OPENROUTER_MODELS = [m.strip() for m in os.getenv(
     "OPENROUTER_MODELS", "inclusionai/ling-3.0-flash-fin:free,qwen/qwen3.8-27b:free"
 ).split(",") if m.strip()]
+# OpenCode Zen（free 模型）：model="zen/<id>" 時走 zen 的 openai-compatible chat/completions。
+# ZEN_API_KEY 留空時路由已備好、但呼叫會回清楚錯誤（選到時前端提示「Zen key 未設定」）。
+ZEN_BASE_URL = os.getenv("ZEN_BASE_URL", "https://opencode.ai/zen/v1").rstrip("/")
+ZEN_API_KEY = os.getenv("ZEN_API_KEY", "").strip()
+ZEN_FREE_MODELS = [m.strip() for m in os.getenv(
+    "ZEN_FREE_MODELS",
+    "deepseek-v4-flash-free,muse-spark-1.3-contributor-free,mimo-v2.6-flash-free,"
+    "mimo-v2.5-free,ling-3.0-flash-fin-free,nemotron-3-ultra-free,"
+    "nemotron-3.5-lightning-free,space-bunny-free",
+).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
 HOST_ID = os.getenv("HOST_ID", "x570")
@@ -917,6 +927,23 @@ def _ref(h: dict) -> str:
     return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
 
 
+async def _zen_complete(model: str, prompt: str) -> str:
+    """OpenCode Zen（free 模型）chat/completions；需 ZEN_API_KEY（opencode.ai/zen 主控台產生）。"""
+    if not ZEN_API_KEY:
+        raise GatewayUnconfigured("ZEN_API_KEY 未設定：無法走 OpenCode Zen（free 僅限 OpenCode 內，外部需 key）")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {ZEN_API_KEY}",
+    }
+    url = f"{ZEN_BASE_URL}/chat/completions"
+    async with httpx.AsyncClient(timeout=300) as c:
+        r = await c.post(url, headers=headers,
+                         json={"model": model, "messages": [{"role": "user", "content": prompt}],
+                               "stream": False, "max_tokens": 500})
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"]
+
+
 async def _openrouter_complete(model: str, prompt: str) -> str:
     """經 Cloudflare AI Gateway 呼叫 OpenRouter 閉源模型（chat/completions）。"""
     if not OPENROUTER_GATEWAY_URL:
@@ -957,6 +984,9 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # 讓前端明確看到該雲端模型的狀態）。
     if model.startswith("openrouter/"):
         return await _openrouter_complete(model.removeprefix("openrouter/"), prompt)
+    # OpenCode Zen free 模型 → 走 zen（需 ZEN_API_KEY；無 key 拋 GatewayUnconfigured）。
+    if model.startswith("zen/"):
+        return await _zen_complete(model.removeprefix("zen/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):

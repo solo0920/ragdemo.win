@@ -23,6 +23,8 @@
   let model = '';
   let localModels = [];
   let cloudModels = [];
+  let zenModels = [];
+  let zenReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -41,6 +43,8 @@
       const d = await r.json();
       localModels = d.local ?? [];
       cloudModels = d.cloud ?? [];
+      zenModels = d.zen ?? [];
+      zenReady = !!d.zen_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -185,6 +189,13 @@
             <optgroup label="OpenRouter 閉源（速度）">
               {#each cloudModels as m}
                 <option value={m}>{m.replace(/^openrouter\//, '')}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if zenModels.length}
+            <optgroup label="OpenCode Zen Free">
+              {#each zenModels as m}
+                <option value={m} disabled={!zenReady}>{m.replace(/^zen\//, '')}{!zenReady ? '（需 Zen key）' : ''}</option>
               {/each}
             </optgroup>
           {/if}

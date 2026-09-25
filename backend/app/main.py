@@ -78,7 +78,8 @@ async def health():
 
 @app.get("/models")
 async def models():
-    """可用 LLM 模型清單（首頁下拉選單用）：local＝地端 ollama（隱私）、cloud＝OpenRouter 閉源（速度）。"""
+    """可用 LLM 模型清單（首頁下拉選單用）：local＝地端 ollama（隱私）、cloud＝OpenRouter 閉源（速度）、
+    zen＝OpenCode Zen free（需 ZEN_API_KEY）。"""
     try:
         local = await rag.local_models()
     except Exception:
@@ -88,6 +89,8 @@ async def models():
         "local": local,
         "cloud": [f"openrouter/{m}" for m in rag.OPENROUTER_MODELS],
         "gateway": bool(rag.OPENROUTER_GATEWAY_URL and rag._gateway_token()),
+        "zen": [f"zen/{m}" for m in rag.ZEN_FREE_MODELS],
+        "zen_ready": bool(rag.ZEN_API_KEY),
     }
 
 

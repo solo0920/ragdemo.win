@@ -33,6 +33,9 @@ services:
       CF_AIG_TOKEN: ${CF_AIG_TOKEN:-}
       CF_AIG_TOKEN_FILE: ${CF_AIG_TOKEN_FILE:-}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-inclusionai/ling-3.0-flash-fin:free,qwen/qwen3.8-27b:free}
+      ZEN_BASE_URL: ${ZEN_BASE_URL:-https://opencode.ai/zen/v1}
+      ZEN_API_KEY: ${ZEN_API_KEY:-}
+      ZEN_FREE_MODELS: ${ZEN_FREE_MODELS:-deepseek-v4-flash-free,muse-spark-1.3-contributor-free,mimo-v2.6-flash-free,mimo-v2.5-free,ling-3.0-flash-fin-free,nemotron-3-ultra-free,nemotron-3.5-lightning-free,space-bunny-free}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}
