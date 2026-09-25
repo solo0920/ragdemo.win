@@ -95,6 +95,8 @@ async def models():
         "nvidia_ready": bool(rag.NVIDIA_API_KEY),
         "gemini": [f"gemini/{m}" for m in rag.GEMINI_MODELS],
         "gemini_ready": bool(rag.GEMINI_GATEWAY_URL and rag.GEMINI_GATEWAY_URL != "-" and rag._gateway_token()),
+        "groq": [f"groq/{m}" for m in rag.GROQ_MODELS],
+        "groq_ready": bool(rag.GROQ_GATEWAY_URL and rag.GROQ_GATEWAY_URL != "-" and rag._gateway_token()),
     }
 
 

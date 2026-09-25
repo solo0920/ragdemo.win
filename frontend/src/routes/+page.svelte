@@ -13,9 +13,11 @@
   function grow() {
     if (!ta) return;
     ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, 240) + 'px';
+    const lineH = parseFloat(getComputedStyle(ta).lineHeight) || 40;
+    const h = Math.min(Math.max(ta.scrollHeight, lineH), 240);
+    ta.style.height = h + 'px';
     const wrap = ta.closest('.ask-wrap');
-    if (wrap) wrap.classList.toggle('multi', ta.scrollHeight > 40);
+    if (wrap) wrap.style.alignItems = h > lineH + 2 ? 'flex-end' : 'center';
   }
   let loading = false;
   let result = null;
@@ -37,6 +39,8 @@
   let nvidiaReady = false;
   let geminiModels = [];
   let geminiReady = false;
+  let groqModels = [];
+  let groqReady = false;
   let modelsReady = false;
 
   onMount(async () => {
@@ -62,6 +66,8 @@
       nvidiaReady = !!d.nvidia_ready;
       geminiModels = d.gemini ?? [];
       geminiReady = !!d.gemini_ready;
+      groqModels = d.groq ?? [];
+      groqReady = !!d.groq_ready;
       modelsReady = true;
     } catch (_) {
       modelsReady = false;
@@ -231,6 +237,13 @@
               {/each}
             </optgroup>
           {/if}
+          {#if groqModels.length}
+            <optgroup label="Groq">
+              {#each groqModels as m}
+                <option value={m} disabled={!groqReady}>{m.replace(/^groq\//, '')}{!groqReady ? '（需 gateway 設定）' : ''}</option>
+              {/each}
+            </optgroup>
+          {/if}
         </select>
         <a href="/rules" class="btn">題庫管理</a>
         <a href="/auth/logout" class="btn">登出</a>
@@ -369,7 +382,7 @@
     background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .ask-wrap.multi { align-items: flex-end; }
+  .ask-wrap.multi { align-items: flex-end; } /* 備援：grow() 已用 inline style 控制 */
   .ask-wrap:focus-within {
     border-color: #1e90ff; box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.12);
   }
