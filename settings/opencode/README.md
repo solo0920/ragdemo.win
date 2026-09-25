@@ -84,7 +84,7 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 |---|---|---|---|
 | **MSI** | `msi` | opencode 主要開發機（Windows + WSL） | ✅ 已完成（`global/msi/` + `project/msi/`） |
 | **MBP** | `mbp` | macOS 開發機 | ✅ 已完成（`global/mbp/` + `project/mbp/`） |
-| **x570** | `x570.tailfe3f3d.ts.net` | Ollama 模型伺服器（qwen3-coder 等）+ 開發機 | ⏳ 待備份（`global/x570/` + `project/x570/`） |
+| **x570** | `x570.tailfe3f3d.ts.net` | Ollama 模型伺服器（qwen3-coder 等）+ 開發機 | ✅ 已完成（`global/x570/` + `project/x570/`） |
 
 > x570 同時是 Ollama server（`http://x570:11434/v1`，跑 `qwen3-coder:latest`、
 > `qwen2.5-coder:14b`、`qwen3:14b`、embedding/reranker models），各機器的專案 config
