@@ -185,11 +185,11 @@ msi 一次性準備：
 
 ```bash
 cd ~/ragdemo && git config core.hooksPath .githooks
-cd frontend && npm ci                     # msi 已有 Node v22
+cd frontend && pnpm i                      # pnpm 遷移後（2026-09-26）：corepack enable 後用 pnpm
 vim ../backend/.env                       # msi profile（見 §2.2）
 vim .env                                  # frontend/.env：GOOGLE_CLIENT_ID/SECRET/SESSION_SECRET
                                           #   （值從 x570 frontend/.env 抄，不進 git）
-npm run dev -- --host                     # msi 瀏覽器開 http://localhost:5173
+pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:5173
 ```
 
 - 手機/其他 tailnet 裝置要看 dev：仍建議只開公網 `https://ragdemo.win`（tailnet http 登入無解，
@@ -297,7 +297,7 @@ npm run dev -- --host                     # msi 瀏覽器開 http://localhost:51
   - `com.ragdemo.qdrant`（登入啟動＋KeepAlive）、`com.ragdemo.api`（uvicorn，登入啟動＋KeepAlive）、
   - `com.ragdemo.sync-snapshot`（每 10 分鐘＋RunAtLoad，log `~/qdrant/sync.log`）。
 - mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`（x570 優先，離線切本機）。
-- 前端：Node v22.23.2（brew `node@22`，PATH 已寫 `~/.zshrc`），`npm install`＋`npm run build` 過。
+- 前端：Node v22.23.2（brew `node@22`，PATH 已寫 `~/.zshrc`），`pnpm install`＋`pnpm run build` 過。
 
 **待做**：
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
@@ -732,7 +732,7 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   檢索方式區塊顯示「尚未送出查詢」；查詢過仍以該次 query 的 log/src 為準（語意不變）。
   路徑：dev proxy `/api/status`→本機 8000、prod worker 轉發、手動選主機直連，三路皆通。
 - 今日檢查：工作樹乾淨、無密鑰外洩（僅 `.env.example`/compose fallback 的佔位 `changeme`）、
-  前端 `npm run build`＋svelte-check 0 error、`/eval` 14/14=1.0。
+  前端 `pnpm run build`＋svelte-check 0 error、`/eval` 14/14=1.0。
 - **dev 登入注意**：`auth/login` 的 `redirect_uri`＝「目前 origin + `/auth/callback`」，所以用
   tailscale IP（如 `100.119.83.111:5173`）開 dev 登入前，要先到 Google Console 的該 OAuth
   Client 把該 origin 加入授權重導 URI（無萬用字元），否則 `redirect_uri_mismatch`；本機
@@ -820,5 +820,5 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 docker compose up -d --build   # 改碼後重建 api
 curl localhost:8000/health
 curl localhost:8000/hosts
-cd ~/ragdemo/frontend && npm run dev   # 前端 dev（proxy → localhost:8000）
+cd ~/ragdemo/frontend && pnpm run dev   # 前端 dev（proxy → localhost:8000）
 ```

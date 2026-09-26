@@ -284,7 +284,7 @@ IP 準則：全部 tailscale 位址，本機服務才允許 127.0.0.1，不用 L
 cp backend/.env.example backend/.env  # 再改 OLLAMA_BASE_URL
 docker compose up -d --build  # 首次建 api 映像，之後改碼重跑加 --build
 curl localhost:8000/health
-cd frontend && npm install && npm run dev
+cd frontend && pnpm install && pnpm run dev
 ```
 **MSI（WSL2，吃 Windows 本機 ollama）**：
 ```bash
@@ -298,7 +298,7 @@ launchctl load ~/Library/LaunchAgents/com.ragdemo.qdrant.plist    # qdrant @127.
 launchctl load ~/Library/LaunchAgents/com.ragdemo.api.plist       # uvicorn @8000（--env-file .env）
 launchctl load ~/Library/LaunchAgents/com.ragdemo.sync-snapshot.plist  # 每10分鐘快照同步
 curl localhost:8000/health       # 回 host_id=mbp
-cd frontend && npm run dev       # 前端 dev（proxy → localhost:8000，需 Node≥22）
+cd frontend && pnpm run dev      # 前端 dev（proxy → localhost:8000，需 Node≥22）
 ```
 mbp 資料層：x570 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
 
