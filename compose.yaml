@@ -60,7 +60,7 @@ services:
       MISTRAL_GATEWAY_URL: ${MISTRAL_GATEWAY_URL:-}
       MISTRAL_MODELS: ${MISTRAL_MODELS:-ministral-8b-latest,codestral-latest}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
-      JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.5}
+      JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.4}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     depends_on: [qdrant, postgres]

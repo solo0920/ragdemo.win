@@ -199,16 +199,21 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
 
 ### 2.7 WSL 開機自動啟動 api（2026-09-22 已設定）
 
-- 啟動腳本：`backend/start-msi.sh`（冪等：8000 已有服務就跳過；`setsid nohup` 脫離 session；
+> **2026-09-26 三機一致性調整**：啟動腳本原在 repo 內（`backend/start-msi.sh`），因屬
+> **MSI 單機專屬**啟動機制（與 x570/mbp 的 docker compose 架構不一致），已**移出 repo** 到
+> MSI 本機 `~/bin/ragdemo-api.sh` —— repo 只留三機共用的 compose 架構，單機差異留在該機。
+> 這是「Docker Desktop 啟用 WSL integration 之前」的過渡手段，見 §4.1.1。
+
+- 啟動腳本：`~/bin/ragdemo-api.sh`（冪等：8000 已有服務就跳過；`setsid nohup` 脫離 session；
   log 寫 `backend/uvicorn.log`、pid 寫 `backend/.uvicorn.pid`）。手動啟動：
-  `bash backend/start-msi.sh`
+  `bash ~/bin/ragdemo-api.sh`
 - 1.19.1 起還會一併啟動**本機 qdrant 備援**（`~/qdrant/qdrant`，port 6333，log
   `~/qdrant/qdrant.log`）—— x570 離線時 MSI 的自立資料層，見 §4.1。
 - Windows 開機啟動：`solog` 的「啟動」資料夾放 `ragdemo-msi-api.vbs`（隱藏視窗執行
-  `wsl.exe -d Ubuntu -u solo -e bash /home/solo/projects/ragdemo.win/backend/start-msi.sh`），
+  `wsl.exe -d Ubuntu -u solo -e bash /home/solo/bin/ragdemo-api.sh`），
   比照 Ollama.lnk 的作法；**只在 solog 登入時跑**。
-- 注意：WSL distro 名寫死 `Ubuntu`、路徑寫死 `/home/solo/projects/ragdemo.win`；
-  若新機 clone 到別處需同步改 VBS 與腳本內 `BASE`。
+- 注意：WSL distro 名寫死 `Ubuntu`；若新機 clone 到別處，腳本可用 `RAGDEMO_BACKEND=<backend 路徑>`
+  覆寫（預設 `/home/solo/projects/ragdemo.win/backend`），並同步改 VBS 與腳本內 `BASE`。
 - 系統 python 沒 pip/python3-venv，MSI 用 `uv venv .venv` 建環境（Ubuntu 24.04 無須 sudo）。
 
 ---
@@ -278,7 +283,7 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
 > **2026-09-22 進度**：MSI、mbp 本機 qdrant 備援＋自動同步皆已完成 ✅。剩餘：擴資料到 500~1000 筆。
 
 **已建立（MSI）**：
-- MSI WSL 本機 qdrant 1.19.1（`~/qdrant/qdrant`，port 6333），`start-msi.sh` 啟動時一併拉起。
+- MSI WSL 本機 qdrant 1.19.1（`~/qdrant/qdrant`，port 6333），`~/bin/ragdemo-api.sh` 啟動時一併拉起。
 - 備援資料：從 x570 qdrant 快照還原到本機（目前 3 筆，與 x570 同步；有測試資料驗證增減偵測）。
 - **自動同步**：`scripts/sync-snapshot.sh`（x570 建快照→下載→本機刪舊重建還原→驗證點數一致；
   用點數變化偵測新資料，沒變化就 skip；同步後清理 x570 舊快照只留最新）。
@@ -320,7 +325,7 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
 
 ### 4.1.1 二機全容器化對齊 x570（2026-09-26）
 
-**目標**：mbp/msi 捨棄 launchd／`start-msi.sh`／native qdrant，改用與 x570 相同的 **docker compose
+**目標**：mbp/msi 捨棄 launchd／`~/bin/ragdemo-api.sh`／native qdrant，改用與 x570 相同的 **docker compose
 一鍵三容器**（qdrant＋postgres＋api），密鑰統一由各機 repo 根 `.env` 讀入。
 
 **x570 已實作（本節依據）**：
@@ -336,7 +341,8 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
    自己的 postgres volume 若是舊的，先做一次 `ALTER USER` 同步密碼（見上坑 4）。✅ mbp（fresh volume）
 3. 停用舊啟動機制避免搶 port：
    - mbp：✅ `launchctl unload` `com.ragdemo.qdrant`／`com.ragdemo.api`（native `~/qdrant/qdrant`＋uvicorn）。
-   - msi：停用 startup `ragdemo-msi-api.vbs`＋`@reboot` crontab；`backend/start-msi.sh` 不再使用。
+   - msi：停用 startup `ragdemo-msi-api.vbs`＋`@reboot` crontab；`~/bin/ragdemo-api.sh` 不再使用
+     （已於 2026-09-26 移出 repo，見 §2.7）。
 4. registry 仍共享 x570：**api 容器的 `POSTGRES_DSN` 指向 x570 tailscale 位址**（覆寫
    `POSTGRES_DSN=postgresql://rag:<pw>@100.119.83.111:5432/ragdemo`），不連本機空庫，三台 backends 合一。
    ✅ mbp：`compose.yaml` 改 `${POSTGRES_DSN:-本機 postgres}`，`.env` 帶 x570 DSN；同文件 x570 不受影響。
@@ -432,7 +438,7 @@ curl -s https://ragdemo.win/api/health                         # 回 x570 health
 > opencode 負責各自機器上的 cloudflared 安裝、config、自動啟動與驗證。
 
 #### mbp / msi 各自建 tunnel checklist（在該機執行，host=mbp|msi 替換）
-> 前置：該機已有 git repo、tailscale 在線、8000 後端可跑（mbp launchd／msi start-msi.sh）。
+> 前置：該機已有 git repo、tailscale 在線、8000 後端可跑（mbp launchd／msi ragdemo-api.sh）。
 > credentials json 必須存在該機自己（本地型 create 就是在該機產生），所以由各機執行，勿搬移。
 
 ```bash
@@ -514,7 +520,7 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 > - `rag.py` embed/generate 帶 `keep_alive=KEEP_ALIVE`（預設 `-1` 常駐，可在 `.env` 覆寫）；
 >   api 啟動時 `warmup()` 預載該機預設 LLM＋`bge-m3`，首個 query 不再冷載入。
 > - 驗證：`ollama ps` 看到預設模型在列且 UNLOAD 為空白（常駐）；重啟 api 後首個 `/query` 不慢。
-> - mbp 已實作並驗證（commit `mbp:`）；x570 / msi pull 後 `launchctl kickstart -k`／`start-msi.sh` 重啟即可。
+> - mbp 已實作並驗證（commit `mbp:`）；x570 / msi pull 後 `launchctl kickstart -k`／`~/bin/ragdemo-api.sh` 重啟即可。
 
 #### 接管整備與來源可追溯（2026-09-23 定案）
 
@@ -544,8 +550,8 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   → worker 原封轉傳 → 前端 `+page.svelte` 的 `statusRows()` 組 **HTML `<table>`** 顯示
   （不用純文字 md，瀏覽器才不會整排錯位）。
 - **mbp / msi 交接：比照 x570 設計**，pull＋重啟後端後即自動生效：
-  - `git pull origin main`；msi 先 `pkill -f 'uvicorn.*8000'` 再 `bash backend/start-msi.sh`
-    （start-msi.sh 偵到 8000 在跑會跳過，不重拉新碼）；mbp 用 launchd 重啟
+  - `git pull origin main`；msi 先 `pkill -f 'uvicorn.*8000'` 再 `bash ~/bin/ragdemo-api.sh`
+    （ragdemo-api.sh 偵到 8000 在跑會跳過，不重拉新碼）；mbp 用 launchd 重啟
     （`launchctl kickstart -k`）。
   - 前端由 Pages 自動部署，不需動手；worker 已有 `?backend=` 與轉傳邏輯。
   - 驗收：`curl -s -X POST 'https://ragdemo.win/api/query?backend=<host>' ...` 回應須含 `src`；
@@ -602,7 +608,7 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   curl -s -o /dev/null -w '%{http_code}' https://api-msi.ragdemo.win/health  # 502 = tunnel 通但 origin 死
   tail -5 backend/uvicorn.log                  # 末行 Shutting down = WSL 重啟收掉，非崩潰
   ```
-- 修復（2026-09-23 已做）：msi crontab 新增 `restart loop` 包 `backend/start-msi.sh`
+- 修復（2026-09-23 已做）：msi crontab 新增 `restart loop` 包 `~/bin/ragdemo-api.sh`
   （每 30s 冪等檢查，WSL 重啟/崩潰自動拉起 uvicorn＋qdrant，見 ARCHITECTURE keepalive 規範）。
 - 教訓：**「隧道有在跑」≠「api 在跑」**；公網 502 先查 origin（localhost:8000）而非 tunnel。
 

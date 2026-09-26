@@ -8,7 +8,6 @@
 compose.yaml       # qdrant + postgres + api（三機共用，x570 已跑 docker compose）
 backend/           # FastAPI：/health /ingest /query /eval /rules /models
   app/             #   main.py / rag.py / registry.py / usage.py / rules.py
-  start-msi.sh     #   MSI WSL 開機自動啟動（api＋本機 qdrant 備援，未遷移時用）
   .env.example     #   樣板（真實 .env 在 repo 根，不進版控）
 frontend/          # SvelteKit：只打 /api/*（Google 登入守護 SENSITIVE 路徑）
   src/routes/api/[...path]/+server.ts   # worker：登入 guard + 三台備援轉發
@@ -64,7 +63,7 @@ scripts/
 * **mbp 100.64.121.9**：加速。api/qdrant/pg **全 docker compose（三容器，OrbStack runtime）**，
   `LLM_MODEL=qwen3:14b`（本機 ollama）＋qdrant 本機備援（快照同步來自 x570）；
   容器 api 的 `POSTGRES_DSN` 指 x570 共享 registry（見 ROADMAP §4.1.1）。
-* **msi 100.65.68.106（demo）**：api 在 WSL2（`start-msi.sh`，開機自動啟動）＋本機 qdrant 備援，
+* **msi 100.65.68.106（demo）**：api 在 WSL2（`~/bin/ragdemo-api.sh`，開機自動啟動）＋本機 qdrant 備援，
   `LLM_MODEL=qwen3:8b`（2026-09-23 由 4b 換上：4b 的 `think:false` 是已知 bug）。
   （規劃遷移 docker compose——見 ROADMAP §4.1.1）
 
@@ -201,6 +200,9 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
 - 雲端路由：`OPENROUTER_GATEWAY_URL`、`CF_AIG_TOKEN`（或 `CF_AIG_TOKEN_FILE`）、`ZEN_API_KEY`、
   `NVIDIA_API_KEY`、`HF_TOKEN`、各 provider `*_MODELS` 清單。
 - 驗證/權限：`TYPESAFE_API_KEY`、`JEV_VERIFY_MIN`、`JEV_BANK_MIN`、`ADMIN_TOKEN`。
+- **變數預設值只有一份真值**：`compose.yaml` 的 `${VAR:-default}` 必須與 `rag.py` 的
+  `os.getenv("VAR", default)` 一致，否則「走 compose 的機器」與「直接跑 uvicorn 的機器」
+  預設行為不同（2026-09-26 統一 `JEV_VERIFY_MIN`：compose 0.5 → 0.4，與 rag.py／`.env.example` 齊平）。
 - IP 準則：全部 tailscale 位址；本機服務才允許 127.0.0.1，不用 LAN_IP。
 
 ## 評測門檻
@@ -234,7 +236,7 @@ cd frontend && pnpm install && pnpm run build && pnpm run dev   # pnpm（非 npm
 ```
 **MSI（WSL2，吃 Windows 本機 ollama；未遷移）**：
 ```bash
-bash backend/start-msi.sh      # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5/2.7）
+bash ~/bin/ragdemo-api.sh      # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5/2.7）
 curl localhost:8000/health     # 回 host_id=msi, llm=qwen3:8b
 ```
 **mbp（launchd，登入自動跑；未遷移）**：
