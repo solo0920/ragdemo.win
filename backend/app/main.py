@@ -116,9 +116,21 @@ async def hosts():
 
 
 @app.get("/status")
-async def status():
-    """三台主機連線探測（連線詳細彈窗用；不依賴 query，供按鈕常駐顯示）。"""
-    return {"ok": True, "host": registry.HOST_ID, "log": await rag._host_probe_log()}
+async def status(probe: int = 1):
+    """三台主機連線探測（連線詳細彈窗用；不依賴 query，供按鈕常駐顯示）。
+
+    law_version：本機法規版本（ChLaw.json 的 UpdateDate）。官方 zip 檔名固定為
+    ChLaw.json.zip 不具版本意義，故不用檔名。備援機由 sync-snapshot.sh 寫
+    data/laws/.law_version 帶入，見 rag.law_version()。
+
+    probe=0：只回本機資訊，不去探測其他主機。**呼叫別台的 /status 時必須帶**，
+    否則 A→B→C→A 互相探測，請求數指數成長（2026-09-26 實作時踩到）。
+    """
+    out = {"ok": True, "host": registry.HOST_ID, "law_version": rag.law_version()}
+    if probe:
+        out["log"] = await rag._host_probe_log()
+        out["versions"] = await rag._host_law_versions()
+    return out
 
 
 @app.post("/ingest")

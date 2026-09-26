@@ -255,6 +255,29 @@ async def _host_probe_log() -> dict[str, str]:
     return {hid: ("連線成功" if o else "連線失敗") for hid, o in zip(HOST_API, ok)}
 
 
+async def _host_law_versions() -> dict[str, str]:
+    """並行抓三台（連同本機）的法規版本。回 {host_id: "2026-09-11" or "-"}。
+
+    刻意不比照 _host_probe_log 的 `< 500` 判定：版本要的是 /status 的
+    200 內容，5xx 以外的錯誤回應（反代 4xx 等）不該被當成有版本。
+    """
+    async def _one(url: str) -> str:
+        try:
+            # probe=0 一定要帶：遠端的 /status 預設會再去探測「它的」三台主機。
+            # 不加這個參數就是 A→B→C→A 的遞迴，請求數會指數成長。
+            async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
+                r = await c.get(f"{url}/status", params={"probe": 0})
+                if r.status_code != 200:
+                    return "-"
+                return (r.json().get("law_version") or {}).get("update_date") or "-"
+        except Exception:
+            return "-"
+    pairs = list(zip(HOST_API, await asyncio.gather(*(_one(u) for u in HOST_API.values()))))
+    # 本機：HOST_API 只有三台遠端，本機版號直接從磁碟取（免一次自我 HTTP）
+    me = law_version().get("update_date") or "-"
+    return {**dict(pairs), HOST_ID: me} if HOST_ID else dict(pairs)
+
+
 async def _ollama_probe(url: str) -> bool:
     """ollama 主機可用：TCP 通，且同時具備該機對應的 LLM model 與 EMBED_MODEL（避免 404）。"""
     if not await _tcp_open(url):
@@ -451,6 +474,53 @@ def _law_count_line(law: str) -> str | None:
     if sub:
         s += f"（主條 {n - sub} 則＋增訂子條 {sub} 則；主條編號依原序，號碼間含已刪除空號，因此最大值未滿 {n}）"
     return s
+
+
+# ── 法規版本（前端「法規版本」欄位）────────────────────────────────────────
+# 官方 zip 檔名是固定的 ChLaw.json.zip（實測 Content-Disposition），永遠不變，
+# 拿它當版本等於三台顯示同一串字。因此版本一律取 ChLaw.json 內的 UpdateDate。
+# 兩個來源（備援機不跑 ingest，只吃快照，所以必須靠同步腳本把版本帶過來）：
+#   1. data/laws/.law_sync.json  → 執行 sync_daily.py 的主機（x570）寫入
+#   2. data/laws/.law_version    → sync-snapshot.sh 同步成功後寫入的 sidecar
+# 容器內 data/laws 是唯讀掛載，但「讀」不受限；寫入一律在 host 端由 cron 進行。
+_LAW_VERSION_CACHE: tuple[float, dict] = (0.0, {})
+_LAW_VERSION_TTL = 30.0  # 秒；避免 /status 每次都碰磁碟（前端會定期輪詢）
+# 候選基底路徑：原生執行時是 repo 的 data/laws，容器內掛在 /app/data/laws。
+# 提成常數是為了讓測試能乾淨地改掉它，而不必改寫整個函式。
+_LAW_VERSION_DIRS = (Path("data/laws"), Path("/app/data/laws"))
+
+
+def _read_law_version() -> dict:
+    """回 {update_date, source, at}；讀不到回 {}（前端顯示 '-'）。"""
+    for base in _LAW_VERSION_DIRS:
+        # 備援機的 sidecar 優先於主機的 .law_sync.json：兩者若同時存在，
+        # sidecar 代表「實際服務的資料版本」，.law_sync.json 只是本機曾下載過的版本。
+        for name in (".law_version", ".law_sync.json"):
+            p = base / name
+            try:
+                if not p.exists():
+                    continue
+                d = json.loads(p.read_text(encoding="utf-8"))
+                v = (d.get("update_date") or "").strip()
+                if v:
+                    return {"update_date": v,
+                            "source": d.get("source") or name.lstrip("."),
+                            "at": d.get("synced_at") or d.get("last_checked") or ""}
+            except Exception as e:  # 壞檔不讓 /status 整個 500
+                logger.debug("law_version 讀取失敗 %s: %s", p, e)
+    return {}
+
+
+def law_version() -> dict:
+    """本機法規版本（帶短 TTL 快取）。"""
+    global _LAW_VERSION_CACHE
+    ts, val = _LAW_VERSION_CACHE
+    now = time.time()
+    if now - ts < _LAW_VERSION_TTL:
+        return val
+    val = _read_law_version()
+    _LAW_VERSION_CACHE = (now, val)
+    return val
 
 
 def _try_load_law_meta() -> None:

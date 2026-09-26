@@ -330,6 +330,30 @@ log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`（點數＋快照名，�
 `~/qdrant` 在容器化後**只是腳本自建的暫存目錄**（放 log/state/tmp snapshot），
 不再是 qdrant 的資料目錄 —— 資料在 `ragdemo_qdrant_data` volume 裡。
 
+### 法規版本欄（2026-09-26）
+前端「連線與來源」表多一欄**法規版本**，顯示各機 `laws` collection 對應的官方法規版本。
+
+* **不記 zip 檔名**：實測官方 `Content-Disposition: attachment; filename=ChLaw.json.zip`
+  —— 檔名是固定的，永遠不變，拿它當版本等於三台顯示同一串字。版本一律取
+  `ChLaw.json` 內的 **`UpdateDate`**（`sync_daily.py` 已在讀）。
+* **兩個來源**（`rag._read_law_version()`）：
+  | 檔案 | 誰寫 | 意義 |
+  |---|---|---|
+  | `data/laws/.law_sync.json` | x570 跑 `sync_daily.py` | 該機下載過的版本 |
+  | `data/laws/.law_version` | `sync-snapshot.sh` 同步成功後 | **實際服務的版本**（優先） |
+  備援機不跑 ingest、快照也不帶 `.law_sync.json`，所以只能靠同步腳本帶過來。
+  容器內 `data/laws` 是唯讀掛載，但**讀**不受限；寫入一律在 host 端由 cron 進行。
+* ⚠️ **`SRC_API_URL` 是 per-machine 必要設定**：腳本要向來源機的 `/status` 取版本，
+  但三台的 8000 **全綁 `127.0.0.1`、公網只經 cloudflared tunnel**，所以不能用
+  `IP:8000`（實作時踩過）。排程必須顯式指定，如 MSI：
+  ```
+  */10 * * * * set -a; . .../backend/.env; set +a; SRC_API_URL=https://api-x570.ragdemo.win .../sync-snapshot.sh
+  ```
+  未設定時腳本退回 `6333→8000` 改寫，在真實部署多半連不上（log 會記 `取不到`）。
+* **端點**：`GET /status` 回 `{ok, host, law_version, log, versions}`。
+  `law_version`＝本機；`versions`＝三台＋本機。**呼叫別台的 `/status` 必須帶 `?probe=0`**
+  —— 預設會再去探測「它的」三台，不帶就是 A→B→C→A 遞迴，請求數指數成長（實作時踩到）。
+
 ## Demo 精簡包
 x570 全量 → 精選 500~1000 筆 → 靠 `sync-snapshot.sh` 快照機制同步到各機本機 qdrant，
 x570 離線時各機照常 `/query`（檢索能力一致，LLM 各機自備）。

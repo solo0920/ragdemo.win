@@ -27,16 +27,59 @@ pts_of() { curl -sf "${AUTH_H[@]}" -m 10 "$1/collections/$2" | python3 -c 'impor
 
 [ -d "$QDIR" ] || mkdir -p "$QDIR"
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION_FILE="$ROOT/data/laws/.law_version"
+
+# 法規版本：官方 zip 檔名固定是 ChLaw.json.zip（實測 Content-Disposition），
+# 拿不到版本意義，所以版本取 ChLaw.json 的 UpdateDate，由來源機的 /status 揭露。
+# 備援機不跑 sync_daily.py、快照也不帶 .law_sync.json，只能靠這裡帶過來，
+# 寫在 data/laws/ 下 —— 該目錄在容器內是唯讀掛載，但讀不受限，寫入在 host 端。
+sync_law_version() {
+  [ "$COLLECTION" = "laws" ] || return 0
+  # 來源 api 的位置。三台都把 8000 綁在 127.0.0.1、公網只經 cloudflared tunnel
+  # （見 ARCHITECTURE「服務埠」），所以 port 改寫在真實部署多半連不上，
+  # 必須用 SRC_API_URL 明確指定（per-machine，設在該機 crontab/launchd 環境）。
+  # 未設定才退而用 6333→8000 的改寫（適用於自己把 api 發布在 TS_IP 的情況）。
+  if [ -n "${SRC_API_URL:-}" ]; then
+    SRC_API="$SRC_API_URL"
+  else
+    case "$SOURCE" in
+      *:[0-9]*) SRC_API="${SOURCE%:*}:8000" ;;
+      *)        SRC_API="$SOURCE:8000" ;;
+    esac
+  fi
+  ver="$(curl -sf -m 8 "$SRC_API/status" 2>/dev/null \
+        | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null)"
+  if [ -z "$ver" ]; then
+    log "law version: 取不到（src_api=$SRC_API；來源機的 sync_daily.py 還沒跑過，或該網址不通）"
+    return 0
+  fi
+  # 版本沒變就不重寫，避免每 10 分鐘動一次 mtime
+  old="$(python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("update_date",""))
+except Exception: print("")' "$VERSION_FILE" 2>/dev/null)"
+  if [ "$old" = "$ver" ]; then
+    log "law version unchanged ($ver)"
+    return 0
+  fi
+  mkdir -p "$(dirname "$VERSION_FILE")"
+  printf '{"update_date": "%s", "source": "%s", "synced_at": "%s"}\n' \
+    "$ver" "$SOURCE" "$(date '+%F %T')" >"$VERSION_FILE.tmp" \
+    && mv "$VERSION_FILE.tmp" "$VERSION_FILE" \
+    && log "law version updated: $old -> $ver"
+}
+
 # 1) source 在線？
 if ! curl -sf "${AUTH_H[@]}" -m 5 "$SOURCE/healthz" >/dev/null 2>&1; then
   log "source $SOURCE offline, skip（本機備援資料不受影響）"
   exit 0
 fi
 
-# 2) 點數沒變 → 跳過
+# 2) 點數沒變 → 跳過（但版本仍要更新：資料沒變不代表來源機換了法規版本）
 SRC_PTS="$(pts_of "$SOURCE" "$COLLECTION")"
 PREV_PTS="$(awk '{print $1}' "$STATE" 2>/dev/null || echo "")"
 if [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; then
+  sync_law_version
   log "unchanged (${SRC_PTS} points), skip"
   exit 0
 fi
@@ -80,6 +123,7 @@ curl -sf "${AUTH_H[@]}" -m 180 -X POST -F "snapshot=@$TMP" \
 DST_PTS="$(pts_of "$DEST" "$COLLECTION")"
 if [ "$SRC_PTS" = "$DST_PTS" ] && [ "$SRC_PTS" != "-1" ] && [ "$DST_PTS" != "-1" ]; then
   echo "$SRC_PTS $SNAP_NAME" >"$STATE"
+  sync_law_version
   log "SYNC OK: $SNAP_NAME (${DST_PTS} points) local=$DEST ready"
   rm -f "$TMP"
   exit 0

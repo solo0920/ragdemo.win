@@ -213,9 +213,20 @@
     }
   }
 
+  // 只補抓版本，不動 statusLoading —— 法規版本要靠每日 ingest 才會變，
+  // 但仍希望在開彈窗時看到現況；走 loadStatus 會讓整張表閃「探測中」。
+  async function refreshVersions() {
+    try {
+      const r = await fetch(api('/status'));
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.versions) status = { ...(status ?? {}), versions: d.versions, law_version: d.law_version };
+    } catch (_) { /* 取得不到就沿用舊值，不動版面 */ }
+  }
+
   async function toggleInfo() {
     showInfo = !showInfo;
-    if (showInfo && !result) loadStatus();
+    if (showInfo) refreshVersions();
   }
 
   async function checkHealth() {
@@ -269,6 +280,7 @@
   }
 
   const HOST_IPS = { x570: '100.119.83.111', mbp: '100.64.121.9', msi: '100.65.68.106' };
+  const HOST_NAMES = { x570: '主機', mbp: '加速', msi: 'demo' };
 
   function provName(p) {
     if (!p) return '-';
@@ -276,11 +288,18 @@
     return `${p.host} ${detail}`;
   }
 
-  function hostRows(r) {
-    const ok = (id) => r?.log?.[id] === '連線成功';
+  // result（/query 的回應）只有 log，沒有 versions；只有 /status 會回 versions。
+  // 所以兩邊都傳進來：連線狀態優先用 result（剛查完那次），版本用 status。
+  function hostRows(r, s) {
+    const log = r?.log ?? s?.log;
+    const vers = s?.versions ?? r?.versions;
+    const ok = (id) => log?.[id] === '連線成功';
     return ['x570', 'mbp', 'msi'].map((id) => ({
       k: id,
+      role: HOST_NAMES[id],
       ip: HOST_IPS[id],
+      // 官方 zip 檔名固定 ChLaw.json.zip 恆定不變，版本一律取 ChLaw.json 的 UpdateDate
+      ver: vers?.[id] && vers[id] !== '-' ? vers[id] : '—',
       v: ok(id) ? '✅' : '❌',
     }));
   }
@@ -377,9 +396,18 @@
             <p class="muted">探測中…</p>
           {:else}
             <table>
+              <thead>
+                <tr><th>主機</th><th>角色</th><th>IP</th><th>法規版本</th><th>狀態</th></tr>
+              </thead>
               <tbody>
-                {#each hostRows(result ?? status) as row}
-                  <tr><td>{row.k}</td><td>{row.ip}</td><td>{row.v}</td></tr>
+                {#each hostRows(result, status) as row}
+                  <tr>
+                    <td>{row.k}</td>
+                    <td class="muted">{row.role}</td>
+                    <td>{row.ip}</td>
+                    <td title="ChLaw.json 的 UpdateDate">{row.ver}</td>
+                    <td>{row.v}</td>
+                  </tr>
                 {/each}
               </tbody>
             </table>
