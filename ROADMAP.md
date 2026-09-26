@@ -353,6 +353,26 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
    x570 離線時本機備援仍可答（沿用 §4.1 驗證法）。✅ mbp：`/health` host_id=mbp、
    `/query` src=mbp（conf=high）、usage 寫回共享 registry。**mbp 已完成，msi 沿用本清單。**
 
+#### ⛔ MSI 阻塞點：Docker Desktop 的 WSL integration 未開（2026-09-26 實測）
+
+MSI 的 WSL 內**沒有 `docker` 指令**，而 Windows 側的 `docker.exe` 也連不上引擎：
+
+```
+$ docker
+command not found
+$ "/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe" version
+failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+```
+
+**需使用者在 Windows 端操作**（opencode 做不到：WSL 內無權限、無 GUI）：
+1. 開啟 **Docker Desktop**（WSL 內的 docker 依賴它提供引擎，WSL 沒有獨立 daemon 的選項）。
+2. Settings → Resources → WSL Integration → 勾選 **Ubuntu**（本 repo 使用的 distro）→ Apply。
+3. WSL 內重開終端，`docker version` 應能通。
+
+⚠️ **連帶影響**：`compose.yaml` 釘死的 image tag（`qdrant/qdrant:v1.19.1`、
+`pgvector/pgvector:0.8.6-pg16`）**在 MSI 上尚未實際生效過** —— mbp 與 x570 才是首兩台
+真正拉取釘版映像的機器。MSI 啟用後一併確認 `docker compose config`、三容器 up、與 `laws` 筆數。
+
 **mbp 容器的連線筆記（OrbStack 特有）**：容器內 `host.orbstack.internal` 不解析（2026-09-26
 實測 DNS 失敗）；mbp ollama 綁 `*:11434`，容器直接連本機 **tailscale `100.64.121.9:11434`**
 即可（`OLLAMA_URLS` 首項設此）。
@@ -870,6 +890,66 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   LLM 掛了 fallback 基本敘述，保證有回應。jud 對法名命中顯示「法名｜《…》」，前端標「簡介」徽章。
 - pytest：`LAW_QUERIES` 29 組法名/簡稱表，驗證 detect、永不 no_match、基本敘述不含第1條
   （56 tests 全過）；`/eval` hit_rate 14/14、neg 5/5 維持。
+
+### 4.13 GitHub 自動化：三項待辦（2026-09-26 記錄，尚未做）
+
+2026-09-26 補上 `.github/`（CI＋Dependabot）、釘版、ruleset 後，剩下三件要人或要決策的事。
+背景見 `ARCHITECTURE.md`〈三機紀律的 server 端執行〉與〈依賴與映像版號策略〉。
+
+#### 待辦 1：GitHub MCP Server 的 OAuth 授權（**MSI 卡在這裡**）
+
+`~/.config/opencode/opencode.json` 已加好 GitHub 官方託管的遠端 server
+（`mcp.servers.github` → `https://api.githubcopilot.com/mcp/`），但 `opencode mcp list`
+顯示 `needs authentication`。**這步只能由使用者在介面完成**：
+
+- **MSI**：開 opencode → 輸入 `/mcps` → 選 `github` → 登入（走 GitHub OAuth）。
+- **mbp / x570**：要加就各自把 `mcp` 區塊併入自己的 global config，再 `/mcps` 登入一次
+  （OAuth 是 per-machine 的，MSI 登完不會同步過去）。
+- ⚠️ **不要從 shell 跑 `opencode mcp auth`** —— 互動流程的授權連結會被背景行程輸出吃掉，
+  只會得到一個看似卡住的指令。
+
+寫法注意：opencode **V2** 的 server 要放 `mcp.servers.<name>`（V1 的 `mcp.<name>` 會被靜默忽略），
+停用用 `disabled` 而非 `enabled`。細節見 `settings/opencode/README.md`〈MCP〉。
+
+#### 待辦 2：合併 Dependabot PR 時，commit 訊息要帶機器前綴
+
+Dependabot 已開出 PR（#1 asyncpg／#2 fastapi／#3 adapter-auto／#4 pydantic 等）。
+GitHub squash merge **預設拿 PR 標題當 commit message**，而標題形如
+`build(deps): update fastapi ...` 沒有 `msi:` 前綴 → ci.yml 的 `護欄` job 會報紅。
+
+- 合併前改訊息（UI 合併時可編輯），或直接：
+  ```bash
+  gh pr merge <編號> --squash --subject "msi: bump fastapi 0.141.1"
+  ```
+- 順帶一提：commit 前綴**無法**在 server 端用 ruleset 擋（`commit_message_pattern` 只適用
+  enterprise 擁有的 repo，個人帳號拿不到，實測 422）。所以 `護欄` job 是「事後回報」，
+  真正擋得住的仍只有各機的 `.githooks/commit-msg`（見 ARCHITECTURE 同節）。
+
+#### 待辦 3：`secret_scanning_non_provider_patterns` 開不了 → 建議改用 CI 掃
+
+個人帳號的公開 repo **無法**開啟 `secret_scanning_non_provider_patterns`
+（API 接受請求但狀態維持 disabled，不報錯）。這個功能正是用來掃
+**非 provider 標準格式**的 key，而本 repo 正好有兩種在用：
+
+| 來源 | 格式 | 是否已被現有防護涵蓋 |
+|---|---|---|
+| Cloudflare AI Gateway | `cfut_...` | ❌ 非標準格式 |
+| NVIDIA NIM | `nvapi-...` | ❌ 非標準格式 |
+| GitHub PAT / OpenRouter | `ghp_...` / `sk-or-v1-...` | ✅ push protection 已擋 |
+
+`secret_scanning` ＋ `secret_scanning_push_protection` 本身**已開**（公開 repo 免費），
+2026-09-26 已掃過全歷史 169 個 commit，那兩種格式都是 **0 命中**。
+
+**建議的替代做法**（未實作，約 5 行）：在 ci.yml 的 `護欄` job 加一個 step，
+對被追蹤檔案 grep 專案自有的 key 格式：
+
+```bash
+git grep -nE 'cfut_[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{20,}'
+```
+
+好處是能掃到 `.env.example`、文件、腳本、workflow 檔這些**常被誤放 key 的地方**，
+而 GitHub 內建的掃描只看「provider 認得」的格式。`.env` 本身 gitignored，所以真正要防的是
+「有人把 key 抄進範例檔或文件」。
 
 ---
 
