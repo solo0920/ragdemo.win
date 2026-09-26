@@ -132,10 +132,14 @@ async def query(q: Query):
     try:
         return await rag.answer(q.question, q.recall, q.top_k, model=q.model)
     except httpx.HTTPStatusError as e:
+        # 別再一律標成「LLM 上游」：檢索(qdrant)、嵌入(ollama)、gateway 全都丟同一個
+        # HTTPStatusError。標錯會把 qdrant 的 400 顯示成「LLM 故障」，排查時被帶去錯的方向
+        # （2026-09-26 實測踩過）。改用實際請求的 host。
+        host = e.response.request.url.host
         return JSONResponse(
             status_code=e.response.status_code,
             content={"ok": False,
-                     "detail": f"LLM 上游（{e.response.status_code}）失敗：{e.response.text[:200]}"},
+                     "detail": f"上游（{host}）回 {e.response.status_code}：{e.response.text[:200]}"},
         )
     except rag.GatewayUnconfigured as e:
         return JSONResponse(status_code=503, content={"ok": False, "detail": str(e)})

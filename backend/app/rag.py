@@ -847,7 +847,10 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
                 hits = top + [h for h in hits if h["id"] not in lid]
         return hits
     if _HAS_NAMED:
-        body = {"vector": {"dense": vector}, "limit": limit, "with_payload": True}
+        # /points/search 對具名向量要 {"name":..,"vector":..}；{"dense": ..} 是
+        # /points/upsert 與 /points/query+using 的形式，在這裡會被 400
+        # （"did not match any variant of untagged enum NamedVectorStruct"）。
+        body = {"vector": {"name": "dense", "vector": vector}, "limit": limit, "with_payload": True}
     else:
         body = {"vector": vector, "limit": limit, "with_payload": True}
     r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/search",
