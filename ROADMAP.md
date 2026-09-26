@@ -353,25 +353,108 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
    x570 離線時本機備援仍可答（沿用 §4.1 驗證法）。✅ mbp：`/health` host_id=mbp、
    `/query` src=mbp（conf=high）、usage 寫回共享 registry。**mbp 已完成，msi 沿用本清單。**
 
-#### ⛔ MSI 阻塞點：Docker Desktop 的 WSL integration 未開（2026-09-26 實測）
+#### ✅ MSI 阻塞點已解除：Docker Desktop 的 WSL integration 已開（2026-09-26）
 
-MSI 的 WSL 內**沒有 `docker` 指令**，而 Windows 側的 `docker.exe` 也連不上引擎：
+原先的診斷是「MSI 的 WSL 內沒有 `docker` 指令」。**啟用 integration 後該敘述已不適用**：
+WSL integration 會把 Linux 版 CLI 與 socket 一起掛進 distro。
 
 ```
-$ docker
-command not found
-$ "/mnt/c/Program Files/Docker/Docker/resources/bin/docker.exe" version
-failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+$ ls -l /var/run/docker.sock
+srw-rw---- 1 root docker 0 /run/docker.sock
+$ wsl.exe -l -v
+  Ubuntu          Running  2
+  docker-desktop  Running  2      ← engine 住在這裡，不是獨立的 WSL daemon
+$ docker version
+  Client: 29.8.0 / Server: Docker Desktop 4.92.0 (Engine 29.8.0, containerd 2.3.5)
+  Storage Driver: overlayfs   Cgroup: cgroupfs v2   32 CPU / 15.21 GiB
 ```
 
-**需使用者在 Windows 端操作**（opencode 做不到：WSL 內無權限、無 GUI）：
-1. 開啟 **Docker Desktop**（WSL 內的 docker 依賴它提供引擎，WSL 沒有獨立 daemon 的選項）。
-2. Settings → Resources → WSL Integration → 勾選 **Ubuntu**（本 repo 使用的 distro）→ Apply。
-3. WSL 內重開終端，`docker version` 應能通。
+`docker.sock` 是 `root:docker 0660`，所以 `solo` 必須在 `docker` 群組（已在）。
+判斷「能不能用」要看 **socket + Server 段**，不是看 `docker` 指令在不在。
 
-⚠️ **連帶影響**：`compose.yaml` 釘死的 image tag（`qdrant/qdrant:v1.19.1`、
-`pgvector/pgvector:0.8.6-pg16`）**在 MSI 上尚未實際生效過** —— mbp 與 x570 才是首兩台
-真正拉取釘版映像的機器。MSI 啟用後一併確認 `docker compose config`、三容器 up、與 `laws` 筆數。
+##### 釘死的 image tag 首次在 MSI 實測（此前僅 mbp／x570 驗過）
+
+```
+qdrant/qdrant:v1.19.1        ✅ docker.io/qdrant/qdrant@sha256:12364fe851b9f1735…  linux/amd64
+pgvector/pgvector:0.8.6-pg16 ✅ docker.io/pgvector/pgvector@sha256:ccc6e83d6e35e931…  linux/amd64
+```
+
+`${TS_IP}` 綁定在 MSI 可用 —— Docker Desktop 的 port proxy 接受 `100.65.68.106`，
+從 WSL 經該 IP 實測通（`GET /` 回 `version 1.19.1`）；走 `127.0.0.1` **反而不通**，
+證明綁定是 IP 專屬的（這是想要的性質：阻斷 loopback 與 LAN）。
+⚠️ WSL 內**沒有 tailscale 介面**（只有 `lo` 與 `eth0 172.18.125.39`），tailscale 跑在
+Windows host 上；`TS_IP` 仍要填 host 的 `100.65.68.106`。
+
+##### `laws` 資料搬遷：39,879 筆，用 snapshot 無損還原
+
+原生 qdrant 與釘死的 tag **同為 1.19.1**，所以 snapshot 沒有相容性風險。
+
+| 步驟 | 做法 |
+|---|---|
+| 建 | `POST /collections/laws/snapshots?wait=true`（原生） |
+| 取 | `GET /collections/laws/snapshots/<name>` → 301,166,080 B（POSIX tar） |
+| 放 | `docker cp` 進容器 `/qdrant/snapshots/import.snapshot` |
+| 還 | `PUT /collections/laws/snapshots/recover`，body `{"location":"file:///…","priority":"snapshot"}` |
+
+⚠️ **三個容易踩的坑**：
+
+1. **路由是 `recover` 不是 `upload`**。`upload` 是 **shard 層級**的
+   （`/collections/{c}/shards/{s}/snapshots/upload`）；collection 層級在 1.19 是 `recover`。
+   打 `upload` 會得到 404，而且 `openapi.json` 在 release build **不提供**（兩台都 404），
+   只能從執行檔挖字串或靠 400/404 差異辨別。
+2. **`recover` 的 body 是 JSON 不是二進位**，且 JSON 上限 32 MiB
+   （`"JSON payload (301166080 bytes) is larger than allowed"`）—— 287 MB 必須先
+   `docker cp` 進容器再用 `file://`，不能直接 POST。
+3. **目標 collection 要先存在**，因為 router 是按 collection 註冊的
+   （不存在時上傳直接 404、`size_upload: 0`）。
+
+**無損驗證**（不只是比筆數）：取原生任一點的向量當查詢，兩邊同查 —— id 順序完全相同、
+分數差 < 1e-6、自匹配 `score=1.000000`、payload 欄位一致。還原後 `status=green`、
+`optimizer_status=ok`、`indexed_vectors_count=39879`、8 segments、config 與原生相同。
+且撐過容器 `--force-recreate`（volume 持久化有效）。
+
+##### ⚠️ 已知非問題：勞動基準法第39條不在 corpus
+
+過往拿「勞動基準法第39條」當 MSI 的驗證題，但 `law_name=勞動基準法 AND article_no=39`
+在 corpus 裡是 **0 筆**（勞動基準法本身有，第39條沒有）。所以 `/query` 回 `no_match` 是
+**正確行為**，不是檢索壞掉。改用 corpus 內確實存在的條文驗證：問民法第184條 →
+`no_match=false`、`confidence=medium`、`relevance=cos@0.62`、**第184條排第一**（191、191-3
+條隨後），回答引用真實條文。
+
+##### 🔴 順帶修掉兩個真 bug（都不是容器化造成的）
+
+1. **`rag.py` `/points/search` 的具名向量格式錯誤**：`{"vector": {"dense": vec}}` 會被
+   qdrant 400（`did not match any variant of untagged enum NamedVectorStruct`）。
+   `/points/search` 要的是 `{"name": "dense", "vector": vec}`；`{"dense": …}` 是
+   `/points/upsert` 與 `/points/query`+`using` 的形式。MSI 走得到這條分支是因為
+   `HAS_SPARSE=False` 且 `_HAS_NAMED=True`（collection 有 dense 具名向量）。
+2. **`main.py` 把所有上游錯誤標成「LLM 上游」**：`except httpx.HTTPStatusError` 會同時
+   捕獲 qdrant／ollama／gateway，於是 qdrant 的 400 被顯示成「LLM 故障」。
+   這個誤導讓診斷多繞了一圈 —— 改為回報實際請求的 host。
+
+##### MSI 現況：三容器 up，舊原生程序已收掉
+
+```
+ragdemo-qdrant-1     Up   100.65.68.106:6333->6333/tcp
+ragdemo-postgres-1  Up   100.65.68.106:5432->5432/tcp
+ragdemo-api-1       Up   127.0.0.1:8000->8000/tcp
+```
+
+已移除：crontab 的 `ragdemo-api.sh` loop、`~/bin/ragdemo-api.sh`、原生 qdrant 行程
+（pid 293 已停，資料已驗證等於容器內的副本）。crontab 保留 cloudflared tunnel 與
+snapshot 同步，同步的 `DEST` 已由 `http://127.0.0.1:6333` 改為 `http://100.65.68.106:6333`。
+MSI 另建了 root `.env`（`chmod 600`，`.gitignore:9` 已忽略，不進版控）。
+
+##### 🔴 x570 的資料服務目前是離線的（與 MSI 容器化無關）
+
+`100.119.83.111` 在線（ollama `11434` 通），但 **`5432` 與 `6333` 都不通** —— postgres 與
+qdrant 沒跑。連帶影響：
+
+- MSI `POSTGRES_DSN` 指向 x570，`/hosts` 回空（共享 registry 無法讀）。
+- snapshot 同步 cron **每 10 分鐘記一次 skip**（`~/qdrant/sync.log`），
+  MSI 的備援資料因此不會更新。
+- MSI 的 `/health` 回 `ok: true` **掩蓋了這件事** —— 它只檢查本地 qdrant 與 LLM，
+  不檢查 registry。health 檢查項目不足，是後續可補的監測缺口。
 
 **mbp 容器的連線筆記（OrbStack 特有）**：容器內 `host.orbstack.internal` 不解析（2026-09-26
 實測 DNS 失敗）；mbp ollama 綁 `*:11434`，容器直接連本機 **tailscale `100.64.121.9:11434`**
