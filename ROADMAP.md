@@ -694,6 +694,47 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 - 教訓：**「拔線」≠「離線」**；排查時先確認目標機的實際網路路徑（LAN/Wi-Fi/tailscale），
   勿以單次 HTTP 000 或直覺判定主機死亡。
 
+**特殊狀況：關機／重開機 —— 不要「先 docker stop 再關機」**
+- 現象（2026-09-26）：x570 關機後開機，主機在線（ollama 11434 還通）但
+  **postgres(5432) 與 qdrant(6333) 不通**，連帶讓 msi 的 `/hosts` 回空、
+  快照同步每 10 分鐘記一次 skip。
+- ❌ **不要用這種「安全關機」別名**：
+  ```bash
+  # 危險：會讓開機自動恢復失效
+  alias sdown='sudo docker stop $(sudo docker ps -q); sync; sync; sudo shutdown now'
+  ```
+  官方文件對 `unless-stopped` 的定義是：「Similar to `always`, except that when the
+  container is stopped (**manually or otherwise**), it isn't restarted **even after Docker
+  daemon restarts**」。三機的 api/qdrant/pg **全部**是 `unless-stopped`，
+  所以手動 `docker stop` 過的容器，**開機後不會自啟**，必須手動 `docker compose up -d`
+  —— 等於把 §4.1.1 驗過的開機自動恢復作廢。
+  （旁證：2026-09-26 MSI 重開機後 `ragdemo-api-1` 是 `exited` 而 qdrant/pg 是 `running`，
+  正是「曾被手動停過」的樣子。）
+- ✅ **正確做法：`sudo systemctl poweroff`，不必做任何前置動作**
+  | 別名前置動作 | 為何不必要 |
+  |---|---|
+  | `docker stop` | dockerd 收到 SIGTERM 自己會依序停容器（預設每個 10s 逾時）。手動停反而**關掉自動恢復**。 |
+  | `sync && sync` | 三台都是 ext4（journaling fs），`sync` 早已是 no-op。 |
+  | 換成 `poweroff` | systemd 上 `/usr/sbin/shutdown` **就是** `systemctl` 的 symlink（實測 `-> ../bin/systemctl`），`shutdown now`／`poweroff`／`halt` 行為完全一致。 |
+- 順帶把 `docker update --restart unless-stopped $(docker ps -q)` 記下來：若真的手動停過容器，
+  這行可讓它們重新納入自動恢復管轄。
+- **若已發生「開機後容器沒起來」**：
+  ```bash
+  docker compose up -d            # 三容器（會保留 named volume，不會清資料）
+  bash ~/bin/ragdemo-boot-check   # 逐項驗證
+  ```
+- ⚠️ **2026-09-26 x570 事件的根因尚未證實**。曾懷疑是關機前處於 suspend（S3）、
+  喚醒時從記憶體映像恢復，但 `systemd-analyze cat-config systemd/logind.conf` 顯示
+  `IdleAction` 未設定（預設 `ignore`，不會自動睡眠）、`HandleLidSwitch` 預設 `suspend`
+  只在合上上蓋時觸發（x570 是桌機）—— **該假設不成立，已撤回**。
+  要查真相請在 **x570 上**跑：
+  ```bash
+  systemctl is-system-running; systemctl status docker --no-pager
+  docker ps -a --format '{{.Names}}\t{{.Status}}'   # 看是否「曾被手動停止」
+  journalctl -b -u docker --no-pager | tail -40      # 開機時 daemon 狀況
+  journalctl --list-boots | head -5                  # 確認上次是否真的完整關機
+  ```
+
 **特殊狀況：資料庫只有 3 筆 demo → /query 回「找不到，不要編造」**
 - 現象：問「欠薪/勞基法」，回答「找不到，不要編造」，但引用列出刑法271/民法259/判決123。
 - 原因：`laws` collection 目前僅 3 筆 demo（刑法271、民法259、判決123，x570/本機一致），
