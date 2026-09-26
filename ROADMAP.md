@@ -654,6 +654,9 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   → worker 原封轉傳 → 前端 `+page.svelte` 的 `statusRows()` 組 **HTML `<table>`** 顯示
   （不用純文字 md，瀏覽器才不會整排錯位）。
 - **mbp / msi 交接：比照 x570 設計**，pull＋重啟後端後即自動生效：
+    > ⚠️ **已被 2026-09-26 的 §4.1.1 容器化取代**（此段保留為 2026-09-23 的決策紀錄）：
+    > msi 的 `~/bin/ragdemo-api.sh` 與原生 uvicorn/qdrant 已移除，現為三容器 compose。
+    > 換機後請改用 `docker compose up -d --build`（見 ARCHITECTURE「啟動」節的 MSI 段）。
   - `git pull origin main`；msi 先 `pkill -f 'uvicorn.*8000'` 再 `bash ~/bin/ragdemo-api.sh`
     （ragdemo-api.sh 偵到 8000 在跑會跳過，不重拉新碼）；mbp 用 docker compose 重啟
     （`docker compose up -d --build api`）。

@@ -95,9 +95,13 @@ scripts/
 * **mbp 100.64.121.9**：加速。api/qdrant/pg **全 docker compose（三容器，OrbStack runtime）**，
   `LLM_MODEL=qwen3:14b`（本機 ollama）＋qdrant 本機備援（快照同步來自 x570）；
   容器 api 的 `POSTGRES_DSN` 指 x570 共享 registry（見 ROADMAP §4.1.1）。
-* **msi 100.65.68.106（demo）**：api 在 WSL2（`~/bin/ragdemo-api.sh`，開機自動啟動）＋本機 qdrant 備援，
-  `LLM_MODEL=qwen3:8b`（2026-09-23 由 4b 換上：4b 的 `think:false` 是已知 bug）。
-  （規劃遷移 docker compose——見 ROADMAP §4.1.1）
+* **msi 100.65.68.106（demo）**：api/qdrant/pg **全 docker compose（三容器，Docker Desktop
+  4.92 + WSL integration，2026-09-26 容器化）**，`LLM_MODEL=qwen3:8b`（2026-09-23 由 4b 換上：
+  4b 的 `think:false` 是已知 bug）＋qdrant 本機備援（快照同步來自 x570）。
+  容器 api 的 `POSTGRES_DSN` 指 x570 共享 registry。**注意 WSL 內沒有 tailscale 介面**，
+  tailscale 跑在 Windows host 上，`TS_IP` 仍填 host 的 `100.65.68.106`。
+  開機自啟＝Docker Desktop `AutoStart` ＋ Startup 的 `wsl-ubuntu-start.vbs`（拉起 distro，
+  因為五個 bind mount 來自它；細節見 ROADMAP §4.1.1）。
 
 ## 資安收斂（2026-09-26 定案）
 
@@ -141,7 +145,7 @@ scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 
    │  下載 → 本機刪舊 collection → 重建 → upload?priority=snapshot 還原
    │  驗證點數與 x570 一致 → 更新 state；順手清 x570 舊快照
    ▼
-各機本機 qdrant（MSI: 127.0.0.1:6333 ✅ / mbp: 127.0.0.1:6333 ✅）
+各機本機 qdrant（容器化後一律綁 `${TS_IP}:6333`，非 loopback）
 ```
 
 - 快照很小（目前 3 筆≈174KB；500~1000 筆≈10–60MB, zstd），同步成本低。
@@ -152,7 +156,9 @@ scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 
 
 ### QDRANT_URLS 降級（全 tailscale＋本機）
 ```
-QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
+QDRANT_URLS=http://100.119.83.111:6333,http://${TS_IP}:6333
+# ⚠️ 容器內其實用不到這行：compose 只傳 QDRANT_URL=http://qdrant:6333（服務名解析），
+#    不傳 QDRANT_URLS。此變數只影響「原生執行」的情況（已全數容器化 → 現行無作用）
 ```
 `rag.py _pick()`：依序試候選，首個通連者快取；連線錯誤自動降級下一個。
 → x570 在線用 x570（最新）；離線自動切本機（快照資料），query 不中斷。
@@ -199,7 +205,7 @@ gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段 `/openrouter` 換 `/google-ai-st
 
 ## 服務埠（2026-09-26 收斂後）
 * 8000 api：x570 docker compose／mbp／msi，全綁 `127.0.0.1`（公網只經 cloudflared tunnel）
-* 6333 qdrant：x570 綁 `${TS_IP}:6333`；MSI/mbp 本機備援綁 `127.0.0.1:6333`
+* 6333 qdrant：三機一律綁 `${TS_IP}:6333`（容器化後無 loopback 例外）
 * 5432 postgres：x570 綁 `${TS_IP}:5432`（mbp/msi 心跳經 tailscale 存取）
 * 5173 前端 dev（本機）／11434 ollama（各機 native，綁 localhost）
 
@@ -212,8 +218,9 @@ gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段 `/openrouter` 換 `/google-ai-st
 ### keepalive 兩層（進程層＋edge 長連線）
 1. **進程層**：cloudflared tunnel 崩潰——x570/msi 用 crontab `restart loop`（每 5s 重拉），
    mbp 用 launchd `com.ragdemo.tunnel` `KeepAlive=true`。api/qdrant/pg 三機一律 docker compose
-   `restart: unless-stopped`（mbp＝OrbStack，隨登入啟動；2026-09-26 容器化）；msi 未遷移前用
-   crontab 每 30s 冪等檢查 `~/bin/ragdemo-api.sh`（見 §4.1.1）。cloudflared 一律 `--protocol http2`。
+   `restart: unless-stopped`（mbp＝OrbStack，隨登入啟動；msi＝Docker Desktop，隨 Docker Desktop
+   啟動 —— 2026-09-26 兩台皆完成容器化，msi 的 crontab 冪等檢查與 `~/bin/ragdemo-api.sh` 已移除）。
+   cloudflared 一律 `--protocol http2`。
 2. **edge 連線層**：`curl http://127.0.0.1:20241/metrics` 應見 4 條連線、errors=0。
 
 ### mbp 限制（2026-09-24 確認，2026-09-26 容器化後仍適用）
@@ -280,7 +287,8 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
 * 判決注意個資去識別化，回答僅供參考非法律意見
 * 精簡包擴到 500~1000 筆（目前 3 筆，同步機制已就位）
 * 需離線 `/hosts` → mbp/msi 另建 pg 副本（低優先）
-* mbp 已容器化（2026-09-26，OrbStack）；msi 遷移 docker compose（ROADMAP §4.1.1）
+* 三機皆已容器化（2026-09-26：x570／mbp OrbStack／msi Docker Desktop）；
+  殘餘的原生相依是 **ollama（Windows/macOS 主機，三機共用不容器化）與 cloudflared tunnel**
 * OPENROUTER 真餘額顯示需 management key（外部資源暫無）
 
 ## 啟動
@@ -291,10 +299,12 @@ docker compose up -d --build   # 首次建 api 映像，之後改碼加 --build
 curl localhost:8000/health     # 得 host_id=x570
 cd frontend && pnpm install && pnpm run build && pnpm run dev   # pnpm（非 npm）
 ```
-**MSI（WSL2，吃 Windows 本機 ollama；未遷移）**：
+**MSI（WSL2 ＋ Docker Desktop，吃 Windows 本機 ollama；2026-09-26 容器化）**：
 ```bash
-bash ~/bin/ragdemo-api.sh      # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5/2.7）
+# 前置：Docker Desktop 已開且 WSL integration 已勾 Ubuntu（否則 distro 內無 docker）
+docker compose up -d --build   # 改 api 碼後加 --build；qdrant/pg 不必動
 curl localhost:8000/health     # 回 host_id=msi, llm=qwen3:8b
+# 開機自啟：Docker Desktop AutoStart ＋ Startup 的 wsl-ubuntu-start.vbs（拉起 distro）
 ```
 **mbp（docker compose，OrbStack，2026-09-26 容器化）**：
 ```bash
@@ -308,11 +318,17 @@ cd frontend && pnpm run dev      # 前端 dev（proxy → localhost:8000，需 N
 ## 備援同步操作
 ```bash
 bash scripts/sync-snapshot.sh [source_url] [dest_url] [collection]
-# 例：  bash scripts/sync-snapshot.sh http://100.119.83.111:6333 http://127.0.0.1:6333
+# 例：  bash scripts/sync-snapshot.sh http://100.119.83.111:6333 http://100.65.68.106:6333
 # 排程：MSI 用 crontab（*/10）；mbp 用 launchd com.ragdemo.sync-snapshot（每 10 分鐘＋登入）
 # x570 已開 qdrant key → 排程環境要帶 QDRANT_API_KEY（見資安收斂/§4.1.1）
 ```
+⚠️ **dest 必須是容器綁的 `${TS_IP}:6333`，不是 `127.0.0.1:6333`** —— compose 只發布到
+tailscale IP，綁 loopback 會連不上（容器化後 MSI 踩過）。省略第二參數時腳本會用
+`http://${TS_IP:-127.0.0.1}:6333`，但 cron 環境若沒帶 `TS_IP` 就會退回 loopback 而失效。
+
 log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`（點數＋快照名，未變化即 skip）。
+`~/qdrant` 在容器化後**只是腳本自建的暫存目錄**（放 log/state/tmp snapshot），
+不再是 qdrant 的資料目錄 —— 資料在 `ragdemo_qdrant_data` volume 裡。
 
 ## Demo 精簡包
 x570 全量 → 精選 500~1000 筆 → 靠 `sync-snapshot.sh` 快照機制同步到各機本機 qdrant，
