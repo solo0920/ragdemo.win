@@ -1,0 +1,12 @@
+# sops 加密規則：settings/env 下的 secrets.*.enc.env 用 age 加密。
+# 公鑰可進版控（本來就是公開的）；私鑰在各機 ~/.config/sops/age/keys.txt，絕不進 repo。
+# 新增機器：把它的 age1... 公鑰加進下面 recipients，然後跑
+#   sops updatekeys settings/env/secrets.common.enc.env
+# 舊 key 外洩時：換值 + sops rotate？本專案直接改值重加密即可（三台 pull 後 env-sync.sh pull）。
+creation_rules:
+  - path_regex: settings/env/secrets\..*\.enc\.env$
+    age:
+      # msi（2026-09-27 建；MSI WSL）
+      - age19et4d4etz4ptsp2s58838ffmfgzq8sfw3c775xc2gewgh74wtexqgej86q
+      # TODO: x570 公鑰（在 x570 跑 age-keygen，把 age1... 貼進 X570-HANDOFF 回報，不要貼私鑰）
+      # TODO: mbp 公鑰（同上，mbp 回報）

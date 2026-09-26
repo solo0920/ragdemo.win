@@ -7,6 +7,12 @@ __pycache__/
 .venv/
 *.egg-info/
 .env
+# env-sync 分層（settings/env/README.md）：hosts 真值與解密暫存絕不進版控。
+# 注意：settings/env/secrets.*.enc.env 是「加密後」要追蹤的，故不在此列。
+settings/env/hosts/*.env
+settings/env/.decrypted.*
+settings/env/.init-secrets.*
+settings/env/secrets.common.env
 *.log
 .uvicorn.pid
 dist/

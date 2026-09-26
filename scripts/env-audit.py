@@ -112,6 +112,9 @@ TOOL_ENV = {
     "HOSTNAME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
     "COLORTERM", "NO_COLOR", "FORCE_COLOR", "SSL_CERT_FILE", "SSL_CERT_DIR",
     "SSLKEYLOGFILE", "SYSTEMROOT", "HOMEDRIVE", "HOMEPATH", "PATHEXT",
+    # 本專案測試 harness 的覆寫點（tests/test_env_sync.py 用 fixture 目錄
+    # 隔離執行 scripts/env-sync.sh；不是給 .env 設的，不進 .env.example）
+    "ENV_SYNC_DIR", "ENV_SYNC_ENV",
 }
 
 SECRET_HINT = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)", re.I)

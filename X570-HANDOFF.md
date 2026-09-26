@@ -202,7 +202,36 @@ crontab -l | grep sync_daily || echo "尚未排程"
 2. POSTGRES_PASSWORD：A 的結果=___ backends 列數=___ 指紋=xxx → 判定是 ___
 3. 關機根因：boots=___ docker 錯誤=___ 容器 restart policy=___ logind=___
 4. ingest：duckdb=___ POSTGRES_DSN=___ dry-run 結果=___ 排程=___
+5. age 公鑰：age1...（64 字，見下）
 ```
+
+## 事項 5：提供 x570 的 age 公鑰（2026-09-27 新增，共用憑證改走加密分發）
+
+9 把共用憑證改走 `settings/env/`＋`sops`+`age`（見該目錄 `README.md`）。
+x570 要能解密，需把它的公鑰加進 `.sops.yaml`。**公鑰本來就是公開的，
+可以貼；私鑰絕對不要貼。**
+
+```bash
+# Ubuntu/WSL（免 sudo，裝到 ~/.local/bin）
+curl -fsSL -o /tmp/opencode/age.tar.gz \
+  https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+mkdir -p /tmp/opencode/age-out ~/.local/bin
+tar xzf /tmp/opencode/age.tar.gz -C /tmp/opencode/age-out
+cp /tmp/opencode/age-out/age/age /tmp/opencode/age-out/age/age-keygen ~/.local/bin/
+# sops 同理：getsops/sops v3.13.3 的 sops-v3.13.3.linux.amd64 → ~/.local/bin/sops
+
+# 生 key（已有則跳過，絕不重建）
+mkdir -p ~/.config/sops/age && chmod 700 ~/.config/sops ~/.config/sops/age
+[ -f ~/.config/sops/age/keys.txt ] || age-keygen -o ~/.config/sops/age/keys.txt
+chmod 600 ~/.config/sops/age/keys.txt
+
+# 回報這行（公鑰，可貼）
+grep -oE 'age1[0-9a-z]+' ~/.config/sops/age/keys.txt
+```
+
+收到公鑰後，MSI 側跑 `sops updatekeys settings/env/secrets.common.enc.env`
+並 push，x570 再 `pull`＋`scripts/env-sync.sh pull` 即可（mbp 同理，
+macOS 用 `brew install age sops`）。
 
 ## 不要做的事
 

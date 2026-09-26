@@ -147,6 +147,11 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
   兩份並存時 `QDRANT_API_KEY` 曾漂移，造成「本機 200、遠端 401」）。
   樣板／說明見根 `.env.example`（2026-09-26 改）；`python3 scripts/env-audit.py`
   可列出每個變數的消費者、幽靈變數與副本漂移；機台專屬變數加 `msi_`/`mbp_`/`x570_` 前綴。
+- **共用憑證分發（2026-09-27）**：9 把必須三台一致的憑證
+  （`QDRANT_API_KEY`／`QDRANT_PEER_API_KEY`／`POSTGRES_PASSWORD`／`ADMIN_TOKEN`／
+  `CF_AIG_TOKEN`／`HF_TOKEN`／`NVIDIA_API_KEY`／`TYPESAFE_API_KEY`／`ZEN_API_KEY`）
+  改走 `settings/env/` 分層＋`sops`+`age` 加密追蹤，`scripts/env-sync.sh pull`
+  合併進各機 `.env`（per-machine 鍵不動）。流程見 `settings/env/README.md`。
 - 掃描確認 git 無真實 token（git ls-files、.env 追蹤數 0、歷史/前端建置產物皆無）。
 
 ## 備援機制（x570 離線時各機獨立作業）
