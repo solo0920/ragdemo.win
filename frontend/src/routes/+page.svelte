@@ -30,6 +30,8 @@
   let showInfo = false;
   let status = null;
   let statusLoading = false;
+  const prefixOf = { openrouter: 'openrouter', zen: 'zen', nvidia: 'nv', gemini: 'gemini',
+                     groq: 'groq', cohere: 'cohere', hf: 'hf', mistral: 'mis', ollama: 'ollama' };
   let model = '';
   let localModels = [];
   let cloudModels = [];
@@ -88,8 +90,6 @@
       hfReady = !!d.hf_ready;
       mistralModels = d.mistral ?? [];
       mistralReady = !!d.mistral_ready;
-      const prefixOf = { openrouter: 'openrouter', zen: 'zen', nvidia: 'nv', gemini: 'gemini',
-                          groq: 'groq', cohere: 'cohere', hf: 'hf', mistral: 'mis', ollama: 'ollama' };
       const um = new Map();
       for (const u of (d.usage ?? [])) {
         const p = prefixOf[u.provider];
