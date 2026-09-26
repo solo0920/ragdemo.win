@@ -1,7 +1,10 @@
 name: ragdemo
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    # tag 釘死，不用 latest/latest-unprivileged：公開 repo ＋ 三機自動 pull，
+    # 上游 latest 若被投毒會三台一起中招且無人 review。2026-09-26 由 latest 釘到 v1.19.1。
+    # 升級方式：改這行 → docker compose pull && docker compose up -d → 驗 laws 筆數。
+    image: qdrant/qdrant:v1.19.1
     # 綁 tailscale 內網 IP：mbp/msi 備援 snapshot 由該 IP 拉取；阻斷 LAN(192.168)/公網。
     ports: ["${TS_IP}:6333:6333"]
     environment:
@@ -10,7 +13,9 @@ services:
     volumes: [qdrant_data:/qdrant/storage]
     restart: unless-stopped
   postgres:
-    image: pgvector/pgvector:pg16
+    # 同上：不釘死等於放浮動。pg16 tag 目前解析到 0.8.6，故釘 0.8.6-pg16。
+    # ⚠ pgvector 已有 pg18 變體，但 pg16→pg18 是跨大版本（需 dump/restore），不在本專案節奏內。
+    image: pgvector/pgvector:0.8.6-pg16
     # 綁 tailscale 內網 IP：mbp/msi 經 tailscale 連共享 registry（backends 心跳），
     # compose 內部連 postgres:5432 不受影響；阻斷 LAN(192.168)/公網。
     ports: ["${TS_IP}:5432:5432"]

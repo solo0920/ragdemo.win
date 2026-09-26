@@ -1,7 +1,9 @@
 [project]
 name = "ragdemo-api"
 version = "0.1.0"
-requires-python = ">=3.11"
+# 與根 pyproject.toml／.python-version／backend/Dockerfile（python3.12）對齊：
+# 原為 >=3.11，但實際產線跑 3.12，放寬下限只會讓某台機器裝 3.11 通過、行為卻與容器不一致。
+requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",

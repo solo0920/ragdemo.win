@@ -1,0 +1,106 @@
+# CI：把 .githooks/pre-push 的強制檢查搬到 GitHub Actions。
+#
+# 為什麼要有這份：pre-push 只在「按 push 的那台機器」上跑。三台機器各自一份
+# .githooks/，任何一台沒設 core.hooksPath（或有人用 --no-verify），檢查就不發生。
+# 公開 repo 讓 CI 成為可被外部驗證的證據，而不是各機自述。
+#
+# commit message 前綴（msi: / mbp: / x570:）不在這裡檢查 —— 那由 GitHub ruleset 的
+# commit_message_pattern 在 server 端強制，見 ARCHITECTURE.md〈三機紀律〉。
+#
+# action 以 SHA 釘死（後面註解標版本），與 compose.yaml 釘 image tag 同一個理由：
+# 公開 repo 加上游供應鏈被動過時，不該自動套用。Dependabot 會自動追 SHA 更新。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 唯讀權限：這份 workflow 不需要寫 repo（不發 comment、不開 PR）。
+permissions:
+  contents: read
+
+# 同一 ref 的新 push 取消舊 run：省 runner，且結果以最新 commit 為準。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      # 根 venv 供 tests/（pytest ＋ ragdemo-tools 依賴）；backend 依賴另外裝進同一個
+      # venv，這樣測試若哪天開始 import fastapi / pydantic，不會突然缺套件而失敗。
+      # 裝本專案只是為了帶進它的依賴 —— tests/ 是靠 tests/conftest.py 把 backend/
+      # 塞進 sys.path 來 import app.*，不依賴「已安裝」這件事。
+      # 兩種模式（editable / 非 editable）都會在 backend/ 留下 *.egg-info/（build
+      # backend 就在 source tree 寫），已由 .gitignore 的 `*.egg-info/` 擋掉。
+      - name: 安裝依賴
+        run: |
+          uv sync --frozen
+          uv pip install ./backend
+
+      - name: Python 語法檢查
+        run: |
+          fail=0
+          for f in backend/app/*.py; do
+            python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],"rb").read())' "$f" \
+              || { echo "::error::語法錯誤 $f"; fail=1; }
+          done
+          [ "$fail" -eq 0 ]
+
+      # IP 準則：被 git 追蹤的檔案不得出現 LAN_IP= 賦值。.env 不進版控所以抓不到，
+      # 但 .env.example / 文件 / 腳本若殘留即違規（見 ARCHITECTURE.md〈IP 準則〉）。
+      - name: IP 準則（無 LAN_IP= 殘留）
+        run: |
+          if git grep -nE '^LAN_IP=' --; then
+            echo "::error::追蹤檔案含 LAN_IP= 賦值，違反 IP 準則"
+            exit 1
+          fi
+          echo "✓ 無 LAN_IP= 殘留"
+
+      # 直接呼叫 venv 內的 pytest，不用 `uv run`：uv run 會重新 sync，會把上面
+      # uv pip install 裝進去的 backend 依賴視為 extraneous 而移除。
+      - name: pytest
+        run: .venv/bin/pytest -q -p no:cacheprovider
+
+  frontend:
+    name: frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # 下限寫在 frontend/package.json 的 engines（>=22.12）；這裡用 24（現行 LTS）。
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm run build
+        working-directory: frontend
+
+  compose:
+    name: compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # 驗證 compose.yaml 的 YAML 結構與變數插值。image tag 打錯、${VAR:?} 漏填，
+      # 在三台機器上都要等到 pull / up 時才爆；這裡先擋。
+      # POSTGRES_PASSWORD / TS_IP 給假值即可 —— 只驗證語法，不會真的啟動容器。
+      - name: docker compose config
+        env:
+          TS_IP: 100.119.83.111
+          POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
+        run: docker compose config -q

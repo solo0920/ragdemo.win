@@ -1,0 +1,67 @@
+# Dependabot：公開 repo 免費，2026-09-26 設定。
+#
+# 為什麼需要：本 repo 在 GitHub 上是 PUBLIC，卻沒有 .github/、沒有任何自動依賴監控，
+# dependabot_security_updates 也是關的。設定檔一併把五個生態系都開起來：
+#   github-actions → 追 ci.yml 裡釘死的 action SHA
+#   pip  /        → 根 pyproject.toml（ragdemo-tools：duckdb/numpy/pandas…，供 evals/ingest）
+#   pip  /backend → backend/pyproject.toml（fastapi/uvicorn/pydantic/asyncpg）
+#   npm  /frontend→ pnpm 依賴
+#   docker /      → compose.yaml 的 image tag（含本 repo 刻意釘死的 qdrant/pgvector）
+#
+# 公開 repo 不需要 registry / personal-access-token 欄位（Dependabot 自行唯讀存取）。
+# commit message 前綴不在這裡管：Dependabot 開 PR，最終 merge 進 main 的訊息由
+# ruleset 的 bypass_actors 放行（見 ARCHITECTURE.md〈三機紀律〉）。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      # patch 收成一個 PR：底層工具（duckdb/numpy/pandas）patch 更新多且無互動，
+      # 一次過一次看；minor 留著個別看（pandas 2→3 這種就是 minor，必須人工確認）。
+      patches:
+        update-types: [patch]
+
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patches:
+        update-types: [patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patches:
+        update-types: [patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      # qdrant / pgvector 一起升級，理由是兩者構成同一組資料層。
+      data-layer:
+        patterns: ['qdrant/qdrant', 'pgvector/pgvector']

@@ -5,6 +5,7 @@ build/
 __pycache__/
 *.pyc
 .venv/
+*.egg-info/
 .env
 *.log
 .uvicorn.pid

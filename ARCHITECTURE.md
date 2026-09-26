@@ -17,6 +17,7 @@ ingest/laws/       # 法規資料擷取/切分/落 PG（pg_load.py / pg_schema.s
 scripts/
   sync-snapshot.sh #   x570→本機 qdrant 快照自動同步（備援核心，支援 QDRANT_API_KEY）
 .opencode/agents/  # ingest / backend / frontend / eval 四個子代理
+.github/           # workflows/ci.yml（三 job）＋ dependabot.yml；見〈三機紀律的 server 端執行〉
 ```
 
 ## 設計目標（2026-09-22 定案）
@@ -55,6 +56,27 @@ scripts/
 - 各機啟用一次：`git config core.hooksPath .githooks`。
 - `pre-push` hook：強制 backend Python 語法＋追蹤檔無 `LAN_IP=`；本機 api 在線時報 `/health`；
   `RAGDEMO_SMOKE=1` 加跑 `/query`；離線只警告不擋。
+
+### 三機紀律的 server 端執行（2026-09-26 補齊）
+本 repo 在 GitHub 上是 **PUBLIC**，但上述紀律原本只存在於「按 push 的那台機器」——
+三台各有一份 hook，任何一台沒設 `core.hooksPath`（或用 `--no-verify`）就形同虛設。
+故在 GitHub 端補兩層，且**不影響三台既有的直接 push 流程**：
+
+| 紀律 | 本機 | GitHub 端 |
+|---|---|---|
+| commit 前綴 | `.githooks/commit-msg` | ruleset `commit_message_pattern`（regex，server 端擋 push） |
+| 語法／`LAN_IP=`／pytest | `.githooks/pre-push` | `.github/workflows/ci.yml`（三 job，全 push 都跑） |
+
+- **刻意不設** `required_status_checks`：那會要求「先推到別的分支、CI 過了才能進 main」，
+  與三機直接推 main 的現況衝突。要保留現況，就讓本機 hook 當第一道、CI 當可外部驗證的第二道。
+- **刻意不設** `non_fast_forward` / `required_linear_history`：保留 force-push 當逃生門，
+  且歷史含 merge commit。
+- ruleset 另含 `deletion`（禁刪 main）與 `max_file_size` 10 MB（防 qdrant 快照誤推上公開 repo）。
+- `dependabot[bot]` 列為 ruleset 的 bypass actor —— 它開的 PR 沒有機器前綴，
+  merge 進 main 會被前綴規則擋下，屬正常流程不該擋。
+- squash merge 時 **PR 標題要帶前綴**（GitHub 預設拿 PR 標題當 commit message）。
+- 設定 living 於 GitHub（不在 repo 內）：repo Settings → Rules → Rulesets；
+  `.github/` 只有 `workflows/ci.yml` 與 `dependabot.yml`。
 
 ## 三機分工（2026-09-26 現況）
 
@@ -206,6 +228,29 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
   `os.getenv("VAR", default)` 一致，否則「走 compose 的機器」與「直接跑 uvicorn 的機器」
   預設行為不同（2026-09-26 統一 `JEV_VERIFY_MIN`：compose 0.5 → 0.4，與 rag.py／`.env.example` 齊平）。
 - IP 準則：全部 tailscale 位址；本機服務才允許 127.0.0.1，不用 LAN_IP。
+
+## 依賴與映像版號策略（2026-09-26 定案）
+本 repo 公開、且三台自動 pull／自動 `docker compose up`，**沒有版號釘死的東西等於
+上游一出新版就三台同步換掉，無人 review**。故分兩類：
+
+**必須釘死（有 lock 不罩的）**
+- `compose.yaml` 的 image tag：`qdrant/qdrant:v1.19.1`、`pgvector/pgvector:0.8.6-pg16`。
+  原本寫 `latest` 與 `pg16`（浮動），改動僅為釘版，無行為變化。
+  升級流程：Dependabot 開 PR → 人工看 → `docker compose pull && up -d` → 驗 `laws` 筆數。
+- `.github/workflows/ci.yml` 的 action 以 commit SHA 釘死（註解標版本），Dependabot 追。
+
+**由 lock 罩住，不需額外釘**
+- Python：`uv.lock`（根＋backend）。`requires-python` 三處已對齊 **>=3.12**
+  （原 backend 寫 `>=3.11`、其餘 3.12，只會讓某台裝 3.11 通過但行為與容器不一致）。
+- 前端：`pnpm-lock.yaml` ＋ `packageManager: pnpm@12.6.0`。
+- `backend/Dockerfile` 的 `uv` base image **刻意不釘**：uv 沒發布帶版本的組合 tag
+  （實測 `0.12.19-python3.12-bookworm-slim` = 404），且 `uv sync --frozen` 下
+  真正決定依賴的是 `uv.lock`，uv 二進位版本影響很小 —— 與 image tag 不同類。
+
+- Node 下限 `>=22.12` 寫在 `frontend/package.json` 的 `engines`（取自 vite 8 與
+  `@sveltejs/vite-plugin-svelte` 的聯集；`wrangler` 只要求 `>=22.0`）。
+  2026-09 現況：24.x 為最新 LTS、20.x 已過期。**注意** pnpm 預設只警告不擋，
+  要硬擋需在 `frontend/.npmrc` 加 `engine-strict=true`（尚未加，因 x570 的 Node 版本未確認）。
 
 ## 評測門檻
 `POST /eval` hit_rate 未達 0.8 不進 UI，先修切分/召回。`evals/` 見 README。
