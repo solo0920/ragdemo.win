@@ -15,7 +15,12 @@
     "servers": {
       "github": {
         "type": "remote",
-        "url": "https://api.githubcopilot.com/mcp/"
+        "url": "https://api.githubcopilot.com/mcp/",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {file:/home/solo/.config/opencode/gh-token}",
+          "X-MCP-Toolsets": "context,repos,issues,pull_requests,actions,code_security,dependabot,secret_protection,governance"
+        }
       }
     }
   }

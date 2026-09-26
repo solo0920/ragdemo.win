@@ -896,20 +896,35 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
 2026-09-26 補上 `.github/`（CI＋Dependabot）、釘版、ruleset 後，剩下三件要人或要決策的事。
 背景見 `ARCHITECTURE.md`〈三機紀律的 server 端執行〉與〈依賴與映像版號策略〉。
 
-#### 待辦 1：GitHub MCP Server 的 OAuth 授權（**MSI 卡在這裡**）
+#### 待辦 1：GitHub MCP Server 授權 ✅ **已完成（2026-09-26，MSI）**
 
-`~/.config/opencode/opencode.json` 已加好 GitHub 官方託管的遠端 server
-（`mcp.servers.github` → `https://api.githubcopilot.com/mcp/`），但 `opencode mcp list`
-顯示 `needs authentication`。**這步只能由使用者在介面完成**：
+⚠️ **原以為走 OAuth，實測不可行**：`/mcps` 按 sign in 會得到
+`Incompatible auth server: does not support dynamic client registration`。
+opencode 的 OAuth 需要 dynamic client registration（RFC 7591，讓 client 自己註冊取得
+`client_id`），**GitHub 遠端 MCP 不支援**，它要求事先建好 GitHub App / OAuth App。
 
-- **MSI**：開 opencode → 輸入 `/mcps` → 選 `github` → 登入（走 GitHub OAuth）。
-- **mbp / x570**：要加就各自把 `mcp` 區塊併入自己的 global config，再 `/mcps` 登入一次
-  （OAuth 是 per-machine 的，MSI 登完不會同步過去）。
-- ⚠️ **不要從 shell 跑 `opencode mcp auth`** —— 互動流程的授權連結會被背景行程輸出吃掉，
-  只會得到一個看似卡住的指令。
+**已改用 PAT 認證並實測通過**：
+- `~/.config/opencode/gh-token`（`chmod 600`）存 token，config 只寫
+  `"Authorization": "Bearer {file:/home/solo/.config/opencode/gh-token}"` —— 與既有的
+  `cf-aig-token` 同一套做法，備份不含明碼密鑰（repo 是公開的，這點必須如此）。
+- **token 沿用 `gh` CLI 的憑證**（`gh auth token`）。實測 GitHub 遠端 MCP 接受它
+  （MCP `initialize` 握手 200，亂填的 token 是 401），所以不必另外申請。
+  代價：`gh` 與 opencode 共用同一份憑證，且其 scope 偏大（`repo`／`workflow`／`gist`）。
+  **若要收窄**，改申請 fine-grained PAT 只給這個 repo 的必要權限，覆寫該檔即可
+  （不確定遠端 MCP 是否接受 fine-grained PAT，換完要重驗 `opencode mcp list`）。
+- **另一個關鍵修正**：不設 `X-MCP-Toolsets` 時 server 只給預設 5 個 toolset
+  （`context,repos,issues,pull_requests,users`）＝ 45 個工具，**Dependabot alerts、
+  secret scanning alerts、code scanning、Actions 執行結果、ruleset 全部沒有** ——
+  等於接了白接。加上 `X-MCP-Toolsets` 後 45 → **57 個工具**，缺的都補回來。
+  無效 toolset 名稱會被**靜默忽略不報錯**，改完要實際驗工具數。
+- 實測結果：`get_me` → `solo0920`；Dependabot alerts 0、secret scanning alerts 0；
+  4 個 Dependabot PR 可讀；ruleset `main-禁刪分支` 可讀。
+  （`list_code_scanning_alerts` 回 404 `no analysis found` —— 這個 repo 沒啟用 code scanning，正常。）
 
-寫法注意：opencode **V2** 的 server 要放 `mcp.servers.<name>`（V1 的 `mcp.<name>` 會被靜默忽略），
-停用用 `disabled` 而非 `enabled`。細節見 `settings/opencode/README.md`〈MCP〉。
+**mbp / x570 若要加**：建自己的 `~/.config/opencode/gh-token`（`gh auth token > …` ＋
+`chmod 600`），併入同一個 `mcp` 區塊，`opencode mcp list` 應顯示 `✓ github  connected`。
+**PAT 認證沒有瀏覽器授權流程**，但 token 檔仍要各自建立（不會跨機同步）。
+完整寫法與 V1/V2 差異見 `settings/opencode/README.md`〈MCP〉。
 
 #### 待辦 2：合併 Dependabot PR 時，commit 訊息要帶機器前綴
 

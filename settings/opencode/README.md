@@ -162,40 +162,96 @@ opencode run "回覆:OK" --model openrouter/<model>:free   # 或 ollama/qwen3:14
 
 ---
 
-## 🔌 MCP：GitHub MCP Server（2026-09-26，MSI 已加）
+## 🔌 MCP：GitHub MCP Server（2026-09-26，MSI 已接好並實測）
 
-本 repo 在 GitHub 上是 **PUBLIC** 且已有 Dependabot / Actions / ruleset，agent 若要自己查
-Dependabot alerts、secret scanning alerts、Actions 執行結果、PR 狀態，不必再靠人工轉述。
+本 repo 在 GitHub 上是 **PUBLIC** 且已有 Dependabot / Actions / ruleset，agent 可自己查
+Dependabot alerts、secret scanning alerts、Actions 執行結果、PR 與 ruleset 狀態，
+不必再靠人工轉述。
 
 ```jsonc
-// ~/.config/opencode/opencode.json（global，MSI 已加）
+// ~/.config/opencode/opencode.json（global，MSI 現行實測可用）
 {
   "mcp": {
     "servers": {
-      "github": { "type": "remote", "url": "https://api.githubcopilot.com/mcp/" }
+      "github": {
+        "type": "remote",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "oauth": false,                                   // ← 關掉 OAuth，強制走 header
+        "headers": {
+          "Authorization": "Bearer {file:/home/solo/.config/opencode/gh-token}",
+          "X-MCP-Toolsets": "context,repos,issues,pull_requests,actions,code_security,dependabot,secret_protection,governance"
+        }
+      }
     }
   }
 }
 ```
 
 - **這是 GitHub 官方託管的遠端 server**（`github/github-mcp-server`），不需要本地裝 Docker 或執行檔。
-- **授權是 OAuth，per-machine**：`opencode mcp list` 顯示 `needs authentication` 時，
-  在 opencode 介面執行 `/mcps` → 選 github → 登入。**不要**從 shell 跑
-  `opencode mcp auth`（互動流程的授權連結會被背景輸出吃掉）。
-  各台機器要各自登入一次。
-- ⚠️ **兩個容易踩的坑（官方 GitHub 指南寫的是 opencode V1，V2 不適用）**：
-  1. V2 的 server 要放在 **`mcp.servers.<name>`**，**不能**直接掛在 `mcp.<name>`（V1 寫法）。
-  2. V2 用 **`disabled`** 停用，不是 `enabled` 啟用。
-  照 V1 寫會被靜默忽略，症狀是 `opencode mcp list` 完全看不到這個 server。
-- 建議用 CLI 寫入以保留其他設定：`opencode mcp add github --global --url https://api.githubcopilot.com/mcp/`
-- **token 不寫進 config**：OAuth 憑證由 opencode 自行存放，所以這份備份不含任何密鑰，可安全 commit。
-- 若嫌它塞太多 context（GitHub MCP 有上百個 tool），可在 server 上加
-  `"headers": {"X-MCP-Toolsets": "repos,pull_requests,issues,code_security,secret_protection,dependabot,actions"}`
-  限縮。本 repo 常用的就是這些；`users` / `orgs` / `gists` / `discussions` / `projects` 用不到。
-  （opencode V2 預設 `codemode` 會把 tool 依 server 分組，不會全部塞進原生 tool 清單。）
+- **token 放檔案、config 只放路徑**：`~/.config/opencode/gh-token`（`chmod 600`），
+  與既有的 `cf-aig-token` 同一套做法。這份備份因此不含任何明碼密鑰，可安全 commit
+  （repo 是公開的，這點很重要）。`{file:...}` 在 `headers` 裡會正常展開（已實測）。
+- **不要**從 shell 跑 `opencode mcp auth`：互動流程的授權連結會被背景行程輸出吃掉。
 
-**mbp / x570 若要加**：把上面的 `mcp` 區塊併入各自的 `~/.config/opencode/opencode.json`，
-再 `/mcps` 登入，並同步更新 `settings/opencode/global/<你的機器名>/`。
+### ⚠️ OAuth 走不通，只能用 PAT（2026-09-26 實測）
+
+照直覺在 `/mcps` 按 sign in 會得到：
+
+```
+Incompatible auth server: does not support dynamic client registration
+```
+
+opencode 的 OAuth 流程需要 **dynamic client registration（RFC 7591）**——讓 client 自己去
+向授權伺服器註冊以取得 `client_id`。**GitHub 遠端 MCP 不支援這套**，它要求事先建好
+GitHub App / OAuth App。GitHub 自己的 README 也註明「各 MCP host 需自行設定 GitHub App
+或 OAuth App 才能用 OAuth」，並建議 host 支援 PAT 認證。
+
+所以解法是 **`"oauth": false` ＋ `Authorization` header**（V1／V2 都有這個欄位）。
+V2 官方文件的說法是：`oauth: false` 只在「server 完全只用 API key 或其他 header 憑證」時使用 ——
+正是本例。
+
+### ⚠️ 預設 toolset 缺了本 repo 真正要用的東西
+
+不設 `X-MCP-Toolsets` 時，server 只給 **預設 5 個 toolset**
+（`context, repos, issues, pull_requests, users`）＝ **45 個工具**。實測結果：
+
+| 想做的事 | 預設有嗎 |
+|---|---|
+| 讀寫 PR / issue、檔案、commit | ✅ |
+| **Dependabot alerts**（`list_dependabot_alerts`） | ❌ |
+| **secret scanning alerts**（`list_secret_scanning_alerts`） | ❌ |
+| **code scanning alerts** | ❌ |
+| **Actions 執行結果**（`actions_list` / `get_job_logs`） | ❌ |
+| **ruleset 管理**（`repository_ruleset_read`） | ❌ |
+
+也就是說**光接上等於白接** —— 這個 repo 缺的正是上面那幾個。
+加上 `X-MCP-Toolsets` 後從 45 → **57 個工具**，缺的全都補回來。
+
+可用的 toolset 名稱（官方清單）：`context` `repos` `issues` `pull_requests` `users` `orgs`
+`actions` `code_security` `code_quality` `dependabot` `secret_protection` `security_advisories`
+`governance` `labels` `notifications` `projects` `discussions` `gists` `git` `stargazers`
+`copilot` `copilot_issue_intents` `copilot_spaces` `github_support_docs_search`，
+另有特殊值 `all`（全開）與 `default`（等於那 5 個）。
+**無效名稱會被靜默忽略、不會報錯**，所以打錯字會以為有開其實沒有 —— 改完要實際驗工具數。
+
+順帶一提：預設 toolset 裡有個 `run_secret_scanning`，它會**推一個 commit 去觸發掃描**。
+加上 `secret_protection` 後該工具消失，反倒少一個地雷。
+
+### 兩個 V1/V2 寫法差異（照 V1 寫會被靜默忽略）
+
+1. V2 的 server 要放 **`mcp.servers.<name>`**，不能直接掛 `mcp.<name>`（V1 寫法）。
+   症狀是 `opencode mcp list` 完全看不到這個 server。
+2. V2 用 **`disabled`** 停用，不是 `enabled` 啟用。
+
+### mbp / x570 若要加
+
+1. 各自建立 token 檔：`gh auth token > ~/.config/opencode/gh-token && chmod 600 ~/.config/opencode/gh-token`
+2. 把上面整個 `mcp` 區塊併入該機的 `~/.config/opencode/opencode.json`
+3. `opencode mcp list` 應顯示 `✓ github  connected`
+4. 同步更新 `settings/opencode/global/<你的機器名>/opencode.json`
+
+**這是 PAT 認證、不是 OAuth**，所以沒有「per-machine 授權瀏覽器流程」那一步，
+但 token 檔仍要各自建立（token 不會跨機同步）。
 
 ---
 
