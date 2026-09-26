@@ -189,29 +189,43 @@ def test_identity_laden_defaults_are_recognised():
     assert REG["HOST_ID"].compose_default == "x570"
 
 
-def test_identity_check_only_fires_on_other_machines():
-    """本機 HOST_ID 與預設不同、且變數沒設，才報錯。"""
+def test_identity_check_only_fires_on_other_machines(capsys):
+    """本機 HOST_ID 與預設不同、且變數沒設，才報錯。
+
+    兩個設計要點，都是踩過才學到的：
+    1. 必須自帶環境，不能讀真實 .env：.env 不進版控，CI 是 fresh checkout，
+       讀了會拿到空 dict → TS_IP 未設 → 斷言翻轉成假失敗
+       （2026-09-26 CI run 36253262735 實際失敗）。
+    2. 直接呼叫 ea.audit()，不要在測試裡重寫一份判定邏輯：
+       我第一版重寫了 find_wrong，漏掉 `my_host != baked_host` 那道
+       guard，於是斷言自相矛盾 —— 重複實作必然會和真品漂移。
+    """
     reg = REG
-    env = ea.load_env(ea.ROOT / ".env")
+    baked = reg["HOST_ID"].compose_default        # 這份 compose 烤給哪台
+    assert baked, "HOST_ID 應有 compose 預設值"
 
-    # 實際這台（HOST_ID=msi，TS_IP 已設）→ 不該要求 TS_IP
-    wrong = [n for n, r in reg.items()
-             if n not in env and (r.in_ports or r.has_identity_default())
-             and not (r.superseded_by and env.get(r.superseded_by))]
-    assert "TS_IP" not in wrong, "TS_IP 已設定，不該被要求"
+    def run(env: dict[str, str]) -> tuple[int, str]:
+        capsys.readouterr()                        # 清掉先前輸出
+        n = ea.audit(env, reg, "test")
+        return n, capsys.readouterr().out
 
-    # 模擬 mbp 少設 TS_IP → 應被抓到
-    sim = {k: v for k, v in env.items() if k != "TS_IP"}
-    sim["HOST_ID"] = "mbp"
-    caught = []
-    for n, r in reg.items():
-        if n in sim or n == "HOST_ID":
-            continue
-        if r.superseded_by and sim.get(r.superseded_by):
-            continue
-        if r.in_ports or r.has_identity_default():
-            caught.append(n)
-    assert "TS_IP" in caught, "mbp 少設 TS_IP 應該被抓到（否則啟動失敗）"
+    # 情境 A：就是這份 compose 的主人，且身分變數齊備 → 不發動身分檢查
+    n_a, out_a = run({"HOST_ID": baked, "TS_IP": "1.2.3.4",
+                      "OLLAMA_URLS": "http://1.2.3.4:11434"})
+    assert "機台身份必須覆蓋" not in out_a, \
+        f"HOST_ID 等於預設值 {baked}，不該要求覆蓋身分變數\n{out_a}"
+
+    # 情境 B：別的機器，但身分變數已設 → 仍不該要求
+    n_b, out_b = run({"HOST_ID": "mbp", "TS_IP": "100.64.121.9",
+                      "OLLAMA_URLS": "http://100.64.121.9:11434"})
+    assert "機台身份必須覆蓋" not in out_b, \
+        f"TS_IP/OLLAMA_URLS 都設了，不該再要求\n{out_b}"
+
+    # 情境 C：別的機器且漏設 → 必須抓到（否則 docker bind 別人的 IP 而失敗）
+    n_c, out_c = run({"HOST_ID": "mbp"})
+    assert "機台身份必須覆蓋" in out_c, f"mbp 少設 TS_IP 應該被抓到\n{out_c}"
+    assert "TS_IP" in out_c, "TS_IP 用在 ports: 缺了會啟動失敗，必須點名"
+    assert "mbp" in out_c and baked in out_c, "錯誤訊息要指出本機與預設的差異"
 
 
 # ── docstring / 產生檔不再有不實宣稱 ───────────────────────
