@@ -30,11 +30,13 @@ TS="$(date '+%F %T')"
 # 過去只有一把，得以運作純粹因為三機共用同一把；一旦任一輪換就變成
 # 「本機 200、遠端 401」的不對稱（2026-09-26 MSI 實測踩到）。所以拆開。
 # 未設定 QDRANT_PEER_API_KEY 時退回 QDRANT_API_KEY，維持舊的單機設定可用。
-PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"
-
-# Qdrant api-key：source/dest 任一啟用認證時需帶；未設定即無 key（舊版相容）。
-AUTH_H=()
-[ -n "$PEER_KEY" ] && AUTH_H=(-H "api-key: $PEER_KEY")
+#
+# ⚠️ PEER_KEY 與 AUTH_H 必須在 _load_env **之後**才求值（見下方）。
+#    它們一開始宣告在檔案上方，當下 shell 環境還沒有 .env 的值 →
+#    `${QDRANT_PEER_API_KEY:-...}` 會在那一刻被展開並永久凍結；
+#    後來 _load_env 載入的新 key 完全不會影響已經算好的 AUTH_H。
+#    症狀是「.env 明明是新 key、同步卻一直報 401」（2026-09-26 實測）。
+#    真正求值放在 _load_env 呼叫之後，函式宣告可以留在前面（尚未展開）。
 
 log() { echo "[$TS] $*" >>"$LOG"; }
 pts_of() { curl -sf "${AUTH_H[@]}" -m 10 "$1/collections/$2" | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["points_count"])' 2>/dev/null || echo -1; }
@@ -100,6 +102,12 @@ _load_env() {
   return 0
 }
 _load_env
+
+# PEER_KEY / AUTH_H 在此才求值：_load_env 已把 .env 的值載入環境，
+# 這樣才拿得到「.env 裡那一把」而不是宣告當下的舊值。
+PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"
+AUTH_H=()
+[ -n "$PEER_KEY" ] && AUTH_H=(-H "api-key: $PEER_KEY")
 
 # 法規版本：官方 zip 檔名固定是 ChLaw.json.zip（實測 Content-Disposition），
 # 拿不到版本意義，所以版本取 ChLaw.json 的 UpdateDate，由來源機的 /status 揭露。
