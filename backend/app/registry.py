@@ -11,7 +11,7 @@ try:
 except ImportError:
     asyncpg = None
 
-POSTGRES_DSN = os.getenv("POSTGRES_DSN", "postgresql://rag:changeme@postgres:5432/ragdemo")
+POSTGRES_DSN = os.getenv("POSTGRES_DSN", "postgresql://rag@postgres:5432/ragdemo")
 HOST_ID = os.getenv("HOST_ID", "")
 HOSTNAME = os.getenv("HOST_NAME", "") or socket.gethostname()
 TS_IP = os.getenv("TS_IP", "")

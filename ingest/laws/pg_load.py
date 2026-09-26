@@ -3,7 +3,7 @@
 
 輸入：data/laws/laws_meta.jsonl、laws_flat.jsonl、data/laws/ChLaw.json（sha256 審計）
 輸出：ragdemo 庫的 law / article / law_import 三表（見 pg_schema.sql）
-用法：POSTGRES_DSN=postgresql://rag:changeme@localhost:5432/ragdemo python3 pg_load.py
+用法：POSTGRES_DSN=postgresql://rag:<密碼>@localhost:5432/ragdemo python3 pg_load.py
 依賴：asyncpg（uv 為主——根 pyproject.toml＋`uv sync`；如要鏡像用 `uv pip install -i https://pypi.tuna.tsinghua.edu.cn/simple asyncpg`）
 """
 import asyncio
@@ -16,7 +16,7 @@ import asyncpg
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "laws"
-DSN = os.getenv("POSTGRES_DSN", "postgresql://rag:changeme@localhost:5432/ragdemo")
+DSN = os.getenv("POSTGRES_DSN", "postgresql://rag@localhost:5432/ragdemo")
 DDL = (Path(__file__).resolve().parent / "pg_schema.sql").read_text(encoding="utf-8")
 CHUNK = 2000
 

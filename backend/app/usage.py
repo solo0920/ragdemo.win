@@ -13,7 +13,7 @@ except ImportError:
     asyncpg = None
 
 POSTGRES_DSN = __import__("os").getenv(
-    "POSTGRES_DSN", "postgresql://rag:changeme@postgres:5432/ragdemo"
+    "POSTGRES_DSN", "postgresql://rag@postgres:5432/ragdemo"
 )
 
 DDL = """
