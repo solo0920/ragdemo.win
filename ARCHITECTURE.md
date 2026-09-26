@@ -138,7 +138,11 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 - `/rules` 寫入另用 `ADMIN_TOKEN`（`Authorization: Bearer`）double-check。
 
 ### 密鑰管理
-- repo 根 `.env`（gitignored，compose auto-read）。`backend/.env.example` 為樣板＋說明。
+- **repo 根 `.env`＝唯一真相來源**（gitignored，compose auto-read；`sync-snapshot.sh`／
+  `law-update-worker.sh` 也自己載入它，2026-09-26 移除 `backend/.env` 這份副本 ——
+  兩份並存時 `QDRANT_API_KEY` 曾漂移，造成「本機 200、遠端 401」）。
+  樣板／說明見根 `.env.example`（2026-09-26 改）；`python3 scripts/env-audit.py`
+  可列出每個變數的消費者、幽靈變數與副本漂移；機台專屬變數加 `msi_`/`mbp_`/`x570_` 前綴。
 - 掃描確認 git 無真實 token（git ls-files、.env 追蹤數 0、歷史/前端建置產物皆無）。
 
 ## 備援機制（x570 離線時各機獨立作業）
@@ -301,7 +305,7 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
 ## 啟動
 **x570（docker compose，2026-09-26 現況）**：
 ```bash
-# .env 在 repo 根（gitignored）；backend/.env.example 只作樣板
+# .env 在 repo 根（gitignored，唯一真相來源）；.env.example 只作樣板
 docker compose up -d --build   # 首次建 api 映像，之後改碼加 --build
 curl localhost:8000/health     # 得 host_id=x570
 cd frontend && pnpm install && pnpm run build && pnpm run dev   # pnpm（非 npm）
@@ -354,7 +358,8 @@ log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`（點數＋快照名，�
   但三台的 8000 **全綁 `127.0.0.1`、公網只經 cloudflared tunnel**，所以不能用
   `IP:8000`（實作時踩過）。排程必須顯式指定，如 MSI：
   ```
-  */10 * * * * set -a; . .../backend/.env; set +a; SRC_API_URL=https://api-x570.ragdemo.win .../sync-snapshot.sh
+  */10 * * * * .../scripts/sync-snapshot.sh http://100.119.83.111:6333 http://100.65.68.106:6333
+  # 腳本自己載入 repo 根的 .env，crontab 不必再 set -a / source
   ```
   未設定時腳本退回 `6333→8000` 改寫，在真實部署多半連不上（log 會記 `取不到`）。
 * **端點**：`GET /status` 回 `{ok, host, law_version, log, versions}`。

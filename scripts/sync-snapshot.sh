@@ -64,6 +64,43 @@ auth_precheck() {
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$ROOT/data/laws/.law_version"
 
+# 自動載入 .env（單一真相來源＝repo 根那份，與 compose 同檔）。
+# 2026-09-26 收斂：原本呼叫端要自己 source backend/.env，crontab 就得寫
+# `set -a; . .../backend/.env; set +a;`，而那份與根 .env 是兩份副本 ——
+# QDRANT_API_KEY 曾在兩者間漂移，造成「本機 qdrant 200、遠端 401」。
+# 現在腳本自己載入根 .env，crontab 不必再 source。
+#
+# ⚠️ 只填「尚未在環境中」的變數：per-machine 覆寫（例如 crontab 傳入的
+# SRC_API_URL）必須優先於 .env，否則設定會被靜默吃掉（2026-09-26 實測：
+# 直接 `set -a; . .env` 會覆蓋呼叫端傳入的值）。
+#
+# 用 sed 過濾註解與空行後 source。比逐行解析可靠，也不會被「註解裡有 =」騙到。
+# ⚠️ 不能把過濾結果管給 `source /dev/stdin`：pipe 會讓 source 把 `KEY=value`
+#    當成指令執行（`HOST_ID=msi: invalid variable name`，2026-09-26 實踩），
+#    所以先收集成字串、再用 here-string 餵進去。
+_load_env() {
+  local f body out line k
+  for f in "$ROOT/.env" "$ROOT/backend/.env"; do
+    [ -f "$f" ] || continue
+    body="$(sed -e 's/^[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$f")"
+    out=""
+    while IFS= read -r line; do
+      case "$line" in *=*) ;; *) continue ;; esac
+      k="${line%%=*}"
+      case "$k" in
+        [A-Za-z_]*) ;;
+        *) continue ;;
+      esac
+      # 已存在（含空字串）就不覆寫：尊重呼叫端的 per-machine 設定
+      [ -n "${!k+x}" ] || out+="$line"$'\n'
+    done <<<"$body"
+    [ -n "$out" ] && { set -a; . /dev/stdin <<<"$out"; set +a; }
+    return 0
+  done
+  return 0
+}
+_load_env
+
 # 法規版本：官方 zip 檔名固定是 ChLaw.json.zip（實測 Content-Disposition），
 # 拿不到版本意義，所以版本取 ChLaw.json 的 UpdateDate，由來源機的 /status 揭露。
 # 備援機不跑 sync_daily.py、快照也不帶 .law_sync.json，只能靠這裡帶過來，

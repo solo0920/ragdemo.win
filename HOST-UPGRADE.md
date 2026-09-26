@@ -20,8 +20,8 @@ MSI 已全部完成，本檔對 MSI 只作為「為什麼要這樣做」的說�
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-然後在**兩台的 `.env`（根目錄與 `backend/.env` 兩處都改）**把 `QDRANT_API_KEY=`
-換成新值，接著重建容器 —— key 是啟動參數，不重啟不會生效：
+然後在**根目錄的 `.env`** 把 `QDRANT_API_KEY=` 換成新值，接著重建容器 ——
+key 是啟動參數，不重啟不會生效：
 
 ```bash
 cd ~/projects/ragdemo.win        # mbp 請用你的 checkout 路徑（見 §4）
@@ -44,6 +44,43 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
 
 ---
 
+## 0b. .env 只有一个（2026-09-26 收斂）
+
+**只維護 repo 根目錄的 `.env`**，`backend/.env` 已不再需要（2026-09-26 移除）。
+
+原本根 `.env` 給 compose、`backend/.env` 給 host 腳本，25 個變數兩份副本 ——
+`QDRANT_API_KEY` 曾在兩者間漂移，造成「本機 qdrant 200、遠端 401」的非對稱故障。
+現在 `sync-snapshot.sh` 與 `law-update-worker.sh` 會**自己載入根 `.env`**，
+crontab 也不必再寫 `set -a; . .../backend/.env; set +a;`。
+
+遷移後請確認：
+
+```bash
+# 1) 有沒有殘留的 backend/.env
+ls -la backend/.env 2>/dev/null && echo "可刪了（腳本已改讀根 .env）" || echo "已無"
+
+# 2) 稽核工具確認沒有幽靈變數與副本漂移
+python3 scripts/env-audit.py
+```
+
+### 機台專屬變數的前綴
+
+某一台獨有的變數加前綴，避免三台互相覆蓋：
+
+```
+msi_<變數名>=<值>      # 只有 MSI 用
+mbp_<變數名>=<值>      # 只有 mbp 用
+x570_<變數名>=<值>     # 只有 x570 用
+```
+
+例如只有 MSI 要放雲端金鑰：`msi_NVIDIA_API_KEY=...`。
+**進版控前請跑 `scripts/env-audit.py --template`** 取得最新骨架，
+它會列出每個變數的必填/選填、消費者與用途。
+
+> ⚠️ `env-audit.py` 會讀 `.env` 的**變數名**但只印長度與是否存在，
+> 不會印值 —— 可以安全貼回來。但不要用 `cat .env`、`env | grep`、
+> 對含憑證的腳本跑 `bash -x`（2026-09-26 三次洩漏都是這樣）。
+
 ## 1. 補兩個身份環境變數（兩台都要）
 
 `compose.yaml` 已移除 `/etc/hostname`、`/etc/machine-id` 的**單檔 bind mount**
@@ -52,12 +89,11 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
 
 ```bash
 HN=$(cat /etc/hostname); MID=$(cat /etc/machine-id)
-for f in .env backend/.env; do
-  grep -v '^HOST_NAME=' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  grep -v '^HOST_MACHINE_ID=' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
-  printf 'HOST_NAME=%s\nHOST_MACHINE_ID=%s\n' "$HN" "$MID" >> "$f"
-  chmod 600 "$f"          # 內含憑證，務必 600
-done
+f=.env
+grep -v '^HOST_NAME=' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+grep -v '^HOST_MACHINE_ID=' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+printf 'HOST_NAME=%s\nHOST_MACHINE_ID=%s\n' "$HN" "$MID" >> "$f"
+chmod 600 "$f"            # 內含憑證，務必 600
 ```
 
 沒補的話：`/health` 仍會回 ok，但 `machine_id` 會退化成 MAC 位址（弱識別），
@@ -100,7 +136,6 @@ curl -s localhost:8000/health | python3 -m 'import json,sys; d=json.load(sys.std
 
 ```bash
 grep -q '^SRC_API_URL=' .env || echo 'SRC_API_URL=https://api-x570.ragdemo.win' >> .env
-grep -q '^SRC_API_URL=' backend/.env || echo 'SRC_API_URL=https://api-x570.ragdemo.win' >> backend/.env
 ```
 
 沒設的後果**不是錯誤** —— 腳本會記
@@ -114,7 +149,6 @@ grep -q '^SRC_API_URL=' backend/.env || echo 'SRC_API_URL=https://api-x570.ragde
 ```bash
 # 值＝x570 新的 QDRANT_API_KEY（若三台共用同一把，就與本機相同）
 echo 'QDRANT_PEER_API_KEY=<x570 的新 key>' >> .env
-echo 'QDRANT_PEER_API_KEY=<x570 的新 key>' >> backend/.env
 ```
 
 好處：以後任一台輪換自己的 key，都不會再連帶弄斷另外兩台的同步。

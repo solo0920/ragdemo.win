@@ -20,7 +20,12 @@ REQ="$OPS/law-update.request"
 RUN="$OPS/law-update.running"
 STATUS="$OPS/law-update.status"
 LOG="$OPS/worker.log"
-ENV_FILE="$ROOT/backend/.env"
+# 單一真相來源＝repo 根的 .env（compose 也讀這份）。2026-09-26 收斂：
+# 原本這裡與 sync-snapshot.sh 讀 backend/.env，與根 .env 形成兩份副本，
+# QDRANT_API_KEY 曾在兩者間漂移造成「本機 200、遠端 401」。fallback 保留給
+# 尚未遷移的機器（刪掉 backend/.env 後自然走根）。
+ENV_FILE="$ROOT/.env"
+[ -f "$ENV_FILE" ] || ENV_FILE="$ROOT/backend/.env"
 
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }
 
