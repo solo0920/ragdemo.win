@@ -254,6 +254,51 @@ def test_template_contains_no_credentials():
     assert not secrets, f"產生檔含疑似憑證: {secrets}"
 
 
+def test_template_has_no_lan_ip_assignment():
+    """追蹤檔不得出現 LAN_IP= —— 否則 push 與 CI 直接失敗。
+
+    實測依據（2026-09-26 實測）：改寫前的 KNOWN 表本來就漏了 LAN_IP，
+    所以舊 .env.example 沒這行、push 都過。我改成程式碼反查後
+    LAN_IP 被正確抓到（registry.py:21 確實有讀），產生器就印出
+    `LAN_IP=`，pre-push hook 與 ci.yml 立刻擋下 push。
+
+    但 LAN_IP 不是「無人讀」—— 它是政策性停用（ARCHITECTURE.md
+    IP 準則 2026-09-22 定案、ROADMAP.md:75「已停用，勿再寫」）。
+    所以要以註解保留說明，而不是從清單裡悄悄消失。
+    """
+    body = subprocess.run(["python3", str(AUDIT), "--template"],
+                          cwd=ROOT, capture_output=True, text=True,
+                          check=True).stdout
+    assert not re.search(r"^LAN_IP=", body, re.M), "產生檔含 LAN_IP= 會被 hook 擋"
+    # 但說明要還在 —— 否則下次又有人加回去
+    assert "LAN_IP" in body, "LAN_IP 的停用理由應以註解形式保留"
+    assert re.search(r"^# LAN_IP", body, re.M), "LAN_IP 應以註解列出行保留可發現性"
+
+    # 版控裡的實際檔案也要乾淨（防止有人手改 .env.example 後忘了重新產生）
+    tracked = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert not re.search(r"^LAN_IP=", tracked, re.M), \
+        "版控中的 .env.example 含 LAN_IP=，push 會被 pre-push 與 CI 擋下"
+    assert tracked == body, \
+        ".env.example 與 --template 產出不一致，請跑 scripts/env-audit.py --template > .env.example"
+
+
+def test_policy_excluded_variables_are_distinguished_from_ghosts():
+    """政策停用 ≠ 無人讀。兩者的處置完全不同。
+
+    舊版 GHOSTS 把「程式讀不到」當成單一類別，害得真正讀得到的
+    EMBED_MODEL／RERANK_MODEL／QDRANT_URLS 被誤判。政策性停用
+    的變數必須被反查到（registry.py:21 有讀），只是不能寫進 .env。
+    """
+    assert "LAN_IP" in REG, "LAN_IP 應被反查到（registry.py:21 有讀）"
+    assert REG["LAN_IP"].python_read, "LAN_IP 是被 Python 讀取的，不是幽靈"
+    assert "LAN_IP" in ea.POLICY_EXCLUDED, "LAN_IP 應在政策停用清單"
+    # 政策清單的每個項目都必須真的有程式在讀，否則就該是幽靈
+    for name in ea.POLICY_EXCLUDED:
+        assert name in REG, f"{name} 在政策清單但反查不到"
+        assert REG[name].python_read or REG[name].shell_read or REG[name].compose_ref, \
+            f"{name} 沒有任何程式讀，應該是幽靈而不是政策停用"
+
+
 def test_registry_has_no_hand_maintained_list():
     """變數清單必須真的從程式碼推導，不能是手寫的。
 

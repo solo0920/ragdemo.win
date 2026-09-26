@@ -117,6 +117,22 @@ TOOL_ENV = {
 SECRET_HINT = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)", re.I)
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
 
+# 政策性排除：程式**有**讀，但專案定案不用它，因此追蹤檔不得出現該賦值。
+#
+# 這與「幽靈變數（無人讀）」完全不同 —— LAN_IP 在 registry.py:21 確實被讀，
+# 只是 2026-09-22 定案一律用 tailscale IP、停用 LAN_IP（ARCHITECTURE.md
+# 「IP 準則」、ROADMAP.md:75「LAN_IP 已停用，勿再寫」）。
+# .githooks/pre-push:31 與 ci.yml 都會擋 `^LAN_IP=`，因為 2026-09-22 之前
+# 有 LAN IP 流進追蹤檔的事故。
+#
+# 所以 .env.example 不能印 `LAN_IP=` 那一行（會擋住 push），
+# 但要以註解形式保留說明，讓人知道有這號變數以及為何不填。
+POLICY_EXCLUDED: dict[str, str] = {
+    "LAN_IP": "IP 準則（2026-09-22 定案）：一律 tailscale IP（100.64.0.0/10），"
+              "停用 LAN_IP。192.168.x 一律不寫入 .env、不進 registry。"
+              "追蹤檔出現 LAN_IP= 會被 pre-push hook 與 CI 擋下。見 ARCHITECTURE.md。",
+}
+
 # compose 的 ${...} 參照。
 # 刻意「不」要求右花括號：只匹配到 ${NAME 加修飾符的開頭。
 # 為什麼：巢狀展開 ${A:-x${B:?msg}} 的巢狀寫法若要求配對 }，
@@ -505,6 +521,16 @@ def audit(env: dict[str, str], reg: dict[str, Ref], label: str) -> int:
         problems += len(covered)
 
     ghosts = sorted(k for k in env if k not in reg)
+
+    # 政策性停用的變數不該出現在 .env（IP 準則等）
+    banned = sorted(k for k in env if k in POLICY_EXCLUDED)
+    if banned:
+        print(f"  [{label}] 政策上已停用（但程式仍會讀，故會被反查到）:")
+        for k in banned:
+            print(f"    - {k}")
+            print(f"        {POLICY_EXCLUDED[k]}")
+        problems += len(banned)
+
     if ghosts:
         print(f"  [{label}] 幽靈變數（沒有任何程式讀，設了沒作用）:")
         for k in ghosts:
@@ -603,6 +629,8 @@ def print_template(reg: dict[str, Ref]) -> None:
 
     buckets: dict[str, list[Ref]] = {}
     for r in reg.values():
+        if r.name in POLICY_EXCLUDED:
+            continue                      # 另以註解區塊呈現，不產出 NAME= 行
         if r.compose_hardcoded and not r.compose_ref:
             kind = "compose 寫死（.env 設了無效）"
         elif not r.compose_ref and (r.python_read or r.shell_read):
@@ -650,6 +678,33 @@ def print_template(reg: dict[str, Ref]) -> None:
                 print(f"#   讀取處：{shown}{more}")
             print(f"{r.name}=")
             print()
+
+    # 政策性停用的變數：**刻意不**印 `NAME=` 行。
+    # .githooks/pre-push:31 與 .github/workflows/ci.yml 都會擋 `^LAN_IP=`，
+    # 這邊若印成賦值形式，push 會直接失敗（2026-09-26 實測）。
+    banned_items = [reg[n] for n in sorted(POLICY_EXCLUDED) if n in reg]
+    if banned_items:
+        print("# ══ 政策上已停用（刻意不列出 NAME= —— 追蹤檔不得出現該賦值）══")
+        for r in banned_items:
+            print(f"# {r.name}  —  消費者：{r.readers_label}")
+            for chunk in _wrap(POLICY_EXCLUDED[r.name], 76):
+                print(f"#   {chunk}")
+            if r.readers:
+                print(f"#   讀取處：{', '.join(r.readers[:3])}")
+        print()
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    """按字寬切行（中英混排時不要切壞）。"""
+    out, cur = [], ""
+    for ch in text:
+        if len(cur.encode("utf-8")) > width * 3:
+            out.append(cur)
+            cur = ""
+        cur += ch
+    if cur:
+        out.append(cur)
+    return out
 
 
 def main() -> int:
