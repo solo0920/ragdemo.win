@@ -5,7 +5,7 @@ version = "0.1.0"
 # 原為 >=3.11，但實際產線跑 3.12，放寬下限只會讓某台機器裝 3.11 通過、行為卻與容器不一致。
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi>=0.115",
+  "fastapi>=0.141.1",
   "uvicorn[standard]>=0.30",
   "httpx>=0.27",
   "pydantic>=2.0",
