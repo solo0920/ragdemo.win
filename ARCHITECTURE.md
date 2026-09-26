@@ -61,9 +61,9 @@ scripts/
 
 * **x570 100.119.83.111**：主力。api/qdrant/pg **全 docker compose**（三容器），
   `LLM_MODEL=qwen3:14b`，資料唯一來源。cloudflared local tunnel + crontab restart loop。
-* **mbp 100.64.121.9**：加速。api（uvicorn@8000，launchd）+ 本機 qdrant 備援已完成，
-  `LLM_MODEL=qwen3:14b`；`QDRANT_URLS`/`POSTGRES_DSN` 指 x570，離線降級本機。
-  （規劃遷移 docker compose——見 ROADMAP §4.1.1）
+* **mbp 100.64.121.9**：加速。api/qdrant/pg **全 docker compose（三容器，OrbStack runtime）**，
+  `LLM_MODEL=qwen3:14b`（本機 ollama）＋qdrant 本機備援（快照同步來自 x570）；
+  容器 api 的 `POSTGRES_DSN` 指 x570 共享 registry（見 ROADMAP §4.1.1）。
 * **msi 100.65.68.106（demo）**：api 在 WSL2（`start-msi.sh`，開機自動啟動）＋本機 qdrant 備援，
   `LLM_MODEL=qwen3:8b`（2026-09-23 由 4b 換上：4b 的 `think:false` 是已知 bug）。
   （規劃遷移 docker compose——見 ROADMAP §4.1.1）

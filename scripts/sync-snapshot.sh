@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SOURCE="${1:-http://100.119.83.111:6333}"
-DEST="${2:-http://127.0.0.1:6333}"
+DEST="${2:-http://${TS_IP:-127.0.0.1}:6333}"
 COLLECTION="${3:-laws}"
 QDIR="$HOME/qdrant"
 LOG="$QDIR/sync.log"

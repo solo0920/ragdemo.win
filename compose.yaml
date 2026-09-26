@@ -27,7 +27,8 @@ services:
     environment:
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-      POSTGRES_DSN: postgresql://rag:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填}@postgres:5432/ragdemo
+      # registry 共享：mbp/msi 以 root .env 的 POSTGRES_DSN 覆寫指向 x570 tailscale；x570 本機用預設 postgres
+      POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://rag:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填}@postgres:5432/ragdemo}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://100.119.83.111:11434}
       OLLAMA_URLS: ${OLLAMA_URLS:-http://100.119.83.111:11434}
       HOST_ID: ${HOST_ID:-x570}

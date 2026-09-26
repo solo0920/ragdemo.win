@@ -21,7 +21,7 @@
 | tailscale | 100.119.83.111 | 100.64.121.9 | 100.65.68.106 |
 | LAN | 192.168.0.99 | 192.168.93.85 | 192.168.0.2 |
 | ollama | v0.34.0（native） | v0.34.2（native, 0.0.0.0） | v0.34.2（native, 0.0.0.0） |
-| api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | api ✅（launchd）/qdrant ✅（本機備援）/pg ✗ | api ✅（WSL2）/qdrant ✅（本機備援）/pg ✗ |
+| api:8000/qdrant:6333/pg:5432 | ✅（docker compose） | ✅（docker compose，OrbStack） | api ✅（WSL2）/qdrant ✅（本機備援）/pg ✗ |
 | LLM 預設 | qwen3:14b | qwen3:14b | qwen3:8b |
 | 模型 | bge-m3, bge-reranker, qwen3:14b, qwen3-coder | bge-m3, bge-reranker, qwen3:14b, qwen3-coder(+next) | bge-m3, bge-reranker, qwen3:8b, qwen2.5-coder:7b |
 
@@ -315,6 +315,8 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
 >    否則容器外（tailscale 來源）連線會 `password authentication failed`（127.0.0.1 trust 免密碼
 >    會誤導成「密碼正確」）。mbp/msi 若有沿用舊 volume 同理。
 > 5. 本機 dev 直接跑 `rag.py`（不經 compose）時，`.env` 也要設一致 `QDRANT_API_KEY`，否則 401。
+> 6. **mbp 已於 2026-09-26 完成 §4.1.1 容器化（OrbStack runtime）**：compose qdrant 綁
+>    `100.64.121.9:6333`，sync-snapshot 目標隨之指向 `TS_IP`；api/qdrant/pg 不再用 launchd。
 
 ### 4.1.1 二機全容器化對齊 x570（2026-09-26）
 
@@ -328,19 +330,26 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
   `QDRANT_API_KEY` env（出站認證）。
 - postgres `healthz` 心跳經 tailscale 寫入 x570 backends（msi 曾是唯一在寫的舊筆記，x570 已恢復）。
 
-**mbp/msi 待執行**：
-1. `docker compose up -d`（mbp＝Docker Desktop；msi＝WSL Docker Engine；pgvector/qdrant 皆 multi-arch）。
+**mbp 已執行（2026-09-26，OrbStack 當 docker runtime）／msi 待執行**：
+1. `docker compose up -d`（mbp＝OrbStack，`~/.orbstack/bin`；msi＝WSL Docker Engine；pgvector/qdrant 皆 multi-arch）。
 2. `.env` 補：`TS_IP`（本機 tailscale IP）、`POSTGRES_PASSWORD`＋`QDRANT_API_KEY`＝與 x570 同值。
-   自己的 postgres volume 若是舊的，先做一次 `ALTER USER` 同步密碼（見上坑 4）。
+   自己的 postgres volume 若是舊的，先做一次 `ALTER USER` 同步密碼（見上坑 4）。✅ mbp（fresh volume）
 3. 停用舊啟動機制避免搶 port：
-   - mbp：`launchctl unload` `com.ragdemo.qdrant`／`com.ragdemo.api`（native `~/qdrant/qdrant`＋uvicorn）。
+   - mbp：✅ `launchctl unload` `com.ragdemo.qdrant`／`com.ragdemo.api`（native `~/qdrant/qdrant`＋uvicorn）。
    - msi：停用 startup `ragdemo-msi-api.vbs`＋`@reboot` crontab；`backend/start-msi.sh` 不再使用。
 4. registry 仍共享 x570：**api 容器的 `POSTGRES_DSN` 指向 x570 tailscale 位址**（覆寫
    `POSTGRES_DSN=postgresql://rag:<pw>@100.119.83.111:5432/ragdemo`），不連本機空庫，三台 backends 合一。
+   ✅ mbp：`compose.yaml` 改 `${POSTGRES_DSN:-本機 postgres}`，`.env` 帶 x570 DSN；同文件 x570 不受影響。
 5. sync-snapshot 排程保留（備援資料層＝本機 compose 的 qdrant 容器），帶 `QDRANT_API_KEY`；
-   `curl` 目標改指本機 qdrant 位址（compose 綁 `${TS_IP}:6333`，非 127.0.0.1）。
+   `DEST` 指本機 qdrant（compose 綁 `${TS_IP}:6333`，非 127.0.0.1）。✅ mbp：script 預設
+   `http://${TS_IP:-127.0.0.1}:6333`＋launchd `EnvironmentVariables` 加 `TS_IP=100.64.121.9`＋已 reload。
 6. 驗收：`docker compose ps` 三容器 up；`curl http://<TS_IP>:8000/health`；`/query` 作答；
-   x570 離線時本機備援仍可答（沿用 §4.1 驗證法）。
+   x570 離線時本機備援仍可答（沿用 §4.1 驗證法）。✅ mbp：`/health` host_id=mbp、
+   `/query` src=mbp（conf=high）、usage 寫回共享 registry。**mbp 已完成，msi 沿用本清單。**
+
+**mbp 容器的連線筆記（OrbStack 特有）**：容器內 `host.orbstack.internal` 不解析（2026-09-26
+實測 DNS 失敗）；mbp ollama 綁 `*:11434`，容器直接連本機 **tailscale `100.64.121.9:11434`**
+即可（`OLLAMA_URLS` 首項設此）。
 
 **待做**：
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
