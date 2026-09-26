@@ -33,6 +33,7 @@ OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://100.119.83.111:11434").rst
 OLLAMA_URLS = [u.strip().rstrip("/") for u in os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT).split(",") if u.strip()] or [OLLAMA_DEFAULT]
 QDRANT_DEFAULT = os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
 QDRANT_URLS = [u.strip().rstrip("/") for u in os.getenv("QDRANT_URLS", QDRANT_DEFAULT).split(",") if u.strip()] or [QDRANT_DEFAULT]
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
 # OLLAMA_MODELS：與 OLLAMA_URLS 同順序的 LLM model 清單；未設則全部用 LLM_MODEL。
@@ -301,11 +302,14 @@ def _drop(kind: str) -> None:
 async def _req(kind: str, candidates: list[str], method: str, path: str,
                *, timeout: float = 120, retry_on: tuple = (), **kw) -> httpx.Response:
     probe = _ollama_probe if kind == "ollama" else None
+    headers = dict(kw.pop("headers", {}) or {})
+    if kind == "qdrant" and QDRANT_API_KEY:
+        headers.setdefault("api-key", QDRANT_API_KEY)
     for _ in range(2):
         base = await _pick(kind, candidates, probe=probe)
         try:
             async with httpx.AsyncClient(timeout=timeout) as c:
-                r = await getattr(c, method)(f"{base}{path}", **kw)
+                r = await getattr(c, method)(f"{base}{path}", headers=headers, **kw)
         except (httpx.ConnectError, httpx.ConnectTimeout):
             _drop(kind)
             continue

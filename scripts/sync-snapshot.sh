@@ -18,14 +18,17 @@ LOG="$QDIR/sync.log"
 STATE="$QDIR/.sync-state"   # 內容 e.g. "3 laws-xxx.snapshot"
 TMP="$QDIR/.sync.tmp.snapshot"
 TS="$(date '+%F %T')"
+# Qdrant api-key：source/dest 任一啟用認證時需帶；未設定即無 key（舊版相容）。
+AUTH_H=()
+[ -n "${QDRANT_API_KEY:-}" ] && AUTH_H=(-H "api-key: $QDRANT_API_KEY")
 
 log() { echo "[$TS] $*" >>"$LOG"; }
-pts_of() { curl -sf -m 10 "$1/collections/$2" | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["points_count"])' 2>/dev/null || echo -1; }
+pts_of() { curl -sf "${AUTH_H[@]}" -m 10 "$1/collections/$2" | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["points_count"])' 2>/dev/null || echo -1; }
 
 [ -d "$QDIR" ] || mkdir -p "$QDIR"
 
 # 1) source 在線？
-if ! curl -sf -m 5 "$SOURCE/healthz" >/dev/null 2>&1; then
+if ! curl -sf "${AUTH_H[@]}" -m 5 "$SOURCE/healthz" >/dev/null 2>&1; then
   log "source $SOURCE offline, skip（本機備援資料不受影響）"
   exit 0
 fi
@@ -39,13 +42,13 @@ if [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; then
 fi
 
 # 3) 建新快照
-SNAP_JSON="$(curl -sf -m 30 -X POST "$SOURCE/collections/$COLLECTION/snapshots" 2>/dev/null)" \
+SNAP_JSON="$(curl -sf "${AUTH_H[@]}" -m 30 -X POST "$SOURCE/collections/$COLLECTION/snapshots" 2>/dev/null)" \
   || { log "create snapshot failed"; exit 1; }
 SNAP_NAME="$(echo "$SNAP_JSON" | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["name"])' 2>/dev/null)"
 [ -n "$SNAP_NAME" ] || { log "bad snapshot response: $SNAP_JSON"; exit 1; }
 
 # 4) 下載
-if ! curl -sf -m 120 -o "$TMP" "$SOURCE/collections/$COLLECTION/snapshots/$SNAP_NAME"; then
+if ! curl -sf "${AUTH_H[@]}" -m 120 -o "$TMP" "$SOURCE/collections/$COLLECTION/snapshots/$SNAP_NAME"; then
   log "download failed for $SNAP_NAME"; rm -f "$TMP"; exit 1
 fi
 if command -v stat >/dev/null 2>&1 && stat -c%s "$TMP" >/dev/null 2>&1; then
@@ -56,20 +59,20 @@ fi
 log "downloaded $SNAP_NAME ($SZ bytes, src_pts=$SRC_PTS)"
 
 # 4b) 順手清 x570 其他快照（只留剛下載的這份）——即使後續 restore 失敗也不累積
-OLD="$(curl -sf -m 10 "$SOURCE/collections/$COLLECTION/snapshots" \
+OLD="$(curl -sf "${AUTH_H[@]}" -m 10 "$SOURCE/collections/$COLLECTION/snapshots" \
   | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin)['result'] if s['name'] != '$SNAP_NAME']" 2>/dev/null)"
 if [ -n "$OLD" ]; then
   while IFS= read -r n; do
-    curl -sf -m 30 -X DELETE "$SOURCE/collections/$COLLECTION/snapshots/$n" >/dev/null 2>&1 && log "cleaned remote snapshot $n"
+    curl -sf "${AUTH_H[@]}" -m 30 -X DELETE "$SOURCE/collections/$COLLECTION/snapshots/$n" >/dev/null 2>&1 && log "cleaned remote snapshot $n"
   done <<<"$OLD"
 fi
 
 # 5) 本機：刪舊 → 直接上傳還原（不預建 collection！快照含 dense+sparse 雙向量，
 #    priority=snapshot 會以快照內建設定重建 collection；2026-09-24 前預建的
 #    dense-only config 反而 400 config mismatch → 本機 0 點）
-curl -sf -m 30 -X DELETE "$DEST/collections/$COLLECTION" >/dev/null 2>&1 \
+curl -sf "${AUTH_H[@]}" -m 30 -X DELETE "$DEST/collections/$COLLECTION" >/dev/null 2>&1 \
   && log "deleted local $COLLECTION" || log "delete local: (原本不存在或失敗)"
-curl -sf -m 180 -X POST -F "snapshot=@$TMP" \
+curl -sf "${AUTH_H[@]}" -m 180 -X POST -F "snapshot=@$TMP" \
   "$DEST/collections/$COLLECTION/snapshots/upload?priority=snapshot" >/dev/null \
   || { log "restore upload failed"; rm -f "$TMP"; exit 1; }
 

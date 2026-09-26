@@ -2,24 +2,31 @@ name: ragdemo
 services:
   qdrant:
     image: qdrant/qdrant:latest
-    ports: ["6333:6333", "6334:6334"]
+    # 綁 tailscale 內網 IP：mbp/msi 備援 snapshot 由該 IP 拉取；阻斷 LAN(192.168)/公網。
+    ports: ["100.119.83.111:6333:6333"]
+    environment:
+      # qdrant 原生 API key（防未授權讀寫向量庫）；值由 .env 帶入
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
     volumes: [qdrant_data:/qdrant/storage]
     restart: unless-stopped
   postgres:
     image: pgvector/pgvector:pg16
-    ports: ["5432:5432"]
+    # 僅本機（後端 container 走內部網路連 postgres:5432）；不開宿主機 port 對外。
+    ports: ["127.0.0.1:5432:5432"]
     environment:
       POSTGRES_USER: rag
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填（勿用 changeme）}
       POSTGRES_DB: ragdemo
     volumes: [pg_data:/var/lib/postgresql/data]
     restart: unless-stopped
   api:
     build: ./backend
-    ports: ["8000:8000"]
+    # 僅本機（frontend dev / cloudflared 都走 localhost）。
+    ports: ["127.0.0.1:8000:8000"]
     environment:
       QDRANT_URL: http://qdrant:6333
-      POSTGRES_DSN: postgresql://rag:${POSTGRES_PASSWORD:-changeme}@postgres:5432/ragdemo
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      POSTGRES_DSN: postgresql://rag:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填}@postgres:5432/ragdemo
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://100.119.83.111:11434}
       OLLAMA_URLS: ${OLLAMA_URLS:-http://100.119.83.111:11434}
       HOST_ID: ${HOST_ID:-x570}
