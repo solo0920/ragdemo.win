@@ -566,8 +566,29 @@ def request_law_update(actor: str) -> dict:
     return {"ok": True, "message": "已排入更新，實際動作由主機端 worker 執行（需數分鐘）"}
 
 
+def _norm_law_date(raw: str) -> str:
+    """把官方的 UpdateDate 正規化成 ISO 日期（YYYY-MM-DD）。
+
+    官方 ChLaw.json 的 UpdateDate 是中文格式，例如「2026/9/18 上午 12:00:00」
+    （2026-09-26 實測），不是 ISO。前端要比較新舊、判斷「本機是否落後」，
+    必須靠正規化後的字串比較；直接把原字串給前端會讓比對靜默失效。
+    回空字串代表無法解析（前端顯示 '—'，不猜）。
+    """
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    m = re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", s)
+    if not m:
+        # 已經是 ISO 就原樣回（避免二次處理破壞）
+        return s if re.match(r"^\d{4}-\d{2}-\d{2}$", s) else ""
+    y, mo, d = (int(g) for g in m.groups())
+    if not (1 <= mo <= 12 and 1 <= d <= 31):
+        return ""
+    return f"{y:04d}-{mo:02d}-{d:02d}"
+
+
 def _read_law_version() -> dict:
-    """回 {update_date, source, at}；讀不到回 {}（前端顯示 '-'）。"""
+    """回 {update_date, raw, source, at}；讀不到回 {}（前端顯示 '-'）。"""
     for base in _LAW_VERSION_DIRS:
         # 備援機的 sidecar 優先於主機的 .law_sync.json：兩者若同時存在，
         # sidecar 代表「實際服務的資料版本」，.law_sync.json 只是本機曾下載過的版本。
@@ -577,9 +598,9 @@ def _read_law_version() -> dict:
                 if not p.exists():
                     continue
                 d = json.loads(p.read_text(encoding="utf-8"))
-                v = (d.get("update_date") or "").strip()
-                if v:
-                    return {"update_date": v,
+                raw = (d.get("update_date") or "").strip()
+                if raw:
+                    return {"update_date": _norm_law_date(raw), "raw": raw,
                             "source": d.get("source") or name.lstrip("."),
                             "at": d.get("synced_at") or d.get("last_checked") or ""}
             except Exception as e:  # 壞檔不讓 /status 整個 500

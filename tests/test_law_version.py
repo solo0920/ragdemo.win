@@ -30,6 +30,28 @@ def laws_dir(tmp_path, monkeypatch):
     return d
 
 
+@pytest.mark.parametrize("raw,want", [
+    # 官方 ChLaw.json 的 UpdateDate 是中文格式（2026-09-26 實測 x570 的實值）
+    ("2026/9/18 上午 12:00:00", "2026-09-18"),
+    ("2026/12/5", "2026-12-05"),      # 月日不補零也要能正規化
+    ("2026-09-18", "2026-09-18"),     # 已是 ISO 則原樣
+    ("", ""),                          # 空 → 不猜
+    ("garbage", ""),
+    ("2026/13/99", ""),                # 月份/日期不合理 → 拒收，不要產生看似合法的字串
+])
+def test_norm_law_date(raw, want):
+    assert rag._norm_law_date(raw) == want
+
+
+def test_read_version_keeps_raw_and_normalizes(laws_dir):
+    """中文原值要保留在 raw 供稽核，update_date 必須是 ISO。"""
+    (laws_dir / ".law_sync.json").write_text(json.dumps(
+        {"update_date": "2026/9/18 上午 12:00:00"}), encoding="utf-8")
+    v = rag._read_law_version()
+    assert v["update_date"] == "2026-09-18"
+    assert v["raw"] == "2026/9/18 上午 12:00:00"
+
+
 def test_missing_all_returns_empty(laws_dir):
     assert rag.law_version() == {}
 

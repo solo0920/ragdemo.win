@@ -85,7 +85,11 @@ sync_law_version() {
   # ⚠️ 這行的 `|| true` 不能拿掉：pipefail 下 curl 連不上會讓整個賦值回傳非零，
   # `set -e` 會在到達下面的 if 之前就中止整支腳本 —— 症狀是「快照同步明明成功，
   # 腳本卻 exit 1」（2026-09-26 實測，害 law-update worker 誤報失敗）。
-  ver="$(curl -sf -m 8 "$SRC_API/status" 2>/dev/null \
+  #
+  # ⚠️ 一定要帶 ?probe=0：/status 預設會再去探測「它的」三台主機，實測要 2.7s，
+  # 逼近 -m 8 的上限，cron 常常剛好超時而抓不到（2026-09-26 實測：x570 明明有
+  # 版本，log 卻一直記「取不到」）。probe=0 只回本機資訊，0.02s。
+  ver="$(curl -sf -m 8 "$SRC_API/status?probe=0" 2>/dev/null \
         | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null || true)"
   if [ -z "$ver" ]; then
     log "law version: 取不到（src_api=$SRC_API；來源機的 sync_daily.py 還沒跑過，或該網址不通）"
@@ -100,10 +104,27 @@ except Exception: print("")' "$VERSION_FILE" 2>/dev/null)"
     return 0
   fi
   mkdir -p "$(dirname "$VERSION_FILE")"
-  printf '{"update_date": "%s", "source": "%s", "synced_at": "%s"}\n' \
-    "$ver" "$SOURCE" "$(date '+%F %T')" >"$VERSION_FILE.tmp" \
+  # 正規化成 ISO：官方 UpdateDate 是中文格式（「2026/9/18 上午 12:00:00」），
+  # 前端要比對新舊、判斷本機是否落後，需要可比較的字串。raw 保留原值供稽核。
+  raw="$ver"
+  ver_iso="$(printf '%s' "$ver" | python3 -c '
+import re, sys
+s = sys.stdin.read().strip()
+m = re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", s)
+if m:
+    y, mo, d = (int(g) for g in m.groups())
+    print(f"{y:04d}-{mo:02d}-{d:02d}" if 1 <= mo <= 12 and 1 <= d <= 31 else "")
+else:
+    print(s if re.match(r"^\d{4}-\d{2}-\d{2}$", s) else "")
+')"
+  if [ -z "$ver_iso" ]; then
+    log "law version 無法解析成 ISO 日期（raw=$raw），不寫入"
+    return 0
+  fi
+  printf '{"update_date": "%s", "raw": "%s", "source": "%s", "synced_at": "%s"}\n' \
+    "$ver_iso" "$raw" "$SOURCE" "$(date '+%F %T')" >"$VERSION_FILE.tmp" \
     && mv "$VERSION_FILE.tmp" "$VERSION_FILE" \
-    && log "law version updated: $old -> $ver"
+    && log "law version updated: $old -> $ver_iso（raw=$raw）"
 }
 
 # 1) source 在線？
