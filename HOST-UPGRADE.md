@@ -46,7 +46,8 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
 
 ## 0b. .env 只有一个（2026-09-26 收斂）
 
-**只維護 repo 根目錄的 `.env`**，`backend/.env` 已不再需要（2026-09-26 移除）。
+**只維護 repo 根目錄的 `.env`**，`backend/.env` 已於 2026-09-26 在 MSI 移除
+（x570/mbp 若還有，可直接刪）。
 
 原本根 `.env` 給 compose、`backend/.env` 給 host 腳本，25 個變數兩份副本 ——
 `QDRANT_API_KEY` 曾在兩者間漂移，造成「本機 qdrant 200、遠端 401」的非對稱故障。
@@ -56,12 +57,36 @@ crontab 也不必再寫 `set -a; . .../backend/.env; set +a;`。
 遷移後請確認：
 
 ```bash
-# 1) 有沒有殘留的 backend/.env
-ls -la backend/.env 2>/dev/null && echo "可刪了（腳本已改讀根 .env）" || echo "已無"
+# 1) 刪除殘留的 backend/.env（腳本已改讀根 .env，刪了不影響運作）
+ls -la backend/.env && rm backend/.env || echo "已無"
 
 # 2) 稽核工具確認沒有幽靈變數與副本漂移
 python3 scripts/env-audit.py
+# 期望只剩 3 項「幽靈變數」（QDRANT_URLS / EMBED_MODEL / RERANK_MODEL），
+# 那是刻意留著的說明性項目，原因會附在 .env.example 註解裡
 ```
+
+⚠️ **刪除前務必先比對兩份是否一致**（值可能已經漂移）：
+
+```bash
+python3 -c "
+import pathlib, re
+def load(p):
+    d = {}
+    for line in pathlib.Path(p).read_text(encoding='utf-8').splitlines():
+        m = re.match(r'^([A-Z_][A-Z_0-9]*)=(.*)$', line)
+        if m: d[m.group(1)] = m.group(2)
+    return d
+root, back = load('.env'), load('backend/.env')
+print('值不一致:', [k for k in set(root) & set(back) if root[k] != back[k]] or '無')
+print('只在根:', sorted(set(root) - set(back)) or '無')
+print('只在 backend:', sorted(set(back) - set(root)) or '無')
+"
+```
+
+> 2026-09-26 MSI 實際刪除時就發現 `POSTGRES_PASSWORD` 兩份不同
+> （指紋 `e328bd31728a` vs `55cebf3c8276`），必須先對齊才能刪。
+> 這正是重複維護的後果 —— 副本漂移會靜默發生。
 
 ### 機台專屬變數的前綴
 
