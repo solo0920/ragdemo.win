@@ -205,6 +205,21 @@ gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段 `/openrouter` 換 `/google-ai-st
 - 前端自製下拉（原生 `<select>` 無法對內部子字串著色／右對齊）。
 - 完整路由表＋額度＋驗證見 `ROADMAP.md` §3.5；排障見 `settings/opencode/CF-AIG-TOKEN-ENV.md`。
 
+### 實測注意事項（2026-09-26 補）
+
+provider 地雷。這些是實測踩到的，不在任何程式碼裡 —— 刪掉就真的會再踩一次：
+
+- **`gemini-2.5-*` 對新 key 回 404**「no longer available to new users」——
+  新申請的 Gemini key 不能用 2.5 系列，選 3.x 系列。
+- **CF AI Gateway 的 huggingface provider 已下架**：指向 `api-inference.huggingface.co`
+  回 `530 Origin DNS error`。`hf/` 群組要直接接官方 `router.huggingface.co`
+  （`HF_BASE_URL` 預設值），並用 Settings→Access Tokens 的 Fine-grained token
+  （選 Inference preset，`hf_...` 開頭）。
+- **Mistral 上游 rate limit**：`mistral-small`/`medium` 家族回 `429 code 1300`。
+  實測可用的是 `ministral-8b-latest` 與 `codestral-latest`（即 `MISTRAL_MODELS` 預設）。
+- **msi 為何是 `qwen3:8b` 而非 4b**：4b 的 `think:false` 是已知 bug ——
+  連「1+1=?」都會思考 1000+ token。8b 已實測正常（2026-09-23 換上）。
+
 ## 題庫（rules）與 JEV 驗證（2026-09-26）
 
 - `/rules`：題庫寫入（`rules.py`），關鍵字匹配 → 固定答案。讀取不需 token、寫入要 `ADMIN_TOKEN`

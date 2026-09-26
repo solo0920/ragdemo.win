@@ -68,7 +68,7 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 - x570 驗證過：`/health` 回真實主機名 `solo-X570-I-AORUS-PRO-WIFI`、`/hosts` 含 4 個模型、
   fallback 死點自動跳過、`/query` 0.736 分帶法條引註。
 
-關鍵變數（`backend/.env.example` 有完整三台 profile）：
+關鍵變數（完整三台 profile 見 `ARCHITECTURE.md`「三機分工」，逐項說明見根 `.env.example`）：
 
 ```
 HOST_ID        # registry 主鍵＋前端切換鍵：x570 / mbp / msi

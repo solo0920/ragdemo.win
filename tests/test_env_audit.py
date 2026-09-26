@@ -296,6 +296,24 @@ def test_template_has_no_lan_ip_assignment():
         ".env.example 與 --template 產出不一致，請跑 scripts/env-audit.py --template > .env.example"
 
 
+def test_backend_env_example_does_not_exist():
+    """backend/.env 的副本一律不得復活。
+
+    2026-09-26 刪除 backend/.env（33f9da3）就是為了消除副本漂移：
+    那天 POSTGRES_PASSWORD 兩份不同（e328bd31728a vs 55cebf3c8276），
+    而兩把都能認證本機 role，所以漂移是靜默的 —— 要等到刪的那一刻才發現。
+
+    backend/.env.example 是同一份副本的「招募廣告」：留著就會有人照著
+    再建一份 backend/.env。刪了之後連範例也不該留。
+
+    只擋 .env.example 不擋 .env 本體：x570/mbp 可能還在過渡期
+    （HOST-UPGRADE.md §0b 叫它們刪），對那些機器斷言 .env 不存在
+    會產生假警報。
+    """
+    assert not (ROOT / "backend" / ".env.example").exists(), \
+        "backend/.env.example 復活了 —— 請改用根 .env.example"
+
+
 def test_policy_excluded_variables_are_distinguished_from_ghosts():
     """政策停用 ≠ 無人讀。兩者的處置完全不同。
 
