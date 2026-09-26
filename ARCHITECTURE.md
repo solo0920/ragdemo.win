@@ -178,14 +178,16 @@ gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段 `/openrouter` 換 `/google-ai-st
 **三台統一 `--protocol http2`**（WSL2 的 UDP/QUIC 連 edge 全 timeout，實戰心得）。
 
 ### keepalive 兩層（進程層＋edge 長連線）
-1. **進程層**：x570/msi 用 crontab `restart loop`（tunnel 崩潰每 5s 重拉；api/qdrant 每 30s 冪等檢查），
-   mbp 用 launchd `KeepAlive=true`。（x570 api 在 docker compose `restart: unless-stopped`；三機
-   cloudflared 一律 `--protocol http2`。）
+1. **進程層**：cloudflared tunnel 崩潰——x570/msi 用 crontab `restart loop`（每 5s 重拉），
+   mbp 用 launchd `com.ragdemo.tunnel` `KeepAlive=true`。api/qdrant/pg 三機一律 docker compose
+   `restart: unless-stopped`（mbp＝OrbStack，隨登入啟動；2026-09-26 容器化）；msi 未遷移前用
+   crontab 每 30s 冪等檢查 `~/bin/ragdemo-api.sh`（見 §4.1.1）。cloudflared 一律 `--protocol http2`。
 2. **edge 連線層**：`curl http://127.0.0.1:20241/metrics` 應見 4 條連線、errors=0。
 
-### mbp 限制（2026-09-24 確認）
-mbp 的 `~/Library/LaunchAgents/` agent 需 **GUI 登入後**才載入；壓電源停在登入畫面時
-公網 `api-mbp` 會 530、本機 8000/6333 無服務——登入後自動恢復。接受此行為（本機 GUI Mac）。
+### mbp 限制（2026-09-24 確認，2026-09-26 容器化後仍適用）
+mbp 的 **OrbStack app**（qdrant/api/pg 容器）與 `~/Library/LaunchAgents/` agent（tunnel/sync）
+皆需 **GUI 登入後**才啟動；壓電源停在登入畫面時，公網 `api-mbp` 會 530、本機 8000/6333
+無服務——登入後自動恢復。接受此行為（本機 GUI Mac）。
 
 ## 模型 keepalive（ollama 常駐，2026-09-23 定案）
 各主機預設 LLM 與 embedding 啟動後即常駐（`keep_alive: KEEP_ALIVE`，request 層指定）。
@@ -223,7 +225,7 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
 * 判決注意個資去識別化，回答僅供參考非法律意見
 * 精簡包擴到 500~1000 筆（目前 3 筆，同步機制已就位）
 * 需離線 `/hosts` → mbp/msi 另建 pg 副本（低優先）
-* 二機遷移 docker compose（ROADMAP §4.1.1）
+* mbp 已容器化（2026-09-26，OrbStack）；msi 遷移 docker compose（ROADMAP §4.1.1）
 * OPENROUTER 真餘額顯示需 management key（外部資源暫無）
 
 ## 啟動
@@ -239,13 +241,13 @@ cd frontend && pnpm install && pnpm run build && pnpm run dev   # pnpm（非 npm
 bash ~/bin/ragdemo-api.sh      # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5/2.7）
 curl localhost:8000/health     # 回 host_id=msi, llm=qwen3:8b
 ```
-**mbp（launchd，登入自動跑；未遷移）**：
+**mbp（docker compose，OrbStack，2026-09-26 容器化）**：
 ```bash
-launchctl load ~/Library/LaunchAgents/com.ragdemo.qdrant.plist    # qdrant @127.0.0.1:6333
-launchctl load ~/Library/LaunchAgents/com.ragdemo.api.plist       # uvicorn @8000（--env-file .env）
-launchctl load ~/Library/LaunchAgents/com.ragdemo.sync-snapshot.plist  # 每10分鐘快照同步
-curl localhost:8000/health     # 回 host_id=mbp
-cd frontend && pnpm run dev    # 前端 dev（proxy → localhost:8000，需 Node≥22）
+# OrbStack app 起動即滿載三容器；.env 在 repo 根（gitignored）
+docker compose up -d --build     # 改 api 碼後加 --build；qdrant/pg 不必動
+curl localhost:8000/health       # 回 host_id=mbp
+launchctl list | grep ragdemo    # 只剩 tunnel + sync-snapshot（api/qdrant 已無 launchd）
+cd frontend && pnpm run dev      # 前端 dev（proxy → localhost:8000，需 Node≥22）
 ```
 
 ## 備援同步操作

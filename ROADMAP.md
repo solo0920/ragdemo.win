@@ -520,7 +520,8 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 > - `rag.py` embed/generate 帶 `keep_alive=KEEP_ALIVE`（預設 `-1` 常駐，可在 `.env` 覆寫）；
 >   api 啟動時 `warmup()` 預載該機預設 LLM＋`bge-m3`，首個 query 不再冷載入。
 > - 驗證：`ollama ps` 看到預設模型在列且 UNLOAD 為空白（常駐）；重啟 api 後首個 `/query` 不慢。
-> - mbp 已實作並驗證（commit `mbp:`）；x570 / msi pull 後 `launchctl kickstart -k`／`~/bin/ragdemo-api.sh` 重啟即可。
+> - mbp 已實作並驗證（commit `mbp:`）；x570 / msi pull 後 `launchctl kickstart -k gui/$(id -u)/com.ragdemo.api`／`~/bin/ragdemo-api.sh` 重啟即可。
+>   **mbp 自 2026-09-26 改用 docker compose（OrbStack），api 無 launchd，改用 `docker compose up -d --build api` 重啟。**
 
 #### 接管整備與來源可追溯（2026-09-23 定案）
 
@@ -551,8 +552,8 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   （不用純文字 md，瀏覽器才不會整排錯位）。
 - **mbp / msi 交接：比照 x570 設計**，pull＋重啟後端後即自動生效：
   - `git pull origin main`；msi 先 `pkill -f 'uvicorn.*8000'` 再 `bash ~/bin/ragdemo-api.sh`
-    （ragdemo-api.sh 偵到 8000 在跑會跳過，不重拉新碼）；mbp 用 launchd 重啟
-    （`launchctl kickstart -k`）。
+    （ragdemo-api.sh 偵到 8000 在跑會跳過，不重拉新碼）；mbp 用 docker compose 重啟
+    （`docker compose up -d --build api`）。
   - 前端由 Pages 自動部署，不需動手；worker 已有 `?backend=` 與轉傳邏輯。
   - 驗收：`curl -s -X POST 'https://ragdemo.win/api/query?backend=<host>' ...` 回應須含 `src`；
     未含 = 那台還在跑舊 rag.py。前端來源表該格會顯示 `-`。
