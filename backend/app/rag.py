@@ -724,7 +724,11 @@ def _detect_law(question: str) -> str | None:
             return name
     for name in _LAW_NAMES:  # 法名嵌在問句內（例:「什麼是證券交易法」）
         n = name.replace(" ", "")
-        if len(n) >= 3 and n in qq:
+        # >= 2 而非 >= 3：門檻原本是 3，但 corpus 1025 部法裡「民法」只有 2 字，
+        # 于是「民法第184條…」永遠偵測不到法名 → 走不到條號精準分支 → 只剩 dense
+        # 0.55 < 門檻 0.58 → no_match（2026-09-26 實測）。全 corpus 只有「民法」
+        # 一個 2 字法名，放寬只影響它。
+        if len(n) >= 2 and n in qq:
             return name
     return None
 
@@ -833,100 +837,101 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
         for h in hits:
             h["score"] = h["_fused"]
             h.pop("_fused", None)
-        # 條號精準分支：query 含「第N條」時，同時對「同條號、跨法」候選以 dense 打分，
-        # 破除熱門條號被擁擠（例「證券交易法第20條」sparse 腿排到數百名外）與"湊巧含法名子串"
-        # 的文件搶位的問題；法名+條號組合下真正的條文會衝到最前。
-        an = extract_article_no(question)
-        if an:
-            # 法名＋條號（含簡稱，例:「勞基法第38條」）：直接滾「該法該條」當精準來源。
-            # 為什麼不能只靠「跨法同條號」競爭（實測）：
-            # ① query 為「法名＋第N條」時 sparse tokenizer 的 CJK run 把「第」吃進法名 bigram，
-            #    數字被 latin 拆出 → 根本沒有「第38條」條號 token；② doc 端 min(tf,4) 飽和讓
-            #    罰責類條文的「規定/條規」高頻字拿 3~4 權重，與 query「規定什麼」假重疊→虛高
-            #    sparse dot（事業用爆炸物管理條例38 got 7 vs 勞動基準法38 got 2，語意無關卻霸榜）；
-            #    ③ 簡稱「勞基法」對法名「勞動基準法」bigram 重疊=0，加分失效、正確條文掉到 top5。
-            # 偵測到法名→鎖該法該條；僅條號查詢（無法名）仍走下方跨法競爭。
-            law = _detect_law(question)
-            if law:
-                f_law = {"must": _BASE_FILTER["must"] +
-                         [{"key": "law_name", "match": {"value": law}},
-                          {"key": "article_no", "match": {"value": an}}]}
-                r = await _req("qdrant", QDRANT_URLS, "post",
-                               f"/collections/{COLLECTION}/points/scroll",
-                               json={"filter": f_law, "limit": 10,
-                                     "with_payload": True, "with_vector": False}, timeout=30)
-                r.raise_for_status()
-                solo = [h for h in r.json()["result"]["points"] if h.get("payload")]
-                if solo:
-                    qv = _sparse.sparse_vector(question)
-                    q = dict(zip(qv["indices"], qv["values"]))
-                    for h in solo:
-                        d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
-                        h["score"] = sum(q.get(t, 0.0) * v for t, v in d.items())
-                        h["_exact_rank"] = True  # 精準命中，rerank 置頂
-                    exact = solo[:3]
-                    exact_ids = {h["id"] for h in exact}
-                    hits = exact + [h for h in hits if h["id"] not in exact_ids]
-                    return hits
-            # 同條號跨法候選（僅條號查詢）：scroll 全拉（不依賴 dense 排位，避免真身被擠出
-            # 小 limit），本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
-            f2 = {"must": _BASE_FILTER["must"] + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
-            r = await _req("qdrant", QDRANT_URLS, "post",
-                           f"/collections/{COLLECTION}/points/scroll",
-                           json={"filter": f2, "limit": 1000, "with_payload": True, "with_vector": False},
-                           timeout=30)
-            r.raise_for_status()
-            exact = r.json()["result"]["points"]
-            if exact:
-                qv = _sparse.sparse_vector(question)
-                q = dict(zip(qv["indices"], qv["values"]))
-                qbig = _bigrams(question)
-                for h in exact:
-                    d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
-                    # dot＝內容/特徵重疊；＋法名 bigram 重疊破「內容不含法名詞彙引致的同分」
-                    law = h["payload"].get("law_name", "")
-                    h["_exact"] = sum(q.get(t, 0.0) * v for t, v in d.items()) + 3.0 * len(qbig & _bigrams(law))
-                exact.sort(key=lambda h: h["_exact"], reverse=True)
-                exact = [h for h in exact if h["_exact"] > 0][:3]
-                for h in exact:
-                    h["score"] = h.pop("_exact", 0.0)
-                    h["_exact_rank"] = True  # 供本地 rerank 保留精準分支的領先順序
-            exact_ids = {h["id"] for h in exact}
-            # exact 排最前，一併去重（可能已在 fused hit 中段）；top_k 才能看到真身。
-            hits = exact + [h for h in hits if h["id"] not in exact_ids]
-        else:
-            # 法名分支：查詢即法名（例:「證券交易法」）時，dense 前段常被「提及該法名」的其他法
-            # 條文佔據，本法條文反而排不進 top；滾出本法條文（條號升序）prepend 當「來源」。
-            law = _detect_law(question)
-            if law:
-                r = await _req("qdrant", QDRANT_URLS, "post",
-                               f"/collections/{COLLECTION}/points/scroll",
-                               json={"filter": {"must": _BASE_FILTER["must"] +
-                                                [{"key": "law_name", "match": {"value": law}}]},
-                                     "limit": 300, "with_payload": True, "with_vector": False},
-                               timeout=30)
-                r.raise_for_status()
-                arts = sorted(r.json()["result"]["points"],
-                              key=lambda h: _art_sort_key(h["payload"].get("article_no", "")))
-                top = arts[:3]
-                for h in top:
-                    h["score"] = 0.0          # 穩定排序用（rerank 的精準分支維持輸入順序）
-                    h["_brief"] = _law_brief(law)
-                    h["_exact_rank"] = True   # 視同精準命中（法名精準），rerank 置頂
-                lid = {h["id"] for h in top}
-                hits = top + [h for h in hits if h["id"] not in lid]
-        return hits
-    if _HAS_NAMED:
+    else:
+        # 純 dense（laws collection 目前沒有 sparse vectors → HAS_SPARSE=False）。
         # /points/search 對具名向量要 {"name":..,"vector":..}；{"dense": ..} 是
         # /points/upsert 與 /points/query+using 的形式，在這裡會被 400
         # （"did not match any variant of untagged enum NamedVectorStruct"）。
-        body = {"vector": {"name": "dense", "vector": vector}, "limit": limit, "with_payload": True}
+        body = ({"vector": {"name": "dense", "vector": vector}} if _HAS_NAMED
+                else {"vector": vector})
+        body.update({"limit": limit, "with_payload": True})
+        r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/search",
+                       json=body, timeout=30)
+        r.raise_for_status()
+        hits = r.json()["result"]
+    # 條號精準分支：query 含「第N條」時，同時對「同條號、跨法」候選以 dense 打分，
+    # 破除熱門條號被擁擠（例「證券交易法第20條」sparse 腿排到數百名外）與"湊巧含法名子串"
+    # 的文件搶位的問題；法名+條號組合下真正的條文會衝到最前。
+    an = extract_article_no(question)
+    if an:
+        # 法名＋條號（含簡稱，例:「勞基法第38條」）：直接滾「該法該條」當精準來源。
+        # 為什麼不能只靠「跨法同條號」競爭（實測）：
+        # ① query 為「法名＋第N條」時 sparse tokenizer 的 CJK run 把「第」吃進法名 bigram，
+        #    數字被 latin 拆出 → 根本沒有「第38條」條號 token；② doc 端 min(tf,4) 飽和讓
+        #    罰責類條文的「規定/條規」高頻字拿 3~4 權重，與 query「規定什麼」假重疊→虛高
+        #    sparse dot（事業用爆炸物管理條例38 got 7 vs 勞動基準法38 got 2，語意無關卻霸榜）；
+        #    ③ 簡稱「勞基法」對法名「勞動基準法」bigram 重疊=0，加分失效、正確條文掉到 top5。
+        # 偵測到法名→鎖該法該條；僅條號查詢（無法名）仍走下方跨法競爭。
+        law = _detect_law(question)
+        if law:
+            f_law = {"must": _BASE_FILTER["must"] +
+                     [{"key": "law_name", "match": {"value": law}},
+                      {"key": "article_no", "match": {"value": an}}]}
+            r = await _req("qdrant", QDRANT_URLS, "post",
+                           f"/collections/{COLLECTION}/points/scroll",
+                           json={"filter": f_law, "limit": 10,
+                                 "with_payload": True, "with_vector": False}, timeout=30)
+            r.raise_for_status()
+            solo = [h for h in r.json()["result"]["points"] if h.get("payload")]
+            if solo:
+                qv = _sparse.sparse_vector(question)
+                q = dict(zip(qv["indices"], qv["values"]))
+                for h in solo:
+                    d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
+                    h["score"] = sum(q.get(t, 0.0) * v for t, v in d.items())
+                    h["_exact_rank"] = True  # 精準命中，rerank 置頂
+                exact = solo[:3]
+                exact_ids = {h["id"] for h in exact}
+                hits = exact + [h for h in hits if h["id"] not in exact_ids]
+                return hits
+        # 同條號跨法候選（僅條號查詢）：scroll 全拉（不依賴 dense 排位，避免真身被擠出
+        # 小 limit），本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
+        f2 = {"must": _BASE_FILTER["must"] + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
+        r = await _req("qdrant", QDRANT_URLS, "post",
+                       f"/collections/{COLLECTION}/points/scroll",
+                       json={"filter": f2, "limit": 1000, "with_payload": True, "with_vector": False},
+                       timeout=30)
+        r.raise_for_status()
+        exact = r.json()["result"]["points"]
+        if exact:
+            qv = _sparse.sparse_vector(question)
+            q = dict(zip(qv["indices"], qv["values"]))
+            qbig = _bigrams(question)
+            for h in exact:
+                d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
+                # dot＝內容/特徵重疊；＋法名 bigram 重疊破「內容不含法名詞彙引致的同分」
+                law = h["payload"].get("law_name", "")
+                h["_exact"] = sum(q.get(t, 0.0) * v for t, v in d.items()) + 3.0 * len(qbig & _bigrams(law))
+            exact.sort(key=lambda h: h["_exact"], reverse=True)
+            exact = [h for h in exact if h["_exact"] > 0][:3]
+            for h in exact:
+                h["score"] = h.pop("_exact", 0.0)
+                h["_exact_rank"] = True  # 供本地 rerank 保留精準分支的領先順序
+        exact_ids = {h["id"] for h in exact}
+        # exact 排最前，一併去重（可能已在 fused hit 中段）；top_k 才能看到真身。
+        hits = exact + [h for h in hits if h["id"] not in exact_ids]
     else:
-        body = {"vector": vector, "limit": limit, "with_payload": True}
-    r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/search",
-                   json=body, timeout=30)
-    r.raise_for_status()
-    return r.json()["result"]
+        # 法名分支：查詢即法名（例:「證券交易法」）時，dense 前段常被「提及該法名」的其他法
+        # 條文佔據，本法條文反而排不進 top；滾出本法條文（條號升序）prepend 當「來源」。
+        law = _detect_law(question)
+        if law:
+            r = await _req("qdrant", QDRANT_URLS, "post",
+                           f"/collections/{COLLECTION}/points/scroll",
+                           json={"filter": {"must": _BASE_FILTER["must"] +
+                                            [{"key": "law_name", "match": {"value": law}}]},
+                                 "limit": 300, "with_payload": True, "with_vector": False},
+                           timeout=30)
+            r.raise_for_status()
+            arts = sorted(r.json()["result"]["points"],
+                          key=lambda h: _art_sort_key(h["payload"].get("article_no", "")))
+            top = arts[:3]
+            for h in top:
+                h["score"] = 0.0          # 穩定排序用（rerank 的精準分支維持輸入順序）
+                h["_brief"] = _law_brief(law)
+                h["_exact_rank"] = True   # 視同精準命中（法名精準），rerank 置頂
+            lid = {h["id"] for h in top}
+            hits = top + [h for h in hits if h["id"] not in lid]
+    return hits
 
 
 async def _dense_leg(vector: list[float], limit: int) -> dict[int, float]:

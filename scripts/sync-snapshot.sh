@@ -18,12 +18,40 @@ LOG="$QDIR/sync.log"
 STATE="$QDIR/.sync-state"   # 內容 e.g. "3 laws-xxx.snapshot"
 TMP="$QDIR/.sync.tmp.snapshot"
 TS="$(date '+%F %T')"
+# 認證用兩把 key，不要混：
+#   QDRANT_API_KEY      本機自己的 qdrant（backend 查詢用同一把）
+#   QDRANT_PEER_API_KEY 同步對象（x570）的 qdrant —— 必須另外設定
+# 過去只有一把，得以運作純粹因為三機共用同一把；一旦任一輪換就變成
+# 「本機 200、遠端 401」的不對稱（2026-09-26 MSI 實測踩到）。所以拆開。
+# 未設定 QDRANT_PEER_API_KEY 時退回 QDRANT_API_KEY，維持舊的單機設定可用。
+PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"
+
 # Qdrant api-key：source/dest 任一啟用認證時需帶；未設定即無 key（舊版相容）。
 AUTH_H=()
-[ -n "${QDRANT_API_KEY:-}" ] && AUTH_H=(-H "api-key: $QDRANT_API_KEY")
+[ -n "$PEER_KEY" ] && AUTH_H=(-H "api-key: $PEER_KEY")
 
 log() { echo "[$TS] $*" >>"$LOG"; }
 pts_of() { curl -sf "${AUTH_H[@]}" -m 10 "$1/collections/$2" | python3 -c 'import sys,json; print(json.load(sys.stdin)["result"]["points_count"])' 2>/dev/null || echo -1; }
+
+# 認證失敗要講清楚是哪一把 key 的問題。症狀（create snapshot failed）看不出
+# 「來源離線」和「key 不對」的差別，2026-09-26 兩者都發生過、難以區分。
+auth_precheck() {
+  code="$(curl -s -m 15 -o /dev/null -w '%{http_code}' "${AUTH_H[@]}" "$SOURCE/collections/$COLLECTION" 2>/dev/null)"
+  case "$code" in
+    200) return 0 ;;
+    401|403)
+      if [ -z "${QDRANT_PEER_API_KEY:-}" ]; then
+        log "AUTH 失敗（HTTP $code）：只有 QDRANT_API_KEY、沒設 QDRANT_PEER_API_KEY。"
+        log "  本機 key 只適用於本機 qdrant；要寫入 $SOURCE 必須另外給對方的 key。"
+      else
+        log "AUTH 失敗（HTTP $code）：QDRANT_PEER_API_KEY 與 $SOURCE 的 qdrant 不符。"
+      fi
+      log "  比對方法（不外洩值）：比較兩邊的 sha256 前 12 碼是否一致。"
+      return 1 ;;
+    000) return 0 ;;   # 連不上，交给呼叫端報 offline
+    *) return 0 ;;
+  esac
+}
 
 [ -d "$QDIR" ] || mkdir -p "$QDIR"
 
@@ -76,6 +104,7 @@ if ! curl -sf "${AUTH_H[@]}" -m 5 "$SOURCE/healthz" >/dev/null 2>&1; then
 fi
 
 # 2) 點數沒變 → 跳過（但版本仍要更新：資料沒變不代表來源機換了法規版本）
+auth_precheck || exit 1
 SRC_PTS="$(pts_of "$SOURCE" "$COLLECTION")"
 PREV_PTS="$(awk '{print $1}' "$STATE" 2>/dev/null || echo "")"
 if [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; then

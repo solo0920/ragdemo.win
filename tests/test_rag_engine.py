@@ -9,8 +9,16 @@ def test_detect_law_recognizes_bare_law_name():
     try:
         assert rag._detect_law("證券交易法") == "證券交易法"
         assert rag._detect_law("請說明什麼是證券交易法") == "證券交易法"   # 法名開頭
-        assert rag._detect_law("民法第259條的返還義務") is None           # 有條號時不誤觸
+        # 法名＋條號 → 認得（要認得，才能走「該法該條」的精準分支）。
+        # 這裡曾斷言 2 字法名「有條號時不誤觸」而回 None，但那是 len>=3 門檻的副作用，
+        # 不是一致規則：3 字以上法名帶條號本來就會被認得（下面兩行即為證）。
+        # 門檻放寬到 2 之後，民法／刑法不再成為唯一例外（2026-09-26 修）。
+        assert rag._detect_law("民法第259條的返還義務") == "民法"
+        assert rag._detect_law("刑法第19條故意傷害") == "刑法"
+        assert rag._detect_law("勞動基準法第38條的罰則") == "勞動基準法"
+        # 真正要防的是「問句沒提到任何法名」→ 不該憑空認出一部法
         assert rag._detect_law("今天天氣如何？") is None
+        assert rag._detect_law("第259條的返還義務") is None   # 只有條號、沒法名
         assert rag._detect_law("勞基法") == "勞動基準法"                     # 簡稱（別名）也認得
     finally:
         rag._LAW_NAMES = []
