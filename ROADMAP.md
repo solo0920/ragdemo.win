@@ -955,19 +955,56 @@ Settings → Integrations → Applications → **Authorized OAuth Apps**（不�
 （`gh-token-check` 的「解耦狀態」就是查這個）。完整寫法、撤銷流程與輪換檢查清單見
 `settings/opencode/README.md`〈MCP〉。
 
-#### 待辦 2：合併 Dependabot PR 時，commit 訊息要帶機器前綴
+#### 待辦 2：合併 Dependabot PR 時，commit 訊息要帶機器前綴 ✅ **已完成（2026-09-26）**
 
-Dependabot 已開出 PR（#1 asyncpg／#2 fastapi／#3 adapter-auto／#4 pydantic 等）。
+Dependabot 開了四個 PR（#1 asyncpg／#2 fastapi／#3 adapter-auto／#4 pydantic）。
 GitHub squash merge **預設拿 PR 標題當 commit message**，而標題形如
 `build(deps): update fastapi ...` 沒有 `msi:` 前綴 → ci.yml 的 `護欄` job 會報紅。
 
-- 合併前改訊息（UI 合併時可編輯），或直接：
-  ```bash
-  gh pr merge <編號> --squash --subject "msi: bump fastapi 0.141.1"
-  ```
-- 順帶一提：commit 前綴**無法**在 server 端用 ruleset 擋（`commit_message_pattern` 只適用
-  enterprise 擁有的 repo，個人帳號拿不到，實測 422）。所以 `護欄` job 是「事後回報」，
-  真正擋得住的仍只有各機的 `.githooks/commit-msg`（見 ARCHITECTURE 同節）。
+```bash
+gh pr merge <編號> --squash --subject "msi: bump fastapi floor 0.115 → 0.141.1（對齊 lock 實際解析值）"
+```
+
+**實際合併結果**：
+
+| PR | 處置 | 理由 |
+|---|---|---|
+| #1 asyncpg `>=0.30` → `>=0.31.0` | 合併 | floor 收緊到 lock 早已解析的版本 |
+| #2 fastapi `>=0.115` → `>=0.141.1` | 合併 | 同上 |
+| #4 pydantic `>=2.0` → `>=2.13.5` | 合併 | 同上 |
+| #3 adapter-auto `3.3.1` → `7.0.1` | **關閉並移除依賴** | 見下 |
+
+三個 backend PR 都不是升版，而是**把 floor 收緊到 `uv.lock` 早已解析的版本**
+（lock 當時就鎖在 0.31.0／0.141.1／2.13.5）。實測 `uv sync --frozen` 在
+pyproject 與 lock 不一致時**仍然 exit 0** —— `--frozen` 明確跳過 lock 新鮮度檢查，
+lock 為權威（這正是本專案的設計）。所以這些 PR 合併後安裝的套件集完全不變。
+但 `uv lock --check` 會判定過期，因此合併後補了一次 `uv lock`：只改 3 行
+`requires-dist` metadata，解析出的版本一個都沒動。
+
+**#3 為什麼關掉而不是合併**：`svelte.config.js` 明確寫死
+`adapter: adapter()`（`@sveltejs/adapter-cloudflare`），而 SvelteKit 只在
+`kit.adapter` **未設定**時才啟用 `@sveltejs/adapter-auto` —— 該套件結構上不可能生效。
+佐證：全 repo 無任何 import、`pnpm run build` 實際輸出 `Using @sveltejs/adapter-cloudflare`。
+移除後 lock 淨減 18 行，且 Dependabot 不再會為它開 PR。
+
+順帶一提：commit 前綴**無法**在 server 端用 ruleset 擋（`commit_message_pattern` 只適用
+enterprise 擁有的 repo，個人帳號拿不到，實測 422）。所以 `護欄` job 是「事後回報」，
+真正擋得住的仍只有各機的 `.githooks/commit-msg`（見 ARCHITECTURE 同節）。
+
+**合併衝突怎麼解**：#1／#2／#4 都改 `backend/pyproject.toml` 的同一個 hunk，先合的
+會讓後面的分支 CONFLICTING。`PUT /pulls/{n}/update-branch` **不解衝突**（實測回
+`422 merge conflict between base and head`，它只做 fast-forward），要自己 rebase：
+
+```bash
+git fetch origin 'refs/pull/4/head:refs/heads/pr4' && git checkout pr4
+git -c core.hooksPath=/dev/null rebase origin/main   # replay 的是 Dependabot 的 commit，不是自己的
+# 解衝突：整檔取 origin/main 版本再改自己那一行，不要用 regex 砍衝突標記（會留下兩側重複行）
+git push --force-with-lease origin pr4:dependabot/pip/backend/pydantic-gte-2.13.5
+gh pr merge 4 --squash --subject "msi: ..."
+```
+
+`core.hooksPath=/dev/null` 只用在這一次 rebase：`.githooks/commit-msg` 會擋下
+Dependabot 沒有機器前綴的訊息，但最終 squash 出來的 commit 仍由 `護欄` job 驗證前綴。
 
 #### 待辦 3：`secret_scanning_non_provider_patterns` 開不了 → 改用 CI 掃 ✅ **已完成（2026-09-26）**
 
