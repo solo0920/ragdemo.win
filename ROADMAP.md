@@ -299,6 +299,17 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
 - mbp `.env`：`QDRANT_URLS=100.119.83.111:6333,127.0.0.1:6333`（x570 優先，離線切本機）。
 - 前端：Node v22.23.2（brew `node@22`，PATH 已寫 `~/.zshrc`），`pnpm install`＋`pnpm run build` 過。
 
+> **2026-09-26 資安收斂後接手須知（x570 已設定，mbp/msi 需補）**：
+> x570 qdrant 已啟用原生 API key（`QDRANT__SERVICE__API_KEY`，無 key 回 401）＋只綁 tailscale
+> `100.119.83.111:6333`；postgres/api 僅綁 `127.0.0.1`。mbp/msi pull 後需同步：
+> 1. 三台 `.env` 都要有 **`QDRANT_API_KEY`**（與 x570 `.env` 同一值），否則 qdrant 回 401、
+>    `scripts/sync-snapshot.sh` 拉不到快照（script 已支援 `QDRANT_API_KEY` env，沒設就無 key 向後相容）。
+> 2. 自動同步的排程（msi crontab／mbp launchd `com.ragdemo.sync-snapshot`）環境要帶上
+>    `QDRANT_API_KEY`（crontab：指令前 `QDRANT_API_KEY=xxx`；launchd 用 `EnvironmentVariables`）。
+> 3. x570 compose 的 `POSTGRES_PASSWORD` 已改 `:?` 必填（移除了 `changeme` fallback）——mbp/msi
+>    的 `.env` 同時補 `POSTGRES_PASSWORD`（指向 x570 的資料庫也是同一值，`POSTGRES_DSN` 用）。
+> 4. 本機 dev 直接跑 `rag.py`（不經 compose）時，`.env` 也要設一致 `QDRANT_API_KEY`，否則 401。
+
 **待做**：
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
 - 驗收：MSI 上拔掉 x570 連線後 `/query` 仍能答（目前 3 筆已通過）。
