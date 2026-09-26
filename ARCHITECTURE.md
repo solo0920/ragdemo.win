@@ -1,16 +1,23 @@
 # RagDemo 架構（維護用）
 
+> 本檔描述**目前實作**（2026-09-26）。規劃中的跨機遷移見 `ROADMAP.md` §4.1.1。
+
+## 目錄結構
+
 ```
-compose.yaml      # qdrant + postgres + api（x570 用）
-backend/          # FastAPI：/health /ingest /query /eval
-  app/            #   main.py / rag.py / registry.py
-  start-msi.sh    #   MSI WSL 開機自動啟動（api＋本機 qdrant 備援）
-  .env            #   各機一份，不進版控
-frontend/         # SvelteKit：只打 /api/*
-evals/            # 評測題庫，目標 50 題
+compose.yaml       # qdrant + postgres + api（三機共用，x570 已跑 docker compose）
+backend/           # FastAPI：/health /ingest /query /eval /rules /models
+  app/             #   main.py / rag.py / registry.py / usage.py / rules.py
+  start-msi.sh     #   MSI WSL 開機自動啟動（api＋本機 qdrant 備援，未遷移時用）
+  .env.example     #   樣板（真實 .env 在 repo 根，不進版控）
+frontend/          # SvelteKit：只打 /api/*（Google 登入守護 SENSITIVE 路徑）
+  src/routes/api/[...path]/+server.ts   # worker：登入 guard + 三台備援轉發
+  src/routes/auth/                        # OAuth2 PKCE 登入
+evals/             # 評測題庫（questions.json + README）
+ingest/laws/       # 法規資料擷取/切分/落 PG（pg_load.py / pg_schema.sql）
 scripts/
-  sync-snapshot.sh #   x570→本機 qdrant 快照自動同步（備援核心）
-.opencode/agents/ # ingest / backend / frontend / eval 四個子代理
+  sync-snapshot.sh #   x570→本機 qdrant 快照自動同步（備援核心，支援 QDRANT_API_KEY）
+.opencode/agents/  # ingest / backend / frontend / eval 四個子代理
 ```
 
 ## 設計目標（2026-09-22 定案）
@@ -18,7 +25,7 @@ scripts/
 除硬體與 LLM 模型差異外，三台的**資料與檢索能力盡量一致、各自可獨立運作**。
 
 - 依賴關係：各機自備 ollama（LLM/embedding，硬體差異故模型不同）；
-  資料層（qdrant）以「快照同步」維持一致；pg 只有 registry 心跳用（非 query 必需）。
+  資料層（qdrant）以「快照同步」維持一致；pg 只有 registry 心跳＋用量統計用（非 query 必需）。
 - 降級邏輯走 `QDRANT_URLS`/`OLLAMA_URLS` 候選清單：x570 優先，離線自動切本機。
 
 ## 主機命名（2026-09-22 定案，三台嚴格執行）
@@ -32,59 +39,65 @@ scripts/
 
 - 適用範圍：`.env` 的 `HOST_ID`、前端切換按鈕 id、commit 前綴（`msi:`/`mbp:`/`x570:`）、
   `sync-snapshot.sh` 註解、文件（本檔／ROADMAP）——一律寫 `x570`，不寫 `linux`。
-- 指作業系統／WSL 技術本身時才寫 Linux（例：「WSL/Linux 跑 opencode」「x570 跑 Linux」）。
-- 沿革：早期以 OS 名 `linux` 代稱主力機；2026-09-22 定案改用硬體代號
-  （mbp/msi 本來就是硬體名，獨 linux 是 OS 名，故統一為 x570）。
+- 沿革：早期以 OS 名 `linux` 代稱主力機；2026-09-22 定案改用硬體代號。
 
 ## IP 準則（2026-09-22 定案，三台嚴格執行）
 **連線與登錄一律只留 tailscale IP（100.64.0.0/10），杜絕位址污染。**
 
 - `TS_IP` 必填；**不使用 LAN_IP**（192.168.x 一律不寫入 .env、不進 registry）。
 - `OLLAMA_URLS`/`QDRANT_URLS`/`POSTGRES_DSN` 全部用 tailscale 位址；
-  唯一例外是**本機服務**可寫 `127.0.0.1`（如本機 qdrant 備援、x570 localhost）。
-- 強制執行點：`registry.py _ips()` 已過濾，非 100.64.0.0/10 的 IP
-  （LAN/容器/loopback）不會寫入 registry 的 `ips`，`/hosts` 只會看到 tailscale。
-- 實作前有污染（eg mbp ips 混入 `192.168.0.2`）＝某台 .env 殘留 LAN_IP/
-  OLLAMA_URLS 打到別台——各台 pull 後**核對 .env、移除 LAN_IP**，心跳 30s 自動清乾淨。
+  唯一例外是**本機服務**可寫 `127.0.0.1`。
+- 強制執行點：`registry.py _ips()` 過濾非 100.64.0.0/10 → `/hosts` 只會看到 tailscale。
 
 ## 提交準則（2026-09-22 定案，三台嚴格執行）
 **commit message 首行必須以 tailscale 機器名前綴開頭：`msi:` / `mbp:` / `x570:`。**
 
-- 三台 git 身份相同（Solomon Lee/solo4study@gmail.com→solo0920），單看 git log 無法分辨
-  主機；改以主機前綴標記，`git log --oneline` 一眼可讀。
-- 前綴對應：`msi`=MSI（100.65.68.106）、`mbp`=Lees-MacBook-Pro（100.64.121.9）、
-  `x570`=solo-X570-I-AORUS-PRO-WIFI（100.119.83.111，tailscale 名統一寫 x570）。
-- **強制執行**：repo 內 `.githooks/commit-msg`（違反首行前綴直接拒絕；Merge/Revert 自動放行）。
-  各機啟用一次：`git config core.hooksPath .githooks`。
-- 正文格式不拘，範例：`msi: 修正 registry 過濾邏輯`。
+- `git log --oneline` 一眼可讀；`.githooks/commit-msg` 強制（Merge/Revert 自動放行）。
+- 各機啟用一次：`git config core.hooksPath .githooks`。
+- `pre-push` hook：強制 backend Python 語法＋追蹤檔無 `LAN_IP=`；本機 api 在線時報 `/health`；
+  `RAGDEMO_SMOKE=1` 加跑 `/query`；離線只警告不擋。
 
-## Git hooks（.githooks/，2026-09-22）
-repo 內 hook 隨版控走、各機 pull 即得；**各機啟用一次**：`git config core.hooksPath .githooks`
-（寫在 repo 的 `.git/config`，不進版控、不影響別台）。`git config core.hooksPath` 回 `.githooks`
-表示生效；hook 檔案更新後已啟用機器自動用新版。
+## 三機分工（2026-09-26 現況）
 
-| hook | 時機 | 作用 |
+* **x570 100.119.83.111**：主力。api/qdrant/pg **全 docker compose**（三容器），
+  `LLM_MODEL=qwen3:14b`，資料唯一來源。cloudflared local tunnel + crontab restart loop。
+* **mbp 100.64.121.9**：加速。api（uvicorn@8000，launchd）+ 本機 qdrant 備援已完成，
+  `LLM_MODEL=qwen3:14b`；`QDRANT_URLS`/`POSTGRES_DSN` 指 x570，離線降級本機。
+  （規劃遷移 docker compose——見 ROADMAP §4.1.1）
+* **msi 100.65.68.106（demo）**：api 在 WSL2（`start-msi.sh`，開機自動啟動）＋本機 qdrant 備援，
+  `LLM_MODEL=qwen3:8b`（2026-09-23 由 4b 換上：4b 的 `think:false` 是已知 bug）。
+  （規劃遷移 docker compose——見 ROADMAP §4.1.1）
+
+## 資安收斂（2026-09-26 定案）
+
+回應「port 暴露 0.0.0.0 / 弱密碼 / 無認證」稽核，本輪完成：
+
+### Port 綁定（folding 到最小曝露面）
+| 服務 | 綁定 | 理由 |
 |---|---|---|
-| `commit-msg` | `git commit` | 強制首行 `msi:`/`mbp:`/`x570:`（提交準則）；Merge/Revert 放行 |
-| `pre-push` | `git push` | **強制**：backend Python 語法＋追蹤檔無 `LAN_IP=`（IP 準則）；**可選**：完整 HTTP smoke |
+| qdrant 6333 | `${TS_IP}:6333`（x570=100.119.83.111） | mbp/msi 備援 snapshot 靠 tailscale 拉取；阻 LAN(192.168)/公網 |
+| postgres 5432 | `${TS_IP}:5432` | mbp/msi 心跳共用 registry（`sync-snapshot`不需 pg）；阻 LAN/公網 |
+| api 8000 | `127.0.0.1:8000` | cloudflared / dev proxy 都本機連；公網只經 tunnel |
 
-`pre-push` 行為：
-- 強制項不過 → 擋下 push（語法錯／發現 `LAN_IP=` 殘留）
-- 本機 api 在線 → 自動回報 `/health` 狀態
-- 加 `RAGDEMO_SMOKE=1 git push` → 追加跑 `/query`（驗證答案非空），較慢但完整
-- 本機 api 不在線 → HTTP 部分只警告不擋 push（離線也可推，語法/IP 檢查照跑）
-- 想繞過（緊急）：`git push --no-verify`
+- `compose.yaml` 用 `${TS_IP}` 變數→各機 .env 帶各自 TS_IP 即自動對應，無需改 yaml。
+- 保留 mbp/msi 用 `http://<TS_IP>:6333/5432` 經 tailscale 存取（registry 心跳、快照備援）。
 
-## 三機分工（連線一律 tailscale，見 IP 準則）
-* x570 100.119.83.111：主力，`OLLAMA_URLS=http://127.0.0.1:11434,http://100.119.83.111:11434`，
-  `LLM_MODEL=qwen3:14b`，api/qdrant/pg 全跑（docker compose），資料唯一來源
-* mbp 100.64.121.9：加速，`LLM_MODEL=qwen3:14b`，
-  api（uvicorn@8000，launchd 自動啟動）＋**本機 qdrant 備援已完成**（QDRANT/POSTGRES 指 x570，離線降級本機）
-* MSI 100.65.68.106（demo）：api 在 WSL2 裡（`uvicorn --env-file .env`，開機自動啟動），
-  `OLLAMA_URLS=http://100.65.68.106:11434`（tailscale 直連 Windows 本機 ollama），`LLM_MODEL=qwen3:8b`
-  （2026-09-23 由 qwen3:4b 換上：4b 的 `think:false` 是已知 bug，連簡答都會思考 1000+ token 吃光
-  回答空間；8b 實測開關正常、回應簡短），
-  資料層（Qdrant/pg）指 x570（tailscale）＋ **本機 qdrant 1.19.1 備援（已完成）**
+### 認證
+- **qdrant**：`QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}`（`.env`）。無 key 回 401。
+  `rag.py` `_req(kind="qdrant")` 自動帶 `api-key` header；`sync-snapshot.sh` 支援
+  `QDRANT_API_KEY` env（出站認證，mbp/msi 的 crontab/launchd 要帶）。
+- **postgres**：`POSTGRES_PASSWORD` 採 `:?` 必填語法，**移除了 `changeme` fallback**。
+  **坑**：`POSTGRES_PASSWORD` 只對首次容器初始化生效——既有 volume 需 `ALTER USER rag PASSWORD` 手動同步
+  （x570 已做，2026-09-26）。127.0.0.1 來源在 pg_hba 是 `trust`，會誤導成「密碼對」，要以 tailscale
+  來源測試真正的 credentials。
+- **api `/query`**：**不加後端 token 認證**。前端 worker（`+server.ts`）對 query/ingest/eval/rules
+  做 Google 登入 guard，且 port 收斂後 `/query` 只經 `127.0.0.1`＋cloudflared＋worker 三層到達
+  （worker 轉發不帶 token，加 `_require_admin` 會弄壞登入流程）。
+- `/rules` 寫入另用 `ADMIN_TOKEN`（`Authorization: Bearer`）double-check。
+
+### 密鑰管理
+- repo 根 `.env`（gitignored，compose auto-read）。`backend/.env.example` 為樣板＋說明。
+- 掃描確認 git 無真實 token（git ls-files、.env 追蹤數 0、歷史/前端建置產物皆無）。
 
 ## 備援機制（x570 離線時各機獨立作業）
 
@@ -100,16 +113,13 @@ scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 
 各機本機 qdrant（MSI: 127.0.0.1:6333 ✅ / mbp: 127.0.0.1:6333 ✅）
 ```
 
-- **資料一致性**：備援資料等同 x570 快照當下；快照很小（3 筆≈174KB、500~1000 筆≈10–60MB，
-  zstd 壓縮），同步成本低。
-- **快照還原（2026-09-24 修正）**：laws 改 dense+sparse 雙向量後，sync-snapshot.sh 原本
-  「先建 dense-only collection 再上傳」會 400 mismatch；改為**刪本機後直接上傳**
-  （`priority=snapshot` 用快照內建設定重建，含 sparse）；清 x570 舊快照移至下載後，失敗不累積。
-  三台 pull 即得新版，MSI 比照。
-- **脆弱點**：x570 離線期間新增的資料不會自動出現在備援（下一個快照週期才補上）——
-  可接受，檢索能力仍一致。
+- 快照很小（目前 3 筆≈174KB；500~1000 筆≈10–60MB, zstd），同步成本低。
+- **快照還原（2026-09-24 修正）**：刪本機後直接 `upload?priority=snapshot`（含 sparse 雙向量），
+  不再預建 dense-only collection。
+- **QDRANT_API_KEY 出站（2026-09-26）**：x570 開 key 後，mbp/msi 的 sync-snapshot 排程
+  （crontab/launchd）環境需帶 `QDRANT_API_KEY`（見資安收斂）。
 
-### QDRANT_URLS 降級（MSI 現況，全 tailscale＋本機）
+### QDRANT_URLS 降級（全 tailscale＋本機）
 ```
 QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 ```
@@ -117,197 +127,131 @@ QDRANT_URLS=http://100.119.83.111:6333,http://127.0.0.1:6333
 → x570 在線用 x570（最新）；離線自動切本機（快照資料），query 不中斷。
 
 ### 外出 demo 模式（2026-09-23 定案：零改造）
-
-把「x570 斷線」當常態：帶出門時 x570 在家離線，**mbp 自動扮演主力**，msi 當備援。
-不需 Docker、不需改架構——沿用現有自動 failover：
-- worker 自動模式依 x570→mbp→msi 探測，x570 離線自然落到 **mbp**（本機全棧：
-  api＋qdrant＋qwen3:14b＋bge-m3 都經 launchd 管理，見 keepalive 規範）
-- 僅 mbp 也掛時才落 msi（本機 qwen3:8b＋qdrant）
-- **出發前必做**：mbp 上跑 `bash scripts/sync-snapshot.sh`（預設 x570→mbp 本機），
-  確認 `laws` points_count 為最新——外出後 x570 不在線，快照只有行前能補
-  （詳見 ROADMAP §4.6）
+「x570 斷線」當常態：帶出門 x570 在家離線，**mbp 自動扮演主力**，msi 當備援。
+worker 自動模式依 x570→mbp→msi 探測；出發前 mbp 跑 `bash scripts/sync-snapshot.sh` 補最新快照。
+詳見 ROADMAP §4.6。
 
 ### pg / registry 的定位
-- `POSTGRES_DSN` 只指 x570：心跳寫 `backends` 表、`GET /hosts` 讀表。
-- 心跳時自動清掉超過 `REGISTRY_STALE_MIN`（預設 3 分鐘）未報到的 host row
-  （離線/改名殘留自動消失）；PG 離線時此清理不跑、無害。
-- x570 離線時：心跳失敗只是 warning（`main.py` try/except），**不影響 /query**；
-  `/hosts` 回空清單（可接受）。
-- 若需離線 `/hosts`，得在 mbp/msi 上另建 pg 副本（低優先，非 query 必需）。
+- `POSTGRES_DSN` 指 x570（tailscale）：心跳寫 `backends` 表、`GET /hosts` 讀表。
+- 心跳自動清 `REGISTRY_STALE_MIN`（3 分鐘）未報到的 host row；PG 離線時此清理不跑、無害。
+- x570 離線時：心跳失敗只是 warning，**不影響 /query**；`/hosts` 回空清單。
+- **用量統計**：`usage.py` 把 provider/model 逐日寫入 `model_usage` 表（best-effort，
+  寫入失敗吞掉）——`/models` 前端顯示「今日 N 次／約 T tokens」。見「LLM 雲端路由」。
 
-## 模型清單（2026-09-21 實測後）
+## LLM 雲端路由（2026-09-26）
+前端下拉除地端 ollama 外有 8 個雲端 provider 群組（模型清單以 `model="<pfx>/<id>"` 註記；
+`rag.py` `generate()` 依前綴路由，完整路由表＋額度＋驗證見 `ROADMAP.md` §3.5）。
+
+`openrouter/`、`zen/`、`nv/`（NVIDIA NIM）、`gemini/`、`groq/`、`cohere/`、`hf/`、`mis/`（Mistral）。
+認證分兩類：**CF AI Gateway 代管**（openrouter/gemini/groq/cohere/mistral，本機只需 CF token；
+gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段 `/openrouter` 換 `/google-ai-studio`、`/groq/v1`、
+`/cohere/v1beta`、`/mistral/v1` 推導）vs **直連需自有 key**（zen 需 `ZEN_API_KEY`、nv 需
+`NVIDIA_API_KEY`、hf 需 `HF_TOKEN`）。
+
+- 用量統計（`usage.py`，PG `model_usage`）、429 限流標記（`rag._LIMITED`，重置時間由 header 推估）、
+  free 額度分數（`rag.FREE_QUOTA`，來源 mnfst/awesome-free-llm-apis，全「次數型」）由 `/models` 回傳。
+- 前端自製下拉（原生 `<select>` 無法對內部子字串著色／右對齊）。
+- 完整路由表＋額度＋驗證見 `ROADMAP.md` §3.5；排障見 `settings/opencode/CF-AIG-TOKEN-ENV.md`。
+
+## 題庫（rules）與 JEV 驗證（2026-09-26）
+
+- `/rules`：題庫寫入（`rules.py`），關鍵字匹配 → 固定答案。讀取不需 token、寫入要 `ADMIN_TOKEN`
+  （`Authorization: Bearer`）。前端 worker 已把 `/rules` 列入 SENSITIVE（需 Google 登入）。
+- JEV（TypeSafe System One）驗證：LLM 產出「防編故事」驗證器，題庫採用時以驗證信心閘門
+  （`JEV_VERIFY_MIN` 驗證、`JEV_BANK_MIN` 題庫採用的影響）把關；`TYPESAFE_API_KEY` 提供金鑰。
+  未設／`JEV_DISABLED` 時不啟用。前端在回答區顯示信心/來源（confidence/trace）。
+
+## 模型清單（歷史參考，2026-09-21）
 * x570：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:14b`、`qwen3-coder:latest`
 * mbp：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3-coder:latest`、`qwen3-coder-next:latest`、`qwen3:14b`
 * MSI：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:8b`、`qwen2.5-coder:7b`
-  （qwen3.5:4b 與 qwen3:4b 均已棄用——後者 `think:false` 無效是已知 bug，見 ollama#12917）
 
-## LLM 雲端路由（2026-09-26）
-前端下拉選單除地端 ollama 外有 7 個雲端 provider 群組，`rag.py generate()` 依 `model` 前綴切：
-`openrouter/`、`zen/`、`nv/`（NVIDIA NIM）、`gemini/`、`groq/`、`cohere/`、`hf/`（Hugging Face）、
-`mis/`（Mistral）。認證分兩類：CF AI Gateway 代管（openrouter/gemini/groq/cohere/mistral，
-本機只需 CF token；gateway URL 由 `OPENROUTER_GATEWAY_URL` 尾段推導）vs 直連需自有 key
-（zen/z 需 `ZEN_API_KEY`、nv 需 `NVIDIA_API_KEY`、hf 需 `HF_TOKEN`）。
-用量統計（PG `model_usage`）、429 限流標記（`rag._LIMITED`）、free 額度分數（`rag.FREE_QUOTA`，
-來源 mnfst/awesome-free-llm-apis，全為「次數型」額度）由 `/models` 一起回傳；
-前端為自製下拉（原生 `<select>` 無法對內部子字串著色／右對齊）。完整路由表＋額度＋驗證見
-`ROADMAP.md` §3.5；排障見 `settings/opencode/CF-AIG-TOKEN-ENV.md`。
-
-## 實測速度（eval tok/s，同 prompt num_predict=200）
-* x570 coder 94.8 ＞ mbp coder 73 ＞ MSI 4b 79 ＞ x570 14b 熱機 82（冷機 19，待再驗）＞ mbp 14b 25
-* 結論：重推理放 x570，日常寫碼可用 mbp coder，MSI 只跑輕量
-
-## 服務埠
-* 8000 api（x570 docker compose＋mbp＋MSI WSL） / 6333 qdrant（x570＋MSI 本機備援） /
-  5432 postgres（x570 only） / 5173 前端 dev / 11434 ollama（各機 native）
+## 服務埠（2026-09-26 收斂後）
+* 8000 api：x570 docker compose／mbp／msi，全綁 `127.0.0.1`（公網只經 cloudflared tunnel）
+* 6333 qdrant：x570 綁 `${TS_IP}:6333`；MSI/mbp 本機備援綁 `127.0.0.1:6333`
+* 5432 postgres：x570 綁 `${TS_IP}:5432`（mbp/msi 心跳經 tailscale 存取）
+* 5173 前端 dev（本機）／11434 ollama（各機 native，綁 localhost）
 
 ## 公網接手（Cloudflare tunnel keepalive 規範，2026-09-23 定案）
 
 三台各自一條 local tunnel（`ragdemo-x570`/`ragdemo-mbp`/`ragdemo-msi`），
 公網 hostname `api-x570`/`api-mbp`/`api-msi.ragdemo.win` → 各機 `http://localhost:8000`。
-tunnel 是 demo 的命脈，**三台必須統一 keepalive 設定**，否則斷線不會自己回來。
+**三台統一 `--protocol http2`**（WSL2 的 UDP/QUIC 連 edge 全 timeout，實戰心得）。
 
-### keepalive 三層（缺一不可）
+### keepalive 兩層（進程層＋edge 長連線）
+1. **進程層**：x570/msi 用 crontab `restart loop`（tunnel 崩潰每 5s 重拉；api/qdrant 每 30s 冪等檢查），
+   mbp 用 launchd `KeepAlive=true`。（x570 api 在 docker compose `restart: unless-stopped`；三機
+   cloudflared 一律 `--protocol http2`。）
+2. **edge 連線層**：`curl http://127.0.0.1:20241/metrics` 應見 4 條連線、errors=0。
 
-1. **進程層（服務崩潰自動重啟）**——最關鍵
-   - **tunnel**：mbp launchd `com.ragdemo.tunnel`（`KeepAlive=true`）✅；
-     msi / x570 用 crontab `restart loop`（崩潰每 5s 自動重拉）✅
-   - **api（uvicorn ＋ qdrant）**：2026-09-23 起 **msi 用 crontab `restart loop` 包
-     `backend/start-msi.sh`**（每 30s 檢查，WSL 重啟／崩潰自動拉起，公網不再 502；
-     起因與診斷見 ROADMAP §4.5）。x570 的 api 在 docker compose（須確認 restart policy）
-   - 重點：只靠「Windows 登入 startup」不夠——WSL 重啟不會觸發，會像 2026-09-23
-     msi 那樣 api 死透、公網 502、前端「Failed to fetch／所有後端皆無法連線」
-2. **edge 連線層（cloudflared↔Cloudflare edge 長連線）**
-   - 統一用 `--protocol http2`（http2 為長連線＋內建 keepalive，WSL2 上 QUIC/UDP 全 timeout，見 §http2 說明）
-   - msi ✅、mbp ✅ 已加；**x570 ✅（2026-09-23，crontab restart loop 已含 `--protocol http2`）**
-3. **origin 連線層（cloudflared↔本機 :8000 的 HTTP 連線池）**
-   - `config.yml` 的 `ingress` 可用 `originRequest` 覆寫 keepalive 參數：
-     `proxyTCPKeepAlive`（預設 30s）、`proxyKeepAliveConnections`（預設 100）、
-     `proxyKeepAliveTimeout`（預設 1m30s）
-   - 三台目前都用「預設值」＝已達標，**不需改 config**（除非之後想調）
-
-### 三台目標狀態（驗收標準）
-
-| 主機 | 進程自動重啟 | `--protocol http2` | originRequest keepalive |
-|---|---|---|---|
-| x570 | crontab restart loop ✅ | ✅ | 預設 |
-| mbp | launchd KeepAlive ✅ | ✅ | 預設 |
-| msi | crontab restart loop ✅（tunnel 5s＋api/qdrant 30s） | ✅ | 預設 |
-
-### mbp 限制：使用者 LaunchAgent 需「登入後」才載入（2026-09-24 確認）
-
-- mbp 四個 `com.ragdemo.{tunnel,api,qdrant,sync-snapshot}` 放在 **`~/Library/LaunchAgents/`**
-  （使用者 agent，`gui/<uid>` domain）→ **只有該使用者 GUI 登入後才會載入並 `RunAtLoad`**；
-  壓電源開機停在登入畫面（未指紋登入）時，這些 agent 不會跑 → 公網 `api-mbp` 530 且本機 8000/6333 無服務。
-  （2026-09-24 530 事件即此 root cause；登入後全自動恢復，`KeepAlive` 後續照常。）
-- Ollama.app（`com.ollama.ollama`）同樣是登入後才起 → **api 即使開機先起，embedding/LLM 也要等 ollama**。
-- 現況（2026-09-24 定案）：**接受此行為**——mbp 是本機 GUI Mac，指紋登入即全起；headless 遠端預登入不支援。
-- 若要「開機不等登入」：把 4 個 plist 移到 `/Library/LaunchDaemons`（`launchctl bootstrap system`，
-  需 sudo＋daemon 加 `UserName=leesolomon`）；ollama 另以 wrapper daemon 啟動 `ollama serve`
-  （Ollama.app 與 wrapper 不可同時跑）。有需要再轉換。
-
-### crontab restart loop 範本（msi / x570）
-
-```bash
-# 取代原本 @reboot 單次啟動：崩潰後每 5 秒自動重拉（tunnel）
-@reboot /bin/bash -lc 'while true; do /home/solo/.local/bin/cloudflared tunnel --protocol http2 --config /home/solo/.cloudflared/config.yml run ragdemo-<host> >> /tmp/cfd.log 2>&1; echo "[tunnel] exit $? at $(date)" >> /tmp/cfd.log; sleep 5; done' &
-
-# api（uvicorn＋qdrant）進程層（msi 2026-09-23 起）：每 30s 冪等檢查，WSL 重啟/崩潰自動拉起
-@reboot /bin/bash -lc 'while true; do bash /home/solo/projects/ragdemo.win/backend/start-msi.sh; sleep 30; done >> /home/solo/projects/ragdemo.win/backend/uvicorn.log 2>&1' &
-```
-
-> 注意：crontab 不展開 `~`，一律用絕對路徑；`setsid` 讓它脫離終端，`&` 避免 crontab 等待。
-
-### 驗證 keepalive 是否生效
-
-```bash
-# 1) 進程在跑（三台各自）
-ps aux | grep [c]loudflared
-# 2) edge 連線數＋錯誤（已達標應看到 4 條連線、errors=0）
-curl -s http://127.0.0.1:20241/metrics | grep -E 'cloudflared_tunnel_(ha_connections|request_errors|server_locations)'
-# 3) 公網 health（三台各自）
-curl -s https://api-<host>.ragdemo.win/health
-# 4) 崩潰自動復活測試：kill 掉 cloudflared，5 秒內 restart loop / launchd 應自動拉回
-```
-
-### http2 說明（為何 keepalive 必須靠 http2）
-
-- cloudflared 連 edge 有兩種協議：**QUIC**（UDP 443）與 **http2**（TCP 443）。
-- **WSL2（msi）的 UDP 連 Cloudflare edge 全部 timeout**（登入/連線 1033 錯誤）→ 必須 `--protocol http2`，
-  這是 msi 實戰心得（2026-09-23，ROADMAP §4.3）。
-- http2 是「單一長連線＋內建 keepalive ping」，斷線自動重連；QUIC 雖也有 keepalive，
-  但跨 NAT/容器/虛擬網路（WSL2、docker bridge）常因 UDP 被擋而失去保活。
-- 為一致性與穩定性，**三台統一 `--protocol http2`**（macOS／原生 Linux 也可用，不虧）。
+### mbp 限制（2026-09-24 確認）
+mbp 的 `~/Library/LaunchAgents/` agent 需 **GUI 登入後**才載入；壓電源停在登入畫面時
+公網 `api-mbp` 會 530、本機 8000/6333 無服務——登入後自動恢復。接受此行為（本機 GUI Mac）。
 
 ## 模型 keepalive（ollama 常駐，2026-09-23 定案）
-**各主機的預設 LLM 與 embedding 模型啟動後即常駐記憶體，避免首個 query 冷載入慢。**
+各主機預設 LLM 與 embedding 啟動後即常駐（`keep_alive: KEEP_ALIVE`，request 層指定）。
+`KEEP_ALIVE` env（`.env`）：`-1`=永久常駐（預設）、`0`=即時卸載、`"30m"`=30 分。
+api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證：`ollama ps` UNLOAD 空白。
 
-- 背景：ollama 模型預設閒置 5 分鐘就卸載，下一個 query 要重新載入（冷載入慢、tok/s 掉）。
-- 機制（backend 共用，pull＋重啟 api 即生效）：
-  - `rag.py` 的 embed / generate 都帶 `keep_alive: KEEP_ALIVE`（request 層指定常駐）。
-  - `KEEP_ALIVE` 環境變數（`backend/.env`，各主機可覆寫）：`-1`＝永久常駐（預設）、
-    `0`＝即時卸載、`"30m"`＝30 分鐘。Qdrant/RAG 層不變。
-  - api 啟動（`main.py` lifespan）跑 `rag.warmup()`：以 `_pick()` 選中當前最高優先且可用的
-    ollama 主機，預載該機預設 LLM（`OLLAMA_MODELS` 對應）＋ `EMBED_MODEL`，best-effort、
-    失敗只 log 不擋 api 上線（ollama 尚未就緒時首個 query 自動補載）。
-- 驗證：
-  ```bash
-  ollama ps   # 預設模型在列、UNLOAD 欄為空白/「直到」（keep_alive=-1 常駐）
-  # 重啟 api 後首個 /query 不應再看到冷載入等待
-  ```
-
-## 環境變數（backend/.env，各機一份不進版控）
-`HOST_ID`、`TS_IP`（必填，tailscale）、`OLLAMA_URLS`（候選清單）、`LLM_MODEL`、
-`EMBED_MODEL=bge-m3:latest`、`RERANK_MODEL=qllama/bge-reranker-v2-m3:latest`、
-`COLLECTION=laws`、`QDRANT_URLS`、`POSTGRES_DSN`。
-IP 準則：全部 tailscale 位址，本機服務才允許 127.0.0.1，不用 LAN_IP（見上方準則）。
+## 環境變數（repo 根 `.env`，不進版控；compose 自動讀取）
+- 必填：`HOST_ID`、`TS_IP`（各機 tailscale IP）、`POSTGRES_PASSWORD`（強制，無 fallback）、
+  `QDRANT_API_KEY`（qdrant 認證，三台同值）。
+- 資料：`OLLAMA_URLS`、`LLM_MODEL`、`EMBED_MODEL=bge-m3:latest`、`RERANK_MODEL`、`COLLECTION=laws`、
+  `QDRANT_URLS`、`POSTGRES_DSN`。
+- 雲端路由：`OPENROUTER_GATEWAY_URL`、`CF_AIG_TOKEN`（或 `CF_AIG_TOKEN_FILE`）、`ZEN_API_KEY`、
+  `NVIDIA_API_KEY`、`HF_TOKEN`、各 provider `*_MODELS` 清單。
+- 驗證/權限：`TYPESAFE_API_KEY`、`JEV_VERIFY_MIN`、`JEV_BANK_MIN`、`ADMIN_TOKEN`。
+- IP 準則：全部 tailscale 位址；本機服務才允許 127.0.0.1，不用 LAN_IP。
 
 ## 評測門檻
-`POST /eval` hit_rate 未達 0.8 不進 UI，先修切分/召回。
+`POST /eval` hit_rate 未達 0.8 不進 UI，先修切分/召回。`evals/` 見 README。
 
 ## Google 登入（frontend，OAuth2 PKCE）
 - Server routes：`/auth/login`（PKCE＋state cookie → 302 Google）、`/auth/callback`（code 換 token、
   JWKS RS256 驗證、HMAC session cookie 12h）、`/auth/logout`、`/auth/me`。
-- env：`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `SESSION_SECRET`（dev 填 `frontend/.env`，上線填 Pages 變數）。
-- Google Cloud 端重導 URI 需登記：`http://localhost:5173/auth/callback`、`https://ragdemo.win/auth/callback`。
-- 目前為「身份辨識」（登入才看得到是誰）；尚未擋查詢/寫入，下一步接寫入端點保護。
+- env：`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `SESSION_SECRET`
+  （dev 填 `frontend/.env`，上線填 Pages 變數）。
+- Google Cloud 重導 URI 需登記：`http://localhost:5173/auth/callback`、`https://ragdemo.win/auth/callback`。
+- **2026-09-24 起 `/query` 也需登入**：`+server.ts` 的 `SENSITIVE`（query/ingest/eval/rules）一律
+  Google 登入守護（401 未登入）——前端「登入才可查詢」；`/health`、`/models` 不需登入（探測用）。
 
 ## TODO
 * `rag.py rerank()` 還是 stub，待接真正 reranker 打分
-* `evals/questions.json` 佔位 3 題，待擴 50 題
+* `evals/questions.json` 佔位，待擴 50 題（目前 ~14 題，`/eval` 14/14）
 * 判決注意個資去識別化，回答僅供參考非法律意見
 * 精簡包擴到 500~1000 筆（目前 3 筆，同步機制已就位）
 * 需離線 `/hosts` → mbp/msi 另建 pg 副本（低優先）
+* 二機遷移 docker compose（ROADMAP §4.1.1）
+* OPENROUTER 真餘額顯示需 management key（外部資源暫無）
 
 ## 啟動
-**x570（docker compose）**：
+**x570（docker compose，2026-09-26 現況）**：
 ```bash
-cp backend/.env.example backend/.env  # 再改 OLLAMA_BASE_URL
-docker compose up -d --build  # 首次建 api 映像，之後改碼重跑加 --build
-curl localhost:8000/health
-cd frontend && pnpm install && pnpm run dev
+# .env 在 repo 根（gitignored）；backend/.env.example 只作樣板
+docker compose up -d --build   # 首次建 api 映像，之後改碼加 --build
+curl localhost:8000/health     # 得 host_id=x570
+cd frontend && pnpm install && pnpm run build && pnpm run dev   # pnpm（非 npm）
 ```
-**MSI（WSL2，吃 Windows 本機 ollama）**：
+**MSI（WSL2，吃 Windows 本機 ollama；未遷移）**：
 ```bash
-bash backend/start-msi.sh        # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5）
-curl localhost:8000/health       # 回 host_id=msi, llm=qwen3:8b
+bash backend/start-msi.sh      # 冪等：api＋本機 qdrant 一起拉起（開機自動啟動見 ROADMAP §2.5/2.7）
+curl localhost:8000/health     # 回 host_id=msi, llm=qwen3:8b
 ```
-MSI 資料層：x570 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
-**mbp（launchd，登入自動跑）**：
+**mbp（launchd，登入自動跑；未遷移）**：
 ```bash
 launchctl load ~/Library/LaunchAgents/com.ragdemo.qdrant.plist    # qdrant @127.0.0.1:6333
 launchctl load ~/Library/LaunchAgents/com.ragdemo.api.plist       # uvicorn @8000（--env-file .env）
 launchctl load ~/Library/LaunchAgents/com.ragdemo.sync-snapshot.plist  # 每10分鐘快照同步
-curl localhost:8000/health       # 回 host_id=mbp
-cd frontend && pnpm run dev      # 前端 dev（proxy → localhost:8000，需 Node≥22）
+curl localhost:8000/health     # 回 host_id=mbp
+cd frontend && pnpm run dev    # 前端 dev（proxy → localhost:8000，需 Node≥22）
 ```
-mbp 資料層：x570 優先（最新），本機 qdrant 備援（x570 離線自動接手）。
 
 ## 備援同步操作
 ```bash
 bash scripts/sync-snapshot.sh [source_url] [dest_url] [collection]
-# 例（MSI）：  bash scripts/sync-snapshot.sh            # x570→本機，預設
-# 例（mbp）：  bash scripts/sync-snapshot.sh http://100.119.83.111:6333 http://127.0.0.1:6333
-# 排程：MSI 用 crontab（*/10，已掛）；mbp 用 launchd com.ragdemo.sync-snapshot（每 10 分鐘＋登入）
+# 例：  bash scripts/sync-snapshot.sh http://100.119.83.111:6333 http://127.0.0.1:6333
+# 排程：MSI 用 crontab（*/10）；mbp 用 launchd com.ragdemo.sync-snapshot（每 10 分鐘＋登入）
+# x570 已開 qdrant key → 排程環境要帶 QDRANT_API_KEY（見資安收斂/§4.1.1）
 ```
 log `~/qdrant/sync.log`、state `~/qdrant/.sync-state`（點數＋快照名，未變化即 skip）。
 
