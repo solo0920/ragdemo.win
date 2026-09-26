@@ -62,21 +62,31 @@ scripts/
 三台各有一份 hook，任何一台沒設 `core.hooksPath`（或用 `--no-verify`）就形同虛設。
 故在 GitHub 端補兩層，且**不影響三台既有的直接 push 流程**：
 
-| 紀律 | 本機 | GitHub 端 |
+| 紀律 | 本機（第一道） | GitHub 端（第二道） |
 |---|---|---|
-| commit 前綴 | `.githooks/commit-msg` | ruleset `commit_message_pattern`（regex，server 端擋 push） |
-| 語法／`LAN_IP=`／pytest | `.githooks/pre-push` | `.github/workflows/ci.yml`（三 job，全 push 都跑） |
+| commit 前綴 | `.githooks/commit-msg`（擋） | ci.yml `guards` job（**只回報，擋不了**） |
+| 語法／`LAN_IP=`／pytest | `.githooks/pre-push`（擋） | ci.yml `backend` job（全 push 都跑） |
+| 單檔 ≤ 10 MB | — | ci.yml `guards` job（**只回報**） |
+| 禁刪 main | — | ruleset `deletion`（**真的擋**，唯一擋得住的一條） |
+
+**為什麼 commit 前綴擋不了**：原本打算用 ruleset 的 `commit_message_pattern` 在 server 端擋，
+但該 rule **只適用於 enterprise 擁有的 repo**，個人帳號的 repo 拿不到（API 回 422
+`Invalid rule`，換 preview media type 也無效；`branch_name_pattern`、
+`commit_*_email_pattern` 同樣限制）。`max_file_size` 也退階 —— 它只能用 `push` target，
+而 push ruleset 在公開 repo 不允許（422 `Source public repos cannot have push rules`）。
+兩者因此改放 CI。**CI 是事後驗證：跑起來時 commit 已在 main**，所以只能是紅字提醒，
+真正的第一道仍是各機的 hook。
 
 - **刻意不設** `required_status_checks`：那會要求「先推到別的分支、CI 過了才能進 main」，
   與三機直接推 main 的現況衝突。要保留現況，就讓本機 hook 當第一道、CI 當可外部驗證的第二道。
 - **刻意不設** `non_fast_forward` / `required_linear_history`：保留 force-push 當逃生門，
   且歷史含 merge commit。
-- ruleset 另含 `deletion`（禁刪 main）與 `max_file_size` 10 MB（防 qdrant 快照誤推上公開 repo）。
-- `dependabot[bot]` 列為 ruleset 的 bypass actor —— 它開的 PR 沒有機器前綴，
-  merge 進 main 會被前綴規則擋下，屬正常流程不該擋。
-- squash merge 時 **PR 標題要帶前綴**（GitHub 預設拿 PR 標題當 commit message）。
-- 設定 living 於 GitHub（不在 repo 內）：repo Settings → Rules → Rulesets；
-  `.github/` 只有 `workflows/ci.yml` 與 `dependabot.yml`。
+- `dependabot[bot]` **不需要** bypass actor —— 唯一會擋的 `deletion` 與它無關。
+  squash merge 時 **PR 標題要帶前綴**（GitHub 預設拿 PR 標題當 commit message）。
+- 規則本身 living 於 GitHub（不在 repo 內，clone 不會帶到）：repo Settings → Rules → Rulesets，
+  現有 `main-禁刪分支`（id 24032902）。`.github/` 只有 `workflows/ci.yml` 與 `dependabot.yml`。
+- 歷史包袱：169 個 commit 中有 20 個來自 2026-09-22 提交準則「之前」，不符前綴；
+  已全在 main，`guards` 只掃本次 push 範圍（新引入的 commit），故不會誤報。
 
 ## 三機分工（2026-09-26 現況）
 

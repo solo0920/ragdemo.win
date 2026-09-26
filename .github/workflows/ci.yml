@@ -104,3 +104,56 @@ jobs:
           TS_IP: 100.119.83.111
           POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
         run: docker compose config -q
+
+  guards:
+    name: 護欄（commit 前綴／單檔大小）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 需要 before..after 範圍的完整歷史才能逐個檢查 commit
+          fetch-depth: 0
+
+      # 下面兩項原本打算用 GitHub ruleset 擋，但個人帳號的公開 repo 拿不到那些 rule：
+      #   commit_message_pattern → 只適用「enterprise 擁有的 repo」（個人／一般 org 不行）
+      #   max_file_size         → 只適用 push target，而 push ruleset 公開 repo 不可用
+      # （實測：API 回 422 Invalid rule / "Source public repos cannot have push rules"）
+      # 所以退到 CI：**能看見但不能阻擋** —— 檢查跑起來時 commit 已經在 main 上了。
+      # 真正的第一道仍是各機的 .githooks/commit-msg（見 ARCHITECTURE.md〈三機紀律〉）。
+
+      - name: "commit 訊息前綴須為 msi: / mbp: / x570:"
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="$AFTER"          # 新分支，或 before 已不可得（force-push）
+          else
+            range="$BEFORE..$AFTER"
+          fi
+          bad=0
+          for sha in $(git rev-list "$range"); do
+            subj="$(git log -1 --format=%s "$sha")"
+            if printf '%s' "$subj" | grep -Eq '^(msi|mbp|x570)[:：][[:space:]]' \
+               || printf '%s' "$subj" | grep -Eq '^(Merge|Revert)'; then
+              continue
+            fi
+            echo "::error title=缺少主機前綴::${sha:0:8}  ${subj}"
+            bad=1
+          done
+          [ "$bad" -eq 0 ]
+
+      - name: 單檔不得超過 10 MB
+        run: |
+          limit=$((10 * 1024 * 1024))
+          bad=0
+          while IFS= read -r f; do
+            sz=$(stat -c%s "$f")
+            if [ "$sz" -gt "$limit" ]; then
+              echo "::error title=單檔過大::${f}  $((sz / 1024 / 1024)) MB > 10 MB"
+              bad=1
+            fi
+          done < <(git ls-files)
+          [ "$bad" -eq 0 ]
