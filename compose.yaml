@@ -14,7 +14,17 @@ services:
       # qdrant 原生 API key（防未授權讀寫向量庫）；值由 .env 帶入
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
     volumes: [qdrant_data:/qdrant/storage]
-    restart: unless-stopped
+    # always 而非 unless-stopped：Docker 已知 bug（docker/for-linux#652，2019 至今未修）
+    # ——systemd 關機時容器被標記為 stopped，unless-stopped 記住該狀態故開機不重生。
+    healthcheck:
+      # qdrant image 無 curl/wget，但有 /usr/bin/bash；/healthz 不需 api-key。
+      # 註：必須明確用 bash，image 預設 /bin/sh（busybox）不支援 /dev/tcp。
+      test: ["CMD", "/usr/bin/bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && echo -e 'GET /healthz HTTP/1.0\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 200"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: always
   postgres:
     # 同上：不釘死等於放浮動。pg16 tag 目前解析到 0.8.6，故釘 0.8.6-pg16。
     # ⚠ pgvector 已有 pg18 變體，但 pg16→pg18 是跨大版本（需 dump/restore），不在本專案節奏內。
@@ -26,7 +36,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填（勿用 changeme）}
       POSTGRES_DB: ragdemo
     volumes: [pg_data:/var/lib/postgresql/data]
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragdemo"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: always
   api:
     build: ./backend
     # 僅本機（frontend dev / cloudflared 都走 localhost）。
@@ -142,7 +158,14 @@ services:
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.4}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
-    depends_on: [qdrant, postgres]
+    # healthcheck 門控：等 qdrant/postgres 真的 ready 才啟 api。
+    # 原本 depends_on 只等「容器存在」，開機時 qdrant 還在恢復就會讓 api
+    # startup failed 無限重啟（2026-09-26 實際遇到）。
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
       - ./evals:/app/evals:ro
       - ./data/laws:/app/data/laws:ro
@@ -151,7 +174,7 @@ services:
       # （image 沒有 ingest/、data/laws 唯讀、沒裝 duckdb），管線是 host 端的 uv 工具鏈。
       # 所以容器只「記錄請求」，實際動作由 host 的 law-update-worker.sh 執行。
       - ./data/.ops:/app/ops
-    restart: unless-stopped
+    restart: always
 volumes:
   qdrant_data:
   pg_data:
