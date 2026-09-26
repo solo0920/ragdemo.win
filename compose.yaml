@@ -3,7 +3,7 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     # 綁 tailscale 內網 IP：mbp/msi 備援 snapshot 由該 IP 拉取；阻斷 LAN(192.168)/公網。
-    ports: ["100.119.83.111:6333:6333"]
+    ports: ["${TS_IP}:6333:6333"]
     environment:
       # qdrant 原生 API key（防未授權讀寫向量庫）；值由 .env 帶入
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
@@ -11,8 +11,9 @@ services:
     restart: unless-stopped
   postgres:
     image: pgvector/pgvector:pg16
-    # 僅本機（後端 container 走內部網路連 postgres:5432）；不開宿主機 port 對外。
-    ports: ["127.0.0.1:5432:5432"]
+    # 綁 tailscale 內網 IP：mbp/msi 經 tailscale 連共享 registry（backends 心跳），
+    # compose 內部連 postgres:5432 不受影響；阻斷 LAN(192.168)/公網。
+    ports: ["${TS_IP}:5432:5432"]
     environment:
       POSTGRES_USER: rag
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填（勿用 changeme）}

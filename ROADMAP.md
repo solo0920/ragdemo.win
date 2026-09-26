@@ -301,14 +301,46 @@ pnpm run dev -- --host                   # msi 瀏覽器開 http://localhost:517
 
 > **2026-09-26 資安收斂後接手須知（x570 已設定，mbp/msi 需補）**：
 > x570 qdrant 已啟用原生 API key（`QDRANT__SERVICE__API_KEY`，無 key 回 401）＋只綁 tailscale
-> `100.119.83.111:6333`；postgres/api 僅綁 `127.0.0.1`。mbp/msi pull 後需同步：
-> 1. 三台 `.env` 都要有 **`QDRANT_API_KEY`**（與 x570 `.env` 同一值），否則 qdrant 回 401、
->    `scripts/sync-snapshot.sh` 拉不到快照（script 已支援 `QDRANT_API_KEY` env，沒設就無 key 向後相容）。
+> `100.119.83.111:6333`（`${TS_IP}`）；postgres 綁 `${TS_IP}:5432`（mbp/msi 經 tailscale 連共享
+> registry，見 §4.1.1）；api 僅綁 `127.0.0.1`。mbp/msi pull 後需同步：
+> 1. 三台 `.env` 都要有 **`TS_IP`**（各台 tailscale IP）＋**`QDRANT_API_KEY`**（與 x570 `.env` 同一值），
+>    否則 qdrant 回 401、`scripts/sync-snapshot.sh` 拉不到快照（script 已支援 `QDRANT_API_KEY`
+>    env，沒設就無 key 向後相容）。
 > 2. 自動同步的排程（msi crontab／mbp launchd `com.ragdemo.sync-snapshot`）環境要帶上
 >    `QDRANT_API_KEY`（crontab：指令前 `QDRANT_API_KEY=xxx`；launchd 用 `EnvironmentVariables`）。
 > 3. x570 compose 的 `POSTGRES_PASSWORD` 已改 `:?` 必填（移除了 `changeme` fallback）——mbp/msi
->    的 `.env` 同時補 `POSTGRES_PASSWORD`（指向 x570 的資料庫也是同一值，`POSTGRES_DSN` 用）。
-> 4. 本機 dev 直接跑 `rag.py`（不經 compose）時，`.env` 也要設一致 `QDRANT_API_KEY`，否則 401。
+>    的 `.env` 同時補 `POSTGRES_PASSWORD`（共享 x570 registry，三台同一值，`POSTGRES_DSN` 用）。
+> 4. **坑：`POSTGRES_PASSWORD` 只對首次容器初始化生效**。x570 的 postgres volume 是 `changeme`
+>    時代建的，改 compose 後要手動 `ALTER USER rag PASSWORD '<新值>'`（用 `docker exec`）──
+>    否則容器外（tailscale 來源）連線會 `password authentication failed`（127.0.0.1 trust 免密碼
+>    會誤導成「密碼正確」）。mbp/msi 若有沿用舊 volume 同理。
+> 5. 本機 dev 直接跑 `rag.py`（不經 compose）時，`.env` 也要設一致 `QDRANT_API_KEY`，否則 401。
+
+### 4.1.1 二機全容器化對齊 x570（2026-09-26）
+
+**目標**：mbp/msi 捨棄 launchd／`start-msi.sh`／native qdrant，改用與 x570 相同的 **docker compose
+一鍵三容器**（qdrant＋postgres＋api），密鑰統一由各機 repo 根 `.env` 讀入。
+
+**x570 已實作（本節依據）**：
+- `compose.yaml` 三容器；qdrant/postgres 綁 `${TS_IP}:6333/5432`（阻 LAN/公網、tailscale 互通），
+  api 綁 `127.0.0.1:8000`（cloudflared 本機連）；compose 自動讀 repo 根 `.env`。
+- `rag.py` `_req(kind="qdrant")` 自動帶 `QDRANT_API_KEY` header；`sync-snapshot.sh` 支援
+  `QDRANT_API_KEY` env（出站認證）。
+- postgres `healthz` 心跳經 tailscale 寫入 x570 backends（msi 曾是唯一在寫的舊筆記，x570 已恢復）。
+
+**mbp/msi 待執行**：
+1. `docker compose up -d`（mbp＝Docker Desktop；msi＝WSL Docker Engine；pgvector/qdrant 皆 multi-arch）。
+2. `.env` 補：`TS_IP`（本機 tailscale IP）、`POSTGRES_PASSWORD`＋`QDRANT_API_KEY`＝與 x570 同值。
+   自己的 postgres volume 若是舊的，先做一次 `ALTER USER` 同步密碼（見上坑 4）。
+3. 停用舊啟動機制避免搶 port：
+   - mbp：`launchctl unload` `com.ragdemo.qdrant`／`com.ragdemo.api`（native `~/qdrant/qdrant`＋uvicorn）。
+   - msi：停用 startup `ragdemo-msi-api.vbs`＋`@reboot` crontab；`backend/start-msi.sh` 不再使用。
+4. registry 仍共享 x570：**api 容器的 `POSTGRES_DSN` 指向 x570 tailscale 位址**（覆寫
+   `POSTGRES_DSN=postgresql://rag:<pw>@100.119.83.111:5432/ragdemo`），不連本機空庫，三台 backends 合一。
+5. sync-snapshot 排程保留（備援資料層＝本機 compose 的 qdrant 容器），帶 `QDRANT_API_KEY`；
+   `curl` 目標改指本機 qdrant 位址（compose 綁 `${TS_IP}:6333`，非 127.0.0.1）。
+6. 驗收：`docker compose ps` 三容器 up；`curl http://<TS_IP>:8000/health`；`/query` 作答；
+   x570 離線時本機備援仍可答（沿用 §4.1 驗證法）。
 
 **待做**：
 - 目標：500~1000 筆精選資料即可（ARCHITECTURE 的 Demo 精簡包）。
