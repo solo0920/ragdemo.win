@@ -2,6 +2,10 @@
 
 > 本檔描述**目前實作**（2026-09-26）。規劃中的跨機遷移見 `ROADMAP.md` §4.1.1。
 >
+> ⚠️ **x570 端另有待確認事項：見 [`X570-HANDOFF.md`](X570-HANDOFF.md)** ——
+> qdrant key 輪換後 MSI／mbp 被 401、`POSTGRES_PASSWORD` 三台不一致導致 registry
+> 心跳失敗、2026-09-26 關機異常根因未證實、每日 ingest 尚未排程。
+>
 > ⚠️ **x570 / mbp 升級時請先看 [`HOST-UPGRADE.md`](HOST-UPGRADE.md)** ——
 > 2026-09-26 容器化與檢索修正後，兩台各有一份 per-host 待辦：輪換外洩的 qdrant
 > key、補身份環境變數、排程補 `SRC_API_URL`、mbp 加 launchd worker、x570 首次跑
