@@ -10,5 +10,13 @@
         }
       }
     }
+  },
+  "mcp": {
+    "servers": {
+      "github": {
+        "type": "remote",
+        "url": "https://api.githubcopilot.com/mcp/"
+      }
+    }
   }
 }

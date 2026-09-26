@@ -162,6 +162,43 @@ opencode run "回覆:OK" --model openrouter/<model>:free   # 或 ollama/qwen3:14
 
 ---
 
+## 🔌 MCP：GitHub MCP Server（2026-09-26，MSI 已加）
+
+本 repo 在 GitHub 上是 **PUBLIC** 且已有 Dependabot / Actions / ruleset，agent 若要自己查
+Dependabot alerts、secret scanning alerts、Actions 執行結果、PR 狀態，不必再靠人工轉述。
+
+```jsonc
+// ~/.config/opencode/opencode.json（global，MSI 已加）
+{
+  "mcp": {
+    "servers": {
+      "github": { "type": "remote", "url": "https://api.githubcopilot.com/mcp/" }
+    }
+  }
+}
+```
+
+- **這是 GitHub 官方託管的遠端 server**（`github/github-mcp-server`），不需要本地裝 Docker 或執行檔。
+- **授權是 OAuth，per-machine**：`opencode mcp list` 顯示 `needs authentication` 時，
+  在 opencode 介面執行 `/mcps` → 選 github → 登入。**不要**從 shell 跑
+  `opencode mcp auth`（互動流程的授權連結會被背景輸出吃掉）。
+  各台機器要各自登入一次。
+- ⚠️ **兩個容易踩的坑（官方 GitHub 指南寫的是 opencode V1，V2 不適用）**：
+  1. V2 的 server 要放在 **`mcp.servers.<name>`**，**不能**直接掛在 `mcp.<name>`（V1 寫法）。
+  2. V2 用 **`disabled`** 停用，不是 `enabled` 啟用。
+  照 V1 寫會被靜默忽略，症狀是 `opencode mcp list` 完全看不到這個 server。
+- 建議用 CLI 寫入以保留其他設定：`opencode mcp add github --global --url https://api.githubcopilot.com/mcp/`
+- **token 不寫進 config**：OAuth 憑證由 opencode 自行存放，所以這份備份不含任何密鑰，可安全 commit。
+- 若嫌它塞太多 context（GitHub MCP 有上百個 tool），可在 server 上加
+  `"headers": {"X-MCP-Toolsets": "repos,pull_requests,issues,code_security,secret_protection,dependabot,actions"}`
+  限縮。本 repo 常用的就是這些；`users` / `orgs` / `gists` / `discussions` / `projects` 用不到。
+  （opencode V2 預設 `codemode` 會把 tool 依 server 分組，不會全部塞進原生 tool 清單。）
+
+**mbp / x570 若要加**：把上面的 `mcp` 區塊併入各自的 `~/.config/opencode/opencode.json`，
+再 `/mcps` 登入，並同步更新 `settings/opencode/global/<你的機器名>/`。
+
+---
+
 ## 🔄 更新規則（建議）
 
 - **每次調整 global / 專案 config 或 token 設定**後，同步更新對應機器的備份
