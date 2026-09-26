@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # sync-snapshot.sh — 把 x570(主) qdrant 的 laws 快照同步還原到本機(備援) qdrant
-# 用法： scripts/sync-snapshot.sh [source_url] [dest_url]
+# 用法： scripts/sync-snapshot.sh [--force] [source_url] [dest_url] [collection]
 #   預設 source=http://100.119.83.111:6333（x570 tailscale） dest=http://127.0.0.1:6333（本機）
+#   --force  強制重抓：跳過「點數沒變就 skip」。給 law-update worker 用 ——
+#            使用者按了「更新」但點數未變（例：只換了法規版本、條文數不動）時，
+#            沒有 --force 就會靜默 skip，按鈕看起來沒反應。
 # 設計：
 #   - x570 離線 → 直接跳過（不破壞本機現有資料，log 記錄）
 #   - 用「點數變化」偵測新資料：metadata(.sync-state) 記上次 points_count，
@@ -9,6 +12,9 @@
 #   - 每次同步後順手刪除 x570 上的舊快照（只留最新的），避免 stack 無限累積
 #   - log 寫 ~/qdrant/sync.log
 set -euo pipefail
+
+FORCE=0
+if [ "${1:-}" = "--force" ]; then FORCE=1; shift; fi
 
 SOURCE="${1:-http://100.119.83.111:6333}"
 DEST="${2:-http://${TS_IP:-127.0.0.1}:6333}"
@@ -76,8 +82,11 @@ sync_law_version() {
       *)        SRC_API="$SOURCE:8000" ;;
     esac
   fi
+  # ⚠️ 這行的 `|| true` 不能拿掉：pipefail 下 curl 連不上會讓整個賦值回傳非零，
+  # `set -e` 會在到達下面的 if 之前就中止整支腳本 —— 症狀是「快照同步明明成功，
+  # 腳本卻 exit 1」（2026-09-26 實測，害 law-update worker 誤報失敗）。
   ver="$(curl -sf -m 8 "$SRC_API/status" 2>/dev/null \
-        | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null)"
+        | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null || true)"
   if [ -z "$ver" ]; then
     log "law version: 取不到（src_api=$SRC_API；來源機的 sync_daily.py 還沒跑過，或該網址不通）"
     return 0
@@ -107,11 +116,12 @@ fi
 auth_precheck || exit 1
 SRC_PTS="$(pts_of "$SOURCE" "$COLLECTION")"
 PREV_PTS="$(awk '{print $1}' "$STATE" 2>/dev/null || echo "")"
-if [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; then
+if [ "$FORCE" -eq 0 ] && [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; then
   sync_law_version
   log "unchanged (${SRC_PTS} points), skip"
   exit 0
 fi
+[ "$FORCE" -eq 1 ] && log "FORCE: 略過 unchanged 檢查（src_pts=$SRC_PTS prev=$PREV_PTS）"
 
 # 3) 建新快照
 SNAP_JSON="$(curl -sf "${AUTH_H[@]}" -m 30 -X POST "$SOURCE/collections/$COLLECTION/snapshots" 2>/dev/null)" \

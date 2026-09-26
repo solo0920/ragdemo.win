@@ -30,6 +30,12 @@
   let showInfo = false;
   let status = null;
   let statusLoading = false;
+  // law-update（強制更新法規版本）狀態
+  let upd = null;
+  let updMsg = '';
+  let updBusy = false;
+  let showTokenInput = false;
+  let adminToken = '';
   const prefixOf = { openrouter: 'openrouter', zen: 'zen', nvidia: 'nv', gemini: 'gemini',
                      groq: 'groq', cohere: 'cohere', hf: 'hf', mistral: 'mis', ollama: 'ollama' };
   let model = '';
@@ -222,11 +228,12 @@
       const d = await r.json();
       if (d.versions) status = { ...(status ?? {}), versions: d.versions, law_version: d.law_version };
     } catch (_) { /* 取得不到就沿用舊值，不動版面 */ }
+    loadUpd();
   }
 
   async function toggleInfo() {
     showInfo = !showInfo;
-    if (showInfo) refreshVersions();
+    if (showInfo) { refreshVersions(); }
   }
 
   async function checkHealth() {
@@ -302,6 +309,64 @@
       ver: vers?.[id] && vers[id] !== '-' ? vers[id] : '—',
       v: ok(id) ? '✅' : '❌',
     }));
+  }
+
+  // ── 法規版本更新 ────────────────────────────────────────────────────
+  // 判斷「本機明顯較舊」：本機版本 < 三台中最新者。版本是 ISO 日期字串，
+  // 字串比較即等於時間比較（_normVersion 會擋掉 '-' 這種非日期值）。
+  function _normVer(v) {
+    return v && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+  }
+  function newestVer(s) {
+    const vers = s?.versions ?? {};
+    const ds = ['x570', 'mbp', 'msi'].map((id) => _normVer(vers[id])).filter(Boolean);
+    return ds.length ? ds.sort().at(-1) : null;
+  }
+  function localVer(s) {
+    return _normVer((s?.versions ?? {})[status?.host]) ?? _normVer(s?.law_version?.update_date);
+  }
+  // 有新版可抓才顯示按鈕：
+  //   - 三台裡有比本機新的 → 抓（備援機從 x570 同步；來源機重跑 ingest）
+  //   - 或三台全都沒有版本（沒人跑過 ingest）→ 也值得提示按一次試試
+  $: newest = newestVer(status);
+  $: mine = localVer(status);
+  $: updatable = !!upd?.can_update && (newest === null || (mine !== null && mine < newest));
+  $: updateMsg = newest === null
+    ? '三台都尚未記錄法規版本（沒人跑過每日 ingest），可按此手動觸發一次'
+    : mine === null
+      ? `本機沒有版本記錄；三台最新為 ${newest}`
+      : `本機 ${mine}，三台最新 ${newest}`;
+
+  async function loadUpd() {
+    try {
+      const r = await fetch(api('/law-update'));
+      if (r.ok) upd = await r.json();
+    } catch (_) { /* 拿不到就不顯示按鈕 */ }
+  }
+
+  function needToken() {
+    updMsg = '需要 ADMIN_TOKEN（與題庫頁同一組）。';
+    showTokenInput = true;
+  }
+
+  async function doUpdate() {
+    updBusy = true; updMsg = '';
+    try {
+      const token = adminToken.trim();
+      const r = await fetch(api('/law-update'), {
+        method: 'POST',
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+      });
+      if (r.status === 401) { needToken(); return; }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { updMsg = d.detail || `HTTP ${r.status}`; return; }
+      updMsg = d.message || '已送出';
+      await loadUpd();
+    } catch (e) {
+      updMsg = '失敗：' + (e && e.message ? e.message : e);
+    } finally {
+      updBusy = false;
+    }
   }
 
   function srcRows(r) {
@@ -405,12 +470,51 @@
                     <td>{row.k}</td>
                     <td class="muted">{row.role}</td>
                     <td>{row.ip}</td>
-                    <td title="ChLaw.json 的 UpdateDate">{row.ver}</td>
+                    <td title="ChLaw.json 的 UpdateDate">
+                      {row.ver}
+                      {#if row.k === status?.host && updatable}
+                        <button
+                          class="btn upd"
+                          disabled={updBusy || upd?.pending || upd?.running}
+                          title={updateMsg}
+                          onclick={doUpdate}>更新</button>
+                      {/if}
+                    </td>
                     <td>{row.v}</td>
                   </tr>
                 {/each}
               </tbody>
             </table>
+            {#if updatable}
+              <p class="hint upd-row">
+                {#if upd?.running}
+                  更新執行中，請稍候（主機端 worker 執行，完成後會自動更新版本）。
+                {:else if upd?.pending}
+                  已排入更新，等待主機端 worker 執行。
+                {:else}
+                  本機法規資料較舊：{updateMsg}
+                {/if}
+                {#if updMsg}<span class="muted">　{updMsg}</span>{/if}
+                {#if upd?.last && !upd?.pending && !upd?.running}
+                  <span class="muted">
+                   　上次更新：{upd.last.ok ? '成功' : '失敗'}（{upd.last.seconds}s
+                    {upd.last.version ? `，版本 ${upd.last.version}` : ''}）
+                  </span>
+                {/if}
+              </p>
+              {#if showTokenInput}
+                <p class="hint upd-row">
+                  <input
+                    type="password"
+                    bind:value={adminToken}
+                    placeholder="ADMIN_TOKEN"
+                    autocomplete="off" />
+                  <button class="btn" disabled={updBusy || !adminToken.trim()} onclick={doUpdate}>
+                    送出更新
+                  </button>
+                </p>
+              {/if}
+            {/if}
           {/if}
           <h3 class="pop-sub">本次檢索方式</h3>
           {#if result}
@@ -595,4 +699,10 @@
     background: #fff; border-left: 1px solid #ccc; border-top: 1px solid #ccc;
     transform: rotate(45deg);
   }
+
+  /* law-update：法規版本欄位後方的「更新」按鈕 */
+  button.upd { margin-left: .5rem; padding: .1rem .5rem; font-size: .78rem; line-height: 1.5; vertical-align: middle; }
+  button.upd:disabled { opacity: .5; cursor: not-allowed; }
+  .upd-row { margin: .4rem 0 0; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+  .upd-row input[type=password] { padding: .25rem .4rem; font-size: .8rem; min-width: 14rem; }
 </style>

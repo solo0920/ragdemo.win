@@ -186,6 +186,24 @@ class RuleIn(BaseModel):
     enabled: bool = True
 
 
+# ── law-update：強制更新本機法規版本 ────────────────────────────────────
+# 容器跑不了 ingest 管線，所以這裡只寫請求檔；實際動作由 host 端
+# scripts/law-update-worker.sh 執行（依角色：來源機跑 sync_daily.py --apply，
+# 備援機強制重抓快照）。GET 不設權限（前端要顯示狀態），POST 需 ADMIN_TOKEN。
+@app.get("/law-update")
+async def law_update_get():
+    return {"ok": True, "host": registry.HOST_ID, **rag.law_update_state()}
+
+
+@app.post("/law-update")
+async def law_update_post(authorization: str | None = Header(default=None)):
+    _require_admin(authorization)
+    r = rag.request_law_update(actor="admin-token")
+    if not r.get("ok"):
+        raise HTTPException(status_code=409, detail=r.get("reason", "無法接受請求"))
+    return r
+
+
 @app.post("/rules")
 async def rules_add(body: RuleIn, authorization: str | None = Header(default=None)):
     _require_admin(authorization)

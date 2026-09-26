@@ -13,3 +13,6 @@ dist/
 .wrangler/
 data/laws/*
 !data/laws/.gitkeep
+
+# law-update 執行狀態機（request/status 檔由 api 寫、host worker 讀寫）
+data/.ops/

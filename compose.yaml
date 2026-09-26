@@ -80,6 +80,10 @@ services:
       - ./evals:/app/evals:ro
       - ./data/laws:/app/data/laws:ro
       - ./data/rules:/app/data/rules
+      # law-update 的 request/status 檔案通道。為什麼需要它：容器跑不了 ingest 管線
+      # （image 沒有 ingest/、data/laws 唯讀、沒裝 duckdb），管線是 host 端的 uv 工具鏈。
+      # 所以容器只「記錄請求」，實際動作由 host 的 law-update-worker.sh 執行。
+      - ./data/.ops:/app/ops
     restart: unless-stopped
 volumes:
   qdrant_data:

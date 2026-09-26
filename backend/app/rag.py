@@ -13,6 +13,7 @@ import os
 import re
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -488,6 +489,81 @@ _LAW_VERSION_TTL = 30.0  # 秒；避免 /status 每次都碰磁碟（前端會�
 # 候選基底路徑：原生執行時是 repo 的 data/laws，容器內掛在 /app/data/laws。
 # 提成常數是為了讓測試能乾淨地改掉它，而不必改寫整個函式。
 _LAW_VERSION_DIRS = (Path("data/laws"), Path("/app/data/laws"))
+
+# ── law-update：請求/狀態檔案通道 ────────────────────────────────────────
+# 容器無法執行 ingest 管線（image 沒有 ingest/、data/laws 唯讀、沒裝 duckdb），
+# 管線是 host 端的 uv 工具鏈。所以容器只「記錄請求」＋「回報狀態」，
+# 實際動作交給 host 端 scripts/law-update-worker.sh 執行。
+# 三個檔案都在 data/.ops/（host 與容器共用）：request（api 寫）、
+# running（worker 寫）、status（worker 寫）。
+_OPS_DIRS = (Path("data/.ops"), Path("/app/ops"))
+OPS_NAME = "law-update"
+
+
+def _ops_path(name: str) -> Path | None:
+    for d in _OPS_DIRS:
+        p = d / name
+        if p.parent.is_dir():
+            return p
+    return None
+
+
+def _ops_read(name: str) -> dict:
+    p = _ops_path(name)
+    if not p or not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _ops_write(name: str, data: dict) -> bool:
+    """原子寫入（先 .tmp 再 rename），避免 worker 讀到寫到一半的 JSON。"""
+    p = _ops_path(name)
+    if not p:
+        return False
+    tmp = p.with_suffix(p.suffix + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, p)
+        return True
+    except Exception as e:
+        logger.warning("law-update 寫入 %s 失敗: %s", p, e)
+        try:
+            tmp.unlink()
+        except Exception:
+            pass
+        return False
+
+
+def law_update_state() -> dict:
+    """GET /law-update：目前有沒有請求在飛、上一個結果如何。"""
+    return {
+        "pending": bool(_ops_read(f"{OPS_NAME}.request")),
+        "running": bool(_ops_read(f"{OPS_NAME}.running")),
+        "last": _ops_read(f"{OPS_NAME}.status"),
+        "can_update": _ops_path("probe") is not None,
+    }
+
+
+def request_law_update(actor: str) -> dict:
+    """POST /law-update：寫下請求檔。已有請求或正在執行就拒絕（避免疊請求）。"""
+    if _ops_path("probe") is None:
+        return {"ok": False, "reason": "ops 目錄不可用（容器未掛載 data/.ops）"}
+    if _ops_read(f"{OPS_NAME}.running"):
+        return {"ok": False, "reason": "已有更新在執行中，請等它完成"}
+    if _ops_read(f"{OPS_NAME}.request"):
+        return {"ok": False, "reason": "已有更新請求排隊中"}
+    ok = _ops_write(f"{OPS_NAME}.request", {
+        "requested_at": datetime.now().isoformat(timespec="seconds"),
+        "requested_by": actor,
+        "host_id": HOST_ID,
+        "current_version": law_version().get("update_date", ""),
+    })
+    if not ok:
+        return {"ok": False, "reason": "寫入請求檔失敗"}
+    return {"ok": True, "message": "已排入更新，實際動作由主機端 worker 執行（需數分鐘）"}
 
 
 def _read_law_version() -> dict:
