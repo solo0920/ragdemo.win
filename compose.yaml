@@ -37,6 +37,13 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://100.119.83.111:11434}
       OLLAMA_URLS: ${OLLAMA_URLS:-http://100.119.83.111:11434}
       HOST_ID: ${HOST_ID:-x570}
+      # 主機身份。刻意「不」用 /etc/hostname、/etc/machine-id 的單檔 bind mount：
+      # Docker Desktop（WSL）掛單一檔案不可靠，實測容器 init 直接 exit=127
+      # （error mounting ... not a directory），而目錄型掛載正常 —— 只有這兩個會死。
+      # 值由各機 .env 提供（per-machine，repo 不放）。registry.py 仍保留檔案 fallback，
+      # 所以沒補 .env 的機器會退化並在 log 出警告，不會靜默用 MAC 冒充。
+      HOST_NAME: ${HOST_NAME:-}
+      HOST_MACHINE_ID: ${HOST_MACHINE_ID:-}
       TS_IP: ${TS_IP:-100.119.83.111}
       LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
       KEEP_ALIVE: ${KEEP_ALIVE:--1}
@@ -73,8 +80,6 @@ services:
       - ./evals:/app/evals:ro
       - ./data/laws:/app/data/laws:ro
       - ./data/rules:/app/data/rules
-      - /etc/machine-id:/run/secrets/host-machine-id:ro
-      - /etc/hostname:/run/secrets/host-hostname:ro
     restart: unless-stopped
 volumes:
   qdrant_data:

@@ -1,10 +1,13 @@
 """主機身份 registry：自報硬體/IP/模型，心跳寫入 Postgres，供 /hosts 查詢。"""
 import json
+import logging
 import os
 import platform
 import socket
 import subprocess
 import uuid
+
+logger = logging.getLogger("ragdemo")
 
 try:
     import asyncpg
@@ -20,6 +23,13 @@ HEARTBEAT = int(os.getenv("REGISTRY_HEARTBEAT", "30"))
 STALE_MIN = int(os.getenv("REGISTRY_STALE_MIN", "3"))
 HOST_MACHINE_ID = os.getenv("HOST_MACHINE_ID_FILE", "/run/secrets/host-machine-id")
 HOST_HOSTNAME = os.getenv("HOST_HOSTNAME_FILE", "/run/secrets/host-hostname")
+# 值優先於檔案。為什麼需要這條路徑：Docker Desktop（WSL）掛「單一檔案」型 bind mount
+# 不可靠，實測容器 init 直接 exit=127（error mounting ... not a directory），
+# 而同樣的「目錄型」掛載正常 —— 只有 /etc/hostname、/etc/machine-id 這兩個單檔掛載會死。
+# 改走環境變數後不再依賴 host 檔案佈局，也符合「per-machine 差異留在 .env」的紀律。
+# 檔案仍保留為 fallback（x570/mbp 的單檔掛載在原生 Linux/macOS 上是好的）。
+_MACHINE_ID_ENV = os.getenv("HOST_MACHINE_ID", "").strip()
+_HOSTNAME_ENV = os.getenv("HOST_NAME", "").strip()
 
 DDL = """
 CREATE TABLE IF NOT EXISTS backends (
@@ -53,14 +63,18 @@ def _read_id(paths: list[str]) -> str:
 
 
 def _my_hostname() -> str:
-    v = _read_id([HOST_HOSTNAME, "/etc/hostname"])
+    v = _HOSTNAME_ENV or _read_id([HOST_HOSTNAME, "/etc/hostname"])
     return v or HOSTNAME
 
 
 def _system_id() -> str:
-    v = _read_id([HOST_MACHINE_ID, "/etc/machine-id"])
+    v = _MACHINE_ID_ENV or _read_id([HOST_MACHINE_ID, "/etc/machine-id"])
     if v:
         return v
+    # 走到這裡代表 machine-id 既沒環境變數也沒檔案。退化成 MAC 是弱識別
+    # （VM/容器下甚至可能重複），所以明確記警告，不要靜默降級。
+    logger.warning("machine_id 無法取得（HOST_MACHINE_ID 未設且檔案不存在）→ 退化成 MAC 位址，"
+                   "該機在 registry 的識別不可靠。請在該機 .env 補 HOST_MACHINE_ID。")
     try:
         if platform.system() == "Darwin":
             out = subprocess.run(
