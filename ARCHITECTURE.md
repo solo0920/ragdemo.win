@@ -1,6 +1,11 @@
 # RagDemo 架構（維護用）
 
 > 本檔描述**目前實作**（2026-09-26）。規劃中的跨機遷移見 `ROADMAP.md` §4.1.1。
+>
+> ⚠️ **x570 / mbp 升級時請先看 [`HOST-UPGRADE.md`](HOST-UPGRADE.md)** ——
+> 2026-09-26 容器化與檢索修正後，兩台各有一份 per-host 待辦：輪換外洩的 qdrant
+> key、補身份環境變數、排程補 `SRC_API_URL`、mbp 加 launchd worker、x570 首次跑
+> ingest。MSI 已完成。
 
 ## 目錄結構
 
@@ -15,7 +20,9 @@ frontend/          # SvelteKit：只打 /api/*（Google 登入守護 SENSITIVE �
 evals/             # 評測題庫（questions.json + README）
 ingest/laws/       # 法規資料擷取/切分/落 PG（pg_load.py / pg_schema.sql）
 scripts/
-  sync-snapshot.sh #   x570→本機 qdrant 快照自動同步（備援核心，支援 QDRANT_API_KEY）
+  sync-snapshot.sh #   x570→本機 qdrant 快照自動同步（備援核心；--force 可強制重抓）
+  law-update-worker.sh #  執行前端「更新」按鈕排入的請求（容器跑不了 ingest，故在 host 端跑）
+HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提醒）
 .opencode/agents/  # ingest / backend / frontend / eval 四個子代理
 .github/           # workflows/ci.yml（三 job）＋ dependabot.yml；見〈三機紀律的 server 端執行〉
 ```
