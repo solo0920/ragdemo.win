@@ -106,7 +106,7 @@ jobs:
         run: docker compose config -q
 
   guards:
-    name: 護欄（commit 前綴／單檔大小）
+    name: 護欄（commit 前綴／單檔大小／憑證格式）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,4 +156,35 @@ jobs:
               bad=1
             fi
           done < <(git ls-files)
+          [ "$bad" -eq 0 ]
+
+      # 為什麼 push protection 還不夠（實測 security_and_analysis 現況）：
+      #   secret_scanning_push_protection       = enabled   ← 只認 GitHub 合作廠商 pattern
+      #   secret_scanning_non_provider_patterns = disabled  ← 自訂 pattern，個人帳號計畫開不了
+      #   secret_scanning_validity_checks       = disabled
+      # 也就是說「本專案自己會用到、但不在 GitHub 合作廠商清單裡」的格式完全沒有防線。
+      # 掃「全部被追蹤的檔案」而不是 before..after 範圍：憑證一旦進來會留在樹裡好幾個
+      # commit，後續任何一次 push 都該重新確認它還沒被清掉。
+      #
+      # 這些字面 pattern 不會匹配到本檔自己：`[` 不在 [A-Za-z0-9_-] 類別裡。
+      # 長度門檻 20 是刻意的 —— 實測過 {8,} 也沒誤報，但 20 能擋掉像是變數名
+      # （cfut_underscore）這類巧合命中。
+      - name: 追蹤檔案不得含憑證
+        run: |
+          bad=0
+          while IFS='|' read -r label pat; do
+            [ -n "$label" ] || continue
+            if git grep -nIE "$pat" --; then
+              echo "::error title=疑似憑證外洩::命中 $label 格式，請立刻輪換該 key 並清除歷史"
+              bad=1
+            fi
+          done <<'PATTERNS'
+          Cloudflare（gateway AI token）|cfut_[A-Za-z0-9_-]{20,}
+          NVIDIA（api key）|nvapi-[A-Za-z0-9_-]{20,}
+          OpenRouter（api key）|sk-or-v1-[A-Za-z0-9_-]{20,}
+          HuggingFace（token）|hf_[A-Za-z0-9]{30,}
+          PATTERNS
+          if [ "$bad" -eq 0 ]; then
+            echo "✓ 無憑證格式殘留"
+          fi
           [ "$bad" -eq 0 ]

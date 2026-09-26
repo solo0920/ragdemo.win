@@ -334,6 +334,15 @@ V2 官方文件的說法是：`oauth: false` 只在「server 完全只用 API ke
       因為 `{file:...}` 是**連線時**讀檔，撤銷／換檔後既有連線仍握著舊值
 - [ ] 舊 token 真的死了嗎？（`gh` 那枚：打 API 看是否 `401`；PAT 那枚：Settings → Tokens 手動砍）
 
+### MSI（WSL）上 `gh auth login` 的兩個預期內現象
+
+- **`Authentication credentials saved in plain text`** —— WSL 沒有 credential store
+  （libsecret／keyring），`gh` 只能寫明文檔。`chmod 600` 已是能做到的上限，
+  與 `~/.config/opencode/gh-token` 同一套對待方式。**不是錯誤。**
+- **`Failed opening a web browser ... xdg-open ... not found`** —— WSL 裡沒有瀏覽器啟動器。
+  手動開 `https://github.com/login/device` 貼上它印出的 one-time code 即可，
+  流程本身會完成（`✓ Authentication complete`）。**不是錯誤。**
+
 ---
 
 ## 🔄 更新規則（建議）

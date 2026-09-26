@@ -969,31 +969,43 @@ GitHub squash merge **預設拿 PR 標題當 commit message**，而標題形如
   enterprise 擁有的 repo，個人帳號拿不到，實測 422）。所以 `護欄` job 是「事後回報」，
   真正擋得住的仍只有各機的 `.githooks/commit-msg`（見 ARCHITECTURE 同節）。
 
-#### 待辦 3：`secret_scanning_non_provider_patterns` 開不了 → 建議改用 CI 掃
+#### 待辦 3：`secret_scanning_non_provider_patterns` 開不了 → 改用 CI 掃 ✅ **已完成（2026-09-26）**
 
 個人帳號的公開 repo **無法**開啟 `secret_scanning_non_provider_patterns`
 （API 接受請求但狀態維持 disabled，不報錯）。這個功能正是用來掃
-**非 provider 標準格式**的 key，而本 repo 正好有兩種在用：
+**非 provider 標準格式**的 key，而本 repo 正好有在用。2026-09-26 實測
+`security_and_analysis` 現況：
 
-| 來源 | 格式 | 是否已被現有防護涵蓋 |
-|---|---|---|
-| Cloudflare AI Gateway | `cfut_...` | ❌ 非標準格式 |
-| NVIDIA NIM | `nvapi-...` | ❌ 非標準格式 |
-| GitHub PAT / OpenRouter | `ghp_...` / `sk-or-v1-...` | ✅ push protection 已擋 |
-
-`secret_scanning` ＋ `secret_scanning_push_protection` 本身**已開**（公開 repo 免費），
-2026-09-26 已掃過全歷史 169 個 commit，那兩種格式都是 **0 命中**。
-
-**建議的替代做法**（未實作，約 5 行）：在 ci.yml 的 `護欄` job 加一個 step，
-對被追蹤檔案 grep 專案自有的 key 格式：
-
-```bash
-git grep -nE 'cfut_[A-Za-z0-9_-]{20,}|nvapi-[A-Za-z0-9_-]{20,}'
+```
+secret_scanning_push_protection        = enabled   ← 只認 GitHub 合作廠商 pattern 集
+secret_scanning_non_provider_patterns  = disabled  ← 自訂 pattern，計畫限制開不了
+secret_scanning_validity_checks        = disabled
 ```
 
-好處是能掃到 `.env.example`、文件、腳本、workflow 檔這些**常被誤放 key 的地方**，
-而 GitHub 內建的掃描只看「provider 認得」的格式。`.env` 本身 gitignored，所以真正要防的是
-「有人把 key 抄進範例檔或文件」。
+**已實作**：`ci.yml` 的 `護欄` job 新增 step〈追蹤檔案不得含憑證〉，掃**全部被追蹤的檔案**
+（不是 `before..after` 範圍 —— 憑證進來會留在樹裡好幾個 commit，後續任何一次 push 都該
+重新確認它還沒被清掉），涵蓋四種格式：
+
+| 來源 | 格式 | push protection 涵蓋 |
+|---|---|---|
+| Cloudflare AI Gateway | `cfut_[A-Za-z0-9_-]{20,}` | ❌ |
+| NVIDIA NIM | `nvapi-[A-Za-z0-9_-]{20,}` | ❌ |
+| OpenRouter | `sk-or-v1-[A-Za-z0-9_-]{20,}` | ❌ |
+| HuggingFace | `hf_[A-Za-z0-9]{30,}` | ❌ |
+
+**驗證過的行為**（用 YAML 還原後的 script 實跑，不只是寫完就推）：
+
+- 乾淨的樹 → `✓ 無憑證格式殘留`、exit 0
+- 四種格式各塞一個假 key → 全部命中並報出行號、exit 1
+- 誘餌（`cfut_underscore_name`、`hf_short`、`nvapi-x`）→ **不誤報**，exit 0
+- 這些字面 pattern **不會匹配到 `ci.yml` 自己**（`[` 不在 `[A-Za-z0-9_-]` 類別裡）
+- 長度門檻 20：實測 `{8,}` 也沒誤報，但 20 能擋掉像變數名那樣的巧合命中
+
+命中時的處理建議已寫進 step 的錯誤訊息：**立刻輪換該 key，再清除歷史**（順序重要 ——
+先輪換才有意義，key 都還有效的情況下清歷史是白做）。
+
+覆蓋的是 `.env.example`、文件、腳本、workflow 檔這些**常被誤放 key 的地方**。
+`.env` 本身 gitignored，所以真正要防的是「有人把 key 抄進範例檔或文件」。
 
 ---
 
