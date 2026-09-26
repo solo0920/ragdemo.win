@@ -101,9 +101,9 @@
       const lm = new Map();
       for (const s of (d.limited ?? [])) lm.set(s.key, s.until);
       limitedMap = lm;
-      const item = (m, label, disabled = false) => ({ value: m, label, key: m, disabled });
+      const item = (m, label, disabled = false, key = m) => ({ value: m, label, key, disabled });
       const G = [];
-      if (localModels.length) G.push({ label: '地端 ollama（隱私）', items: localModels.map((m) => item(m, m)) });
+      if (localModels.length) G.push({ label: '地端 ollama（隱私）', items: localModels.map((m) => item(m, m, false, `ollama/${m}`)) });
       if (cloudModels.length) G.push({ label: 'OpenRouter 閉源（速度）', items: cloudModels.map((m) => item(m, m.replace(/^openrouter\//, '').replace(/:free$/, ''))) });
       if (zenModels.length) G.push({ label: 'OpenCode Zen Free', items: zenModels.map((m) => item(m, m.replace(/^zen\//, '') + (!zenReady ? '（需 Zen key）' : ''), !zenReady)) });
       if (nvidiaModels.length) G.push({ label: 'NVIDIA NIM', items: nvidiaModels.map((m) => item(m, m.replace(/^nv\//, '') + (!nvidiaReady ? '（需 NIM key）' : ''), !nvidiaReady)) });

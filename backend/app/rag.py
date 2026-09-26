@@ -1316,10 +1316,11 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     if model.startswith("mis/"):
         return await _mistral_complete(model.removeprefix("mis/"), prompt)
     # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
+    # model 容錯 removeprefix("ollama/")（前端地端選項 value 純名，但外部呼叫可能帶前綴）。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
     for _ in range(len(OLLAMA_URLS) + 1):
         base = await _pick("ollama", OLLAMA_URLS, probe=_ollama_probe)
-        model = model or _llm_model_for(base)
+        model = (model.removeprefix("ollama/") if model else "") or _llm_model_for(base)
         try:
             async with httpx.AsyncClient(timeout=300) as c:
                 r = await c.post(f"{base}/api/generate",
