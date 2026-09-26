@@ -193,6 +193,57 @@ Dependabot alerts、secret scanning alerts、Actions 執行結果、PR 與 rules
   （repo 是公開的，這點很重要）。`{file:...}` 在 `headers` 裡會正常展開（已實測）。
 - **不要**從 shell 跑 `opencode mcp auth`：互動流程的授權連結會被背景行程輸出吃掉。
 
+### 🔑 憑證分工：opencode 的 token ≠ `gh` 的 token（2026-09-26 定案）
+
+**兩者必須是兩份不同的憑證**，這是硬規則。原因見 `ROADMAP.md` §4.13 的記錄：一開始
+圖省事直接沿用 `gh` CLI 的憑證，結果 opencode 和 `gh` 共用同一份命脈，且 `gh` 的 scope
+遠超需要（`repo` 涵蓋帳號下所有 repo、`workflow`、`gist`）。
+
+| | opencode（`~/.config/opencode/gh-token`） | `gh` CLI（`~/.config/gh/hosts.yml`） |
+|---|---|---|
+| 類型 | **classic PAT** | OAuth token |
+| scope | **只有 `public_repo`** | `gist, read:org, repo, workflow` |
+| 為什麼 | 這個 repo 是 public、帳號下 0 個 private repo，`public_repo` 已足夠 | `workflow` 是必要的 —— 沒有它 **push 改動 `.github/workflows/ci.yml` 的 commit 會被 GitHub 拒絕** |
+| 能碰 | 只有 public repo 的讀寫 | 帳號下所有 repo（新增 private 也自動涵蓋） |
+
+實測 `x-oauth-scopes` 回應標頭：PAT = `public_repo`；`gh` = `gist, read:org, repo, workflow`。
+
+**`public_repo` 夠用的官方依據**（逐個端點查過，不是推測）：
+
+| 端點 | 官方說明 |
+|---|---|
+| `GET .../dependabot/alerts` | 「**若只用於 public repository，token 可用 `public_repo` scope**」 |
+| `GET .../actions/runs` | 「Anyone with read access to the repository can use this endpoint」 |
+| `GET .../rulesets` | 「僅請求 public 資源時可無認證使用」 |
+
+**已知取捨**：這枚 PAT 沒有 `workflow` scope，所以**改寫 workflow 檔的 PR 不能用它的 token 合併**。
+實務上的答案很簡單 —— **`gh` 那枚有 `workflow` scope，合併 action 類 Dependabot PR 用 `gh`**：
+
+```sh
+gh pr merge <n> --squash --subject "msi: bump <action>"
+```
+
+**為什麼用 classic 而不是 fine-grained**：Dependabot alerts 端點的文件完全沒有提到
+fine-grained PAT（2026-09-26 查證），無法在建立前確認相容性；`public_repo` 則有明文依據。
+若日後想改成 fine-grained，改完務必用下面的檢查腳本重驗一遍。
+
+### 🛠 輪換與檢查：`~/bin/gh-token-check`
+
+```sh
+gh-token-check --set    # 隱藏輸入 token → 寫檔（chmod 600）→ 立刻列出能力矩陣
+gh-token-check          # 只檢查現有 token 檔
+```
+
+- **per-machine 工具，故意不放進 repo**（repo 是公開的，而且這是各機自己的環境事實）。
+  要用就自己建立，或從 `settings/opencode/README.md` 這段抄一份。
+- 輸出會列出七個端點的 HTTP 狀態碼，以及「解耦狀態」判定（拿 token 檔跟 `gh auth token`
+  逐一比對，相同就代表又耦合了）。**只有全 `200` ＋ `✅ 解耦` 才算通過。**
+- 腳本會擋下明顯不是 token 的輸入（例如把 `R=https://…` 這種變數賦值誤餵進去），
+  避免寫出一份看似有效、實際全 `401` 的檔案。
+
+> **踩過的坑**：`curl` 一律回 `000` 不是權限問題，是 **URL 沒組出來**（`$R` 未賦值拿到相對路徑）。
+> `000` = 連線都沒建立；`401` = 認證失敗；`403` = 認得你但缺 scope。分清楚再查。
+
 ### ⚠️ OAuth 走不通，只能用 PAT（2026-09-26 實測）
 
 照直覺在 `/mcps` 按 sign in 會得到：
@@ -243,15 +294,45 @@ V2 官方文件的說法是：`oauth: false` 只在「server 完全只用 API ke
    症狀是 `opencode mcp list` 完全看不到這個 server。
 2. V2 用 **`disabled`** 停用，不是 `enabled` 啟用。
 
+### 🚨 撤銷 token：四個必須知道的事（2026-09-26 實測）
+
+1. **`gh auth logout` 不會撤銷 token。** 官方 help 原文：*"This command does not invalidate
+   authentication tokens."* 它只刪本地設定檔。**別以為 logout 就等於撤銷了。**
+2. **沒有 API 可以列出或撤銷自己的 grant。** 兩個曾經存在的端點都已被 GitHub 移除
+   （實測 `GET /user/applications` → `404`、`GET /applications/{client_id}/token` → `404`）。
+   **網頁 UI 是唯一途徑。**
+3. **路徑是 Settings → 側邊欄「Integrations」→ Applications →「Authorized OAuth Apps」分頁。**
+   ⚠️ 不是 Developer settings → OAuth Apps —— 那頁是**註冊** OAuth App 的（開發者用），
+   `GitHub CLI` 不會出現在那裡，所以那頁永遠顯示 "No OAuth apps"，很容易誤判成沒授權。
+4. **`Revoke` 會一次撤掉該 app 的所有 token**，包含剛拿到的那枚。撤銷前要先準備好替代品，
+   否則 `gh` 和 opencode 的 MCP 會同時失效。撤銷後唯一能驗證的方式是打 API 看是否變 `401`。
+
+順帶一提：那次檢查讓我們發現帳號上還有 `Visual Studio Code` 的 OAuth 授權 —— 這就是
+「定期檢查已授權 app」的實際價值。
+
 ### mbp / x570 若要加
 
-1. 各自建立 token 檔：`gh auth token > ~/.config/opencode/gh-token && chmod 600 ~/.config/opencode/gh-token`
-2. 把上面整個 `mcp` 區塊併入該機的 `~/.config/opencode/opencode.json`
-3. `opencode mcp list` 應顯示 `✓ github  connected`
-4. 同步更新 `settings/opencode/global/<你的機器名>/opencode.json`
+1. 各自申請一枚 **classic PAT，只勾 `public_repo`**：
+   <https://github.com/settings/tokens/new>
+   （同一個帳號的 token 共用同一組 scope，所以三台機器**共用一枚 token 就行** ——
+   token 檔不會跨機同步，但每台機器的 `~/.config/opencode/gh-token` 內容要一樣。）
+2. 建立 `~/bin/gh-token-check`（或直接手動寫檔），把 token 寫進
+   `~/.config/opencode/gh-token`、`chmod 600`，跑一次確認**全 200 ＋ `✅ 解耦`**
+   （該機的 `gh` 也必須是另一枚 token）
+3. 把上面整個 `mcp` 區塊併入該機的 `~/.config/opencode/opencode.json`
+4. `opencode mcp list` 應顯示 `✓ github  connected`
+5. 同步更新 `settings/opencode/global/<你的機器名>/opencode.json`
 
-**這是 PAT 認證、不是 OAuth**，所以沒有「per-machine 授權瀏覽器流程」那一步，
-但 token 檔仍要各自建立（token 不會跨機同步）。
+**這是 PAT 認證、不是 OAuth**，所以沒有「per-machine 授權瀏覽器流程」那一步。
+
+### 換 token / 換機器時的檢查清單
+
+- [ ] 新 token 跑 `gh-token-check`，**全 200 ＋ `✅ 解耦`**
+- [ ] 有換 `gh` 的 token 嗎？有的話**必須帶 `-s workflow`**，否則之後推 `ci.yml` 會被拒
+- [ ] `gh-token` 檔是否已手動更新？（`gh auth login` **不會**動它 —— config 存的是路徑不是值）
+- [ ] `opencode mcp list` 是否仍 `✓ connected`？報錯就重開 opencode，
+      因為 `{file:...}` 是**連線時**讀檔，撤銷／換檔後既有連線仍握著舊值
+- [ ] 舊 token 真的死了嗎？（`gh` 那枚：打 API 看是否 `401`；PAT 那枚：Settings → Tokens 手動砍）
 
 ---
 

@@ -907,11 +907,6 @@ opencode 的 OAuth 需要 dynamic client registration（RFC 7591，讓 client �
 - `~/.config/opencode/gh-token`（`chmod 600`）存 token，config 只寫
   `"Authorization": "Bearer {file:/home/solo/.config/opencode/gh-token}"` —— 與既有的
   `cf-aig-token` 同一套做法，備份不含明碼密鑰（repo 是公開的，這點必須如此）。
-- **token 沿用 `gh` CLI 的憑證**（`gh auth token`）。實測 GitHub 遠端 MCP 接受它
-  （MCP `initialize` 握手 200，亂填的 token 是 401），所以不必另外申請。
-  代價：`gh` 與 opencode 共用同一份憑證，且其 scope 偏大（`repo`／`workflow`／`gist`）。
-  **若要收窄**，改申請 fine-grained PAT 只給這個 repo 的必要權限，覆寫該檔即可
-  （不確定遠端 MCP 是否接受 fine-grained PAT，換完要重驗 `opencode mcp list`）。
 - **另一個關鍵修正**：不設 `X-MCP-Toolsets` 時 server 只給預設 5 個 toolset
   （`context,repos,issues,pull_requests,users`）＝ 45 個工具，**Dependabot alerts、
   secret scanning alerts、code scanning、Actions 執行結果、ruleset 全部沒有** ——
@@ -921,10 +916,44 @@ opencode 的 OAuth 需要 dynamic client registration（RFC 7591，讓 client �
   4 個 Dependabot PR 可讀；ruleset `main-禁刪分支` 可讀。
   （`list_code_scanning_alerts` 回 404 `no analysis found` —— 這個 repo 沒啟用 code scanning，正常。）
 
-**mbp / x570 若要加**：建自己的 `~/.config/opencode/gh-token`（`gh auth token > …` ＋
-`chmod 600`），併入同一個 `mcp` 區塊，`opencode mcp list` 應顯示 `✓ github  connected`。
-**PAT 認證沒有瀏覽器授權流程**，但 token 檔仍要各自建立（不會跨機同步）。
-完整寫法與 V1/V2 差異見 `settings/opencode/README.md`〈MCP〉。
+**⚠️ 憑證治理：原本沿用 `gh` 的 token 是錯的決策，已改正**
+
+一開始圖省事直接用 `gh auth token` 填進 `gh-token`（實測 GitHub 遠端 MCP 確實接受）。
+但那是**過度授權 ＋ 憑證共用**：`gh` 的 scope 是 `repo`（涵蓋帳號下所有 repo）、
+`workflow`、`gist`，而且兩個工具共用同一份命脈。已改為：
+
+| | opencode | `gh` CLI |
+|---|---|---|
+| 類型 | classic PAT | OAuth token |
+| scope | **只有 `public_repo`** | `gist, read:org, repo, workflow` |
+| 理由 | repo 是 public、帳號 0 個 private repo，已足夠 | `workflow` 必要：沒有它 push 改 `ci.yml` 會被拒 |
+
+`public_repo` 夠用是**逐端點查過官方文件**的，不是推測：Dependabot alerts 端點明寫
+「若只用於 public repository 可用 `public_repo`」；Actions runs「anyone with read access
+即可」；rulesets「僅請求 public 資源時可無認證使用」。實測七個端點全 `200`，
+`x-oauth-scopes` 回應標頭確認 PAT 只拿到 `public_repo`。
+
+**沒選 fine-grained 的理由**：Dependabot alerts 端點的文件完全沒提 fine-grained PAT，
+建立前無法確認相容性；`public_repo` 有明文依據。日後要換必須重跑能力檢查。
+
+**已知取捨**：PAT 沒有 `workflow` scope，所以改寫 workflow 檔的 PR 不能用它的 token 合併 ——
+但 `gh` 那枚有，所以 action 類 Dependabot PR 用 `gh pr merge` 合即可。
+
+**新增 per-machine 工具 `~/bin/gh-token-check`**（故意不放進公開 repo）：`--set` 隱藏輸入
+token 並立刻列出七個端點狀態碼與「解耦狀態」判定。踩過的坑是 curl 全回 `000` ——
+那不是權限問題而是 URL 沒組出來（變數賦值被 `read` 吃掉），所以腳本會擋下明顯不是
+token 的輸入。
+
+**撤銷流程的四個事實**（都實測過，細節見 README）：`gh auth logout` **不撤銷** token；
+列 grant 的兩個 API 端點已被 GitHub 移除（實測 404）；正確路徑是
+Settings → Integrations → Applications → **Authorized OAuth Apps**（不是 Developer settings）；
+`Revoke` 會一次撤掉該 app 所有 token。順帶查出一個先前沒在意的授權：
+**`Visual Studio Code` 也持有本帳號的 OAuth 授權**。
+
+**mbp / x570 若要加**：同一組 scope 的 PAT 三台機器可共用一枚，但每台機器的
+`gh-token` 檔要各自建立、權限各自 `600`，並且該機的 `gh` 必須是**另一枚** token
+（`gh-token-check` 的「解耦狀態」就是查這個）。完整寫法、撤銷流程與輪換檢查清單見
+`settings/opencode/README.md`〈MCP〉。
 
 #### 待辦 2：合併 Dependabot PR 時，commit 訊息要帶機器前綴
 
