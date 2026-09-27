@@ -112,6 +112,12 @@ TOOL_ENV = {
     "HOSTNAME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
     "COLORTERM", "NO_COLOR", "FORCE_COLOR", "SSL_CERT_FILE", "SSL_CERT_DIR",
     "SSLKEYLOGFILE", "SYSTEMROOT", "HOMEDRIVE", "HOMEPATH", "PATHEXT",
+    # bash 內建、由父 shell 繼承的選項集與特殊參數。`${SHELLOPTS:-}` 是偵測
+    # xtrace 的標準手法（host-sync.sh／host-doctor.sh 都用），但它**不是**
+    # .env 該管的東西：.env 設了也不會改變呼叫者的 shell 選項。
+    # 踩過：2026-09-27 兩個新腳本的 xtrace 防線讓 --template 多印一行
+    # `SHELLOPTS=`，害 .env.example 與 --template 不一致、CI 紅燈。
+    "SHELLOPTS", "BASHOPTS", "BASHPID", "PS1", "PS2", "PS3", "PS4", "IFS",
     # 本專案測試 harness 的覆寫點（tests/test_env_sync.py 用 fixture 目錄
     # 隔離執行 scripts/env-sync.sh；不是給 .env 設的，不進 .env.example）
     "ENV_SYNC_DIR", "ENV_SYNC_ENV",
@@ -448,6 +454,11 @@ def scan_shell() -> dict[str, Ref]:
                 m = SH_ASSIGN.match(seg)
                 if m:
                     local.add(m.group(1))
+                # SH_ASSIGN 的 group(1) 抓的是宣告的**第一個**名字，
+                # `local A="" B=""` 的 B 就漏了。用 SH_DECL 把整行宣告都收進來。
+                d = SH_DECL.match(seg)
+                if d:
+                    local.update(x.group(1) for x in SH_DECL_ASSIGN.finditer(d.group(1)))
         for ln, line in enumerate(text.splitlines(), 1):
             if line.lstrip().startswith("#"):
                 continue
@@ -455,10 +466,51 @@ def scan_shell() -> dict[str, Ref]:
                 name = m.group(1) or m.group(2)
                 if not name or name in local or name in TOOL_ENV:
                     continue
+                # ⚠ `$UPPER` 這種「只用大寫」的反查會把 shell 的**控制流變數**
+                #   誤判成環境變數，而那些是最常見的一批。真的踩過
+                #   （2026-09-27 加 host-doctor.sh 時一次踩齊 12 個假變數進
+                #   .env.example，害 .env.example 與 --template 不一致、CI 紅燈）：
+                #
+                #   (a) `while read -r A B` 的目標 —— 是**賦值**不是讀環境變數，
+                #       而 SH_ASSIGN 只認 `NAME=` 開頭，抓不到。
+                #   (b) `for FP in ...` 的迴圈變數 —— 同理沒有 `=`。
+                #
+                # 所以除了 SH_ASSIGN（`NAME=`）之外，再扣掉兩種明確的賦值位置：
+                # while read 的目標、for 的迴圈變數。兩者都用**行內**比對。
+                # 這裡不做「宣告過就跳過」那種更寬的判斷：那會連
+                # `local MISS=""` 這種真的宣告過的也一起扣掉，行為正確但會
+                # 順手蓋掉別的判定分支，而那超出本 scope。
+                if _sh_assigns_control(text, name):
+                    continue
                 r = refs.setdefault(name, Ref(name))
                 r.shell_read = True
                 r.readers.append(f"{f.relative_to(ROOT)}:{ln}")
     return refs
+
+
+# shell 控制流裡的賦值位置：這兩種沒有 `=`，SH_ASSIGN 認不出來，但確實是賦值。
+#   while read -r A B C   → 目標變數
+#   for A in ...          → 迴圈變數
+SH_READ_ASSIGN = re.compile(
+    r"\bwhile\s+(?:IFS=\s*\S*\s+)?read\s+(?:-\w+\s+)*"
+    r"([A-Za-z_][A-Za-z_0-9]*(?:\s+[A-Za-z_][A-Za-z_0-9]*)*)"
+)
+SH_FOR_ASSIGN = re.compile(r"\bfor\s+([A-Za-z_][A-Za-z_0-9]*(?:\s+[A-Za-z_][A-Za-z_0-9]*)*)\s+in\b")
+
+# `local A="" B="" C=""` 一行宣告多個：SH_ASSIGN 只會抓到**第一個**名字
+# （它的 group(1) 就在開頭），所以 B、C 會被當成讀環境變數。
+# 踩過：2026-09-27 `local T MISSING="" OK=""` 讓假的 `OK=` 進 .env.example。
+SH_DECL = re.compile(r"^\s*(?:local|declare|export|readonly|typeset)\s+(.*)$")
+SH_DECL_ASSIGN = re.compile(r"(?<![$\{\"'\w])([A-Za-z_][A-Za-z_0-9]*)\s*=")
+
+
+def _sh_assigns_control(text: str, name: str) -> bool:
+    """這個名字是 while read / for 的目標嗎（即：被賦值，不是讀環境變數）。"""
+    for pat in (SH_READ_ASSIGN, SH_FOR_ASSIGN):
+        for m in pat.finditer(text):
+            if name in m.group(1).split():
+                return True
+    return False
 
 
 def build_registry() -> dict[str, Ref]:
