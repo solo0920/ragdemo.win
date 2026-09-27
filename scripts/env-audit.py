@@ -18,8 +18,12 @@
 
 另一處不實在 `print_template()`：「程式端用 ${VAR_名} 讀取時會自動去掉
 前綴」—— **沒有實作**，全 repo 找不到任何前綴處理程式碼。實際做法是把
-機台名燒進變數名本身（rag.py:167-171 的 `HOST_API_X570`／`HOST_API_MBP`／
-`HOST_API_MSI`），不是執行時剝前綴。已刪除該說明。
+per-host 的值放進 `settings/env/hosts.shared.env` 那張總表，由
+`env-sync.sh render` 依本機 HOST_ID 挑列；同一台機器「同時」要有多組設定
+（多個 peer 位址）時才把 id 燒進**值**裡 —— `HOST_API_URLS=x570=…,msi=…`。
+2026-09-27 之前是燒進變數**名**（`HOST_API_X570`／`HOST_API_MBP`／
+`HOST_API_MSI`），那等於把機台清單寫進程式，第 4 台要改程式才能加；已改成單一
+`HOST_API_URLS`。
 
 ## 設計原則
 
@@ -265,20 +269,34 @@ class Ref:
 # 預設值中的機台身份：tailscale 的 100.x.x.x 網段，或三台的 id 字面量
 IDENTITY_RE = re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b(x570|mbp|msi)\b")
 
-# 機台代號寫在**變數名**裡的（HOST_API_X570、FOO_MSI…）。
+# 機台代號寫在**變數名**裡的（FOO_MSI、HOST_API_X570…這類）。
 # 這類變數的「身份在鍵不在值」：它描述的是**指定那一台**的位址，不是本機身份，
 # 所以不該被判成「本機必須覆蓋」。
 #
 # 實測依據（2026-09-27，scope B 補上 HOST_API_* 時踩到）：預設值
 # `${HOST_API_X570:-https://api-x570.ragdemo.win}` 的 **主機名裡**就有 x570，
-# 被 IDENTITY_RE 命中 → MSI 被要求覆蓋 HOST_API_X570。但 rag.py:167-171 是
-# 一張「三台都要有」的對照表（前端「連線與來源」彈窗逐台列位址），
+# 被 IDENTITY_RE 命中 → MSI 被要求覆蓋 HOST_API_X570。但那時 rag.py 的
+# HOST_API 是一張「三台都要有」的對照表（前端「連線與來源」彈窗逐台列位址），
 # 缺一台就少一列 —— 那是假警告，不是設定錯誤。
+#
+# ⚠️ 2026-09-27 那三個鍵已刪（見 REMOVED_KEYS），所以**這個例外現在沒有已知
+# 使用者**了。留著是因為規則本身還成立：只要有人再把機台代號燒進鍵名，
+# 這裡就擋下同一類假警告。**沒有**因為「目前用不到」就放寬 IDENTITY_RE ——
+# 那會讓真正的 TS_IP 綁錯也一起消失（下一段的 ports: 判準會補，但少一層少一層）。
 #
 # 這個例外不放寬真正會炸的保護：`ports:` 的綁定是獨立判準
 # （`r.in_ports or r.has_identity_default()`），TS_IP 在 ports: 裡，
 # 少設仍然會被報出來（`test_identity_laden_defaults_are_recognised` 鎖住）。
 NAME_SCOPED_HOST = re.compile(r"_(x570|mbp|msi)$", re.I)
+
+# 已被移除的鍵 → 遷移指引。刪掉一個變數名時要同時在這裡加一筆，否則升級後
+# .env 裡的舊鍵只會被當成一般「幽靈」報出，使用者看不出該改成什麼。
+# 2026-09-27：HOST_API_X570/MBP/MSI 三個合成 HOST_API_URLS（解除三台鎖死）。
+REMOVED_KEYS = {
+    "HOST_API_X570": "HOST_API_URLS=x570=<該機公網 api 網址>",
+    "HOST_API_MBP": "HOST_API_URLS=mbp=<該機公網 api 網址>",
+    "HOST_API_MSI": "HOST_API_URLS=msi=<該機公網 api 網址>",
+}
 
 
 def _iter_files(root: Path, pattern: str):
@@ -566,12 +584,21 @@ def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
         return 1
     problems = 0
     seen: dict[str, int] = {}
+    rows = {}
     for raw in table.read_text(encoding="utf-8").splitlines():
         m = ASSIGN.match(raw.strip())
-        if not m:
-            continue
-        host, _, base = m.group(1).partition("_")
-        if host not in ("x570", "mbp", "msi"):
+        if m:
+            rows[m.group(1)] = m.group(2)
+    # 機台清單讀總表裡的 `HOSTS=` 那一行。2026-09-27 之前這裡寫死
+    # `("x570", "mbp", "msi")`，第 4 台就查不到自己的列（而且是**靜默**漏查：
+    # 不報錯、只是少算，輸出的「N 個鍵 × 3 台」看起來完全正常）。
+    hosts = [h.strip() for h in rows.pop("HOSTS", "").split(",") if h.strip()]
+    if not hosts:
+        print(f"  [per-host 總表] {table} 缺少 `HOSTS=<機台,機台,…>` 宣告")
+        return 1
+    for k in rows:
+        host, _, base = k.partition("_")
+        if host not in hosts:
             continue
         seen[base] = seen.get(base, 0) + 1
         if base not in reg:
@@ -580,8 +607,13 @@ def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
         elif base in POLICY_EXCLUDED:
             print(f"  [per-host 總表] {base} 是政策性停用變數，不該出現在總表")
             problems += 1
-    print(f"  [per-host 總表] {len(seen)} 個鍵 × 3 台（值與 .env 的一致性由 "
-          f"env-sync.sh --check 負責）")
+    for base, n in sorted(seen.items()):
+        if n != len(hosts):
+            print(f"  [per-host 總表] {base} 只有 {n}/{len(hosts)} 台有列"
+                  f"（宣告 {'/'.join(hosts)}）")
+            problems += 1
+    print(f"  [per-host 總表] {len(seen)} 個鍵 × {len(hosts)} 台"
+          f"（{'/'.join(hosts)}；值與 .env 的一致性由 env-sync.sh --check 負責）")
     return problems
 
 
@@ -645,6 +677,8 @@ def audit(env: dict[str, str], reg: dict[str, Ref], label: str) -> int:
         print(f"  [{label}] 幽靈變數（沒有任何程式讀，設了沒作用）:")
         for k in ghosts:
             print(f"    - {k}")
+            if k in REMOVED_KEYS:
+                print(f"        ⚠️ 這個鍵已被移除，請從 .env 刪掉並改用：{REMOVED_KEYS[k]}")
         problems += len(ghosts)
 
     missing = sorted(k for k, r in reg.items() if r.required and k not in env)
@@ -709,7 +743,7 @@ def check_drift(root: dict[str, str], back: dict[str, str]) -> int:
 
 
 def print_template(reg: dict[str, Ref]) -> None:
-    print("# .env.example — 三機共用的變數骨架")
+    print("# .env.example — 變數骨架")
     print("#")
     print("# 本檔由 `scripts/env-audit.py --template` 產生，**完全從程式碼反查**，")
     print("# 不含任何真實憑證，可安全進版控。改變數請改程式碼後重新產生。")
@@ -728,22 +762,23 @@ def print_template(reg: dict[str, Ref]) -> None:
     print("#   寫死       compose 用字面值覆蓋 → 這裡設了對容器無效")
     print("#")
     print("# 關於機台差異：per-host 的值**不在這個檔**填。")
-    print("# 它們在 settings/env/hosts.shared.env（三台的 x570_/mbp_/msi_ 值同一個檔，")
+    print("# 它們在 settings/env/hosts.shared.env（每台一組 x570_/mbp_/msi_ 的值，")
     print("# 追蹤、明文、無憑證），由 scripts/env-sync.sh render 依本機 HOST_ID")
-    print("# 挑列、展開 ${VAR} 後寫進 .env。")
+    print("# 挑列、展開 ${VAR} 後寫進 .env。機台清單是那個檔裡的 `HOSTS=` 一行 ——")
+    print("# 加機器＝加一行資料，不必改程式（2026-09-27 之前寫死在 env-sync.sh 裡）。")
     print("#")
     print("# 為什麼前綴不放進 .env：compose 只認 ${VAR}，沒有依 HOST_ID 動態選")
     print("# msi_/x570_ 的能力；前綴若寫在 .env，值會被 compose 讀不到而回退原始碼")
-    print("# 預設（LLM_MODEL 掉回 14b、TS_IP 讓 ports: 綁錯而啟動失敗）—— 靜默劣化。")
+    print("# 預設 —— 靜默劣化。")
     print("#")
-    print("# 另一種把機台名放進變數名的寫法（同一台機器**同時**要有多組設定時用）：")
-    print("#   HOST_API_X570 / HOST_API_MBP / HOST_API_MSI（rag.py:167-171）")
+    print("# 同一台機器「同時」要有多組設定時（例：多個 peer 的位址），id 燒進**值**：")
+    print("#   HOST_API_URLS=x570=https://…,msi=https://…  逗號分隔；未設＝單機無 peer")
     print("#")
-    print("# 各機怎麼認出自己的身份：HOST_ID（x570/mbp/msi）、TS_IP、")
-    print("# HOST_NAME、HOST_MACHINE_ID —— 這四個每台不同。HOST_ID 是 render 的")
-    print("# 選擇器，只能在 .env 手動設一次（要先知道本機是誰才挑得到列）。")
-    print("# 注意 TS_IP 不是擺著就好：它用在 compose 的 ports:，")
-    print("# 沒設會去 bind 預設值那台機器的 IP，docker 直接啟動失敗。")
+    print("# 各機怎麼認出自己的身份：HOST_ID、HOST_NAME、HOST_MACHINE_ID —— 這三個每台")
+    print("# 不同。HOST_ID 是 render 的選擇器，只能在 .env 手動設一次")
+    print("#（要先知道本機是誰才挑得到列）。")
+    print("# TS_IP 選填：填了就綁那個位址（要讓別台機器連你的 qdrant/pg 才需要），")
+    print("# 不填就綁 127.0.0.1 —— 所以**沒有 Tailscale 也能跑**。")
     print("#")
     print("# ⚠️ 一律 chmod 600：.env 有憑證。")
     print("#")

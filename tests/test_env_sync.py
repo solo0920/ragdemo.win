@@ -46,9 +46,12 @@ def fx(tmp_path):
     (env_dir / "secrets.host.env.example").write_text(
         "".join(f"{k}=\n" for k in PER_HOST_SECRETS), encoding="utf-8")
     (env_dir / "secrets.common.enc.env").write_text("ENC-PAYLOAD", encoding="utf-8")
-    # per-host 總表：schema 要求三台都有列（值可空）。故意讓 msi 的 TS_IP 與
+    # per-host 總表：schema 要求每台都有列（值可空）。故意讓 msi 的 TS_IP 與
     # .env 現值不同，這樣「render 到底有沒有跑」才測得出來。
+    # HOSTS= 是機台清單的宣告（2026-09-27：原本寫死在 env-sync.sh 裡）——
+    # 缺了它 render 會硬失敗，所以每個假總表都得帶這一行。
     (env_dir / "hosts.shared.env").write_text(
+        "HOSTS=x570,mbp,msi\n"
         "x570_TS_IP=100.119.83.111\n"
         "mbp_TS_IP=100.64.121.9\n"
         "msi_TS_IP=100.0.0.3\n"
@@ -602,8 +605,6 @@ def test_script_and_example_key_lists_in_sync():
     text = SYNC.read_text(encoding="utf-8")
     script_secrets = set(re.search(
         r'SHARED_SECRETS="([^"]+)"', text).group(1).split())
-    script_config = set(re.search(
-        r'SHARED_CONFIG="([^"]+)"', text).group(1).split())
     script_perhost = set(re.search(
         r'PER_HOST_SECRETS="([^"]+)"', text).group(1).split())
 
@@ -617,10 +618,18 @@ def test_script_and_example_key_lists_in_sync():
 
     assert script_secrets == keys("settings/env/secrets.common.env.example"), \
         "SHARED_SECRETS 與 secrets 範本不同步"
-    assert script_config == keys("settings/env/common.env"), \
-        "SHARED_CONFIG 與 common.env 不同步"
     assert script_perhost == keys("settings/env/secrets.host.env.example"), \
         "PER_HOST_SECRETS 與 per-host 機密範本不同步"
+    # common.env **沒有** 對應的鍵清單，而且是刻意的。
+    # 這個測試原本斷言 `SHARED_CONFIG == keys(common.env)`，等於在守護一份
+    # 從未被讀取的變數（cmd_pull 是整份套用 common.env 的）。那種「測試是綠的
+    # 但機制不存在」最貴：有人加一個共用鍵去同步 SHARED_CONFIG，會得到
+    # 「改了沒作用」的結論，而測試還在替他背書。
+    # 所以這裡反過來斷言：SHARED_CONFIG 不得再出現，唯一的真相是檔案本身。
+    assert not re.search(r'^\s*SHARED_CONFIG=', text, re.M), (
+        "SHARED_CONFIG 又回來了。common.env 是整份套用的，沒有需要同步的鍵清單；"
+        "留著只會讓人以為加鍵要同步兩處。加鍵＝加一行到 settings/env/common.env。")
+    assert keys("settings/env/common.env"), "common.env 沒有任何鍵"
 
 
 def test_a_key_is_claimed_by_exactly_one_layer():
@@ -709,12 +718,18 @@ def test_gitignore_blocks_plaintext_layers():
 
 
 def test_shared_table_schema_and_secret_freedom():
-    """真實總表：每鍵三台都有列、前綴合法、值裡沒有憑證。
+    """真實總表：機台清單有宣告、每鍵每台都有列、前綴合法、值裡沒有憑證。
     Friction 點：總表是唯一被追蹤的 per-host 真相，schema 缺一列＝某台永遠
     拿不到值；POSTGRES_DSN 內嵌共用密碼，寫死就是新的 401 等級事故。
+
+    機台清單從總表的 `HOSTS=` 那一行讀，**不是**寫死 ("x570","mbp","msi")。
+    2026-09-27 之前這裡寫死三元組，於是「加第 4 台」連測試都要改程式 ——
+    而測試是唯一會在加機器時被動到的地方，把它寫死等於把鎖死複製一份到測試裡。
+    不變式沒有放鬆：仍然是「每個鍵對**每個宣告的機台**都要有列」。
     """
     table = (ROOT / "settings/env" / "hosts.shared.env").read_text(encoding="utf-8")
     rows = {}
+    hosts = None
     for line in table.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -722,23 +737,30 @@ def test_shared_table_schema_and_secret_freedom():
         m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line)
         assert m, f"非 KEY=VALUE 的可賦值行: {line!r}"
         k, v = m.group(1), m.group(2)
+        if k == "HOSTS":
+            hosts = [h.strip() for h in v.split(",") if h.strip()]
+            assert hosts, "HOSTS= 宣告了空清單"
+            assert len(set(hosts)) == len(hosts), f"HOSTS 有重複: {hosts}"
+            continue
         host, _, base = k.partition("_")
-        assert host in ("x570", "mbp", "msi"), f"前綴不合法: {k}"
+        assert hosts is not None, f"在 HOSTS= 宣告之前就出現了資料列: {k}"
+        assert host in hosts, f"前綴不合法: {k}（宣告的是 {hosts}）"
         assert base, f"前綴後沒有鍵名: {k}"
         rows.setdefault(base, set()).add(host)
+    assert hosts, "總表缺少 HOSTS= 機台清單宣告"
     assert rows, "總表沒有任何列"
-    for base, hosts in sorted(rows.items()):
-        assert hosts == {"x570", "mbp", "msi"}, \
-            f"總表 {base} 缺列: {sorted({'x570', 'mbp', 'msi'} - hosts)}"
+    for base, seen in sorted(rows.items()):
+        assert seen == set(hosts), \
+            f"總表 {base} 缺列: {sorted(set(hosts) - seen)}"
 
     # 內嵌憑證的形狀：postgresql://user:password@host —— 密碼段必須是 ${...} 佔位
-    for m in re.finditer(r"^(?:x570|mbp|msi)_\w*DSN=(\S+)", table, re.M):
+    for m in re.finditer(rf"^(?:{'|'.join(hosts)})_\w*DSN=(\S+)", table, re.M):
         pw = m.group(1).split("://", 1)[-1].split("@", 1)[0]
         pw = pw.split(":", 1)[1] if ":" in pw else ""
         assert re.fullmatch(r"\$\{[A-Za-z_][A-Za-z_0-9]*\}", pw), \
             "DSN 的密碼段必須是 ${VAR} 佔位，不得寫死憑證"
     for k in list(SHARED_SECRETS) + list(PER_HOST_SECRETS):
-        assert not re.search(rf"^(?:x570|mbp|msi)_{k}=.+", table, re.M), \
+        assert not re.search(rf"^(?:{'|'.join(hosts)})_{k}=.+", table, re.M), \
             f"總表出現憑證鍵 {k} 的實值"
 
 

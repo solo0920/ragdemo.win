@@ -23,6 +23,7 @@
 
 | 代號 | 模組 | 所屬模組／目標 | 不做什麼 | 驗收 | 預計完成日 |
 |---|---|---|---|---|---|
+| `M` | 跨 M3／M6／frontend／M1 | **解除三台鎖死：只要本機有就能跑** | 不刪「連線與來源」功能（單機時它顯示自己，不是多主機專屬）。不動 x570/mbp 兩台的**資料**設定。**不推送** | 見下方驗收表 | 2026-09-27 |
 | `L` ✅ | M6 | 修 `host-doctor.sh` 的**靜默陳舊**：本機快照同步停擺時仍報 `law-version ok` | 不加第 16 個檢查（擴充既有的 `ch_law_version`，檢查數維持 15）、不改門檻語意成 fail（跨機無法實測，只能 warn）、不碰 sync 排程本身。**沒**順手修 `env-audit.py` 的 `SH_ASSIGN`（屬 M1，且屬行為變更） | 見下方驗收表 | 2026-09-27 |
 | `K` ✅ | **M1 限定**（原訂跨 M1／M6） | **msi 成為唯一開發主機**：本機自給自足，實測跑起來 | **不做**「解除三台寫死」——那要動 `backend/app/rag.py`（M3）與 frontend，屬另一個模組、另一個 scope（見〈沒做而記錄下來〉）。不動 x570/mbp 的既有設定。**不推送** | 見下方驗收表 | 2026-09-27 |
 | `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（事項 2/3/4/5 仍開著且需實體接觸 x570）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
@@ -41,6 +42,44 @@
 
 **為什麼現在做**：msi 即將重灌，而重灌後只靠 clone 這份 repo 復原，所以 repo 裡
 「過期但看起來還在用」的東西**會直接誤導重灌後的自己**。這是瘦身的最佳時機。
+
+### scope `M`：解除三台鎖死
+
+**目標**：一台有 Docker 的機器，`git clone`＋設定完就能跑；第 2、3、4 台是**加**上去的，
+不是寫在程式裡的前提。
+
+**先盤點再改**（`grep` 全 repo，`.py`/`.sh`/`.ts`/`.svelte`/`.yaml`/`.yml`），
+指名遠端機的地方共 18 處，扣掉純註解與稽核器條文後**實質 12 處**：
+
+| # | 位置 | 性质 |
+|---|---|---|
+| 1 | `compose.yaml:64-66` `HOST_API_X570/MBP/MSI` | 鎖死，第 4 台要改 compose 並重新 build |
+| 2 | `rag.py:167-171` `HOST_API` | 同上，且**本機只因剛好寫在清單裡才出現在 `log`** |
+| 3 | `rag.py:229` `_KNOWN_IPS` | 鎖死 3 個 IP，只服務 `host_label()` |
+| 4 | `rag.py:33` `OLLAMA_DEFAULT` | 預設值是 x570 的 tailscale IP |
+| 5 | `compose.yaml:37-38` OLLAMA 預設 | 同上 |
+| 6 | `compose.yaml:67` `TS_IP:-100.119.83.111` | 預設值是另一台機器的身份（`env-audit` 早就在報這個） |
+| 7 | `+page.svelte:4-10` `BACKENDS` | 鎖死三台的選擇器 |
+| 8 | `+page.svelte:289-290` `HOST_IPS`/`HOST_NAMES` | 鎖死，且 `HOST_NAMES` 是中文角色名（主機/加速/demo） |
+| 9 | `+page.svelte:305,320` 兩處 `['x570','mbp','msi']` | 鎖死 |
+| 10 | `+server.ts:9-13` `DEFAULT_ORIGINS` | 鎖死 |
+| 11 | `+server.ts:61` `if (DEFAULT_ORIGINS.includes(single)) return [...DEFAULT_ORIGINS]` | **主動鎖死**：設單一 origin 若剛好是那三台之一，會被偷偷展開成三台 |
+| 12 | `sync-snapshot.sh:19`、`law-update-worker.sh:58`、`qdrant_load.py:24` | 預設值都是 x570 的位址 |
+
+**設計原則：單一來源 + 預設值不得是「別台機器的身份」。**
+
+| 項目 | 從 | 改成 |
+|---|---|---|
+| peer 清單 | 3 個變數名 | 單一 `HOST_API_URLS=x570=url,msi=url`（後端與 worker **同格式**），未設＝單機無 peer |
+| `log` | 本機靠寫在清單裡 | **永遠含本機**（能回應即證明活著），這是契約的一部分 |
+| `TS_IP` | 必填，預設 x570 的 IP | **選用**：未設就綁 `127.0.0.1` → 沒有 Tailscale 也能跑 |
+| OLLAMA 預設 | x570 tailscale IP | `host.docker.internal`（Docker Desktop 自動；Linux 靠 compose 的 `host-gateway`） |
+| 前端主機清單 | 4 處寫死 | 從 `GET /hosts` 與 `log`/`versions` 的**鍵**推導 |
+| worker origin | 內建三台＋偷偷展開 | 只認 `API_ORIGINS`；`id=url` 與純 url 都收 |
+
+**刻意保留舊變數的自動相容？** 不保留。`HOST_API_X570/MBP/MSI` 全刪。
+理由：留著就是使用者說的「非必要程式碼」。但**刪除不能是靜默的** ——
+`env-audit.py` 會把殘留的 `HOST_API_*` 鍵報出來，所以三台升級時會被叫到。
 
 ### scope `L`：修 `host-doctor.sh` 的靜默陳舊
 

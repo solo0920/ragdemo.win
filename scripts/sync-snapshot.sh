@@ -1,22 +1,32 @@
 #!/usr/bin/env bash
-# sync-snapshot.sh — 把 x570(主) qdrant 的 laws 快照同步還原到本機(備援) qdrant
+# sync-snapshot.sh — 把來源機(source) qdrant 的 laws 快照同步還原到本機(備援) qdrant
 # 用法： scripts/sync-snapshot.sh [--force] [source_url] [dest_url] [collection]
-#   預設 source=http://100.119.83.111:6333（x570 tailscale） dest=http://127.0.0.1:6333（本機）
+#   來源機由呼叫者決定（cron / law-update-worker 傳進來），**本檔不猜**。
+#   舊版預設 source 寫死 x570 的 tailscale IP，結果是任何新機器的第一次同步都會去
+#   戳一台不相干的機器，而且失敗只寫在 log 裡。改成未給就明確失敗。
+#   dest 預設本機（http://127.0.0.1:6333）。TS_IP 有設時才綁它，是為了讓呼叫者
+#   能指定「本機 qdrant 的 tailscale 位址」；單機部署不設 TS_IP 也完全能跑。
 #   --force  強制重抓：跳過「點數沒變就 skip」。給 law-update worker 用 ——
 #            使用者按了「更新」但點數未變（例：只換了法規版本、條文數不動）時，
 #            沒有 --force 就會靜默 skip，按鈕看起來沒反應。
 # 設計：
-#   - x570 離線 → 直接跳過（不破壞本機現有資料，log 記錄）
+#   - 來源機離線 → 直接跳過（不破壞本機現有資料，log 記錄）
 #   - 用「點數變化」偵測新資料：metadata(.sync-state) 記上次 points_count，
-#     x570 點數與上次不同才建新快照→下載→本機刪舊→重建→上傳還原→驗證點數一致才更新 state
-#   - 每次同步後順手刪除 x570 上的舊快照（只留最新的），避免 stack 無限累積
+#     來源機點數與上次不同才建新快照→下載→本機刪舊→重建→上傳還原→驗證點數一致才更新 state
+#   - 每次同步後順手刪除來源機上的舊快照（只留最新的），避免 stack 無限累積
 #   - log 寫 ~/qdrant/sync.log
 set -euo pipefail
 
 FORCE=0
 if [ "${1:-}" = "--force" ]; then FORCE=1; shift; fi
 
-SOURCE="${1:-http://100.119.83.111:6333}"
+SOURCE="${1:-${LAW_SYNC_SOURCE:-}}"
+[ -n "$SOURCE" ] || {
+  echo "用法: scripts/sync-snapshot.sh [--force] <source_url> [dest_url] [collection]" >&2
+  echo "  source_url 必填：要從哪台機器的 qdrant 拉快照（例 http://<tailscale-ip>:6333）" >&2
+  echo "  也可用環境變數 LAW_SYNC_SOURCE 指定（cron 用這個比較順）。" >&2
+  exit 2
+}
 DEST="${2:-http://${TS_IP:-127.0.0.1}:6333}"
 COLLECTION="${3:-laws}"
 QDIR="$HOME/qdrant"
@@ -26,7 +36,7 @@ TMP="$QDIR/.sync.tmp.snapshot"
 TS="$(date '+%F %T')"
 # 認證用兩把 key，不要混：
 #   QDRANT_API_KEY      本機自己的 qdrant（backend 查詢用同一把）
-#   QDRANT_PEER_API_KEY 同步對象（x570）的 qdrant —— 必須另外設定
+#   QDRANT_PEER_API_KEY 同步對象（來源機）的 qdrant —— 必須另外設定
 # 過去只有一把，得以運作純粹因為三機共用同一把；一旦任一輪換就變成
 # 「本機 200、遠端 401」的不對稱（2026-09-26 MSI 實測踩到）。所以拆開。
 # 未設定 QDRANT_PEER_API_KEY 時退回 QDRANT_API_KEY，維持舊的單機設定可用。
@@ -132,7 +142,7 @@ sync_law_version() {
   # 腳本卻 exit 1」（2026-09-26 實測，害 law-update worker 誤報失敗）。
   #
   # ⚠️ 一定要帶 ?probe=0：/status 預設會再去探測「它的」三台主機，實測要 2.7s，
-  # 逼近 -m 8 的上限，cron 常常剛好超時而抓不到（2026-09-26 實測：x570 明明有
+  # 逼近 -m 8 的上限，cron 常常剛好超時而抓不到（2026-09-26 實測：來源機明明有
   # 版本，log 卻一直記「取不到」）。probe=0 只回本機資訊，0.02s。
   ver="$(curl -sf -m 8 "$SRC_API/status?probe=0" 2>/dev/null \
         | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null || true)"
@@ -206,7 +216,7 @@ else
 fi
 log "downloaded $SNAP_NAME ($SZ bytes, src_pts=$SRC_PTS)"
 
-# 4b) 順手清 x570 其他快照（只留剛下載的這份）——即使後續 restore 失敗也不累積
+# 4b) 順手清來源機的其他快照（只留剛下載的這份）——即使後續 restore 失敗也不累積
 OLD="$(curl -sf "${AUTH_H[@]}" -m 10 "$SOURCE/collections/$COLLECTION/snapshots" \
   | python3 -c "import sys,json; [print(s['name']) for s in json.load(sys.stdin)['result'] if s['name'] != '$SNAP_NAME']" 2>/dev/null)"
 if [ -n "$OLD" ]; then

@@ -30,10 +30,49 @@ logger = logging.getLogger("ragdemo")
 class GatewayUnconfigured(Exception):
     """請求 openrouter 閉源模型但 CF gateway 未設定（URL／token 缺一）。"""
 
-OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://100.119.83.111:11434").rstrip("/")
-OLLAMA_URLS = [u.strip().rstrip("/") for u in os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT).split(",") if u.strip()] or [OLLAMA_DEFAULT]
+# 預設值不得是「別台機器的位址」——2026-09-27 解除三台鎖死時改掉。
+# 舊預設是 x570 的 tailscale IP：一台全新的機器只要沒設 OLLAMA_*，查詢就會去戳
+# 別台機器的 ollama，然後得到「連不上」而不是用自己的。
+# host.docker.internal 是 Docker 慣用名：Docker Desktop 自動提供，
+# Linux 需 compose 裡的 extra_hosts: ["host.docker.internal:host-gateway"]（已加）。
+OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
 QDRANT_DEFAULT = os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
-QDRANT_URLS = [u.strip().rstrip("/") for u in os.getenv("QDRANT_URLS", QDRANT_DEFAULT).split(",") if u.strip()] or [QDRANT_DEFAULT]
+
+
+def _split_endpoints(raw: str) -> tuple[list[str], dict[str, str]]:
+    """把候選清單拆成 (純網址清單, 網址→主機標籤)。
+
+    每段可以是純網址，也可以是 '主機id=網址'。標籤**只是給人看的**（前端
+    「連線與來源」要顯示這台 ollama 是誰），不影響選取、順序或索引對應 ——
+    所以 OLLAMA_MODELS 的位置對應關係不受影響。
+
+    為什麼需要這個：`_KNOWN_IPS` 那張寫死的 IP→id 對照表就是為了讓
+    `http://100.x.x.x:11434` 顯示成「x570」而存在的。刪掉它之後如果不給
+    別的來源，這裡就會退化顯示裸 IP（資訊沒少，src.llm.url 仍在，但面板
+    少了「這是哪台」的辨識）。把標籤交給設定檔，就不必在程式裡列舉主機。
+    """
+    urls: list[str] = []
+    labels: dict[str, str] = {}
+    for part in (raw or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        hid, sep, url = part.partition("=")
+        if not sep or "://" not in part:
+            url = part
+        url = url.strip().rstrip("/")
+        if "://" not in url:
+            continue
+        urls.append(url)
+        if sep:
+            labels[url] = hid.strip()
+    return urls, labels
+
+
+OLLAMA_URLS, OLLAMA_LABELS = _split_endpoints(os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT))
+OLLAMA_URLS = OLLAMA_URLS or [OLLAMA_DEFAULT]
+QDRANT_URLS, QDRANT_LABELS = _split_endpoints(os.getenv("QDRANT_URLS", QDRANT_DEFAULT))
+QDRANT_URLS = QDRANT_URLS or [QDRANT_DEFAULT]
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
@@ -134,7 +173,10 @@ MISTRAL_MODELS = [m.strip() for m in os.getenv(
 ).split(",") if m.strip()]
 COLLECTION = os.getenv("COLLECTION", "laws")
 DIM = 1024  # bge-m3 向量維度
-HOST_ID = os.getenv("HOST_ID", "x570")
+# 預設空字串（與 registry.py 一致）。舊預設是 "x570"，那不只是鎖死，還是 bug：
+# 一台沒設 HOST_ID 的新機器會冒用 x570 的身分，覆寫它在 registry 的條目，
+# 而且 /query 會自稱 x570，與 registry 記的空字串互相矛盾。
+HOST_ID = os.getenv("HOST_ID", "")
 # JEV（TypeSafe System One 決策模型）：只做 Noul 驗證，不當計數/日期/主管機關的題庫。
 # 全走 fail-open：任何失敗（網路／超時／無 key）回 None，退回原本規則邏輯，絕不擋 query。
 TYPESAFE_KEY = os.getenv("TYPESAFE_API_KEY", "").strip()
@@ -162,13 +204,32 @@ KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
 MIN_DENSE = float(os.getenv("RAG_MIN_DENSE", "0.58"))
 MID_DENSE = float(os.getenv("RAG_MID_DENSE", "0.62"))
 HIGH_DENSE = float(os.getenv("RAG_HIGH_DENSE", "0.70"))
-# 前端「連線與來源」彈窗的主機探測（與 Pages worker 同語意：公網 api /health）。
-# dev（vite proxy 直連 backend、繞過 worker）由 backend 補 log；prod 的 worker 會自行覆蓋此欄位。
-HOST_API = {
-    "x570": os.getenv("HOST_API_X570", "https://api-x570.ragdemo.win").rstrip("/"),
-    "mbp": os.getenv("HOST_API_MBP", "https://api-mbp.ragdemo.win").rstrip("/"),
-    "msi": os.getenv("HOST_API_MSI", "https://api-msi.ragdemo.win").rstrip("/"),
-}
+# 前端「連線與來源」彈窗的主機探測（dev 路徑；prod 由 Pages worker 自行探測後覆蓋此欄位）。
+#
+# 單一變數取代舊的 HOST_API_X570 / HOST_API_MBP / HOST_API_MSI：
+#   HOST_API_URLS=x570=https://api-x570.ragdemo.win,msi=https://api-msi.ragdemo.win
+# 純 URL（沒有 "id=" 前綴）也收，此時 id 由 hostname 推導。**未設＝單機，沒有 peer**。
+# 舊的三個變數名已刪（留著就是「非必要程式碼」）；env-audit.py 會報出殘留的 HOST_API_* 鍵，
+# 所以三台升級時會被叫到，不會靜默掉 peer。
+def _parse_id_urls(raw: str) -> dict[str, str]:
+    """解析 'id=url,id=url' 或 'url,url' → {id: url}。跳過空片段與解析不出 id 的項。"""
+    out: dict[str, str] = {}
+    for part in (raw or "").split(","):
+        part = part.strip().rstrip("/")
+        if not part:
+            continue
+        hid, sep, url = part.partition("=")
+        if not sep or "://" not in part:
+            # 純 URL：id 取 hostname 的第一段（api-x570.ragdemo.win → api-x570）
+            url = part
+            hid = (urlparse(url).hostname or url).split(".")[0]
+        hid, url = hid.strip(), url.strip().rstrip("/")
+        if hid and "://" in url:
+            out[hid] = url
+    return out
+
+
+HOST_API = _parse_id_urls(os.getenv("HOST_API_URLS", ""))
 PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT", "2.5"))
 
 
@@ -225,26 +286,36 @@ def active_llm_source() -> str:
     return f"{base} -> {_llm_model_for(base)}"
 
 
-# 已知三機 tailscale IP → 主機 id（供來源標註用）；127.0.0.1/localhost 視為本機。
-_KNOWN_IPS = {"100.119.83.111": "x570", "100.64.121.9": "mbp", "100.65.68.106": "msi"}
-
-
 def host_label(url: str) -> str:
-    """把服務 URL 映射成主機 id（無法辨識則回本機宣告）。"""
+    """把服務 URL 映射成主機 id（無法辨識則回 hostname，本機則回 HOST_ID）。
+
+    舊版拿一張寫死的 IP → id 對照表（_KNOWN_IPS），那正是「鎖死三台」的東西：
+    第 4 台進來就必須改程式。現在改從 HOST_API_URLS 反向建索引，所以
+    「配了哪些 peer」就等於「認識哪些主機」——單一來源。
+    """
     host = (urlparse(url).hostname or "").lower()
     if host in ("127.0.0.1", "localhost"):
         return HOST_ID
-    for ip, name in _KNOWN_IPS.items():
-        if ip in host:
-            return name
+    for table in (OLLAMA_LABELS, QDRANT_LABELS):  # 候選清單上運營者自訂的標籤
+        for u, hid in table.items():
+            if (urlparse(u).hostname or "").lower() == host:
+                return hid
+    for hid, api in HOST_API.items():  # 從設定反推，不寫死
+        if (urlparse(api).hostname or "").lower() == host:
+            return hid
     if "." not in host:  # compose service 名（如 qdrant）在本機跑 → 標本機
         return HOST_ID
     return host
 
 
 async def _host_probe_log() -> dict[str, str]:
-    """並行探測三台公網 api /health，回傳前端「連線與來源」的 log（與 worker 同字串）。
-    worker 在 prod 會用自己探的 log 覆蓋；此函式主要服務 dev（vite proxy 直連 backend）。"""
+    """探測 HOST_API_URLS 裡的 peer /health，回傳前端「連線與來源」的 log（與 worker 同字串）。
+    worker 在 prod 會用自己探的 log 覆蓋；此函式主要服務 dev（vite proxy 直連 backend）。
+
+    **本機永遠在 log 裡**（有回應本身就是「活著」的證據，值恆為連線成功）。
+    舊版本機之所以會出現，只是因為它剛好被寫死在那三台清單裡 —— 一旦清單變成
+    設定值，單機部署的 log 就會變空，前端面板會整個消失。
+    """
     async def _one(url: str) -> bool:
         try:
             async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
@@ -252,12 +323,16 @@ async def _host_probe_log() -> dict[str, str]:
                 return r.status_code < 500
         except Exception:
             return False
-    ok = await asyncio.gather(*(_one(u) for u in HOST_API.values()))
-    return {hid: ("連線成功" if o else "連線失敗") for hid, o in zip(HOST_API, ok)}
+    peers = {h: u for h, u in HOST_API.items() if h != HOST_ID}
+    ok = await asyncio.gather(*(_one(u) for u in peers.values()))
+    out = {h: ("連線成功" if o else "連線失敗") for h, o in zip(peers, ok)}
+    if HOST_ID:
+        out[HOST_ID] = "連線成功"
+    return out
 
 
 async def _host_law_versions() -> dict[str, str]:
-    """並行抓三台（連同本機）的法規版本。回 {host_id: "2026-09-11" or "-"}。
+    """並行抓 peer（連同本機）的法規版本。回 {host_id: "2026-09-11" or "-"}。
 
     刻意不比照 _host_probe_log 的 `< 500` 判定：版本要的是 /status 的
     200 內容，5xx 以外的錯誤回應（反代 4xx 等）不該被當成有版本。
@@ -273,10 +348,11 @@ async def _host_law_versions() -> dict[str, str]:
                 return (r.json().get("law_version") or {}).get("update_date") or "-"
         except Exception:
             return "-"
-    pairs = list(zip(HOST_API, await asyncio.gather(*(_one(u) for u in HOST_API.values()))))
-    # 本機：HOST_API 只有三台遠端，本機版號直接從磁碟取（免一次自我 HTTP）
+    peers = list(zip(HOST_API, await asyncio.gather(*(_one(u) for u in HOST_API.values()))))
+    # 本機：HOST_API_URLS 列的是 peer，本機版號直接從磁碟取（免一次自我 HTTP）
     me = law_version().get("update_date") or "-"
-    return {**dict(pairs), HOST_ID: me} if HOST_ID else dict(pairs)
+    pairs = {h: v for h, v in peers if h != HOST_ID}  # 別把自己重複列兩次
+    return {**pairs, HOST_ID: me} if HOST_ID else pairs
 
 
 async def _ollama_probe(url: str) -> bool:

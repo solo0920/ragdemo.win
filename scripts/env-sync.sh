@@ -57,10 +57,15 @@ SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API
 # 真正的根因是 backend/.env 與根 .env 兩份副本（已刪）。根因修掉後舊分類被留著
 # 當保險，副作用是造出「mbp 的 qdrant key 還是第三把舊的」這個不存在的故障。
 PER_HOST_SECRETS="QDRANT_API_KEY POSTGRES_PASSWORD"
-# 共用非敏感鍵（與 common.env 同步；空值不合併，只補「本機沒寫」的鍵）。
-SHARED_CONFIG="COLLECTION EMBED_MODEL RERANK_MODEL JEV_BANK_MIN JEV_VERIFY_MIN OPENROUTER_GATEWAY_URL ZEN_BASE_URL"
+# ⚠️ 這裡曾有一份 SHARED_CONFIG="COLLECTION EMBED_MODEL …" 列舉 common.env 的鍵，
+#   **是死碼**：common.env 是整份套用的（cmd_pull 呼叫 py_apply file apply），
+#   從來沒讀過 SHARED_CONFIG。留著最壞：有人加一個共用鍵去同步那份清單，
+#   會得到「我改了但沒作用」的假結論。刪掉。刪除後唯一的真相是
+#   settings/env/common.env 檔本身。
 MANAGED_MARK="# --- managed by env-sync.sh (shared layers; do not edit below) ---"
-HOSTS="x570 mbp msi"
+# 機台清單刻意**不在這裡**：它住在 settings/env/hosts.shared.env 的 `HOSTS=` 那一行。
+# 舊版這裡有一份 HOSTS="x570 mbp msi" 但整支 bash 從沒讀過它（死碼），
+# 真正生效的是下面 py_apply 裡的 Python tuple。留著只會讓人以為改這裡有用。
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "env-sync: missing tool: $1" >&2; exit 1; }; }
 
@@ -134,9 +139,14 @@ import os, re, sys
 env_path, mode, action, source, host, expand, mark, perhost = sys.argv[1:9]
 expand = expand == "1"
 FORBIDDEN = set(perhost.split())
-HOSTS = ("x570", "mbp", "msi")
+# 機台清單來自總表裡的 `HOSTS=x570,mbp,msi` 那一行，不是寫死在程式裡。
+# 舊版這裡是 `HOSTS = ("x570", "mbp", "msi")` 加上 `PREFIXED = ^(x570|mbp|msi)_(.+)$`：
+# 第 4 台要加程式才能進來，等於「三台」是程式的前提。改成資料宣告後，
+# 加機器＝改總表一行（會被 code review 看到），而嚴格性反而沒打折 ——
+# 沒列在 HOSTS 裡的前綴照樣被 PREFIXED 擋掉（`mssi_OLLAMA_URL` 仍會報錯）。
+HOSTS = []
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
-PREFIXED = re.compile(r"^(x570|mbp|msi)_(.+)$")
+PREFIXED = None
 REF = re.compile(r"\$\{([A-Za-z_][A-Za-z_0-9]*)\}")
 
 
@@ -161,13 +171,19 @@ if mode == "file":
     layer = {k: v for k, v in read_kv(source).items() if v != ""}
 else:
     table = {}
-    for k, v in read_kv(source).items():
+    rows = read_kv(source)
+    decl = rows.pop("HOSTS", "")
+    HOSTS = [h.strip() for h in decl.split(",") if h.strip()]
+    if not HOSTS:
+        die(f"總表 {source} 缺少 `HOSTS=<機台,機台,…>` 宣告（機台清單是資料，不是程式）")
+    PREFIXED = re.compile(r"^(" + "|".join(re.escape(h) for h in HOSTS) + r")_(.+)$")
+    for k, v in rows.items():
         m = PREFIXED.match(k)
         if not m:
             errs.append(f"總表有非 <機台>_<鍵> 的行: {k}（前綴只允許 {'/'.join(HOSTS)}）")
             continue
         table.setdefault(m.group(2), {})[m.group(1)] = v
-    # schema 完整性：每個鍵三台都要有列（值可空）。缺列＝漏改，寧可報錯。
+    # schema 完整性：每個鍵每台都要有列（值可空）。缺列＝漏改，寧可報錯。
     for base in sorted(table):
         lack = [h for h in HOSTS if h not in table[base]]
         if lack:

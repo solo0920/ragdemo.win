@@ -5,8 +5,11 @@ services:
     # 上游 latest 若被投毒會三台一起中招且無人 review。2026-09-26 由 latest 釘到 v1.19.1。
     # 升級方式：改這行 → docker compose pull && docker compose up -d → 驗 laws 筆數。
     image: qdrant/qdrant:v1.19.1
-    # 綁 tailscale 內網 IP：mbp/msi 備援 snapshot 由該 IP 拉取；阻斷 LAN(192.168)/公網。
-    ports: ["${TS_IP}:6333:6333"]
+    # 預設綁 127.0.0.1：單機部署不需要 Tailscale 也能跑（這是「只要本機有 Docker」的
+    # 前提之一）。要讓別台機器拉你的 snapshot，就設 TS_IP=<你的 tailscale IP>。
+    # ⚠️ 舊版寫死 ${TS_IP:-100.119.83.111}，那是一台沒設定的機器會去搶 x570 身分的
+    #    預設值（env-audit.py 早就在報這一條）。
+    ports: ["${TS_IP:-127.0.0.1}:6333:6333"]
     environment:
       # qdrant 原生 API key（防未授權讀寫向量庫）；值由 .env 帶入
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
@@ -16,9 +19,8 @@ services:
     # 同上：不釘死等於放浮動。pg16 tag 目前解析到 0.8.6，故釘 0.8.6-pg16。
     # ⚠ pgvector 已有 pg18 變體，但 pg16→pg18 是跨大版本（需 dump/restore），不在本專案節奏內。
     image: pgvector/pgvector:0.8.6-pg16
-    # 綁 tailscale 內網 IP：mbp/msi 經 tailscale 連共享 registry（backends 心跳），
-    # compose 內部連 postgres:5432 不受影響；阻斷 LAN(192.168)/公網。
-    ports: ["${TS_IP}:5432:5432"]
+    # 同上：預設綁 127.0.0.1。要讓 mbp/msi 經 tailscale 共用你的 registry 才設 TS_IP。
+    ports: ["${TS_IP:-127.0.0.1}:5432:5432"]
     environment:
       POSTGRES_USER: rag
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填（勿用 changeme）}
@@ -29,13 +31,20 @@ services:
     build: ./backend
     # 僅本機（frontend dev / cloudflared 都走 localhost）。
     ports: ["127.0.0.1:8000:8000"]
+    # 讓容器內的程式碼能用 host.docker.internal 連到宿主機的 ollama。
+    # Docker Desktop 本身就提供這個名稱，這行是給 **原生 Linux Docker** 補上
+    # host-gateway 對應（沒有這行，Linux 上會 DNS 解析失敗）。
+    extra_hosts: ["host.docker.internal:host-gateway"]
     environment:
       QDRANT_URL: http://qdrant:6333
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-      # registry 共享：mbp/msi 以 root .env 的 POSTGRES_DSN 覆寫指向 x570 tailscale；x570 本機用預設 postgres
+      # registry 共享：預設指向本機 postgres；要讓別台機器的 backends 心跳進你的
+      # registry，才在 .env 改成 ${POSTGRES_PASSWORD}@<你的 TS_IP>:5432。
       POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://rag:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填}@postgres:5432/ragdemo}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://100.119.83.111:11434}
-      OLLAMA_URLS: ${OLLAMA_URLS:-http://100.119.83.111:11434}
+      # 預設指向**本機** ollama。舊預設是 x570 的 tailscale IP，一台沒設定的機器
+      # 會去戳別台機器的 ollama，然後得到「連不上」而不是用自己的。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_URLS: ${OLLAMA_URLS:-http://host.docker.internal:11434}
       # 原本讀得到但容器拿不到，2026-09-27 補上。這是 MSI「永遠降級成自己的 8b」
       # 的根因：沒傳進容器時 rag.py:41 fallback 成 [LLM_MODEL]（MSI=qwen3:8b），
       # 而 _llm_model_for() 對三個 URL 都回同一個 → x570/mbp 沒有 8b 被跳過。
@@ -45,7 +54,9 @@ services:
       # 「變數本身」而不是字面值，所以照抄成 ${LLM_MODEL:-qwen3:14b}。
       # 寫死成 qwen3:14b 會是靜默劣化 —— MSI 自己的 ollama（只有 8b）會被要求 14b。
       OLLAMA_MODELS: ${OLLAMA_MODELS:-${LLM_MODEL:-qwen3:14b}}
-      HOST_ID: ${HOST_ID:-x570}
+      # 預設空字串，與 rag.py:137 / registry.py:18 一致。舊預設是 x570：一台沒設
+      # HOST_ID 的機器會冒用 x570 的身分覆寫它的 registry 條目，且 /query 自稱 x570。
+      HOST_ID: ${HOST_ID:-}
       # 主機身份。刻意「不」用 /etc/hostname、/etc/machine-id 的單檔 bind mount：
       # Docker Desktop（WSL）掛單一檔案不可靠，實測容器 init 直接 exit=127
       # （error mounting ... not a directory），而目錄型掛載正常 —— 只有這兩個會死。
@@ -59,12 +70,13 @@ services:
       # 依這兩個值（registry.py:22-23）。
       REGISTRY_HEARTBEAT: ${REGISTRY_HEARTBEAT:-30}
       REGISTRY_STALE_MIN: ${REGISTRY_STALE_MIN:-3}
-      # 前端「連線與來源」彈窗的主機探測網址（rag.py:167-171）。三台各一個
-      # 寫死在變數名裡 —— compose 沒有依 HOST_ID 動態選前綴的能力。
-      HOST_API_X570: ${HOST_API_X570:-https://api-x570.ragdemo.win}
-      HOST_API_MBP: ${HOST_API_MBP:-https://api-mbp.ragdemo.win}
-      HOST_API_MSI: ${HOST_API_MSI:-https://api-msi.ragdemo.win}
-      TS_IP: ${TS_IP:-100.119.83.111}
+      # 前端「連線與來源」彈窗的主機探測網址（rag.py HOST_API_URLS）。
+      # 單一變數取代舊的 HOST_API_X570/MBP/MSI 三個 —— 舊版把三台寫死在變數名裡，
+      # compose 沒有依 HOST_ID 動態選前綴的能力，所以第 4 台必須改 compose 重新 build。
+      # 格式 'id=url,id=url'；**未設＝單機、沒有 peer**（本機仍會出現在 log 裡）。
+      HOST_API_URLS: ${HOST_API_URLS:-}
+      # 自己的 tailscale IP（registry 記錄用）。未設＝本機沒裝 Tailscale，不是錯誤。
+      TS_IP: ${TS_IP:-}
       LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
       KEEP_ALIVE: ${KEEP_ALIVE:--1}
       # 降級後重測高位主機的間隔（秒）—— 原本讀得到但容器拿不到，2026-09-27 補上

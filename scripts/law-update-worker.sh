@@ -8,7 +8,7 @@
 #   來源機（有 data/laws/.law_sync.json）→ uv run ingest/laws/sync_daily.py --apply
 #       從 law.moj.gov.tw 重新下載、清洗、寫 parquet/PG、整庫重建 qdrant
 #   備援機（無 .law_sync.json）          → scripts/sync-snapshot.sh --force
-#       從 x570 強制重抓快照（繞過「點數沒變就 skip」）
+#       從 .env 的 LAW_SYNC_SOURCE（來源機的 qdrant）強制重抓快照，繞過「點數沒變就 skip」
 #
 # 用法： scripts/law-update-worker.sh          # 由 cron 每分鐘呼叫；沒請求就立刻退出
 #       scripts/law-update-worker.sh --status # 只印目前狀態
@@ -55,7 +55,9 @@ fi
 
 set -a; . "$ENV_FILE"; set +a
 TS_IP="${TS_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
-SRC_Q="${LAW_SYNC_SOURCE:-http://100.119.83.111:6333}"
+# 來源機的 qdrant：只認 .env 裡的 LAW_SYNC_SOURCE，沒有就明確失敗（見下方）。
+# 舊版硬寫 x570 的 tailscale IP —— 一台沒設定的備援機按「更新」會去戳不相干的機器。
+SRC_Q="${LAW_SYNC_SOURCE:-}"
 DST_Q="http://${TS_IP}:6333"
 COLLECTION="${COLLECTION:-laws}"
 
@@ -65,8 +67,26 @@ trap 'rm -f "$RUN"' EXIT
 # 角色判斷：以「有沒有 .law_sync.json」為準（來源機跑過 sync_daily 才會有）
 if [ -f "$ROOT/data/laws/.law_sync.json" ]; then
   ROLE="source"; CMD="uv run ingest/laws/sync_daily.py --apply"
-else
+elif [ -n "$SRC_Q" ]; then
   ROLE="backup";  CMD="scripts/sync-snapshot.sh --force $SRC_Q $DST_Q $COLLECTION"
+else
+  # 備援機卻沒設 LAW_SYNC_SOURCE：以前會帶著寫死的來源位址跑，結果是
+  # 「更新」按了兩分鐘才失敗。現在立刻寫出狀態講清楚缺什麼（前端看得到）。
+  write_status() {
+    python3 - "$STATUS" "$1" <<'PY'
+import json, sys, pathlib, datetime
+path, msg = sys.argv[1:3]
+pathlib.Path(path).write_text(json.dumps({
+    "finished_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    "role": "backup", "ok": False, "returncode": 2, "seconds": 0,
+    "version": "", "output_tail": msg,
+}, ensure_ascii=False, indent=2), encoding="utf-8")
+PY
+  }
+  MSG="這台是備援機，但 .env 沒有 LAW_SYNC_SOURCE；請填來源機的 qdrant 位址（http://<tailscale-ip>:6333）"
+  write_status "$MSG"
+  log "$MSG"
+  exit 1
 fi
 
 log "開始更新（角色=$ROLE）: $CMD"

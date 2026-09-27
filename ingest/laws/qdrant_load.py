@@ -21,7 +21,10 @@ from sparse import sparse_vector  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data" / "laws"
-OLLAMA = os.getenv("OLLAMA", "http://100.119.83.111:11434").rstrip("/")
+# ingest 跑在 host 端（不是容器內），所以預設就是本機 ollama。
+# 舊預設是 x570 的 tailscale IP：一台沒設 OLLAMA 的新機器會去戳別台機器的 ollama，
+# 然後把「連不上」誤認成「嵌入失敗」，除錯方向整個跑掉。
+OLLAMA = os.getenv("OLLAMA", "http://127.0.0.1:11434").rstrip("/")
 QDRANT = os.getenv("QDRANT", "http://localhost:6333").rstrip("/")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 COLLECTION = "laws"
