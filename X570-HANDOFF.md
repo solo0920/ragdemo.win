@@ -8,7 +8,27 @@
 
 ---
 
-## 事項 1：qdrant api key —— MSI 與 mbp 都被 x570 拒絕（401）
+## 事項 1：qdrant api key 401 —— **2026-09-27 判定：已不需要 x570 查證，作廢**
+
+> **本項作廢，請不要在 x570 上做任何查證或設定。** 2026-09-27 逐點 grep 查證後
+> 確認 `QDRANT_API_KEY` 的每個消費點都只指向自己那台的 qdrant
+> （`compose.yaml:12`、`compose.yaml:34` ＋ `rag.py:331`），**跨機認證走的是
+> `QDRANT_PEER_API_KEY`**。所以：
+>
+> - 「用 MSI 的 key 打 x570 得到 401」是**正確行為**，不是故障 —— MSI 的 key 本來
+>   就不該能打開 x570 的 qdrant。
+> - 原先「三台共用同一把所以等同三台外洩，請整組換掉」的判斷是錯的。
+> - **`QDRANT_PEER_API_KEY` 才是三台共用那一把**，它在
+>   `settings/env/secrets.common.enc.env`（sops+age 加密），`env-sync.sh pull`
+>   會自動分發。x570 只需要 `git pull` ＋ `env-sync.sh pull` ＋ 重建容器，
+>   **不需要手動設定任何 key**。
+> - 「mbp 的 qdrant key 還是第三把舊的」這件事不是故障，不必處理。
+>
+> 下面的原始查證步驟保留供追溯，**不要執行**。完整推理見
+> `ARCHITECTURE.md`〈密鑰管理〉與 `settings/env/README.md`。
+
+<details>
+<summary>（已作廢）原始現象與查證步驟 —— 保留供追溯，不要執行</summary>
 
 ### 現象（MSI 端實測，2026-09-26）
 
@@ -55,6 +75,8 @@ printf 'MSI 指紋   = 96c2dec03d81 長度=32\n'
 > ⚠️ **絕對不要把 key 的值貼回任何 agent 對話。** 只報 `sha256` 前 12 碼。
 > 2026-09-26 當天已因 `env | grep`、`bash -x`、`docker compose config`
 > 外洩過三次，第三次是三台共用的 key。
+
+</details>
 
 ---
 

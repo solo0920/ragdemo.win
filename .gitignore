@@ -13,6 +13,11 @@ __pycache__/
 settings/env/.decrypted.*
 settings/env/.init-secrets.*
 settings/env/secrets.common.env
+# per-host 機密的明文檔永不進版控（2026-09-27）：QDRANT_API_KEY /
+# POSTGRES_PASSWORD 是各機自己容器的認證，沒有跨機讀寫關係，真值只留該機
+# repo 根的 .env（chmod 600）。此行只擋不帶 .example 的那個，所以鍵名宣告檔
+# settings/env/secrets.host.env.example 仍可追蹤（--check 的鍵覆蓋率要靠它）。
+settings/env/secrets.host.env
 # per-host 值只准放總表；任何另立的 per-host 檔都是第二真相，擋掉。
 settings/env/hosts/
 settings/env/hosts.local.env

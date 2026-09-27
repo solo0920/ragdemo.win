@@ -8,7 +8,32 @@ MSI 已全部完成，本檔對 MSI 只作為「為什麼要這樣做」的說�
 
 ---
 
-## 0. 先做這件（兩台都要）：輪換 qdrant api key
+## 0. ~~先做這件（兩台都要）：輪換 qdrant api key~~ → 2026-09-27 判定：**兩台都不需要做**
+
+> **本節整個作廢，不要照做。** 2026-09-27 逐點 grep 查證後確認：`QDRANT_API_KEY`
+> 的每一個消費點（`compose.yaml:12` 自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`；
+> `compose.yaml:34` ＋ `rag.py:331` api 打 `compose.yaml:33` 寫死的
+> `QDRANT_URL: http://qdrant:6333`）**都只指向自己那台**。跨機認證走的是
+> `QDRANT_PEER_API_KEY`（`scripts/sync-snapshot.sh:108`）。
+>
+> 所以 `QDRANT_API_KEY` 是 **per-host 機密**：各機的值彼此無關，**不需要一致**。
+> 下面原文說「三台共用同一把，所以等同三台外洩，請整組換掉」—— 那是錯的。
+> 外洩的影響只限於拿到那把 key 的那台機器的 qdrant，而 qdrant 只綁 tailscale IP
+> （`compose.yaml:9`），沒有公網曝露面。
+>
+> **「mbp 的 qdrant key 還是第三把舊的」這件事不是故障**，不必處理。若真的去
+> 「統一」它，改動當下反而有把某一台本地 qdrant 弄壞的風險。
+>
+> 仍然值得輪換的只有 `QDRANT_PEER_API_KEY`（那一把**是**三台共用、走 sops 分發的）。
+> 而且因為它經加密檔分發，**另外兩台只要 `env-sync.sh pull` 就會拿到新值**，
+> 不需要像本文原本寫的那樣逐台手動改。見 `settings/env/README.md`〈輪換憑證〉。
+>
+> 2026-09-27 起 `QDRANT_API_KEY` 與 `POSTGRES_PASSWORD` 已從共用憑證改列
+> **per-host 機密**（`settings/env/secrets.host.env.example`）。憑證分類標準只有
+> 一條：**有沒有跨機的讀寫關係**。完整查證見 `ARCHITECTURE.md`〈密鑰管理〉。
+
+<details>
+<summary>（已作廢）原本的輪換步驟，保留供追溯 —— 不要執行</summary>
 
 > 2026-09-27 起有正規流程：`settings/env/README.md`（sops+age 加密分發，
 > `env-sync.sh pull` 合併）。下面手動步驟仍有效，是加密檔還沒覆蓋到你之前
@@ -51,6 +76,8 @@ curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
 > 若三台的 key 不一致（`QDRANT_PEER_API_KEY` 沒設時會退回自己的 key），
 > 快照同步會出現「本機 200、遠端 401」。比較指紋（sha256 前 12 碼）即可定位，
 > 不需要看到值。
+
+</details>
 
 ---
 
@@ -176,18 +203,29 @@ grep -q '^SRC_API_URL=' .env || echo 'SRC_API_URL=https://api-x570.ragdemo.win' 
 沒設的後果**不是錯誤** —— 腳本會記
 `law version: 取不到（...）` 並正常跳過，法規版本欄位維持舊值。
 
-### 3.2 `QDRANT_PEER_API_KEY`（選用，但建議）
+### 3.2 `QDRANT_PEER_API_KEY` → 2026-09-27 起**不要手動設，`env-sync.sh pull` 會給你**
 
-`QDRANT_API_KEY` 現在有兩個用途（自己的 qdrant ＋ 寫入 x570 的 qdrant），
-過去能運作只因三台共用同一把。已拆出獨立的 peer key：
+原本這裡要手動把 x570 的 key 抄進各機 `.env`。**現在不用了**：
+`QDRANT_PEER_API_KEY` 是 7 把共用憑證之一，值在 `settings/env/secrets.common.enc.env`
+（sops+age 加密），`env-sync.sh pull` 會解密合併進 `.env`。手動抄反而會被 `pull` 覆蓋。
+
+三台之間唯一的 qdrant 跨機認證就是這一條（`scripts/sync-snapshot.sh:108` 拉 x570 的快照），
+而它現在是自動同步的。`pull` 完確認一下（不印值）：
 
 ```bash
-# 值＝x570 新的 QDRANT_API_KEY（若三台共用同一把，就與本機相同）
-echo 'QDRANT_PEER_API_KEY=<x570 的新 key>' >> .env
+scripts/env-sync.sh --fingerprints | grep QDRANT_PEER_API_KEY   # 與另外兩台的 sha12 應一致
 ```
 
-好處：以後任一台輪換自己的 key，都不會再連帶弄斷另外兩台的同步。
-不設定則退回 `QDRANT_API_KEY`（單機設定仍可用）。
+**順帶釐清一個容易搞反的事**（2026-09-27 查證）：
+
+| 鍵 | 給誰用 | 三台要一致嗎 |
+|---|---|---|
+| `QDRANT_API_KEY` | **自己**那台的 qdrant 容器 ＋ 自己那台的 api | **不要**（per-host 機密，各機不同沒問題） |
+| `QDRANT_PEER_API_KEY` | 連**別台**（x570）的 qdrant 做快照同步 | **要**（走加密檔自動分發） |
+
+所以「mbp 的 `QDRANT_API_KEY` 和別台不一樣」不是故障；只有 `QDRANT_PEER_API_KEY`
+不一致才是。`sync-snapshot.sh` 仍有 `PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"`
+這條 fallback，三台都設定了 peer key 時不會觸發。
 
 ---
 

@@ -4,8 +4,8 @@
 
 兩個問題，兩種病：
 
-1. **共用憑證會漂移**：`QDRANT_API_KEY` 等 9 把必須三台一致，過去靠人工複製，
-   2026-09-26 已造成兩次不對稱故障（本機 200、遠端 401；registry 心跳失敗）。
+1. **共用憑證會漂移**：`QDRANT_PEER_API_KEY` 等 7 把有跨機讀寫關係，必須三台一致，
+   過去靠人工複製，2026-09-26 已造成兩次不對稱故障（本機 200、遠端 401；registry 心跳失敗）。
 2. **per-host 值會寫錯地方**：`HOST_ID`、`TS_IP`、`LLM_MODEL`（msi 是 8b）、
    `OLLAMA_URLS`、`POSTGRES_DSN` 每台不同，整份 `.env` 同步會直接寫壞機器。
 
@@ -15,13 +15,76 @@
 |---|---|---|
 | `common.env` | 是（明文） | 共用**非敏感**鍵。值空＝用 compose 預設 |
 | `hosts.shared.env` | 是（明文） | **per-host 值的唯一真相**：`<機台>_<鍵>=<值>`，三台同檔 |
-| `secrets.common.env.example` | 是（明文） | 9 把共用憑證的鍵名，值一律空 |
-| `secrets.common.enc.env` | 是（**加密**） | 9 把共用憑證真值，sops+age 加密 |
+| `secrets.common.env.example` | 是（明文） | **7 把**共用憑證的鍵名，值一律空 |
+| `secrets.common.enc.env` | 是（**加密**） | 7 把共用憑證真值，sops+age 加密 |
+| `secrets.host.env.example` | 是（明文） | **2 把** per-host 機密的鍵名，值一律空 |
+| `secrets.host.env`（若有人手建） | **否**（.gitignore） | 從不建立也不建議存在；真值只留各機 `.env` |
 | `.sops.yaml`（repo 根） | 是 | age recipient 公鑰清單 |
 | `.env`（repo 根） | 否（600） | 執行期唯一真相，**不帶前綴** |
 
 合併順序（低 → 高）：`common.env` → 解密後的 secrets → render 出的 per-host 值。
 本機 `.env` 裡不在任何分層的鍵（例如 `HOST_ID`）永遠保留。
+
+## 共用憑證 vs per-host 機密（2026-09-27 改正：9 把 → 7＋2）
+
+**判斷標準只有一個：這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
+分類錯了不會立刻壞掉，症狀是「時間全花在 debug key 上」—— 所以標準要寫死成
+可查證的規則，而不是「我覺得它該共用」。
+
+### 共用憑證（7 把，必須三台同值 → sops 分發）
+
+| 鍵 | 跨機關係 |
+|---|---|
+| `QDRANT_PEER_API_KEY` | 唯一跨機的 qdrant 認證：`scripts/sync-snapshot.sh` 拉 **x570** 的快照 |
+| `ADMIN_TOKEN` / `CF_AIG_TOKEN` / `HF_TOKEN` / `NVIDIA_API_KEY` / `TYPESAFE_API_KEY` / `ZEN_API_KEY` | 三台拿**同一個值**去跟**同一個外部服務**認證 |
+
+### per-host 機密（2 把，各機不同 → **不分發**）
+
+`QDRANT_API_KEY`、`POSTGRES_PASSWORD` —— 鍵名宣告在 `secrets.host.env.example`（值空），
+真值只留在該機 `.env`（600、gitignored）。**永不進 sops、永不進被追蹤的檔。**
+
+逐點 grep 查證（2026-09-27），每一個消費點都只指向自己那台：
+
+| 鍵 | 消費點 | 指向 |
+|---|---|---|
+| `QDRANT_API_KEY` | `compose.yaml:12` `QDRANT__SERVICE__API_KEY` | 自己那台的 qdrant 容器 |
+| | `compose.yaml:34` ＋ `rag.py:331`（api 打的是 `compose.yaml:33` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 自己那台的 qdrant |
+| `POSTGRES_PASSWORD` | `compose.yaml:24` | 自己那台的 pg 容器 |
+| | `compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`） | 自己那台的 pg |
+
+⚠️ 唯一的跨機 fallback：`sync-snapshot.sh:108` 的
+`PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"`。那是**舊單機設定的相容路徑**
+（第 32 行註解如此寫），三台都有 `QDRANT_PEER_API_KEY` 時不會觸發。
+
+**沿革（為什麼舊的 9 把分類是錯的）**：2026-09-26 的「本機 200／遠端 401」根因是
+`backend/.env` 與根 `.env` **兩份副本**（已刪），不是「key 需要三台同值」。根因修掉後
+舊分類被留著當保險，副作用是造出「mbp 的 qdrant key 還是第三把舊的」這個**不存在的
+故障** —— mbp 的 key 只對 mbp 自己的 qdrant 有意義。代價是每次輪換都要三台鎖步加重啟。
+
+**連帶效果（這是改分類最大的收益）**：各機**不需要做任何事**。`pull` 只新增／覆寫、
+從不刪除 `.env` 既有的鍵，所以 x570/mbp 現有的 `QDRANT_API_KEY`／`POSTGRES_PASSWORD`
+原封不動（`tests/test_env_sync.py` 有測試證明這點，不只靠推理）。
+輪換這兩把 = 只改該機 `.env` ＋ 重啟該機容器，不需要 commit、不需要另外兩台 pull。
+
+⚠️ **`POSTGRES_DSN` 裡的密碼不是 `POSTGRES_PASSWORD`**：後者是本機 pg 容器的密碼
+（各機可不同），DSN 指向 x570。2026-09-27 MSI 實測兩者指紋不同
+（`e328bd31728a` vs `55cebf3c8276`）。連 x570 的 pg 密碼應另設
+`POSTGRES_PEER_PASSWORD`（照 `QDRANT_PEER_API_KEY` 慣例），值待 x570 查證
+（`X570-HANDOFF.md` 事項 2）後納管；**值到齊前不要加這個沒人讀的幽靈鍵**，
+在此之前總表三列 `POSTGRES_DSN` 保持空值。
+
+## 一個鍵只能被一層認領
+
+追蹤檔不得出現任何憑證值；per-host 機密永不進 sops、永不進總表。`--check` 會驗：
+
+* 鍵覆蓋率：`.env` 必須有 7 把共用 ＋ 2 把 per-host 機密 ＋ `common.env` 的鍵
+* `secrets.common.env.example` 的鍵 == 腳本的 `SHARED_SECRETS`
+* `secrets.host.env.example` 的鍵 == 腳本的 `PER_HOST_SECRETS`
+* **per-host 機密的鍵名不得出現在 `secrets.common.enc.env`**（sops 的 dotenv 輸出
+  格式讓鍵名保持明文、只有值是 `ENC[...]`，所以這條**不需要解密就能驗**，CI 沒有
+  age 私鑰也跑得到）
+* `secrets.host.env`（明文）不得被追蹤
+
 
 ## 為什麼前綴不在 `.env` 裡
 
@@ -84,12 +147,17 @@ scripts/env-sync.sh pull            # 解密＋合併＋render（一次同步所
 scripts/env-sync.sh render          # 只做 per-host（不需 sops）
 scripts/env-sync.sh render --dry-run  # 只印「會動哪幾個鍵」，不寫檔、不印值
 scripts/env-sync.sh --check         # 鍵覆蓋率＋總表 schema＋漂移＋版控衛生
-scripts/env-sync.sh --fingerprints  # 9 把憑證的長度＋sha12，三台比對用
+scripts/env-sync.sh --fingerprints  # 7 把共用（跨機比對）＋2 把 per-host（不跨機比對）
 ```
 
-輪換憑證：任一台 `sops settings/env/secrets.common.enc.env` 改值存檔，
+輪換**共用**憑證：任一台 `sops settings/env/secrets.common.enc.env` 改值存檔，
 commit＋push；另兩台 `pull`＋重建容器（key 是啟動參數，不重啟不生效）。
 **不要重跑 `--init-secrets`** —— 它是「第一台建立加密檔」用的，會覆蓋整份。
+
+輪換**per-host 機密**（`QDRANT_API_KEY`／`POSTGRES_PASSWORD`）：**只改該機 `.env`**，
+重建該機容器。不進 sops、不 commit、另外兩台**不需要做任何事**。要確認這台真的換掉了，
+就在換前後各跑一次 `--fingerprints` 看那兩行的 sha12 變了（值不同不是故障，
+本來就各機不同）。
 
 per-host 值要改：改 `hosts.shared.env` 那一列 → commit → 各機 `render`。
 `--check` 會在 `.env` 與總表不同時失敗並列出鍵名（不印值）。
@@ -100,8 +168,10 @@ per-host 值要改：改 `hosts.shared.env` 那一列 → commit → 各機 `ren
   （腳本偵測到 xtrace 直接拒絕執行；2026-09-26 三次外洩都是這類）。
 * 不要 `docker compose config` 後貼輸出（它展開所有憑證）。
 * 回報只給「鍵名＋長度＋sha256 前 12 碼」，格式見 `--fingerprints`。
-* `secrets.common.env` 明文檔、`.decrypted.*` 暫存檔絕不進版控
-  （`--check` 與 CI 會擋）。
+* `secrets.common.env` 明文檔、`secrets.host.env` 明文檔、`.decrypted.*` 暫存檔
+  絕不進版控（`--check` 與 CI 會擋）。
+* 不要把 `QDRANT_API_KEY`／`POSTGRES_PASSWORD` 加回 `SHARED_SECRETS` 或任何
+  `py_apply` layer —— 那就是把它們變回三台鎖步輪換，正是本節要消除的成本。
 * 不要在總表裡寫死任何密碼。特別是 `POSTGRES_DSN`：它內嵌的是 **x570 的**
   pg 密碼，不是本機的 `POSTGRES_PASSWORD`（2026-09-27 MSI 實測兩者指紋不同）。
   正解是新增 `POSTGRES_PEER_PASSWORD`（照 `QDRANT_PEER_API_KEY` 慣例）並以

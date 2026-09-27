@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # env-sync — 三機共用設定與憑證的分發、合併、稽核（sops + age）。
 #
-# 解決的問題：QDRANT_API_KEY / POSTGRES_PASSWORD 等 9 把憑證必須三台一致，
-# 過去靠人工複製，2026-09-26 已造成兩次不對稱 401／心跳失敗。
+# 解決的問題：7 把共用憑證必須三台一致，過去靠人工複製，2026-09-26 已造成
+# 兩次不對稱 401／心跳失敗。另有 2 把是 per-host 機密，**刻意不**走這條路。
 #
 # 分層（詳見 settings/env/README.md），合併順序由低到高：
 #   settings/env/common.env              追蹤明文，共用非敏感鍵
-#   settings/env/secrets.common.enc.env  追蹤加密，9 把共用憑證真值
+#   settings/env/secrets.common.enc.env  追蹤加密，7 把共用憑證真值
 #   settings/env/hosts.shared.env        追蹤明文，三台 per-host 值（前綴 <機台>_<鍵>）
 #   .env（repo 根）                      不追蹤、chmod 600，執行期唯一真相
+#
+# ⚠️ QDRANT_API_KEY / POSTGRES_PASSWORD 刻意**不在**下面任何一個 layer：
+#   它們是各機自己容器的認證，沒有跨機讀寫關係。真值只留該機 .env。
 #
 # 為什麼前綴不直接放進 .env：compose 只認 ${VAR}，沒有「依 HOST_ID 動態選
 # msi_/x570_」的能力。前綴若寫在執行期 .env，compose 會拿到空值而回退原始碼
@@ -35,10 +38,25 @@ TABLE="$ENV_DIR/hosts.shared.env"
 # 必須三台一致的憑證（與 secrets.common.env.example 同步；改了一處要改另一處，
 # tests/test_env_sync.py 會鎖）。per-host 鍵永遠不在此列。
 # ⚠️ 這裡是「各機都該有同一個值」的清單，不是「本機自己的值」的清單。
-# POSTGRES_PASSWORD 是本機 pg 容器的密碼（各機可不同），而 POSTGRES_DSN 指向
-# x570 —— 2026-09-27 MSI 實測兩者指紋不同（見 hosts.shared.env 的 POSTGRES_DSN
-# 段）。連 x570 用的 pg 密碼目前沒有對應變數，是待決項（X570-HANDOFF 事項 2）。
-SHARED_SECRETS="QDRANT_API_KEY QDRANT_PEER_API_KEY POSTGRES_PASSWORD ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY"
+# 判斷標準只有一個：**這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
+# QDRANT_PEER_API_KEY 是唯一跨機的 qdrant 認證（sync-snapshot.sh 拉 x570 的快照）。
+# 連 x570 的 pg 密碼應另設 POSTGRES_PEER_PASSWORD（照 *_PEER_* 慣例），
+# 尚未納管 —— 值待 x570 查證（X570-HANDOFF.md 事項 2），在此之前不要加這個
+# 沒人讀的幽靈鍵。
+SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY"
+# per-host 機密（與 secrets.host.env.example 同步）：各機自己的值，**不分發**。
+# 這份清單**只用於兩件事**：`--check` 的鍵覆蓋率、`--fingerprints` 的輸出標記。
+# 絕不可把它們寫進 .env、絕不可加進 py_apply 的任何 layer ——
+# 寫進去就變回「三台鎖步輪換」，而這正是 2026-09-27 要消除的成本。
+# 2026-09-27 逐點 grep 查證：兩把的每個消費點都只指向自己那台 ——
+#   QDRANT_API_KEY    compose.yaml:12（自己 qdrant 容器的 QDRANT__SERVICE__API_KEY）、
+#                     compose.yaml:34 ＋ rag.py:331（api 打寫死的 QDRANT_URL: qdrant:6333）
+#   POSTGRES_PASSWORD compose.yaml:24（自己的 pg 容器）、
+#                     compose.yaml:36（DSN 預設值裡的 @postgres:5432，也是自己的）
+# 舊分類錯在把 2026-09-26「本機 200／遠端 401」的根因誤認為「key 要三台同值」；
+# 真正的根因是 backend/.env 與根 .env 兩份副本（已刪）。根因修掉後舊分類被留著
+# 當保險，副作用是造出「mbp 的 qdrant key 還是第三把舊的」這個不存在的故障。
+PER_HOST_SECRETS="QDRANT_API_KEY POSTGRES_PASSWORD"
 # 共用非敏感鍵（與 common.env 同步；空值不合併，只補「本機沒寫」的鍵）。
 SHARED_CONFIG="COLLECTION EMBED_MODEL RERANK_MODEL JEV_BANK_MIN JEV_VERIFY_MIN OPENROUTER_GATEWAY_URL ZEN_BASE_URL"
 MANAGED_MARK="# --- managed by env-sync.sh (shared layers; do not edit below) ---"
@@ -54,33 +72,48 @@ usage: env-sync.sh <command> [options]
   render [--host ID]       只做 per-host render（不需 sops）
   render --dry-run         只印「會動哪幾個鍵」，不寫檔、不印值
   --check                  鍵覆蓋率、總表 schema、per-host 漂移、版控衛生（不需 sops）
-  --fingerprints [FILE]    9 把憑證的長度＋sha12（三台比對用）
-  --init-secrets [--force] 從本機 .env 抽出 9 把憑證建加密檔（只在第一台跑一次）
+  --fingerprints [FILE]    7 把共用憑證（跨機比對用）＋2 把 per-host 機密的長度＋sha12
+  --init-secrets [--force] 從本機 .env 抽出 7 把共用憑證建加密檔（只在第一台跑一次）
 EOF
 }
 
 # 以指紋比對，不印值：輸出「鍵名 長度 sha12」。值缺失顯示缺失，不報錯。
-# 鍵清單直接用 $SHARED_SECRETS —— 這裡曾經硬寫一份 9 個鍵的名單，
-# 與 SHARED_SECRETS 是兩份真相；加第 10 把時只改到其中一份就會少印一把，
+# 鍵清單直接用 $SHARED_SECRETS／$PER_HOST_SECRETS —— 這裡曾經硬寫一份 9 個鍵
+# 的名單，與 SHARED_SECRETS 是兩份真相；加第 10 把時只改到其中一份就會少印一把，
 # 而「少印」看起來跟「那台沒設」一樣，正是 2026-09-26 診斷不出問題的那類。
+#
+# 兩段輸出的用途不同，不要混為一談：
+#   共用 7 把 → 三台必須一致，橫向互比（不同就是有人沒 pull）
+#   per-host 2 把 → 各機獨立存在，**不跨機比對**；只為「輪換前後在這台各跑一次，
+#                   確認這台真的換掉了」。看到不同不代表故障。
 fingerprints() {
   local f="${1:-$DOTENV}"
   [ -f "$f" ] || { echo "env-sync: no such file: $f" >&2; exit 1; }
-  python3 - "$f" "$SHARED_SECRETS" <<'PY'
+  python3 - "$f" "$SHARED_SECRETS" "$PER_HOST_SECRETS" <<'PY'
 import re, sys, hashlib
 vals = {}
 for line in open(sys.argv[1], encoding="utf-8").read().splitlines():
     m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
     if m:
         vals[m.group(1)] = m.group(2)
-for k in sys.argv[2].split():
-    v = vals.get(k)
+
+
+def fp(v):
     if v is None:
-        print(f"{k:<24} MISSING")
-    elif v == "":
-        print(f"{k:<24} EMPTY")
-    else:
-        print(f"{k:<24} len={len(v):<4} sha12={hashlib.sha256(v.encode()).hexdigest()[:12]}")
+        return "MISSING"
+    if v == "":
+        return "EMPTY"
+    return f"len={len(v):<4} sha12={hashlib.sha256(v.encode()).hexdigest()[:12]}"
+
+
+shared, perhost = sys.argv[2].split(), sys.argv[3].split()
+for k in shared:
+    print(f"{k:<24} {fp(vals.get(k))}")
+if perhost:
+    print(f"# 以下 {len(perhost)} 把是 per-host 機密：各機獨立存在，**不跨機比對**"
+          "（值不同不是故障）。用途只有輪換前後在這台各跑一次，確認這台真的換掉了。")
+    for k in perhost:
+        print(f"{k:<24} {fp(vals.get(k))}  [per-host；本機獨立存在，不跨機比對]")
 PY
 }
 
@@ -90,12 +123,17 @@ PY
 #   $3 source layer 檔（mode=file）或 hosts.shared.env（mode=table）
 #   $4 host   mode=table 時要挑的機台
 #   $5 expand 1 = 展開值裡的 ${VAR}；0 = 原樣（憑證層必須 0，見下）
+#   $6 不得進本 layer 的 per-host 機密鍵（$PER_HOST_SECRETS）
+# 過濾放在**合併引擎**裡而不是只靠「加密檔剛好沒有這兩把」：分類是規則，
+# 規則必須由機器執行。否則誰把 QDRANT_API_KEY 手動加回加密檔，pull 就會
+# 照樣分發到三台，而症狀要等下次輪換才浮現（別台的 key 被別台換掉）。
 py_apply() {
-  python3 - "$DOTENV" "$1" "$2" "$3" "$4" "$5" "$MANAGED_MARK" <<'PY'
+  python3 - "$DOTENV" "$1" "$2" "$3" "$4" "$5" "$MANAGED_MARK" "$PER_HOST_SECRETS" <<'PY'
 import os, re, sys
 
-env_path, mode, action, source, host, expand, mark = sys.argv[1:8]
+env_path, mode, action, source, host, expand, mark, perhost = sys.argv[1:9]
 expand = expand == "1"
+FORBIDDEN = set(perhost.split())
 HOSTS = ("x570", "mbp", "msi")
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
 PREFIXED = re.compile(r"^(x570|mbp|msi)_(.+)$")
@@ -144,6 +182,24 @@ else:
     if errs:
         for e in errs:
             die(e)
+
+# per-host 機密的防線：任何 layer（解密檔／common.env／總表）都不准帶這幾把。
+# 分兩種處理，理由不同：
+#   apply（pull／render）→ 剔除＋警告。報錯會讓「加密檔還留著舊鍵」這種
+#     待清理狀態擋住所有 pull；剔除則保證 .env 裡該機自己的值一定原封不動，
+#     這正是「另外兩台不需要做任何事」這個性質。
+#   plan／check（render --dry-run、--check）→ 硬失敗。只剔除的話 --check 會在
+#     「總表裡還藏著 per-host 機密」時回 0 —— 那正是本專案最恨的靜默劣化。
+dropped = sorted(FORBIDDEN & set(layer))
+for k in dropped:
+    del layer[k]
+if dropped:
+    if action in ("plan", "check"):
+        die("per-host 機密不得出現在分發 layer: " + " ".join(dropped)
+            + "（真值只留該機 .env；請從該 layer 移除）")
+    # 只報鍵名，不報值
+    print("env-sync: 略過 per-host 機密（不得進分發 layer，真值只留該機 .env）: "
+          + " ".join(dropped), file=sys.stderr)
 
 cur = read_kv(env_path) if os.path.exists(env_path) else {}
 
@@ -278,17 +334,23 @@ cmd_pull() {
 cmd_check() {
   # 不需 sops：只核對鍵名覆蓋率、總表 schema、per-host 漂移與版控衛生。值一律不印。
   [ -f "$DOTENV" ] || { echo "env-sync --check: MISSING .env" >&2; exit 1; }
-  python3 - "$DOTENV" "$ENV_DIR/secrets.common.env.example" "$ENV_DIR/common.env" <<'PY'
-import re, sys
+  # 鍵覆蓋率要把三層都算進去：共用憑證範本、per-host 機密範本、共用非敏感。
+  # 漏算 per-host 機密層＝「該機根本沒有這兩個鍵」沒人管，而症狀是本機
+  # qdrant/pg 認證失敗（401／心跳失敗），極難回推到是環境變數缺了。
+  python3 - "$DOTENV" "$ENV_DIR/secrets.common.env.example" \
+      "$ENV_DIR/secrets.host.env.example" "$ENV_DIR/common.env" <<'PY'
+import os, re, sys
 def keys(p):
     out = set()
+    if not os.path.exists(p):     # 範本檔缺了就當空集；存在性另有專門檢查
+        return out
     for line in open(p, encoding="utf-8").read().splitlines():
         m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
         if m:
             out.add(m.group(1))
     return out
-env, sec, com = (keys(a) for a in sys.argv[1:4])
-missing = sorted((sec | com) - env)
+env, sec, host, com = (keys(a) for a in sys.argv[1:5])
+missing = sorted((sec | host | com) - env)
 if missing:
     print("env-sync --check: .env 缺少鍵: " + " ".join(missing))
     sys.exit(1)
@@ -309,6 +371,31 @@ PY
     # 單一真相：總表與加密檔必須被追蹤，且不得另立 per-host 明文真值檔。
     if ! git -C "$ROOT" ls-files --error-unmatch settings/env/hosts.shared.env >/dev/null 2>&1; then
       echo "env-sync --check: settings/env/hosts.shared.env 未被 git 追蹤" >&2
+      fail=1
+    fi
+    # per-host 機密的鍵名宣告檔必須被追蹤（--check 的覆蓋率要靠它）。
+    if ! git -C "$ROOT" ls-files --error-unmatch \
+         settings/env/secrets.host.env.example >/dev/null 2>&1; then
+      echo "env-sync --check: settings/env/secrets.host.env.example 未被 git 追蹤" >&2
+      fail=1
+    fi
+    # per-host 機密的**明文**檔永不進版控（值只留各機 .env）。
+    if git -C "$ROOT" ls-files --error-unmatch \
+         settings/env/secrets.host.env >/dev/null 2>&1; then
+      echo "env-sync --check: settings/env/secrets.host.env 是明文 per-host 機密，不得進版控" >&2
+      fail=1
+    fi
+    # 不可變量（不解密就驗得到）：per-host 機密不得出現在共用加密檔裡。
+    # sops 的 dotenv 輸出格式讓**鍵名保持明文**、只有值是 ENC[...]，
+    # 所以這條檢查不需要 age 私鑰，CI 沒有 .env 也能跑。
+    local ph_in_enc=""
+    if [ -f "$ENV_DIR/secrets.common.enc.env" ]; then
+      ph_in_enc="$(sed -E 's/=.*$//' "$ENV_DIR/secrets.common.enc.env" \
+                   | grep -E "^($(echo "$PER_HOST_SECRETS" | tr ' ' '|'))$" || true)"
+    fi
+    if [ -n "$ph_in_enc" ]; then
+      echo "env-sync --check: per-host 機密不得進共用加密檔（會變回三台鎖步輪換）:" >&2
+      echo "$ph_in_enc" | sed 's/^/    /' >&2
       fail=1
     fi
     # 白名單：README.md、*.env.example、common.env、hosts.shared.env、*.enc.env

@@ -36,6 +36,15 @@ services:
       POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://rag:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填}@postgres:5432/ragdemo}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://100.119.83.111:11434}
       OLLAMA_URLS: ${OLLAMA_URLS:-http://100.119.83.111:11434}
+      # 原本讀得到但容器拿不到，2026-09-27 補上。這是 MSI「永遠降級成自己的 8b」
+      # 的根因：沒傳進容器時 rag.py:41 fallback 成 [LLM_MODEL]（MSI=qwen3:8b），
+      # 而 _llm_model_for() 對三個 URL 都回同一個 → x570/mbp 沒有 8b 被跳過。
+      # ⚠️ 與 OLLAMA_URLS **位置對應**（rag.py:215 用 index 取值），長度不一致會
+      #    讓某台 ollama 拿到別台的模型。改其一必改其二。
+      # 預設值是巢狀的：rag.py:41 的 os.getenv 第二個參數就是 LLM_MODEL 這個
+      # 「變數本身」而不是字面值，所以照抄成 ${LLM_MODEL:-qwen3:14b}。
+      # 寫死成 qwen3:14b 會是靜默劣化 —— MSI 自己的 ollama（只有 8b）會被要求 14b。
+      OLLAMA_MODELS: ${OLLAMA_MODELS:-${LLM_MODEL:-qwen3:14b}}
       HOST_ID: ${HOST_ID:-x570}
       # 主機身份。刻意「不」用 /etc/hostname、/etc/machine-id 的單檔 bind mount：
       # Docker Desktop（WSL）掛單一檔案不可靠，實測容器 init 直接 exit=127
@@ -44,14 +53,39 @@ services:
       # 所以沒補 .env 的機器會退化並在 log 出警告，不會靜默用 MAC 冒充。
       HOST_NAME: ${HOST_NAME:-}
       HOST_MACHINE_ID: ${HOST_MACHINE_ID:-}
+      # ↓ 以下 5 個原本讀得到但容器拿不到，2026-09-27 補上。預設值逐字抄
+      #   backend/app/registry.py 與 rag.py 的 os.getenv 第二個參數。
+      # registry 心跳間隔（秒）與 stale 判定（分鐘）—— /hosts 的「離線」判定
+      # 依這兩個值（registry.py:22-23）。
+      REGISTRY_HEARTBEAT: ${REGISTRY_HEARTBEAT:-30}
+      REGISTRY_STALE_MIN: ${REGISTRY_STALE_MIN:-3}
+      # 前端「連線與來源」彈窗的主機探測網址（rag.py:167-171）。三台各一個
+      # 寫死在變數名裡 —— compose 沒有依 HOST_ID 動態選前綴的能力。
+      HOST_API_X570: ${HOST_API_X570:-https://api-x570.ragdemo.win}
+      HOST_API_MBP: ${HOST_API_MBP:-https://api-mbp.ragdemo.win}
+      HOST_API_MSI: ${HOST_API_MSI:-https://api-msi.ragdemo.win}
       TS_IP: ${TS_IP:-100.119.83.111}
       LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
       KEEP_ALIVE: ${KEEP_ALIVE:--1}
+      # 降級後重測高位主機的間隔（秒）—— 原本讀得到但容器拿不到，2026-09-27 補上
+      # （rag.py:155）。與 KEEP_ALIVE 同屬 rag.py:154-157 的時間參數叢集。
+      PICK_TTL: ${PICK_TTL:-30}
       EMBED_MODEL: bge-m3:latest
       RERANK_MODEL: qllama/bge-reranker-v2-m3:latest
       COLLECTION: ${COLLECTION:-laws}
+      # 相關性／信心閘門（rag.py:162-164）—— 原本讀得到但容器拿不到，
+      # 2026-09-27 補上。校準自本機量測（正題 0.64–0.76、無關 0.43–0.57）。
+      RAG_MIN_DENSE: ${RAG_MIN_DENSE:-0.58}
+      RAG_MID_DENSE: ${RAG_MID_DENSE:-0.62}
+      RAG_HIGH_DENSE: ${RAG_HIGH_DENSE:-0.70}
+      # 探測遠端（/status、/health）與 LLM 的逾時秒數 —— 原本讀得到但容器拿不到，
+      # 2026-09-27 補上（rag.py:172）。
+      PROBE_TIMEOUT: ${PROBE_TIMEOUT:-2.5}
       OPENROUTER_GATEWAY_URL: ${OPENROUTER_GATEWAY_URL:-}
       CF_AIG_TOKEN: ${CF_AIG_TOKEN:-}
+      # CF AI Gateway 的 gateway id —— 原本讀得到但容器拿不到，2026-09-27 補上
+      # （rag.py:87，預設值 cloudflaregateway 逐字照抄）。
+      CF_AIG_GATEWAY_ID: ${CF_AIG_GATEWAY_ID:-cloudflaregateway}
       CF_AIG_TOKEN_FILE: ${CF_AIG_TOKEN_FILE:-}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-cohere/north-mini-code:free,dots-studio/dots-3-note-preview:free,google/gemma-4-26b-a4b-it:free,google/gemma-4-31b-it:free,inclusionai/ling-3.0-flash-fin:free,inclusionai/ling-3.0-flash-sante:free,liquid/lfm-2.5-2.6b:free,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free,nvidia/nemotron-3-super-120b-a12b:free,nvidia/nemotron-3-ultra-550b-a55b:free,nvidia/nemotron-3.5-content-safety:free,nvidia/nemotron-3.5-lightning:free,poolside/laguna-s-2.1:free,poolside/laguna-xs-2.1:free,qwen/qwen3.8-27b:free,thinkingmachines/inkling-small:free,thinkingmachines/inkling:free,z-ai/glm-5.2:free}
       ZEN_BASE_URL: ${ZEN_BASE_URL:-https://opencode.ai/zen/v1}
@@ -72,6 +106,19 @@ services:
       MISTRAL_GATEWAY_URL: ${MISTRAL_GATEWAY_URL:-}
       MISTRAL_MODELS: ${MISTRAL_MODELS:-ministral-8b-latest,codestral-latest}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      # JEV（TypeSafe System One 決策模型）的端點 —— 原本讀得到但容器拿不到，
+      # 2026-09-27 補上（rag.py:141）。刻意與 TYPESAFE_API_KEY 相鄰：兩者是同一個
+      # 上游的「憑證／位址」配對，缺一個時 fail-open 回規則邏輯（不擋 query）。
+      TYPESAFE_URL: ${TYPESAFE_URL:-https://api.typesafe.ai/v1/systemone}
+      # ↓ 以下 2 個原本讀得到但容器拿不到，2026-09-27 補上（rag.py:142-143），
+      #   放在 JEV_*_MIN 旁邊：同一個 JEV 開關叢集。
+      JEV_MODEL: ${JEV_MODEL:-jev-latest}
+      # 空字串＝不關閉（rag.py:143 認 "1"/"true"/"True"/"yes"）。預設值刻意留空
+      # 而不是 0：必須逐字等於 os.getenv 的第二個參數 ""。
+      # ⚠️ 註解裡不要寫出「$ + {…}」的插值語法：env-audit.py 與
+      #    tests/test_env_audit.py 用 grep 掃整份 compose.yaml，會把註解裡的
+      #    示範當成真的變數名（實測踩到：這行曾讓稽核誤報一個叫 VAR 的幽靈）。
+      JEV_DISABLED: ${JEV_DISABLED:-}
       JEV_VERIFY_MIN: ${JEV_VERIFY_MIN:-0.4}
       JEV_BANK_MIN: ${JEV_BANK_MIN:-0.6}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}

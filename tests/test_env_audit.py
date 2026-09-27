@@ -136,18 +136,169 @@ def test_embed_model_is_hardcoded_not_a_ghost():
 
 
 def test_vars_read_but_not_forwarded_to_container():
-    """OLLAMA_MODELS / QDRANT_URLS 被 Python 讀，但 compose 沒列。
+    """只有「刻意不傳」的那幾個可以讀得到卻沒轉發（scope B，2026-09-27）。
 
-    實測依據（2026-09-26 實測，正在發生的真實錯誤設定）：
-    .env 設了 OLLAMA_MODELS 三項 [qwen3:14b, qwen3:14b, qwen3:8b]，
-    但 compose.yaml 的 api environment 完全沒列 OLLAMA_MODELS，
-    所以容器只收到 LLM_MODEL=qwen3:8b，三台 ollama 全被要求 8b。
+    實測依據：本測試的舊版斷言 OLLAMA_MODELS 與 QDRANT_URLS 兩個都
+    `not r.compose_ref`，那是在**記錄 bug** —— .env 設了 OLLAMA_MODELS
+    [qwen3:14b, qwen3:14b, qwen3:8b]，但 compose.yaml 的 api environment
+    完全沒列，容器只收到 LLM_MODEL=qwen3:8b，於是 _llm_model_for() 對三個
+    URL 都回 8b，x570/mbp 沒有 8b 被 _ollama_probe 跳過 → MSI 永遠降級成
+    自己的 8b，而且不報錯。
+
+    scope B 已把 OLLAMA_MODELS 補進 compose，所以本測試改成只守 QDRANT_URLS
+    那一個「刻意不傳」的（理由見 backend/DESIGN.md〈刻意不傳入容器的 3 個變數〉）。
+    完整的 15 進 3 不進清單由下面那組 scope B 測試鎖住。
     """
-    for name in ("OLLAMA_MODELS", "QDRANT_URLS"):
-        r = REG[name]
-        assert r.python_read, f"{name} 應被 Python 讀取"
-        assert not r.compose_ref, f"{name} compose 應該沒有轉發"
-        assert not r.compose_hardcoded, f"{name} 不該被標成寫死"
+    r = REG["QDRANT_URLS"]
+    assert r.python_read, "QDRANT_URLS 應被 Python 讀取"
+    assert not r.compose_ref, "QDRANT_URLS 刻意不傳入容器（快照同步模型）"
+    assert not r.compose_hardcoded, "QDRANT_URLS 不該被標成寫死"
+
+
+# ── scope B：15 個補上、3 個刻意不補 ───────────────────────
+
+# (變數, 原始碼檔, 原始碼裡必須逐字存在的片段, compose 應有的預設值)
+#
+# 第四欄必須與第三欄原始碼的 `os.getenv` 第二個參數**逐字相同**
+# （backend.md 不變量 #2）。不一致時 `.env` 沒設這項的那台會安靜地用錯的值，
+# 而且沒有任何報錯。
+#
+# 為什麼要連原始碼片段一起鎖：只比預設值的話，有人改了 rag.py 的預設值
+# 卻忘了改 compose，這裡的期望值會跟著測試一起「對齊舊值」而全部通過 ——
+# 測試就變成沒有約束力。鎖住原始碼那一行才抓得到。
+SCOPE_B_FORWARDED = [
+    ("CF_AIG_GATEWAY_ID", "backend/app/rag.py",
+     'os.getenv("CF_AIG_GATEWAY_ID", "cloudflaregateway")', "cloudflaregateway"),
+    ("HOST_API_MBP", "backend/app/rag.py",
+     'os.getenv("HOST_API_MBP", "https://api-mbp.ragdemo.win")',
+     "https://api-mbp.ragdemo.win"),
+    ("HOST_API_MSI", "backend/app/rag.py",
+     'os.getenv("HOST_API_MSI", "https://api-msi.ragdemo.win")',
+     "https://api-msi.ragdemo.win"),
+    ("HOST_API_X570", "backend/app/rag.py",
+     'os.getenv("HOST_API_X570", "https://api-x570.ragdemo.win")',
+     "https://api-x570.ragdemo.win"),
+    ("JEV_DISABLED", "backend/app/rag.py",
+     'os.getenv("JEV_DISABLED", "")', ""),
+    ("JEV_MODEL", "backend/app/rag.py",
+     'os.getenv("JEV_MODEL", "jev-latest")', "jev-latest"),
+    ("PICK_TTL", "backend/app/rag.py",
+     'float(os.getenv("PICK_TTL", "30"))', "30"),
+    ("PROBE_TIMEOUT", "backend/app/rag.py",
+     'float(os.getenv("PROBE_TIMEOUT", "2.5"))', "2.5"),
+    ("RAG_HIGH_DENSE", "backend/app/rag.py",
+     'float(os.getenv("RAG_HIGH_DENSE", "0.70"))', "0.70"),
+    ("RAG_MID_DENSE", "backend/app/rag.py",
+     'float(os.getenv("RAG_MID_DENSE", "0.62"))', "0.62"),
+    ("RAG_MIN_DENSE", "backend/app/rag.py",
+     'float(os.getenv("RAG_MIN_DENSE", "0.58"))', "0.58"),
+    ("REGISTRY_HEARTBEAT", "backend/app/registry.py",
+     'int(os.getenv("REGISTRY_HEARTBEAT", "30"))', "30"),
+    ("REGISTRY_STALE_MIN", "backend/app/registry.py",
+     'int(os.getenv("REGISTRY_STALE_MIN", "3"))', "3"),
+    ("TYPESAFE_URL", "backend/app/rag.py",
+     'os.getenv("TYPESAFE_URL", "https://api.typesafe.ai/v1/systemone")',
+     "https://api.typesafe.ai/v1/systemone"),
+]
+
+# 刻意不傳入容器的 3 個。理由記在 backend/DESIGN.md，測試在這裡擋「好心補回去」。
+SCOPE_B_WITHHELD = [
+    "QDRANT_URLS",           # 容器化降級靠快照同步，不是 live 讀 x570；
+                             # 傳進去還會逼 QDRANT_API_KEY 三台同值
+    "HOST_MACHINE_ID_FILE",  # registry.py:24 的主機檔案 fallback，
+    "HOST_HOSTNAME_FILE",    # 只在原生執行有意義（registry.py:25）
+]
+
+
+@pytest.mark.parametrize("name,src,code_snippet,default", SCOPE_B_FORWARDED)
+def test_scope_b_default_is_verbatim_from_source(name, src, code_snippet, default):
+    """compose 的 `${VAR:-預設}` 預設值必須逐字等於原始碼的 `os.getenv` 預設。
+
+    backend.md 不變量 #2。實測依據：這個差異**沒有任何報錯**，只是
+    `.env` 沒設該項的那台安靜地用錯的值。
+    """
+    assert code_snippet in (ROOT / src).read_text(encoding="utf-8"), \
+        f"{src} 找不到預期片段 {code_snippet!r} —— 原始碼改了，這張表要跟著更新"
+    ref = REG[name]
+    assert ref.python_read, f"{name} 應被 Python 讀取"
+    assert ref.compose_ref, f"{name} 必須以 ${{VAR:-預設}} 轉發進容器（scope B）"
+    assert ref.compose_default == default, (
+        f"{name} 的 compose 預設值 {ref.compose_default!r} != 原始碼 {default!r}"
+    )
+    assert not ref.compose_hardcoded, f"{name} 不該被寫死（寫死則 .env 對容器無效）"
+
+
+def test_scope_b_ollama_models_fallback_is_nested_not_literal():
+    """OLLAMA_MODELS 的預設值必須是巢狀的 `${LLM_MODEL:-...}`，不是字面值。
+
+    實測依據：`rag.py:41` 是 `os.getenv("OLLAMA_MODELS", LLM_MODEL)` ——
+    第二個參數是 `LLM_MODEL` 這個**變數本身**。抄成 `qwen3:14b` 會讓
+    MSI（LLM_MODEL=qwen3:8b）自己的 ollama 也被要求 14b，等於把
+    「永遠降級成 8b」換成「三台全滅」—— 兩者都壞，但後者更難診斷。
+    """
+    compose_src = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+    assert "${OLLAMA_MODELS:-${LLM_MODEL:-" in compose_src, \
+        "OLLAMA_MODELS 的預設值應巢狀回 LLM_MODEL（rag.py:41 的 fallback 鏈）"
+    assert 'os.getenv("OLLAMA_MODELS", LLM_MODEL)' in \
+        (ROOT / "backend/app/rag.py").read_text(encoding="utf-8")
+    assert REG["OLLAMA_MODELS"].compose_ref, \
+        "OLLAMA_MODELS 必須轉發進容器，否則 MSI 永遠降級成用自己的 8b"
+
+
+@pytest.mark.parametrize("name", SCOPE_B_WITHHELD)
+def test_scope_b_withheld_stays_withheld(name):
+    """那 3 個「刻意不傳」不許被補回 compose —— 否則會製造新的耦合。
+
+    實測依據：補 `QDRANT_URLS` 進容器會讓 mbp/msi 依賴 x570 在線，並逼
+    `QDRANT_API_KEY` 變成三台同值（scope A 正在拆掉的鎖步輪換）；補兩個
+    `*_FILE` 會宣告容器裡有那些檔案，而實際上沒有（Docker Desktop 掛單檔案
+    不可靠，見 backend/DESIGN.md 第 4 節）。
+    """
+    ref = REG[name]
+    assert ref.python_read, f"{name} 確實被 Python 讀取（這是刻意不傳的前提）"
+    assert not ref.compose_ref, \
+        f"{name} 是刻意不傳入容器的，理由見 backend/DESIGN.md"
+    assert not ref.compose_hardcoded, f"{name} 也不該以字面值寫死"
+
+
+def test_scope_b_no_variable_is_left_stranded():
+    """程式讀得到、卻既沒轉發也沒刻意豁免的容器端變數 —— 應該一個都不剩。
+
+    這是 scope B 的守門斷言。2026-09-27 實測 19 個這種變數：15 個補上、
+    3 個刻意不補、1 個（LAN_IP）是政策停用。以後有人加了新旋鈕卻忘了補
+    compose（或忘了列進 SCOPE_B_WITHHELD 並在 DESIGN.md 寫理由），這條會失敗。
+    """
+    stranded = {
+        n for n, r in REG.items()
+        if r.python_read and not r.compose_ref and not r.compose_hardcoded
+        and n not in ea.POLICY_EXCLUDED
+    }
+    # ingest 端的變數容器本來就讀不到（管線跑在 host），不在本模組責任內。
+    container_side = {n for n in stranded if not REG[n].host_only_reader()}
+    assert container_side == set(SCOPE_B_WITHHELD), (
+        "有變數沒被 compose 轉發、也不在刻意不傳的清單裡："
+        f"{sorted(container_side - set(SCOPE_B_WITHHELD))}。"
+        " 要嘛補進 compose.yaml（預設值抄原始碼），"
+        "要嘛加進 SCOPE_B_WITHHELD 並在 backend/DESIGN.md 寫理由。"
+    )
+
+
+def test_name_scoped_machine_id_is_not_treated_as_local_identity():
+    """`HOST_API_X570` 的預設值有 x570，但它**不是本機身份**。
+
+    實測依據（2026-09-27 scope B 踩到）：`https://api-x570.ragdemo.win`
+    的主機名被 IDENTITY_RE 命中，於是 MSI 被要求「必須覆蓋 HOST_API_X570」。
+    但 `rag.py:167-171` 是一張三台都要有的對照表（前端「連線與來源」彈窗
+    逐台列位址），缺一台就少一列 —— 那是假警告，不是設定錯誤。
+    """
+    for name in ("HOST_API_X570", "HOST_API_MBP", "HOST_API_MSI"):
+        assert REG[name].compose_default, f"{name} 應有 compose 預設值"
+        assert not REG[name].has_identity_default(), \
+            f"{name} 的機台代號在鍵名裡，不該被判成本機身份"
+    # 這個例外不放寬真正會炸的那個：TS_IP 在 ports: 裡，身份檢查仍生效。
+    assert REG["TS_IP"].in_ports
+    assert REG["TS_IP"].has_identity_default()
+    assert REG["HOST_ID"].has_identity_default()
 
 
 # ── fallback 連鎖 ───────────────────────────────────────────

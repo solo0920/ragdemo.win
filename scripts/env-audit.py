@@ -246,7 +246,11 @@ class Ref:
           - ${TS_IP:-100.119.83.111}      → tailscale IP
           - ${HOST_ID:-x570}              → 字面機台 id
         舊版 KNOWN 表用人工標 required=True 來擋，改寫後必須補回，否則
-        mbp/msi 少設 TS_IP 就會去 bind x570 的 IP，docker 啟動即失敗。"""
+        mbp/msi 少設 TS_IP 就會去 bind x570 的 IP，docker 啟動即失敗。
+
+        但「身份寫在**鍵**裡」的變數要排除（見 NAME_SCOPED_HOST）。"""
+        if NAME_SCOPED_HOST.search(self.name):
+            return False
         if not self.compose_default:
             return False
         return bool(IDENTITY_RE.search(self.compose_default))
@@ -254,6 +258,21 @@ class Ref:
 
 # 預設值中的機台身份：tailscale 的 100.x.x.x 網段，或三台的 id 字面量
 IDENTITY_RE = re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b(x570|mbp|msi)\b")
+
+# 機台代號寫在**變數名**裡的（HOST_API_X570、FOO_MSI…）。
+# 這類變數的「身份在鍵不在值」：它描述的是**指定那一台**的位址，不是本機身份，
+# 所以不該被判成「本機必須覆蓋」。
+#
+# 實測依據（2026-09-27，scope B 補上 HOST_API_* 時踩到）：預設值
+# `${HOST_API_X570:-https://api-x570.ragdemo.win}` 的 **主機名裡**就有 x570，
+# 被 IDENTITY_RE 命中 → MSI 被要求覆蓋 HOST_API_X570。但 rag.py:167-171 是
+# 一張「三台都要有」的對照表（前端「連線與來源」彈窗逐台列位址），
+# 缺一台就少一列 —— 那是假警告，不是設定錯誤。
+#
+# 這個例外不放寬真正會炸的保護：`ports:` 的綁定是獨立判準
+# （`r.in_ports or r.has_identity_default()`），TS_IP 在 ports: 裡，
+# 少設仍然會被報出來（`test_identity_laden_defaults_are_recognised` 鎖住）。
+NAME_SCOPED_HOST = re.compile(r"_(x570|mbp|msi)$", re.I)
 
 
 def _iter_files(root: Path, pattern: str):

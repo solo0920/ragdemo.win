@@ -38,6 +38,43 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 - 依賴關係：各機自備 ollama（LLM/embedding，硬體差異故模型不同）；
   資料層（qdrant）以「快照同步」維持一致；pg 只有 registry 心跳＋用量統計用（非 query 必需）。
 - 降級邏輯走 `QDRANT_URLS`/`OLLAMA_URLS` 候選清單：x570 優先，離線自動切本機。
+  ⚠️ 2026-09-27 查證：`QDRANT_URLS` 在容器內其實用不到（compose 只傳 `QDRANT_URL`），
+  容器化後這條降級路徑並不存在；實際降級靠「快照同步」而非 live 讀 x570。見
+  〈備援機制〉與 `settings/env/README.md` 的 QDRANT_URLS 說明。
+
+## 架構表（2026-09-27 定案，模組化的單一入口）
+
+**規則：每次開發只開一個 scope，只動一個模組。** scope 的登錄與佇列見 `SCOPE.md`
+（同時最多一個進行中 —— 這是刻意的：三台共用同一份 repo，跨模組的半成品會被
+另外兩台的 `env-sync pull` 自動分發出去）。
+
+| # | 模組 | 目標（一句話，驗收的依據） | 擁有者 agent | 架構書 | 邊界（**不**負責） |
+|---|---|---|---|---|---|
+| M1 | env | 三台環境變數的單一真相：哪個鍵共用、哪個 per-host、哪個是 per-host 機密，全部由機器驗證 | `env-ops` | `settings/env/README.md` | 不動 `compose.yaml`、不動 backend 程式碼 |
+| M2 | backend | 檢索本體：路由、模型選擇與降級、registry、rules 儲存 | `backend` | `backend/DESIGN.md` | 不動 ingest、不動 frontend |
+| M3 | ingest | 法規／判決的蒐集、清洗、切分、metadata | `ingest` | `ingest/laws/DESIGN.md`、`ingest/cases/DESIGN.md` | 不改檢索邏輯與 UI |
+| M4 | frontend | UI 與 Cloudflare worker；只打後端相對路徑 `/api/*` | `frontend` | `frontend/DESIGN.md` | 不直連 Ollama / Qdrant / pg |
+| M5 | eval | 引註命中率；不通過不准進 UI 階段 | `eval` | `evals/README.md` | 只讀不寫碼 |
+| M6 | ops | 三機部署、runbook、registry 心跳、版本一致性 | `ops` | `scripts/DESIGN.md`、`HOST-UPGRADE.md` | 不改檢索邏輯、不決定憑證值 |
+
+### 模組契約：每份架構書都必須回答這 5 題
+
+1. **目標** —— 一句話，以及「做到什麼算完成」
+2. **邊界** —— 這個模組**不**負責什麼（避免相鄰模組互相改，產生第二真相）
+3. **不變量** —— 壞了會出事、但測試不一定抓得到的規則
+   （例：不可寫死 IP；per-host 機密永不進 sops；追蹤檔不得出現 `LAN_IP=`）
+4. **陷阱** —— 實測踩過、文件沒寫就會再踩一次的坑
+5. **驗收** —— 這個模組改完後跑哪條指令算過
+
+### 不知道怎麼辦時的升級路徑（三段，不准跳）
+
+1. 先讀**該模組的架構書**（上表第 4 欄）
+2. 架構書答不了 → 讀本檔對應章 ＋ `SCOPE.md` 當前 scope 的驗收條款
+3. 還是答不了 → **停下來問使用者**。不要猜、不要拿未查證的值頂替。
+
+理由：三台共用同一份 repo，一個 agent 猜出來的設定會被另外兩台的 `env-sync pull`
+自動分發 —— 猜等於把謊言版本化，而且症狀是「那台機器莫名其妙壞掉」，
+最貴的時候是幾天後才發現。**寧可卡住。**
 
 ## 主機命名（2026-09-22 定案，三台嚴格執行）
 **三台一律用硬體代號 `x570` / `mbp` / `msi`；`linux` 是作業系統名，禁止拿來當主機名。**
@@ -162,11 +199,32 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
   心跳就是 password authentication failed」。連 x570 的 pg 密碼目前沒有對應
   變數（照 `QDRANT_PEER_API_KEY` 慣例應叫 `POSTGRES_PEER_PASSWORD`），
   值待 x570 查證後納管 —— 見 `X570-HANDOFF.md` 事項 2。
-- **共用憑證分發（2026-09-27）**：9 把必須三台一致的憑證
-  （`QDRANT_API_KEY`／`QDRANT_PEER_API_KEY`／`POSTGRES_PASSWORD`／`ADMIN_TOKEN`／
-  `CF_AIG_TOKEN`／`HF_TOKEN`／`NVIDIA_API_KEY`／`TYPESAFE_API_KEY`／`ZEN_API_KEY`）
-  改走 `settings/env/` 分層＋`sops`+`age` 加密追蹤，`scripts/env-sync.sh pull`
-  合併進各機 `.env`（per-machine 鍵不動）。流程見 `settings/env/README.md`。
+- **共用憑證分發（2026-09-27）**：7 把**必須三台一致**的憑證
+  （`QDRANT_PEER_API_KEY`／`ADMIN_TOKEN`／`CF_AIG_TOKEN`／`HF_TOKEN`／
+  `NVIDIA_API_KEY`／`TYPESAFE_API_KEY`／`ZEN_API_KEY`）改走 `settings/env/` 分層
+  ＋`sops`+`age` 加密追蹤，`scripts/env-sync.sh pull` 合併進各機 `.env`。
+  流程見 `settings/env/README.md`。
+- **憑證分類標準只有一條：有沒有跨機的讀寫關係**（2026-09-27 逐點 grep 查證後改正）。
+  `QDRANT_API_KEY` 與 `POSTGRES_PASSWORD` 曾被歸為「三台必須同值」，查證每一個
+  消費點後確認**都只指向自己那台**：
+
+  | 鍵 | 消費點 | 為什麼是 per-host |
+  |---|---|---|
+  | `QDRANT_API_KEY` | `compose.yaml:12`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、`compose.yaml:34` ＋ `rag.py:331`（api 打 `compose.yaml:33` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 跨機認證走的是 `QDRANT_PEER_API_KEY` |
+  | `POSTGRES_PASSWORD` | `compose.yaml:24`（自己的 pg 容器）、`compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`，也是自己的） | 連 x570 的 pg 密碼應另設 `POSTGRES_PEER_PASSWORD` |
+
+  兩把改為 **per-host 機密**：鍵名宣告在 `settings/env/secrets.host.env.example`
+  （值空、追蹤）讓 `--check` 驗「每台都有這兩個鍵」，真值只留該機 `.env`（600），
+  **永不進 sops、永不分發**。`env-sync.sh` 在**合併引擎層面**剔除這兩把
+  （不只靠「加密檔剛好乾淨」），且 `--check` 會驗「per-host 鍵不得出現在加密檔」
+  —— sops 的 dotenv 讓鍵名保持明文，所以這條**不解密就能驗，CI 沒有 age 私鑰也跑得到**。
+  **好處：另外兩台完全不需要做任何事**（`pull` 只新增／覆寫，從不刪除既有鍵），
+  輪換成本從「三台鎖步＋重啟」降到「一台」。
+
+  舊分類錯在把 2026-09-26「本機 200／遠端 401」的根因誤認為「key 要三台同值」；
+  真正的根因是 `backend/.env` 與根 `.env` **兩份副本**（已刪）。根因修掉後舊分類
+  被留著當保險，副作用是造出「mbp 的 qdrant key 還是第三把舊的」這個
+  **不存在的故障** —— mbp 的 key 只對 mbp 自己的 qdrant 有意義。
 - 掃描確認 git 無真實 token（git ls-files、.env 追蹤數 0、歷史/前端建置產物皆無）。
 
 ## 備援機制（x570 離線時各機獨立作業）
