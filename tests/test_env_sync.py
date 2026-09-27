@@ -742,16 +742,40 @@ def test_shared_table_schema_and_secret_freedom():
             f"總表出現憑證鍵 {k} 的實值"
 
 
-def test_shared_table_dsn_never_expands_own_pg_password():
-    """總表的 DSN 不得引用 ${POSTGRES_PASSWORD}。
-    Friction 點（2026-09-27 MSI 實測）：POSTGRES_PASSWORD 是**本機** pg 容器的
-    密碼，而 DSN 指向 x570。兩者指紋不同（32 字元、值不同）。若用
-    ${POSTGRES_PASSWORD} 展開，會把本機密碼塞進指向 x570 的 DSN，症狀是
-    registry 心跳持續 password authentication failed，而所有設定「都看起來有」。
-    正確做法是引用對端的 POSTGRES_PEER_PASSWORD（沿用 QDRANT_PEER_API_KEY 慣例）。
+def test_shared_table_dsn_password_matches_the_host_it_points_at():
+    """DSN 的密碼必須屬於「DSN 指的那台」的 pg，不是「本機」的 pg。
+
+    Friction 點（2026-09-27 MSI 實測）：`POSTGRES_PASSWORD` 是**本機** pg 容器的
+    密碼（每台不同）。若 DSN 指向**別台**（跨機 registry），密碼段必須是對端的
+    `POSTGRES_PEER_PASSWORD`（沿用 `QDRANT_PEER_API_KEY` 慣例），用
+    `${POSTGRES_PASSWORD}` 會把本機密碼塞進指向對端的 DSN，症狀是心跳持續
+    `password authentication failed for user rag`，而所有設定「都看起來有」。
+
+    ⚠️ 但反過來**也成立**，這是本測試 2026-09-27 改寫的原因：
+    **指向自己**的 DSN（主機名是 compose 服務名 `postgres`，只在自己那台的容器內
+    解析）就**必須**用 `${POSTGRES_PASSWORD}` —— 那不是踩坑，是正確寫法。
+    當時的版本寫成「總表一律不准出現 `POSTGRES_PASSWORD`」，把這個合法寫法也擋掉，
+    於是 msi 改指本機 pg 之後測試紅燈，而修法只能退回去忍受離線依賴。
+
+    所以規則不是「不准用 `POSTGRES_PASSWORD`」，而是**「密碼要跟 DSN 指向的
+    那台對得上」**：看 DSN 的主機名是不是本機的 compose 服務名。
+    判別方式只認 `@postgres:` 一種寫法 —— 這是 compose.yaml 裡 service name
+    唯一的解析位置，不去猜 127.0.0.1 之類的別種寫法（容器內 127.0.0.1 指的是
+    容器自己，那本來就是另一個錯誤，該在別處擋）。
     """
-    table = (ROOT / "settings/env" / "hosts.shared.env").read_text(encoding="utf-8")
-    offenders = re.findall(r"^(?:x570|mbp|msi)_\w*DSN=.*POSTGRES_PASSWORD.*$",
-                           table, re.M)
-    assert not offenders, f"DSN 引用了本機 pg 密碼: {offenders}"
+    table = (ROOT / "settings" / "env" / "hosts.shared.env").read_text(encoding="utf-8")
+    own_pw = re.compile(r"\$\{POSTGRES_PASSWORD\}")
+    wrong: list[str] = []
+    for raw in table.splitlines():
+        m = re.match(r"^(?:x570|mbp|msi)_\w*DSN=(\S+)$", raw.strip())
+        if not m:
+            continue
+        dsn = m.group(1)
+        points_at_self = "@postgres:" in dsn
+        if points_at_self != bool(own_pw.search(dsn)):
+            wrong.append(raw.strip())
+    assert not wrong, (
+        "DSN 指向自己（主機名 postgres）時必須用 ${POSTGRES_PASSWORD}；"
+        f"指向別台時必須用對端的 POSTGRES_PEER_PASSWORD。兩者寫反: {wrong}"
+    )
 
