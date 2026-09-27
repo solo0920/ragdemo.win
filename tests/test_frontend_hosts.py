@@ -351,3 +351,216 @@ def test_page_restore_backend_only_runs_once_known_hosts_arrived() -> None:
 # 碎掉。真正守住這個不變式的是上面那三條：初值、不得在頂層、onMount 裡確實有呼叫。
 # 三條都實測過會紅（見 commit 訊息）。
 
+# ──────────────────────────────────────────────────────────────────────
+# 下面這組是 2026-09-28 補的：轉發時把上游 headers 整份抄進回應，導致線上
+# https://ragdemo.win/api/* 全部 502。
+#
+# 症狀與為什麼難查：
+#   /api/query、/api/rules → 401 JSON（走 guard()，根本不碰上游）→ 正常
+#   /api/health 等一切需要轉發的 → text/plain「error code: 502」
+# 而那是 **Cloudflare 自己的錯誤頁**，不是 worker 的回應：上游經 Cloudflare 會
+# 回 `content-encoding: br` 與 `content-length`，Workers runtime 已經解壓過 body，
+# 宣告的編碼/長度與實際內容對不上，Cloudflare 就送不出去。
+# 後端本身完全正常（從第三方主機代打 `api-msi…/health` 得到 200）。
+#
+# 這組測試是**真的把 relay() 抽出來用 node 跑**（它只需要 Response/Headers，
+# 沒有 Cloudflare 專屬依賴），因為這個 bug 的後果在「原始碼長什麼樣」上
+# 根本看不出來 —— `new Headers(r.headers)` 讀起來很正常。
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _balanced(code: str, start: int) -> str:
+    """從 start 起取一段配對完整的宣告。
+
+    配對到收尾的 `]` / `}` 之後，還要**連帶吃掉**後面的 `)` —— 否則
+    `new Set([...])` 會被截成 `new Set([...]`，貼到另一支腳本裡就是語法錯。
+    """
+    i = min(p for p in (code.find("{", start), code.find("[", start)) if p != -1)
+    open_ch, close_ch = code[i], "}" if code[i] == "{" else "]"
+    depth, j = 0, i
+    while j < len(code):
+        if code[j] == open_ch:
+            depth += 1
+        elif code[j] == close_ch:
+            depth -= 1
+            if depth == 0:
+                break
+        j += 1
+    assert j < len(code), f"{code[start:start + 30]!r} 的括號沒配對到"
+    j += 1
+    while j < len(code):
+        if code[j] in ");,":
+            j += 1
+            continue
+        if code[j].isspace():
+            j += 1
+            continue
+        break
+    return code[start:j]
+
+
+def _decl_body(code: str, marker: str) -> str:
+    """取出一個宣告（含主體），主體用大括號配對。
+
+    ⚠️ 不能直接找第一個 '{'：宣告的**參數列裡就有** `platform?: { env?: Env }`
+    這種型別，第一個 '{' 是型別不是主體。所以先配對出參數列的收尾 ')'，
+    那之後的 '{' 才是主體。
+
+    這是本次寫測試時真實踩到的：原本想沿用 `_onmount_span`（它要求標記是
+    `onMount(`），結果對 `through(...)` 根本找不到。
+    """
+    assert marker in code, f"找不到宣告 {marker!r} —— 若被改名請同步維護呼叫它的測試"
+    start = code.index(marker)
+    depth, j = 0, code.index("(", start)
+    while j < len(code):
+        if code[j] == "(":
+            depth += 1
+        elif code[j] == ")":
+            depth -= 1
+            if depth == 0:
+                break
+        j += 1
+    assert j < len(code), f"{marker} 的參數列沒配對到"
+    depth, k = 0, code.index("{", j)
+    while k < len(code):
+        if code[k] == "{":
+            depth += 1
+        elif code[k] == "}":
+            depth -= 1
+            if depth == 0:
+                return code[start:k + 1]
+        k += 1
+    raise AssertionError(f"{marker} 的大括號沒配對到")
+
+
+def _run_relay(upstream: str, tmp_path: Path) -> dict:
+    """把 relay() 真的跑一次，回傳它送出的 headers 與 body 長度。
+
+    upstream 是一段 JSON 描述上游回應（status/headers/body），用來組一個
+    帶著 `content-encoding: br` 的上游 —— 那正是會觸發線上 502 的組合。
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 不在 PATH")
+    code = WORKER.read_text(encoding="utf-8")
+    drop = _balanced(code, code.index("const DROP_ON_PROXY"))
+    relay = _decl_body(code, "async function relay")
+
+    script = tmp_path / "relay.ts"
+    script.write_text(
+        drop + "\n" + relay + "\n"
+        "const spec = JSON.parse(process.argv[2]);\n"
+        "const up = new Response(spec.body, { status: spec.status, headers: spec.headers });\n"
+        "const out = await relay(up, spec.origin);\n"
+        "const buf = await out.arrayBuffer();\n"
+        "console.log(JSON.stringify({\n"
+        "  status: out.status,\n"
+        "  headers: Object.fromEntries(out.headers),\n"
+        "  len: buf.byteLength,\n"
+        "  body: new TextDecoder().decode(buf),\n"
+        "}));\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [node, "--experimental-strip-types", str(script), upstream],
+        capture_output=True, text=True, timeout=30,
+    )
+    if r.returncode != 0:
+        pytest.fail(f"node 執行失敗：{r.stderr[:500]}")
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+# 帶著這些標頭回來才會炸；內容是 Workers 已解壓後的明文。
+UPSTREAM_COMPRESSED = {
+    "status": 200,
+    "headers": {
+        "content-type": "application/json",
+        "content-encoding": "br",     # ← 宣告已壓縮，實際 body 未壓縮
+        "content-length": "37",       # ← 宣告的長度對不上
+        "transfer-encoding": "chunked",
+    },
+    "body": '{"ok":true,"collection":"laws"}',
+    "origin": "https://api-box.example.com",
+}
+
+
+def test_relay_drops_encoding_headers_it_cannot_honour(tmp_path: Path) -> None:
+    """轉發出去的回應不得帶著上游的 content-encoding / content-length。
+
+    這一條是本次 502 的正因。留下它等於宣告「這段 JSON 是 brotli 壓縮的」，
+    但 Workers 交給我們的 body 已經解壓 —— Cloudflare 照著宣告送出就失敗。
+    """
+    got = _run_relay(json.dumps(UPSTREAM_COMPRESSED), tmp_path)
+    assert "content-encoding" not in got["headers"], (
+        "轉發的回應仍帶著 content-encoding，但 body 已被 Workers runtime 解壓 —— "
+        "宣告與實際不符，Cloudflare 會回自己的 502 錯誤頁"
+    )
+    assert "content-length" not in got["headers"], \
+        "上游的 content-length 對應的是解壓前的長度，不能沿用"
+    assert "transfer-encoding" not in got["headers"], \
+        "transfer-encoding 是連線層的標頭，不該跨越一次反向代理"
+
+
+def test_relay_preserves_body_status_and_useful_headers(tmp_path: Path) -> None:
+    """去掉編碼標頭**不等於**丟掉回應 —— body、狀態碼、有用的標頭都要留著。
+
+    這條是防止「修壞」：有人可能直接回一個空的 200，那就從 502 變成靜默回空資料，
+    比原本更難查。
+    """
+    got = _run_relay(json.dumps(UPSTREAM_COMPRESSED), tmp_path)
+    assert got["status"] == 200, "上游的成功狀態碼要原樣回傳"
+    assert got["body"] == '{"ok":true,"collection":"laws"}', \
+        "body 必須完整送達（緩衝後重建，不是空回應）"
+    assert got["len"] == len('{"ok":true,"collection":"laws"}'), \
+        "送出的是解壓後的實際長度，不是上游宣告的 37"
+    assert got["headers"]["content-type"] == "application/json", \
+        "content-type 必須保留（前端要靠它解析）"
+    assert got["headers"]["x-ragdemo-origin"] == "https://api-box.example.com", \
+        "x-ragdemo-origin 必須保留（前端「自動→實際主機」靠它顯示）"
+
+
+def test_worker_does_not_stream_upstream_body(tmp_path: Path) -> None:
+    """轉發不得直接回 `r.body` 串流。
+
+    串流時上游連線一斷就變成同樣那種無錯誤訊息的 502，而且標頭已送出、無法補。
+    """
+    code = _code_only(WORKER)
+    assert not re.search(r"new Response\(\s*r\.body", code), (
+        "轉發用了 r.body 串流 —— 改成 relay() 緩衝後再送，"
+        "否則上游中斷會變成無法診斷的 502"
+    )
+    assert "arrayBuffer()" in code, "relay() 應把 body 緩衝下來再送出"
+
+
+def test_worker_never_lets_a_throw_become_a_cloudflare_error_page() -> None:
+    """GET/POST 都要有安全網，讓例外變成帶說明的 JSON。
+
+    線上那個 502 查不出原因，就是因為 worker 死掉時只留一張
+    `text/plain: error code: 502`，完全不說是哪一步壞的。這種失敗必須從
+    「來自 Cloudflare、沒有線索」變成「來自我們、指名是哪一步」。
+    """
+    code = _code_only(WORKER)
+    assert "function jsonError(" in code, \
+        "需要有把例外轉成 JSON 回應的函式，否則未捕捉的例外只會變成 Cloudflare 錯誤頁"
+    assert "e instanceof Error" in code, \
+        "jsonError 應帶上真正的錯誤訊息；只回一句『轉發失敗』等於沒診斷能力"
+    for verb in ("GET", "POST"):
+        span = _decl_body(code, f"export const {verb}")
+        assert re.search(r"\btry\s*\{", span), f"{verb} 轉發的程式碼沒有 try 包住"
+        assert f'jsonError(`{verb} /' in span, \
+            f"{verb} 的 catch 應呼叫 jsonError 並標明是哪個路徑失敗"
+
+
+def test_relay_is_inside_through_try_so_origin_is_named() -> None:
+    """relay() 必須在 through() 的 try 裡。
+
+    上游 body 讀到一半斷掉會拋出。若 relay 在 try 外面，錯誤會變成無來源的
+    502，而且明明已經知道是哪一台 origin 壞了卻沒被記下來。
+    """
+    span = _decl_body(_code_only(WORKER), "async function through")
+    assert "await relay(r, origin)" in span, "through() 仍應呼叫 relay()"
+    assert re.search(r"try\s*\{.*?await relay", span, re.S), (
+        "relay() 在 try 之外 —— body 讀取失敗時會丟掉 origin 資訊"
+    )
+
+

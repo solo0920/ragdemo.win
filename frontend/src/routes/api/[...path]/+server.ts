@@ -94,6 +94,56 @@ function dead(status: number): boolean {
   return status === 502 || status === 503 || status === 504 || status === 530 || status === 1033;
 }
 
+// 轉發時**不得**沿用上游的編碼／長度／連線相關標頭。
+//
+// ⚠️ 這是 2026-09-28 修的線上全站 502。舊版是：
+//     const h = new Headers(r.headers);          // ← 上游 headers 整份抄過來
+//     return new Response(r.body, { headers: h });
+// 上游經 Cloudflare 會回 `content-encoding: br` 與 `content-length`，但 Workers
+// runtime 已經把 body 解壓過了 —— 宣告的編碼與長度跟實際內容對不上，Cloudflare
+// 送不出去，就回一張**自己的**錯誤頁（`text/plain`、`error code: 502`、16 bytes）。
+//
+// 症狀為什麼那麼難查：`/api/query` 走 guard() 拿 401 正常回應，所以「Function
+// 有在跑」是成立的；只有需要轉發的端點全死，看起來像後端掛了，而後端其實
+// 從公網打完全正常（第三方主機代打得到 200）。
+const DROP_ON_PROXY = new Set([
+  'content-encoding',
+  'content-length',
+  'transfer-encoding',
+  'connection',
+  'keep-alive',
+  'content-range',
+  'accept-ranges',
+  'content-md5',
+]);
+
+// body 緩衝下來再送出，不用 `r.body` 串流。
+//
+// 串流時上游連線一斷就變成同樣那種沒有錯誤訊息的 502，而且已經送出標頭就
+// 無法再補。/api/query 這類回答動辄數十 KB，緩衝成本可以忽略。
+async function relay(r: Response, origin: string): Promise<Response> {
+  const buf = await r.arrayBuffer();
+  const h = new Headers();
+  for (const [k, v] of r.headers) {
+    if (!DROP_ON_PROXY.has(k.toLowerCase())) h.set(k, v);
+  }
+  h.set('content-type', r.headers.get('content-type') ?? 'application/json');
+  h.set('x-ragdemo-origin', origin); // 前端可顯示「自動→實際服務主機」
+  return new Response(buf, { status: r.status, headers: h });
+}
+
+// 任何未捕捉的例外都要變成**看得懂的 JSON**，不能變成 Cloudflare 的錯誤頁。
+//
+// 線上那個 502 之所以查不出原因，就是因為 worker 死掉時只留一張 text/plain 的
+// 502（`error code: 502`），完全不說是哪一步壞的。這裡把「哪一步」一起帶出去。
+function jsonError(phase: string, e: unknown): Response {
+  const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+  return new Response(JSON.stringify({ detail: `worker 在「${phase}」失敗：${msg}` }), {
+    status: 502,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }, headers?: Headers): Promise<Response> {
   const origins = hostsOf(platform).map((h) => h.url);
   if (origins.length === 0) {
@@ -116,10 +166,9 @@ async function through(method: string, path: string, body: string | undefined, p
         failures.push(`${origin} HTTP ${r.status}`);
         continue; // 這台離線／壞了 → 依序試下一台
       }
-      const h = new Headers(r.headers);
-      h.set('content-type', r.headers.get('content-type') ?? 'application/json');
-      h.set('x-ragdemo-origin', origin); // 前端可顯示「自動→實際服務主機」
-      return new Response(r.body, { status: r.status, headers: h });
+      // ⚠️ relay() 也要在 try 裡：上游 body 讀取中途斷掉會拋出，那時
+      // 已經知道是哪一台 origin 壞了，別把它變成無來源的 502。
+      return await relay(r, origin);
     } catch (e) {
       failures.push(`${origin} ${(e as Error).message}`);
     }
@@ -210,12 +259,20 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
 export const GET: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, parsed(params.path));
   if (blocked) return blocked;
-  return through('GET', params.path, undefined, platform, request.headers);
+  try {
+    return await through('GET', params.path, undefined, platform, request.headers);
+  } catch (e) {
+    return jsonError(`GET /${params.path} 轉發`, e);
+  }
 };
 
 export const POST: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, parsed(params.path));
   if (blocked) return blocked;
-  if (parsed(params.path) === 'query') return queryRoute(request, platform);
-  return through('POST', params.path, await request.text(), platform, request.headers);
+  try {
+    if (parsed(params.path) === 'query') return await queryRoute(request, platform);
+    return await through('POST', params.path, await request.text(), platform, request.headers);
+  } catch (e) {
+    return jsonError(`POST /${params.path} 轉發`, e);
+  }
 };
