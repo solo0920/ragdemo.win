@@ -478,6 +478,42 @@ def load_env(path: Path) -> dict[str, str]:
     return vals
 
 
+def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
+    """settings/env/hosts.shared.env 的每個 base 鍵都必須真的有程式讀取。
+
+    為什麼要查：總表是被追蹤的 per-host 唯一真相（2026-09-27 起的機制），
+    但它不在 compose／python／shell 的掃描範圍內，所以這裡補一次反查 ——
+    表裡打錯一個字（TS_IP→TS_I），render 會照樣寫進 .env，症狀是
+    「設定看起來都對，但那台的容器綁錯 IP」。機械判定，不靠人記。
+
+    值與 .env 的一致性由 env-sync.sh --check 負責（那裡才有 HOST_ID 選擇器），
+    這裡只回答「這個鍵有人讀嗎」。
+    """
+    table = ROOT / "settings" / "env" / "hosts.shared.env"
+    if not table.exists():
+        print("  [per-host 總表] 找不到 settings/env/hosts.shared.env")
+        return 1
+    problems = 0
+    seen: dict[str, int] = {}
+    for raw in table.read_text(encoding="utf-8").splitlines():
+        m = ASSIGN.match(raw.strip())
+        if not m:
+            continue
+        host, _, base = m.group(1).partition("_")
+        if host not in ("x570", "mbp", "msi"):
+            continue
+        seen[base] = seen.get(base, 0) + 1
+        if base not in reg:
+            print(f"  [per-host 總表] {base} 沒有任何程式讀取（拼錯？或是幽靈變數）")
+            problems += 1
+        elif base in POLICY_EXCLUDED:
+            print(f"  [per-host 總表] {base} 是政策性停用變數，不該出現在總表")
+            problems += 1
+    print(f"  [per-host 總表] {len(seen)} 個鍵 × 3 台（值與 .env 的一致性由 "
+          f"env-sync.sh --check 負責）")
+    return problems
+
+
 def audit(env: dict[str, str], reg: dict[str, Ref], label: str) -> int:
     problems = 0
 
@@ -576,9 +612,12 @@ def audit(env: dict[str, str], reg: dict[str, Ref], label: str) -> int:
 
     per_machine = sorted(k for k in env if re.match(r"^(msi|mbp|x570)_", k, re.I))
     if per_machine:
-        print(f"  [{label}] 機台前綴變數（{'、'.join(per_machine)}）")
-        print("        注意：程式**不會**自動剝掉前綴。實際慣例是把機台名燒進變數名，")
-        print("        見 rag.py:167-171 的 HOST_API_X570 / HOST_API_MBP / HOST_API_MSI。")
+        print(f"  [{label}] 前綴變數寫在執行期 .env（無效）: {'、'.join(per_machine)}")
+        print("        compose 只認 ${VAR}，沒有依 HOST_ID 動態選前綴的能力 ——")
+        print("        這些值到不了容器，症狀是靜默吃回原始碼預設。")
+        print("        per-host 值請寫進 settings/env/hosts.shared.env，"
+              "由 env-sync.sh render 挑列。")
+        problems += len(per_machine)
     return problems
 
 
@@ -617,13 +656,21 @@ def print_template(reg: dict[str, Ref]) -> None:
     print("#   host 端    只有 ingest 管線／shell 腳本讀得到，容器本來就不需要")
     print("#   寫死       compose 用字面值覆蓋 → 這裡設了對容器無效")
     print("#")
-    print("# 關於機台差異：程式**不會**自動剝掉 msi_/mbp_/x570_ 前綴。")
-    print("# 既有慣例是把機台名直接燒進變數名，見 rag.py:167-171：")
-    print("#   HOST_API_X570 / HOST_API_MBP / HOST_API_MSI")
-    print("# 新增機台專屬變數時請比照這個寫法，並在 .env 設對應的值。")
+    print("# 關於機台差異：per-host 的值**不在這個檔**填。")
+    print("# 它們在 settings/env/hosts.shared.env（三台的 x570_/mbp_/msi_ 值同一個檔，")
+    print("# 追蹤、明文、無憑證），由 scripts/env-sync.sh render 依本機 HOST_ID")
+    print("# 挑列、展開 ${VAR} 後寫進 .env。")
+    print("#")
+    print("# 為什麼前綴不放進 .env：compose 只認 ${VAR}，沒有依 HOST_ID 動態選")
+    print("# msi_/x570_ 的能力；前綴若寫在 .env，值會被 compose 讀不到而回退原始碼")
+    print("# 預設（LLM_MODEL 掉回 14b、TS_IP 讓 ports: 綁錯而啟動失敗）—— 靜默劣化。")
+    print("#")
+    print("# 另一種把機台名放進變數名的寫法（同一台機器**同時**要有多組設定時用）：")
+    print("#   HOST_API_X570 / HOST_API_MBP / HOST_API_MSI（rag.py:167-171）")
     print("#")
     print("# 各機怎麼認出自己的身份：HOST_ID（x570/mbp/msi）、TS_IP、")
-    print("# HOST_NAME、HOST_MACHINE_ID —— 這四個每台不同，值不進版控。")
+    print("# HOST_NAME、HOST_MACHINE_ID —— 這四個每台不同。HOST_ID 是 render 的")
+    print("# 選擇器，只能在 .env 手動設一次（要先知道本機是誰才挑得到列）。")
     print("# 注意 TS_IP 不是擺著就好：它用在 compose 的 ports:，")
     print("# 沒設會去 bind 預設值那台機器的 IP，docker 直接啟動失敗。")
     print("#")
@@ -756,6 +803,8 @@ def main() -> int:
         print(f"  [frontend/.env] {len(front_env)} 個變數"
               f"（{', '.join(sorted(front_env))}）— 獨立於後端，不參與本 audit")
     n += check_drift(root_env, back_env)
+    if not args.quiet:
+        n += check_hosts_table(reg, root_env)
 
     print(f"\n════ {n} 項需處理 ════")
     return 1 if n else 0

@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# env-sync — 三機共用憑證的分發與合併（sops + age）。
+# env-sync — 三機共用設定與憑證的分發、合併、稽核（sops + age）。
 #
 # 解決的問題：QDRANT_API_KEY / POSTGRES_PASSWORD 等 9 把憑證必須三台一致，
 # 過去靠人工複製，2026-09-26 已造成兩次不對稱 401／心跳失敗。
-# 分層（看 settings/env/README.md）：
-#   settings/env/common.env                  追蹤，明文，只放共用非敏感鍵
-#   settings/env/hosts/<id>.env.example      追蹤，明文，per-machine 範本
-#   settings/env/secrets.common.enc.env      追蹤，sops+age 加密，共用憑證真值
-#   .env（repo 根）                          不追蹤，chmod 600，執行期唯一真相
+#
+# 分層（詳見 settings/env/README.md），合併順序由低到高：
+#   settings/env/common.env              追蹤明文，共用非敏感鍵
+#   settings/env/secrets.common.enc.env  追蹤加密，9 把共用憑證真值
+#   settings/env/hosts.shared.env        追蹤明文，三台 per-host 值（前綴 <機台>_<鍵>）
+#   .env（repo 根）                      不追蹤、chmod 600，執行期唯一真相
+#
+# 為什麼前綴不直接放進 .env：compose 只認 ${VAR}，沒有「依 HOST_ID 動態選
+# msi_/x570_」的能力。前綴若寫在執行期 .env，compose 會拿到空值而回退原始碼
+# 預設（LLM_MODEL 掉回 14b、TS_IP 讓 ports: 綁錯而啟動失敗）—— 靜默劣化。
+# 所以前綴活在被追蹤的總表，render 才挑列寫成不帶前綴的鍵。
 #
 # 安全規則（違反過的才寫下來）：
-#   - 絕不在 stdout/stderr 印任何值；指紋只印 sha256 前 12 碼＋長度。
+#   - 絕不在 stdout/stderr 印任何值；比對只用 sha256 前 12 碼＋長度。
 #   - 在 `bash -x`（xtrace）下直接拒絕執行 —— 2026-09-26 三次外洩之一就是 bash -x。
 #   - 解密只落 mktemp 暫存檔，trap 保證 shred；絕不寫固定路徑的明文。
 set -euo pipefail
@@ -24,65 +30,182 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # 測試覆寫點（預設行為不變）：tests/test_env_sync.py 用 fixture 目錄隔離執行。
 ENV_DIR="${ENV_SYNC_DIR:-$ROOT/settings/env}"
 DOTENV="${ENV_SYNC_ENV:-$ROOT/.env}"
+TABLE="$ENV_DIR/hosts.shared.env"
 
 # 必須三台一致的憑證（與 secrets.common.env.example 同步；改了一處要改另一處，
-# tests/test_env_sync.py 會鎖）。per-machine 鍵永遠不在此列。
+# tests/test_env_sync.py 會鎖）。per-host 鍵永遠不在此列。
+# ⚠️ 這裡是「各機都該有同一個值」的清單，不是「本機自己的值」的清單。
+# POSTGRES_PASSWORD 是本機 pg 容器的密碼（各機可不同），而 POSTGRES_DSN 指向
+# x570 —— 2026-09-27 MSI 實測兩者指紋不同（見 hosts.shared.env 的 POSTGRES_DSN
+# 段）。連 x570 用的 pg 密碼目前沒有對應變數，是待決項（X570-HANDOFF 事項 2）。
 SHARED_SECRETS="QDRANT_API_KEY QDRANT_PEER_API_KEY POSTGRES_PASSWORD ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY"
 # 共用非敏感鍵（與 common.env 同步；空值不合併，只補「本機沒寫」的鍵）。
 SHARED_CONFIG="COLLECTION EMBED_MODEL RERANK_MODEL JEV_BANK_MIN JEV_VERIFY_MIN OPENROUTER_GATEWAY_URL ZEN_BASE_URL"
 MANAGED_MARK="# --- managed by env-sync.sh (shared layers; do not edit below) ---"
+HOSTS="x570 mbp msi"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "env-sync: missing tool: $1" >&2; exit 1; }; }
 
 usage() {
   sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//'
-  echo "usage: $(basename "$0") [pull|--check|--fingerprints|--init-secrets [--force]|--host ID|--help]"
+  cat <<'EOF'
+usage: env-sync.sh <command> [options]
+  pull                     解密共用憑證 → 合併 common.env → render per-host 值
+  render [--host ID]       只做 per-host render（不需 sops）
+  render --dry-run         只印「會動哪幾個鍵」，不寫檔、不印值
+  --check                  鍵覆蓋率、總表 schema、per-host 漂移、版控衛生（不需 sops）
+  --fingerprints [FILE]    9 把憑證的長度＋sha12（三台比對用）
+  --init-secrets [--force] 從本機 .env 抽出 9 把憑證建加密檔（只在第一台跑一次）
+EOF
 }
 
 # 以指紋比對，不印值：輸出「鍵名 長度 sha12」。值缺失顯示缺失，不報錯。
+# 鍵清單直接用 $SHARED_SECRETS —— 這裡曾經硬寫一份 9 個鍵的名單，
+# 與 SHARED_SECRETS 是兩份真相；加第 10 把時只改到其中一份就會少印一把，
+# 而「少印」看起來跟「那台沒設」一樣，正是 2026-09-26 診斷不出問題的那類。
 fingerprints() {
   local f="${1:-$DOTENV}"
   [ -f "$f" ] || { echo "env-sync: no such file: $f" >&2; exit 1; }
-  python3 - "$f" <<'PY'
+  python3 - "$f" "$SHARED_SECRETS" <<'PY'
 import re, sys, hashlib
 vals = {}
 for line in open(sys.argv[1], encoding="utf-8").read().splitlines():
     m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
     if m:
         vals[m.group(1)] = m.group(2)
-for k in ("QDRANT_API_KEY QDRANT_PEER_API_KEY POSTGRES_PASSWORD ADMIN_TOKEN "
-          "CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY").split():
+for k in sys.argv[2].split():
     v = vals.get(k)
     if v is None:
-        print(f"{k:<20} MISSING")
+        print(f"{k:<24} MISSING")
     elif v == "":
-        print(f"{k:<20} EMPTY")
+        print(f"{k:<24} EMPTY")
     else:
-        print(f"{k:<20} len={len(v):<4} sha12={hashlib.sha256(v.encode()).hexdigest()[:12]}")
+        print(f"{k:<24} len={len(v):<4} sha12={hashlib.sha256(v.encode()).hexdigest()[:12]}")
 PY
 }
 
-# 行保留合併：layer 檔的非空值覆蓋 .env 同名鍵；缺的鍵附加到 MANAGED_MARK 下；
-# .env 獨有的鍵（含 per-machine 與註解）原樣保留。絕不印值。
-merge_layer() {
-  python3 - "$DOTENV" "$1" "$MANAGED_MARK" <<'PY'
-import re, sys
-env_path, layer_path, mark = sys.argv[1], sys.argv[2], sys.argv[3]
+# 合併引擎（layer 建構＋展開＋寫檔全部在這一份 Python 裡，理由見檔末註）。
+#   $1 mode   file | table
+#   $2 action apply | plan | check
+#   $3 source layer 檔（mode=file）或 hosts.shared.env（mode=table）
+#   $4 host   mode=table 時要挑的機台
+#   $5 expand 1 = 展開值裡的 ${VAR}；0 = 原樣（憑證層必須 0，見下）
+py_apply() {
+  python3 - "$DOTENV" "$1" "$2" "$3" "$4" "$5" "$MANAGED_MARK" <<'PY'
+import os, re, sys
+
+env_path, mode, action, source, host, expand, mark = sys.argv[1:8]
+expand = expand == "1"
+HOSTS = ("x570", "mbp", "msi")
+ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
+PREFIXED = re.compile(r"^(x570|mbp|msi)_(.+)$")
+REF = re.compile(r"\$\{([A-Za-z_][A-Za-z_0-9]*)\}")
+
+
+def read_kv(path):
+    vals = {}
+    for line in open(path, encoding="utf-8").read().splitlines():
+        m = ASSIGN.match(line.strip())
+        if m:
+            vals[m.group(1)] = m.group(2)
+    return vals
+
+
+def die(msg):
+    print("env-sync: " + msg, file=sys.stderr)
+    sys.exit(1)
+
+
+errs = []
 layer = {}
-for line in open(layer_path, encoding="utf-8").read().splitlines():
-    m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
+if mode == "file":
     # 空值不合併：範本檔的值是空的，合進去等於清空本機真值。
-    if m and m.group(2) != "":
-        layer[m.group(1)] = m.group(2)
+    layer = {k: v for k, v in read_kv(source).items() if v != ""}
+else:
+    table = {}
+    for k, v in read_kv(source).items():
+        m = PREFIXED.match(k)
+        if not m:
+            errs.append(f"總表有非 <機台>_<鍵> 的行: {k}（前綴只允許 {'/'.join(HOSTS)}）")
+            continue
+        table.setdefault(m.group(2), {})[m.group(1)] = v
+    # schema 完整性：每個鍵三台都要有列（值可空）。缺列＝漏改，寧可報錯。
+    for base in sorted(table):
+        lack = [h for h in HOSTS if h not in table[base]]
+        if lack:
+            errs.append(f"總表 {base}: 缺 {'/'.join(lack)} 的列")
+    if host not in HOSTS:
+        errs.append(f"主機代號不合法: {host or '(空)'}（須為 {'/'.join(HOSTS)}）")
+    else:
+        for base, cols in sorted(table.items()):
+            v = cols.get(host, "")
+            if v:                      # 空值＝該機沿用自己現值，不覆蓋
+                layer[base] = v
+    if errs:
+        for e in errs:
+            die(e)
+
+cur = read_kv(env_path) if os.path.exists(env_path) else {}
+
+# 配對規則：某些鍵的語意是「與另一鍵位置對齊」，長度不一致會靜默配錯
+# （rag.py:215 用 index i 取 OLLAMA_URLS[i] 對應的模型）。所以比較的是
+# 「生效值」＝總表有值用總表、否則沿用 .env 現值，才不會漏掉半填的情況。
+PAIRED = {"OLLAMA_MODELS": "OLLAMA_URLS"}
+
+
+def eff(key):
+    return layer.get(key) or cur.get(key) or ""
+
+
+def count(s):
+    return len([x for x in s.split(",") if x.strip()])
+
+if expand:
+    for k, v in layer.items():
+        for ref in sorted(set(REF.findall(v))):
+            if not cur.get(ref):
+                # 寫出空密碼的 DSN 比不寫更糟：連線會拿去對空密碼，症狀是
+                # 「看起來有設定但就是連不上」。只報變數名，不報值。
+                die(f"{k} 引用的 {ref} 在 .env 不存在或為空，拒絕 render")
+        layer[k] = REF.sub(lambda m: cur.get(m.group(1), ""), v)
+
 if not layer:
+    print("env-sync: 沒有要合併的鍵（總表該機的列皆為空＝沿用現值）"
+          if mode == "table" else "env-sync: 沒有要合併的鍵")
     sys.exit(0)
-lines = []
-if __import__("os").path.exists(env_path):
-    lines = open(env_path, encoding="utf-8").read().splitlines()
-have = set()
-out = []
+
+for a, b in PAIRED.items():
+    if eff(a) and eff(b) and count(eff(a)) != count(eff(b)):
+        die(f"{a} 有 {count(eff(a))} 項但 {b} 有 {count(eff(b))} 項 —— "
+            f"兩者位置對應，長度必須相同（rag.py 依 index 取值）")
+
+if action in ("plan", "check"):
+    drift = []
+    for k in sorted(layer):
+        have = cur.get(k)
+        if have == layer[k]:
+            continue
+        drift.append(k)
+        if action == "plan":
+            tag = "會新增" if have is None else ("會覆寫" if have != "" else "會填入空值")
+            print(f"  {k:<22} {tag}")
+    if action == "plan":
+        print(f"env-sync: dry-run，{len(layer)} 個鍵在表內、{len(drift)} 個與 .env 不同"
+              f"（值不顯示）")
+        sys.exit(0)
+    if drift:
+        print("env-sync --check: .env 與總表不一致的鍵: " + " ".join(drift), file=sys.stderr)
+        print("              跑 `env-sync.sh render` 讓總表成為真相（或確認該機真的該不同）",
+              file=sys.stderr)
+        sys.exit(1)
+    print(f"env-sync --check: per-host 值與總表一致（{len(layer)} 鍵，該機 "
+          f"{host or '?'}）")
+    sys.exit(0)
+
+lines = open(env_path, encoding="utf-8").read().splitlines() if os.path.exists(env_path) else []
+have, out = set(), []
 for line in lines:
-    m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
+    m = ASSIGN.match(line.strip())
     if m and m.group(1) in layer:
         out.append(f"{m.group(1)}={layer[m.group(1)]}")
         have.add(m.group(1))
@@ -95,7 +218,38 @@ if missing:
     for k in missing:
         out.append(f"{k}={layer[k]}")
 open(env_path, "w", encoding="utf-8").write("\n".join(out) + "\n")
+print(f"env-sync: 合併 {len(layer)} 鍵進 {os.path.basename(env_path)}"
+      f"（缺鍵 {len(missing)} 個附加於 managed 區）")
 PY
+}
+
+# 挑本機 HOST_ID：render 的選擇器。刻意不放進總表（要先知道本機是誰才挑得到列）。
+local_host() {
+  local v=""
+  [ -f "$DOTENV" ] && v="$(grep -m1 -E '^HOST_ID=' "$DOTENV" 2>/dev/null | cut -d= -f2- || true)"
+  printf '%s' "$v"
+}
+
+cmd_render() {
+  local host="" action=apply
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --host) host="${2:-}"; shift 2 ;;
+      --dry-run) action=plan; shift ;;
+      *) echo "env-sync render: unknown arg: $1" >&2; exit 2 ;;
+    esac
+  done
+  [ -f "$TABLE" ] || { echo "env-sync render: 找不到 $TABLE" >&2; exit 1; }
+  [ -n "$host" ] || host="$(local_host)"
+  if [ -z "$host" ]; then
+    echo "env-sync render: .env 沒有 HOST_ID，無法知道要挑哪一列。" >&2
+    echo "                請先在 .env 設 HOST_ID（x570/mbp/msi），或用 --host 指定。" >&2
+    exit 1
+  fi
+  # expand=1：總表裡 ${POSTGRES_PASSWORD} 這類佔位要在 render 時注入真值。
+  py_apply table "$action" "$TABLE" "$host" 1
+  [ "$action" = apply ] && chmod 600 "$DOTENV"
+  return 0
 }
 
 cmd_pull() {
@@ -111,17 +265,18 @@ cmd_pull() {
   SOPS_AGE_KEY_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}" \
     sops --decrypt --output "$tmp" "$enc"
   chmod 600 "$tmp"
-  merge_layer "$tmp"
-  merge_layer "$ENV_DIR/common.env"
-  chmod 600 "$DOTENV"
+  # 憑證層 expand=0：密碼裡若真的含 ${...} 字面，展開會把它改掉。
+  # 這裡的 ${VAR} 只在「值是我們寫的設定」時才該展開。
+  py_apply file apply "$tmp" "" 0
+  py_apply file apply "$ENV_DIR/common.env" "" 1
   trap - EXIT
   shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
-  echo "env-sync: pulled shared layers into .env (per-machine keys untouched)"
+  cmd_render
+  chmod 600 "$DOTENV"
 }
 
 cmd_check() {
-  # 不需 sops：只核對鍵名覆蓋率與版控衛生。值一律不讀。
-  local fail=0
+  # 不需 sops：只核對鍵名覆蓋率、總表 schema、per-host 漂移與版控衛生。值一律不印。
   [ -f "$DOTENV" ] || { echo "env-sync --check: MISSING .env" >&2; exit 1; }
   python3 - "$DOTENV" "$ENV_DIR/secrets.common.env.example" "$ENV_DIR/common.env" <<'PY'
 import re, sys
@@ -139,21 +294,44 @@ if missing:
     sys.exit(1)
 print(f"env-sync --check: key coverage ok ({len(env)} keys in .env)")
 PY
-  fail=$?
-  # 以下兩項只在真實 repo 執行（fixture 目錄不在 git 裡，無意義則跳過）。
+  local fail=$?
+  # per-host 總表：schema ＋ 與 .env 的一致性（同時驗證 ${VAR} 都解析得到）。
+  if ! cmd_render_check; then
+    fail=1
+  fi
+  # 以下只在真實 repo 有意義（fixture 目錄不在 git 裡）。
   if [ "$ENV_DIR" = "$ROOT/settings/env" ]; then
-    # hosts/ 下的真值檔不得進版控（只許 .example）。
-    if git -C "$ROOT" ls-files settings/env/hosts/ | grep -v '\.example$' | grep -q .; then
-      echo "env-sync --check: tracked non-example file under settings/env/hosts/" >&2
+    # 明文暫存檔不得殘留。
+    if ls "$ENV_DIR"/.decrypted.* "$ENV_DIR"/.init-secrets.* 2>/dev/null | grep -q .; then
+      echo "env-sync --check: leftover decrypted tmp in settings/env/" >&2
       fail=1
     fi
-    # 明文暫存檔不得殘留。
-    if ls "$ENV_DIR"/.decrypted.* 2>/dev/null | grep -q .; then
-      echo "env-sync --check: leftover decrypted tmp in settings/env/" >&2
+    # 單一真相：總表與加密檔必須被追蹤，且不得另立 per-host 明文真值檔。
+    if ! git -C "$ROOT" ls-files --error-unmatch settings/env/hosts.shared.env >/dev/null 2>&1; then
+      echo "env-sync --check: settings/env/hosts.shared.env 未被 git 追蹤" >&2
+      fail=1
+    fi
+    # 白名單：README.md、*.env.example、common.env、hosts.shared.env、*.enc.env
+    local extra
+    extra="$(git -C "$ROOT" ls-files settings/env/ \
+      | grep -vE '(\.md|\.env\.example|common\.env|hosts\.shared\.env|\.enc\.env)$' || true)"
+    if [ -n "$extra" ]; then
+      echo "env-sync --check: settings/env 下有非白名單的追蹤檔（per-host 真值只能放總表）:" >&2
+      echo "$extra" | sed 's/^/    /' >&2
       fail=1
     fi
   fi
   return $fail
+}
+
+cmd_render_check() {
+  local host
+  host="$(local_host)"
+  if [ -z "$host" ]; then
+    echo "env-sync --check: .env 沒有 HOST_ID（render 的選擇器）" >&2
+    return 1
+  fi
+  py_apply table check "$TABLE" "$host" 1
 }
 
 cmd_init_secrets() {
@@ -205,12 +383,15 @@ PY
   echo "env-sync: wrote $enc (track it with git)"
 }
 
+# 合併引擎只有一份 Python 的理由：2026-09-27 之前 merge_layer 與後來新增的
+# render 各寫一份合併邏輯；兩份都對但只要一份改了就是無聲漂移。收斂後
+# 「空值不合併／行保留／缺鍵附加在 managed 區」只有一個實作處。
 case "${1:-pull}" in
-  pull) cmd_pull ;;
+  pull) shift; cmd_pull "$@" ;;
+  render) shift; cmd_render "$@" ;;
   --check) cmd_check ;;
   --fingerprints) fingerprints "${2:-$DOTENV}" ;;
   --init-secrets) cmd_init_secrets "${2:-}" ;;
-  --host) echo "env-sync: fresh-machine scaffold not implemented in this phase; see settings/env/README.md" >&2; exit 2 ;;
   -h|--help|help) usage ;;
   *) echo "env-sync: unknown arg: $1" >&2; usage >&2; exit 2 ;;
 esac

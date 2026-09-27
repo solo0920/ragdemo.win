@@ -146,7 +146,22 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
   `law-update-worker.sh` 也自己載入它，2026-09-26 移除 `backend/.env` 這份副本 ——
   兩份並存時 `QDRANT_API_KEY` 曾漂移，造成「本機 200、遠端 401」）。
   樣板／說明見根 `.env.example`（2026-09-26 改）；`python3 scripts/env-audit.py`
-  可列出每個變數的消費者、幽靈變數與副本漂移；機台專屬變數加 `msi_`/`mbp_`/`x570_` 前綴。
+  可列出每個變數的消費者、幽靈變數與副本漂移。
+- **per-host 值的唯一真相＝`settings/env/hosts.shared.env`（2026-09-27）**：三台的
+  `x570_`／`mbp_`／`msi_` 值寫在同一個被追蹤的明文檔裡（不含憑證），
+  `scripts/env-sync.sh render` 依本機 `HOST_ID` 挑列、展開 `${VAR}` 後寫進
+  **不帶前綴**的 `.env`；`--check` 驗 schema 完整性與漂移。
+  前綴刻意不進執行期 `.env`：compose 只認 `${VAR}`，沒有依 `HOST_ID` 動態選
+  `msi_`／`x570_` 的能力 —— 前綴若寫在 `.env`，值會讀不到而回退原始碼預設
+  （`LLM_MODEL` 掉回 14b、`TS_IP` 讓 `ports:` 綁錯而啟動失敗），屬靜默劣化。
+  `HOST_ID` 本身是 render 的選擇器，只能各機手動設一次。
+- **`POSTGRES_PASSWORD` ≠ DSN 裡的密碼（2026-09-27 MSI 實測）**：前者是**本機**
+  pg 容器的密碼（各機可不同），而 `POSTGRES_DSN` 指向 **x570**，裡面必須是
+  x570 的 pg 密碼。兩者 sha256 前 12 碼不同（`55cebf3c8276` vs `e328bd31728a`，
+  皆 32 字元）。用 `${POSTGRES_PASSWORD}` 展開 DSN 會製造「設定都有、
+  心跳就是 password authentication failed」。連 x570 的 pg 密碼目前沒有對應
+  變數（照 `QDRANT_PEER_API_KEY` 慣例應叫 `POSTGRES_PEER_PASSWORD`），
+  值待 x570 查證後納管 —— 見 `X570-HANDOFF.md` 事項 2。
 - **共用憑證分發（2026-09-27）**：9 把必須三台一致的憑證
   （`QDRANT_API_KEY`／`QDRANT_PEER_API_KEY`／`POSTGRES_PASSWORD`／`ADMIN_TOKEN`／
   `CF_AIG_TOKEN`／`HF_TOKEN`／`NVIDIA_API_KEY`／`TYPESAFE_API_KEY`／`ZEN_API_KEY`）

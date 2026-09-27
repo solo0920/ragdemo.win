@@ -14,6 +14,12 @@ MSI 已全部完成，本檔對 MSI 只作為「為什麼要這樣做」的說�
 > `env-sync.sh pull` 合併）。下面手動步驟仍有效，是加密檔還沒覆蓋到你之前
 > 的 fallback；兩種方式不要混用同一把 key 的兩次輪換。
 
+> **pull 之前先設 `HOST_ID`**（`x570` / `mbp` / `msi` 擇一寫在 `.env`）。
+> `env-sync.sh pull` 最後會 render per-host 值，選擇器就是它；沒設會明確
+> 報錯而不是猜。per-host 的值（`TS_IP`／`LLM_MODEL`／`OLLAMA_*` 等）不在
+> 各自的 `.env` 手寫，而是 `settings/env/hosts.shared.env` 三台同一個檔，
+> render 會挑本機那一欄寫進來。
+
 **為什麼要輪換**：2026-09-26 診斷時，這把 key 兩次被印進 agent 的對話紀錄
 （`env | grep` 與 `bash -x` 各一次）。三台共用同一把，所以等同三台外洩。
 目前流通中的值是**已外洩**的，請整組換掉。

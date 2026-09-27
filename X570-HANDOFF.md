@@ -103,6 +103,49 @@ docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres \
 > 不要自行 `ALTER USER` —— 那會讓 x570 自己的 api 也需要重啟，
 > 且方向要由 MSI／mbp 端配合。**只查证並回報。**
 
+### ⚠️ 2026-09-27 新發現：問題不是「三台 POSTGRES_PASSWORD 不一致」
+
+MSI 端量到的事實：`POSTGRES_DSN` 裡內嵌的密碼，與 MSI 自己的
+`POSTGRES_PASSWORD` **指紋不同**（`55cebf3c8276` vs `e328bd31728a`，都是 32 字元）。
+
+```
+MSI .env 的 POSTGRES_DSN = postgresql://rag:<55cebf3c8276>@100.119.83.111:5432/ragdemo
+MSI .env 的 POSTGRES_PASSWORD = <e328bd31728a>     ← 這是 MSI **本機** pg 容器的密碼
+```
+
+所以正確的模型是：
+
+| 變數 | 指向 | 三台是否需一致 |
+|---|---|---|
+| `POSTGRES_PASSWORD` | **本機** pg 容器 | **否**（各機自己的） |
+| `POSTGRES_DSN` 內嵌的密碼 | **x570** 的 pg | **是**（mbp/msi 要靠它心跳） |
+
+→ 原本把 MSI 的 `POSTGRES_PASSWORD` 送去對 x570 認證，是拿錯鑰匙。
+請在 x570 上多量一個值，才能判定 MSI 的 DSN 到底是「對的舊值」還是「早就錯了」：
+
+```bash
+# C) x570 自己的 role 密碼指紋（與 .env 的比對用；不要值）
+printf 'x570 .env POSTGRES_PASSWORD = %s\n' \
+  "$(printf '%s' "$POSTGRES_PASSWORD" | sha256sum | cut -c1-12)"
+
+# D) 容器內 role 的實際密碼指紋（從 shadow 讀不出明文，改用「改密碼驗證」法：
+#    先記錄目前 .env 的指紋 → 若 D 與 C 不同代表 .env 與 role 已脫節）
+#    這一步只讀不寫：查 pg_hba 與 role 的 created 狀態
+docker compose exec -T postgres psql -U rag -d ragdemo -tAc \
+  "select rolname, rolvaliduntil from pg_authid where rolname='rag'"
+```
+
+回報格式補一行：
+
+```
+2b. x570 role 與 .env 是否脫節：__（D 的結果）
+2c. x570 的 pg role 密碼指紋 = xxxx（若能取得；這就是 mbp/msi 的 DSN 該用的值）
+```
+
+拿到 `2c` 之後，MSI 端會新增 `POSTGRES_PEER_PASSWORD`（照 `QDRANT_PEER_API_KEY`
+的命名慣例）並把 `hosts.shared.env` 的三列 `POSTGRES_DSN` 接上，**不需要**動
+`POSTGRES_PASSWORD`。
+
 ---
 
 ## 事項 3：2026-09-26 x570 異常關機的根因（尚未證實）
@@ -200,6 +243,8 @@ crontab -l | grep sync_daily || echo "尚未排程"
 ```
 1. qdrant key：A=xxx B=xxx MSI=96c2dec03d81 → 判定是 ___
 2. POSTGRES_PASSWORD：A 的結果=___ backends 列數=___ 指紋=xxx → 判定是 ___
+2b. x570 role 與 .env 是否脫節：___
+2c. x570 的 pg role 密碼指紋 = xxxx
 3. 關機根因：boots=___ docker 錯誤=___ 容器 restart policy=___ logind=___
 4. ingest：duckdb=___ POSTGRES_DSN=___ dry-run 結果=___ 排程=___
 5. age 公鑰：age1...（64 字，見下）
