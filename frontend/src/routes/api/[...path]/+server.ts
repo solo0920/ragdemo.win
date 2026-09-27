@@ -4,20 +4,50 @@ import { readCookie, verifySession } from '$lib/google';
 
 const SENSITIVE = new Set(['query', 'ingest', 'eval', 'rules']);
 
-// 公網後端依優先序（自動模式依此順序即時備援：先通者勝）。
-// 可用 Pages 變數 API_ORIGINS（逗號分隔）覆寫；未設則用內建三台。
-const DEFAULT_ORIGINS = [
-  'https://api-x570.ragdemo.win',
-  'https://api-mbp.ragdemo.win',
-  'https://api-msi.ragdemo.win',
-];
+interface Host { id: string; url: string }
 
-// /query 連線 log 用的三台識別（id → 公網 URL）。
-const HOSTS = [
-  { id: 'x570', url: DEFAULT_ORIGINS[0] },
-  { id: 'mbp', url: DEFAULT_ORIGINS[1] },
-  { id: 'msi', url: DEFAULT_ORIGINS[2] },
-];
+// 後端清單**只**來自 Pages 變數，不在程式裡列舉主機。
+//
+// 2026-09-27 之前這裡寫死三台（DEFAULT_ORIGINS），而且 `API_ORIGIN` 若正好
+// 命中其中一台就「偷偷展開成完整三台」。那等於：第 4 台部署的人必須改程式，
+// 而且他會在自己只想指一台時被靜默塞進兩台他沒有的位址。兩者都拿掉。
+//
+// `API_ORIGINS` 兩種格式都收（與後端 HOST_API_URLS / OLLAMA_URLS 同規格）：
+//   https://api-a.example.com,https://api-b.example.com   ← 純網址
+//   a=https://api-a.example.com,b=https://api-b.example.com ← id=網址
+// 沒給 id 就從主機名第一段推導（api-x570.ragdemo.win → x570），
+// 這樣純網址寫法不必為了顯示名稱而硬湊 id。
+//
+// ⚠️ 完全未設 → 視為單機部署，轉發一律 503 並說明缺什麼。**不**退回任何
+// 內建清單：那正是「換台機器就壞掉」的來源。
+function parseOrigins(s?: string): Host[] {
+  const out: Host[] = [];
+  for (const part of (s || '').split(',')) {
+    const raw = part.trim();
+    if (!raw) continue;
+    // ⚠️ 順序很重要：必須先切 `id=`，**再**檢查網址。
+    // 先檢查的話 `msi=https://api-msi.ragdemo.win` 會因為開頭不是 http
+    // 而被整段丟掉 —— 那正是上面宣告要支援的格式。實測踩到。
+    let id = '';
+    let url = raw;
+    const eq = raw.indexOf('=');
+    if (eq > 0 && raw.slice(eq + 1).includes('://')) {
+      id = raw.slice(0, eq).trim();
+      url = raw.slice(eq + 1).trim();
+    }
+    url = url.replace(/\/$/, '');
+    if (!/^https?:\/\//.test(url)) continue;   // 純 id 或壞值 → 丟棄，不產生假 peer
+    if (!id) {
+      try {
+        id = new URL(url).hostname.split('.')[0].replace(/^api-/, '');
+      } catch {
+        id = url;
+      }
+    }
+    out.push({ id, url });
+  }
+  return out;
+}
 
 async function guard(request: Request, path: string): Promise<Response | null> {
   if (!SENSITIVE.has(path)) return null;
@@ -47,21 +77,14 @@ interface Env {
   API_ORIGINS?: string;
 }
 
-// 展開成依序清單：API_ORIGINS 優先；其次 API_ORIGIN 若命中我們三台之一，
-// 就展開成完整三台（一律 x570 優先，符合同一優先序）；其餘自架單一台原樣。
-function originsOf(platform?: { env?: Env }): string[] {
-  const fromEnv = (s?: string) => (s || '').split(',').map((x) => x.trim().replace(/\/$/, '')).filter(Boolean);
+// 依序清單。API_ORIGINS 優先（多台備援）；只有 API_ORIGIN 就當單一台。
+// 兩者都未設 → 空陣列（= 未設定，呼叫端會回 503 說明缺什麼）。
+function hostsOf(platform?: { env?: Env }): Host[] {
   const pe = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-  if (platform?.env?.API_ORIGINS) return fromEnv(platform.env.API_ORIGINS);
-  if (pe?.env?.API_ORIGINS) return fromEnv(pe.env.API_ORIGINS);
-  const singleA = (platform?.env?.API_ORIGIN || '').trim().replace(/\/$/, '');
-  const singleB = (pe?.env?.API_ORIGIN || '').trim().replace(/\/$/, '');
-  const single = singleA || singleB;
-  if (single) {
-    if (DEFAULT_ORIGINS.includes(single)) return [...DEFAULT_ORIGINS];
-    return [single];
-  }
-  return DEFAULT_ORIGINS;
+  const many = platform?.env?.API_ORIGINS || pe?.env?.API_ORIGINS;
+  if (many) return parseOrigins(many);
+  const single = (platform?.env?.API_ORIGIN || pe?.env?.API_ORIGIN || '').trim();
+  return parseOrigins(single);
 }
 
 // 判斷該後端是否「已離線（不值得重試）」：網路層失敗，或 Cloudflare
@@ -72,7 +95,7 @@ function dead(status: number): boolean {
 }
 
 async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }, headers?: Headers): Promise<Response> {
-  const origins = originsOf(platform);
+  const origins = hostsOf(platform).map((h) => h.url);
   if (origins.length === 0) {
     return new Response(JSON.stringify({ detail: 'API_ORIGINS/API_ORIGIN 未設定（請在 Cloudflare Pages 變數設定）' }), {
       status: 503,
@@ -128,16 +151,18 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-// /api/query?backend=auto|x570|mbp|msi
-// 先列出三台連線 log，再依指定或自動選一台生成回答。
+// /api/query?backend=auto|<某台 id>
+// 先列出各台連線 log（清單來自 API_ORIGINS，不是程式裡寫死的三台），
+// 再依指定或自動選一台生成回答。
 async function queryRoute(request: Request, platform?: { env?: Env }): Promise<Response> {
+  const hosts = hostsOf(platform);
   const want = new URL(request.url).searchParams.get('backend');
-  const id = HOSTS.some((h) => h.id === want) ? want : 'auto';
+  const id = hosts.some((h) => h.id === want) ? want : 'auto';
 
-  const probes = await Promise.all(HOSTS.map((h) => probe(h.url)));
+  const probes = await Promise.all(hosts.map((h) => probe(h.url)));
   const log: Record<string, string> = {};
   const okHosts: string[] = [];
-  HOSTS.forEach((h, i) => {
+  hosts.forEach((h, i) => {
     log[h.id] = probes[i] ? '連線成功' : '連線失敗';
     if (probes[i]) okHosts.push(h.id);
   });
@@ -146,11 +171,11 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
   let base = '';
   if (id !== 'auto' && okHosts.includes(id)) {
     host = id;
-    base = HOSTS.find((h) => h.id === id)!.url;
+    base = hosts.find((h) => h.id === id)!.url;
   } else if (id === 'auto') {
     const first = okHosts[0] ?? null;
     host = first;
-    if (first) base = HOSTS.find((h) => h.id === first)!.url;
+    if (first) base = hosts.find((h) => h.id === first)!.url;
   }
   if (!host || !base) {
     return json({ ok: false, host: null, log, detail: '所有後端皆無法連線' });

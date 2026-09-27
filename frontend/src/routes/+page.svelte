@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
 
-  const BACKENDS = [
+  // 後端切換器的候選名單**從 /status 回的 known 推導**，不在這裡列舉主機。
+  // known 來自後端的 HOST_API_URLS；未設就是空 → 只剩「自動」，單機部署正常。
+  // 舊版這裡寫死 x570/mbp/msi 三台，第 4 台部署的人必須改程式才能切過去。
+  let knownHosts = {};
+  $: BACKENDS = [
     { id: 'auto', label: '自動', base: '' },
-    { id: 'x570', label: 'x570', base: 'https://api-x570.ragdemo.win' },
-    { id: 'mbp', label: 'mbp', base: 'https://api-mbp.ragdemo.win' },
-    { id: 'msi', label: 'msi', base: 'https://api-msi.ragdemo.win' },
+    ...Object.entries(knownHosts).map(([id, url]) => ({ id, label: id, base: url })),
   ];
 
   let question = '';
@@ -212,8 +214,13 @@
       const r = await fetch(api('/status'));
       if (!r.ok) throw new Error('HTTP ' + r.status);
       status = await r.json();
+      // 後端知道的 peer 清單。取不到就清空（切換器退回只有「自動」）——
+      // 那比留著上一次的值誠實：留著會讓 UI 顯示一台已經不認識的機器。
+      knownHosts = status?.known && typeof status.known === 'object' ? status.known : {};
+      restoreBackend();   // 清單到了才驗得動上次選的是哪台（見函式註解）
     } catch (_) {
       status = { ok: false, host: '-', log: null };
+      knownHosts = {};
     } finally {
       statusLoading = false;
     }
@@ -286,9 +293,6 @@
     }
   }
 
-  const HOST_IPS = { x570: '100.119.83.111', mbp: '100.64.121.9', msi: '100.65.68.106' };
-  const HOST_NAMES = { x570: '主機', mbp: '加速', msi: 'demo' };
-
   function provName(p) {
     if (!p) return '-';
     const detail = p.model ? p.model : (p.url || '').replace(/^https?:\/\//, '');
@@ -301,10 +305,16 @@
     const log = r?.log ?? s?.log;
     const vers = s?.versions ?? r?.versions;
     const ok = (id) => log?.[id] === '連線成功';
-    return ['x570', 'mbp', 'msi'].map((id) => ({
+    // 機台清單從**回應的鍵**推導，不是寫死。log 的鍵 = 探測到的機器
+    // （後端 `_host_probe_log` 永遠含本機），versions 的鍵同源。
+    // 舊版寫死 ['x570','mbp','msi']：別台的機器一多一少，這裡就多一列假資料
+    // 或少一列真資料。
+    const ids = [...new Set([...Object.keys(log || {}), ...Object.keys(vers || {})])];
+    return ids.map((id) => ({
       k: id,
-      role: HOST_NAMES[id],
-      ip: HOST_IPS[id],
+      // 端點從網址反推。舊版是一組寫死的 tailscale IP —— 在別台機器上就是
+      // 顯示一組假的對應關係。
+      ep: (knownHosts[id] || '').replace(/^https?:\/\//, '') || '—',
       // 官方 zip 檔名固定 ChLaw.json.zip 恆定不變，版本一律取 ChLaw.json 的 UpdateDate
       ver: vers?.[id] && vers[id] !== '-' ? vers[id] : '—',
       v: ok(id) ? '✅' : '❌',
@@ -319,23 +329,25 @@
   }
   function newestVer(s) {
     const vers = s?.versions ?? {};
-    const ds = ['x570', 'mbp', 'msi'].map((id) => _normVer(vers[id])).filter(Boolean);
+    // 全部已知機台，不寫死是哪幾台。舊版寫死三台 → 第 4 台更新了法規卻不會
+    // 觸發「可更新」提示（本機以為自己最新，其實別台有新版）。
+    const ds = Object.keys(vers).map((id) => _normVer(vers[id])).filter(Boolean);
     return ds.length ? ds.sort().at(-1) : null;
   }
   function localVer(s) {
     return _normVer((s?.versions ?? {})[status?.host]) ?? _normVer(s?.law_version?.update_date);
   }
   // 有新版可抓才顯示按鈕：
-  //   - 三台裡有比本機新的 → 抓（備援機從 x570 同步；來源機重跑 ingest）
-  //   - 或三台全都沒有版本（沒人跑過 ingest）→ 也值得提示按一次試試
+  //   - 已知機台裡有比本機新的 → 抓（備援機從來源機同步；來源機重跑 ingest）
+  //   - 或大家都沒有版本（沒人跑過 ingest）→ 也值得提示按一次試試
   $: newest = newestVer(status);
   $: mine = localVer(status);
   $: updatable = !!upd?.can_update && (newest === null || (mine !== null && mine < newest));
   $: updateMsg = newest === null
-    ? '三台都尚未記錄法規版本（沒人跑過每日 ingest），可按此手動觸發一次'
+    ? '各機台都尚未記錄法規版本（沒人跑過每日 ingest），可按此手動觸發一次'
     : mine === null
-      ? `本機沒有版本記錄；三台最新為 ${newest}`
-      : `本機 ${mine}，三台最新 ${newest}`;
+      ? `本機沒有版本記錄；各機台最新為 ${newest}`
+      : `本機 ${mine}，各機台最新 ${newest}`;
 
   async function loadUpd() {
     try {
@@ -377,10 +389,21 @@
     ];
   }
 
-  if (typeof localStorage !== 'undefined') {
+  // 還原上次選的後端。
+  // ⚠️ 必須等 knownHosts 回來之後才能驗證：切換器的候選是從 /status 的 known
+  // 推導的（不在程式裡寫死），組初始化那時 knownHosts 還是空物件，提前比對
+  // 只會得到「永遠不還原」。所以在 loadStatus 填完 knownHosts 之後做。
+  let restoreTried = false;
+  function restoreBackend() {
+    if (restoreTried) return;
+    restoreTried = true;
+    if (typeof localStorage === 'undefined') return;
     const saved = localStorage.getItem('ragdemo-backend');
+    // 認得的才還原；認不得（那台機器已從設定移除）就留在「自動」，
+    // 不要硬切到一台不存在的後端。
     if (saved && BACKENDS.some((x) => x.id === saved)) backendId = saved;
   }
+  restoreBackend();
   checkHealth();
   loadStatus();
 </script>
@@ -462,14 +485,13 @@
           {:else}
             <table>
               <thead>
-                <tr><th>主機</th><th>角色</th><th>IP</th><th>法規版本</th><th>狀態</th></tr>
+                <tr><th>主機</th><th>端點</th><th>法規版本</th><th>狀態</th></tr>
               </thead>
               <tbody>
                 {#each hostRows(result, status) as row}
                   <tr>
                     <td>{row.k}</td>
-                    <td class="muted">{row.role}</td>
-                    <td>{row.ip}</td>
+                    <td>{row.ep}</td>
                     <td title="ChLaw.json 的 UpdateDate">
                       {row.ver}
                       {#if row.k === status?.host && updatable}
