@@ -54,9 +54,11 @@ services:
       # 「變數本身」而不是字面值，所以照抄成 ${LLM_MODEL:-qwen3:14b}。
       # 寫死成 qwen3:14b 會是靜默劣化 —— MSI 自己的 ollama（只有 8b）會被要求 14b。
       OLLAMA_MODELS: ${OLLAMA_MODELS:-${LLM_MODEL:-qwen3:14b}}
-      # 預設空字串，與 rag.py:137 / registry.py:18 一致。舊預設是 x570：一台沒設
-      # HOST_ID 的機器會冒用 x570 的身分覆寫它的 registry 條目，且 /query 自稱 x570。
-      HOST_ID: ${HOST_ID:-}
+      # 必填，不再有預設值。舊預設是 x570 —— 那不只是鎖死：一台沒設 HOST_ID 的
+      # 機器會冒用 x570 的身分覆寫它的 registry 條目，而且 /query 會自稱 x570
+      # （registry.py 的預設卻是空字串，兩者互相矛盾）。改成 :? 是**更硬**的
+      # 保護：忘了填就在 `docker compose up` 立刻失敗，而不是靜默頂用別人的名字。
+      HOST_ID: ${HOST_ID:?HOST_ID 必填（這台機器的代號，例如 msi）}
       # 主機身份。刻意「不」用 /etc/hostname、/etc/machine-id 的單檔 bind mount：
       # Docker Desktop（WSL）掛單一檔案不可靠，實測容器 init 直接 exit=127
       # （error mounting ... not a directory），而目錄型掛載正常 —— 只有這兩個會死。

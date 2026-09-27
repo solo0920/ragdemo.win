@@ -169,15 +169,15 @@ def test_vars_read_but_not_forwarded_to_container():
 SCOPE_B_FORWARDED = [
     ("CF_AIG_GATEWAY_ID", "backend/app/rag.py",
      'os.getenv("CF_AIG_GATEWAY_ID", "cloudflaregateway")', "cloudflaregateway"),
-    ("HOST_API_MBP", "backend/app/rag.py",
-     'os.getenv("HOST_API_MBP", "https://api-mbp.ragdemo.win")',
-     "https://api-mbp.ragdemo.win"),
-    ("HOST_API_MSI", "backend/app/rag.py",
-     'os.getenv("HOST_API_MSI", "https://api-msi.ragdemo.win")',
-     "https://api-msi.ragdemo.win"),
-    ("HOST_API_X570", "backend/app/rag.py",
-     'os.getenv("HOST_API_X570", "https://api-x570.ragdemo.win")',
-     "https://api-x570.ragdemo.win"),
+    # HOST_API_X570/MBP/MSI 原本在這張表裡各鎖一句
+    # `os.getenv("HOST_API_X570", "https://api-x570.ragdemo.win")`。
+    # 2026-09-27 三個鍵合併成 `HOST_API_URLS`（把機台清單從程式移回資料），
+    # 那三列刪掉、換成下面這列。**不是**放寬不變式：這張表的目的是
+    # 「compose 轉發的預設值必須逐字等於原始碼 os.getenv 的第二個參數」，
+    # 而 HOST_API_URLS 在原始碼的預設值是空字串（單機無 peer），照樣得鎖 ——
+    # 有人把它改回內建三台，這裡就紅。
+    ("HOST_API_URLS", "backend/app/rag.py",
+     'os.getenv("HOST_API_URLS", "")', ""),
     ("JEV_DISABLED", "backend/app/rag.py",
      'os.getenv("JEV_DISABLED", "")', ""),
     ("JEV_MODEL", "backend/app/rag.py",
@@ -284,21 +284,54 @@ def test_scope_b_no_variable_is_left_stranded():
 
 
 def test_name_scoped_machine_id_is_not_treated_as_local_identity():
-    """`HOST_API_X570` 的預設值有 x570，但它**不是本機身份**。
+    """`NAME_SCOPED_HOST`：機台代號寫在**鍵名**裡的變數不算「本機身份」。
 
     實測依據（2026-09-27 scope B 踩到）：`https://api-x570.ragdemo.win`
     的主機名被 IDENTITY_RE 命中，於是 MSI 被要求「必須覆蓋 HOST_API_X570」。
-    但 `rag.py:167-171` 是一張三台都要有的對照表（前端「連線與來源」彈窗
+    但那時 `rag.py` 是一張三台都要有的對照表（前端「連線與來源」彈窗
     逐台列位址），缺一台就少一列 —— 那是假警告，不是設定錯誤。
+
+    ⚠️ 2026-09-27 那三個鍵已刪（合併成 `HOST_API_URLS`），所以這個測試
+    **不能再靠真實變數維持** —— 那會變成「測試自己帶著被刪的鍵名」，
+    等於要求 env-audit 保留一個已經不需要的規則。
+    改成用**合成的 Ref** 直接驗規則本身：規則還在、還對，只是不再有真實
+    使用者。這樣規則被誤刪時這裡會紅（那才是我們要的），而刪掉三個變數
+    時這裡不會紅（那不是回歸）。
     """
-    for name in ("HOST_API_X570", "HOST_API_MBP", "HOST_API_MSI"):
-        assert REG[name].compose_default, f"{name} 應有 compose 預設值"
-        assert not REG[name].has_identity_default(), \
+    for name in ("HOST_API_X570", "FOO_MSI", "PEER_MBP"):
+        r = ea.Ref(name)
+        r.compose_default = f"https://api-{name.split('_')[-1].lower()}.example.com"
+        assert not r.has_identity_default(), \
             f"{name} 的機台代號在鍵名裡，不該被判成本機身份"
-    # 這個例外不放寬真正會炸的那個：TS_IP 在 ports: 裡，身份檢查仍生效。
-    assert REG["TS_IP"].in_ports
-    assert REG["TS_IP"].has_identity_default()
-    assert REG["HOST_ID"].has_identity_default()
+    # 反向：同樣的值，**沒有** NAME_SCOPED_HOST 前綴時就必須被判出來。
+    # 少了這條，上面的斷言會因為 has_identity_default 壞掉而「全綠」。
+    plain = ea.Ref("PEER_URL")
+    plain.compose_default = "https://api-x570.example.com"
+    assert plain.has_identity_default(), \
+        "沒有 _<機台> 前綴卻沒被判成機台身份 —— NAME_SCOPED_HOST 放寬太多了"
+
+    # 這個例外不放寬真正會炸的那個：`ports:` 的綁定仍獨立判準。
+    # 真實的 TS_IP 已經不是這個案例（預設值改成 127.0.0.1，見
+    # test_no_compose_default_bakes_a_machine_identity），所以用合成的 Ref
+    # 守住這條規則：一旦有人把某個 ports 綁定的預設值又寫成別台機器的 IP，
+    # 這裡要紅。
+    assert REG["TS_IP"].in_ports, "TS_IP 仍用在 ports: 綁定"
+    assert not REG["TS_IP"].has_identity_default(), \
+        "TS_IP 預設值現在是 127.0.0.1（loopback，不具機台身份）—— " \
+        "若這裡紅了，代表有人又把別台機器的 IP 寫回來"
+    bound = ea.Ref("QDRANT_BIND")
+    bound.compose_default = "100.119.83.111"
+    bound.in_ports = True
+    assert bound.has_identity_default(), \
+        "ports: 綁定用了別台機器的 IP 卻沒被判出來 —— 綁錯會讓 docker 啟動失敗"
+
+    # 最後一項：真實 registry 裡 HOST_ID 已經沒有預設值了（改成 `${HOST_ID:?}`，
+    # 忘了填就在 `docker compose up` 直接失敗）。原來這裡斷言它
+    # has_identity_default —— 那是「別人烤給 x570 的 compose」時代的殘留。
+    # 現在它靠「必填」保護，不是靠「預設值是別人的身分」，兩條路都成立但
+    # 機制不同，所以這裡只確認**已經不再**是身分型預設值。
+    assert not REG["HOST_ID"].has_identity_default(), \
+        "HOST_ID 不該再有內建機台身分的預設值（舊值是 x570）"
 
 
 # ── fallback 連鎖 ───────────────────────────────────────────
@@ -328,16 +361,60 @@ def test_var_with_independent_uses_is_not_marked_superseded():
         "LLM_MODEL 在 rag.py:215,217 有獨立使用，不該標成被蓋掉"
 
 
-def test_identity_laden_defaults_are_recognised():
-    """預設值內建某台機器身份的變數要認得出來。
+def test_no_compose_default_bakes_a_machine_identity():
+    """**不變式：沒有任何變數的 compose 預設值內建某台機器的身份。**
 
-    實測依據：舊版 KNOWN 手動標 TS_IP/HOST_ID 為 required。
-    改寫後若沒有這條機械規則，mbp/msi 少設 TS_IP 就不會被抓到 ——
-    而 compose 的 ports: 用它，會試圖 bind x570 的 IP 而啟動失敗。
+    這是「解除三台鎖死」的核心不變式。舊版有兩個違反者，而且都是**別台機器
+    的身份**：
+      - `HOST_ID: ${HOST_ID:-x570}`     → 一台沒設的機器會冒用 x570 覆寫它的
+                                          registry 條目（而且 /query 自稱 x570）
+      - `TS_IP: ${TS_IP:-100.119.83.111}` → ports: 會去 bind 別人的 IP
+    2026-09-27 兩者都清掉：HOST_ID 改成 `${HOST_ID:?…}`（必填，忘了就啟動失敗），
+    TS_IP 改成未設就綁 127.0.0.1（沒有 Tailscale 也能跑）。
+
+    這個測試的價值在**將來**：有人再寫一次 `${某變數:-100.x.x.x}` 或
+    `${某變數:-x570}` 就會紅。env-audit 的「機台身份必須覆蓋」機制正是靠
+    `has_identity_default()` 認出這種預設值 —— 機制本身還在（見下面兩個
+    測試用合成 Ref 守住它），這裡守的是「目前一個違例都沒有」。
     """
+    offenders = {
+        name: r.compose_default
+        for name, r in REG.items()
+        if r.compose_default and r.has_identity_default()
+    }
+    assert not offenders, (
+        "compose 的預設值內建了某台機器的身份，新機器會安靜地冒充它："
+        f"{offenders}"
+    )
+    # 順帶守住「TS_IP 的預設值是 loopback」這個具體成果。
+    # 為什麼不是「沒有預設值」：ports 綁定總得有個位址，選 127.0.0.1 意思是
+    # 「未設就只開放本機」—— 一台沒裝 Tailscale 的機器照樣 `up`得起來。
+    # 這正是解鎖的目的，所以斷言的是「預設值必須是 loopback」而不是「必須空」。
+    assert REG["TS_IP"].compose_default == "127.0.0.1", \
+        f"TS_IP 的 ports 預設值必須是 127.0.0.1（loopback），" \
+        f"現在是 {REG['TS_IP'].compose_default!r}"
+    # HOST_ID 走的是「必填」而不是「不給預設值」——兩者都能防止冒名，
+    # 但必填的失敗訊息更直接。別把它退回成有預設值。
+    assert REG["HOST_ID"].required, \
+        "HOST_ID 應該是必填（compose 用 ${HOST_ID:?…}），這樣忘了填就啟動失敗"
+
+
+def test_identity_laden_defaults_are_recognised():
+    """`has_identity_default()` 認得出「預設值內建某台機器身份」。
+
+    ⚠️ 2026-09-27 改寫：真實的 registry 裡**已經沒有**這種變數了
+    （見 test_no_compose_default_bakes_a_machine_identity），所以這裡改用
+    合成 Ref 守住規則本身。規則還在，是因為它是「將來有人再犯時」的偵測器；
+    如果跟著變數一起刪掉，就再也沒有人會在寫出 `${X:-100.x.x.x}` 時被提醒。
+    """
+    for default, why in (("100.119.83.111", "tailscale IP"),
+                         ("x570", "機台代號"),
+                         ("https://api-mbp.ragdemo.win", "主機名含機台代號")):
+        r = ea.Ref("SOME_VAR")
+        r.compose_default = default
+        assert r.has_identity_default(), f"認不出 {why} 型身份：{default!r}"
+    # TS_IP 仍出現在 ports:（那個獨立判準還在用）
     assert REG["TS_IP"].in_ports, "TS_IP 應出現在 compose 的 ports:"
-    assert REG["TS_IP"].has_identity_default()
-    assert REG["HOST_ID"].compose_default == "x570"
 
 
 def test_identity_check_only_fires_on_other_machines(capsys):
@@ -350,10 +427,20 @@ def test_identity_check_only_fires_on_other_machines(capsys):
     2. 直接呼叫 ea.audit()，不要在測試裡重寫一份判定邏輯：
        我第一版重寫了 find_wrong，漏掉 `my_host != baked_host` 那道
        guard，於是斷言自相矛盾 —— 重複實作必然會和真品漂移。
+
+    ⚠️ 2026-09-27 改寫：真實 compose 不再烤任何機台身份，所以 `baked` 改成
+    從**合成 registry** 取。這樣這條「只對別的機器發動」的規則仍然被完整
+    測到（而不是因為沒有觸發點就變成永遠不會失敗的假測試）。
     """
-    reg = REG
-    baked = reg["HOST_ID"].compose_default        # 這份 compose 烤給哪台
-    assert baked, "HOST_ID 應有 compose 預設值"
+    baked = "x570"
+    reg = ea.build_registry()                 # 同一份真實掃描結果
+    reg["HOST_ID"].compose_default = baked    # 人為造回「烤給 x570」的狀態
+    # ports 綁定也帶內建 IP：這是**另一種**違例（不是身分、而是要 bind 別人的
+    # 位址，docker 會直接啟動失敗）。registry 裡原本沒有這種變數，所以自己造一個。
+    peer_bind = ea.Ref("PEER_BIND")
+    peer_bind.compose_default = "100.119.83.111"
+    peer_bind.in_ports = True
+    reg["PEER_BIND"] = peer_bind
 
     def run(env: dict[str, str]) -> tuple[int, str]:
         capsys.readouterr()                        # 清掉先前輸出
@@ -362,21 +449,36 @@ def test_identity_check_only_fires_on_other_machines(capsys):
 
     # 情境 A：就是這份 compose 的主人，且身分變數齊備 → 不發動身分檢查
     n_a, out_a = run({"HOST_ID": baked, "TS_IP": "1.2.3.4",
-                      "OLLAMA_URLS": "http://1.2.3.4:11434"})
+                      "OLLAMA_URLS": "http://1.2.3.4:11434",
+                      "PEER_BIND": "100.64.121.9", "POSTGRES_PASSWORD": "x"})
     assert "機台身份必須覆蓋" not in out_a, \
         f"HOST_ID 等於預設值 {baked}，不該要求覆蓋身分變數\n{out_a}"
 
     # 情境 B：別的機器，但身分變數已設 → 仍不該要求
     n_b, out_b = run({"HOST_ID": "mbp", "TS_IP": "100.64.121.9",
-                      "OLLAMA_URLS": "http://100.64.121.9:11434"})
+                      "OLLAMA_URLS": "http://100.64.121.9:11434",
+                      "PEER_BIND": "100.64.121.9", "POSTGRES_PASSWORD": "x"})
     assert "機台身份必須覆蓋" not in out_b, \
-        f"TS_IP/OLLAMA_URLS 都設了，不該再要求\n{out_b}"
+        f"TS_IP/OLLAMA_URLS/PEER_BIND 都設了，不該再要求\n{out_b}"
 
-    # 情境 C：別的機器且漏設 → 必須抓到（否則 docker bind 別人的 IP 而失敗）
-    n_c, out_c = run({"HOST_ID": "mbp"})
-    assert "機台身份必須覆蓋" in out_c, f"mbp 少設 TS_IP 應該被抓到\n{out_c}"
-    assert "TS_IP" in out_c, "TS_IP 用在 ports: 缺了會啟動失敗，必須點名"
+    # 情境 C：別的機器且漏設帶內建 IP 的 ports 綁定 → 必須抓到
+    # （否則 docker 會去 bind 別人的 IP 而啟動失敗）
+    n_c, out_c = run({"HOST_ID": "mbp", "POSTGRES_PASSWORD": "x"})
+    assert "機台身份必須覆蓋" in out_c, \
+        f"mbp 少設 PEER_BIND 應該被抓到\n{out_c}"
+    assert "PEER_BIND" in out_c, \
+        "必須點名是哪個變數的 ports 綁定會炸"
     assert "mbp" in out_c and baked in out_c, "錯誤訊息要指出本機與預設的差異"
+
+    # 情境 D：漏設 TS_IP → 走的是**另一條**規則（in_ports ⇒ 必填），
+    # 不是身分檢查。這是 2026-09-27 的變化：TS_IP 預設值改成 127.0.0.1
+    # 之後不再帶任何機台身分，所以它只會被當成「ports 綁定，缺了會失敗」。
+    # 分成兩條規則之後，訊息才不會對同一件事給出錯誤的理由。
+    n_d, out_d = run({"HOST_ID": "mbp", "PEER_BIND": "100.64.121.9",
+                      "POSTGRES_PASSWORD": "x"})
+    assert "TS_IP" in out_d, "TS_IP 缺了要被抓到"
+    assert "啟動失敗" in out_d, \
+        f"TS_IP 該用『ports 綁定』的理由，不是『別台機器的身分』\n{out_d}"
 
 
 # ── docstring / 產生檔不再有不實宣稱 ───────────────────────
@@ -495,5 +597,10 @@ def test_registry_has_no_hand_maintained_list():
     for name in ("COHERE_MODELS", "GEMINI_MODELS", "GROQ_MODELS",
                  "MISTRAL_MODELS", "NVIDIA_MODELS", "OPENROUTER_MODELS",
                  "ZEN_FREE_MODELS", "PROBE_TIMEOUT", "RAG_MIN_DENSE",
-                 "HOST_API_MBP", "QDRANT_PEER_API_KEY"):
+                 "HOST_API_URLS", "QDRANT_PEER_API_KEY"):
         assert name in REG, f"反查漏掉 {name}"
+    # 反向：已刪的鍵**不得**回來。這三個 2026-09-27 被 `HOST_API_URLS` 取代，
+    # 舊的相容 fallback 刻意不留（留著就是「非必要程式碼」，而且會讓
+    # env-audit 對「我只設了舊鍵」的機器回報錯誤的遷移建議）。
+    for gone in ("HOST_API_X570", "HOST_API_MBP", "HOST_API_MSI"):
+        assert gone not in REG, f"{gone} 已被 HOST_API_URLS 取代，不該再被讀取"

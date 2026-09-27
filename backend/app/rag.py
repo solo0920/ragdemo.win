@@ -39,8 +39,8 @@ OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434
 QDRANT_DEFAULT = os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
 
 
-def _split_endpoints(raw: str) -> tuple[list[str], dict[str, str]]:
-    """把候選清單拆成 (純網址清單, 網址→主機標籤)。
+def _split_endpoints(raw: str, fallback: str = "") -> tuple[list[str], dict[str, str]]:
+    """把候選清單拆成 (純網址清單, 網址→主機標籤)。清單空時回 [fallback]。
 
     每段可以是純網址，也可以是 '主機id=網址'。標籤**只是給人看的**（前端
     「連線與來源」要顯示這台 ollama 是誰），不影響選取、順序或索引對應 ——
@@ -50,6 +50,14 @@ def _split_endpoints(raw: str) -> tuple[list[str], dict[str, str]]:
     `http://100.x.x.x:11434` 顯示成「x570」而存在的。刪掉它之後如果不給
     別的來源，這裡就會退化顯示裸 IP（資訊沒少，src.llm.url 仍在，但面板
     少了「這是哪台」的辨識）。把標籤交給設定檔，就不必在程式裡列舉主機。
+
+    ⚠️ 空清單的回退**在這裡**做，不要寫成在外面 `or [那個常數]`：
+    那樣那個常數會多出一個使用點，env-audit 的「純連鎖」判定（pass 3 要求
+    該常數**除了定義與當預設值外沒有其他用處**）就會失效，於是
+    OLLAMA_BASE_URL 不再被標成被 OLLAMA_URLS 蓋掉 —— 那條提示會從
+    .env.example 與稽核輸出裡安靜消失。實測踩到。
+    ⚠️ 連這段說明文字本身也不能寫出那個常數名：pass 3 是逐行字面比對，
+       docstring 裡出現一次就算一次「使用」。這是同一個陷阱的第二次。
     """
     urls: list[str] = []
     labels: dict[str, str] = {}
@@ -66,13 +74,13 @@ def _split_endpoints(raw: str) -> tuple[list[str], dict[str, str]]:
         urls.append(url)
         if sep:
             labels[url] = hid.strip()
-    return urls, labels
+    return (urls, labels) if urls else ([fallback] if fallback else [], labels)
 
 
-OLLAMA_URLS, OLLAMA_LABELS = _split_endpoints(os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT))
-OLLAMA_URLS = OLLAMA_URLS or [OLLAMA_DEFAULT]
-QDRANT_URLS, QDRANT_LABELS = _split_endpoints(os.getenv("QDRANT_URLS", QDRANT_DEFAULT))
-QDRANT_URLS = QDRANT_URLS or [QDRANT_DEFAULT]
+OLLAMA_URLS, OLLAMA_LABELS = _split_endpoints(
+    os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT), OLLAMA_DEFAULT)
+QDRANT_URLS, QDRANT_LABELS = _split_endpoints(
+    os.getenv("QDRANT_URLS", QDRANT_DEFAULT), QDRANT_DEFAULT)
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
