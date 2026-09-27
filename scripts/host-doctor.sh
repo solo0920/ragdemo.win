@@ -41,6 +41,14 @@ API_URL="${HOST_API_LOCAL:-http://127.0.0.1:8000}"
 # 「心跳該有多舊」，那時沒有 env 可讀。改 compose 那個預設值時要回來改這裡。
 STALE_MIN=3
 LAW_VERSION_FILE="$ROOT/data/laws/.law_version"
+# 快照同步 log 只有「從別台拉快照的備援機」才有（source 機不跑 sync-snapshot.sh，
+# 它的 laws 是自己 ingest 進來的）。所以「這台是不是備援」用檔案存在與否判，
+# 不用 HOST_ID 白名單 —— 白名單會在加第 4 台時漏掉，然後對 source 機誤報。
+SYNC_LOG="$HOME/qdrant/sync.log"
+# 快照多久沒成功更新就值得講。sync-snapshot.sh 的 cron 是 */10 分鐘，
+# 所以正常情況 synced_at 應該是「小時級」而不是「天級」；6 小時的門檻代表
+# 「排程跑了但連續 36 次都沒成功」，遠離 10 分鐘這個尺度，不會誤報。
+LAW_SYNC_STALE_H=6
 EXIT_OK=0; EXIT_FAIL=1; EXIT_USAGE=2
 
 usage() {
@@ -367,14 +375,66 @@ ch_law_version() {
     bump law-version warn "沒有 data/laws/.law_version（備援機靠 sync-snapshot.sh 帶過來；沒有＝快照同步還沒成功過）"
     return 0
   fi
-  local v
+  # ⚠️ `why` 必須列在這行 local 裡，不能只在 case 分支裡 `why="..."`：
+  #    case 的分支寫成 `*offline*) why="…"` ，開頭是 `*offline*) ` 而不是 `why=`，
+  #    而 env-audit.py 的 SH_ASSIGN 是**行首錨定**的 match，抓不到那個賦值 →
+  #    `why` 不算「已宣告」→ 它對 `${why}` 的讀取被誤判成「讀環境變數」→
+  #    `.env.example` 多出一個 `why=`，CI 的「.env.example == --template」紅燈。
+  #    這是同一個假陽性家族的第三例（前兩例：while read 目標、for 迴圈變數，
+  #    都記在 env-audit.py 的註解裡）。正解是宣告變數，不是去改稽核器。
+  local v synced age_h lastline why=""
   v="$(python3 -c 'import sys,json
 try: print(json.load(open(sys.argv[1])).get("update_date") or "")
 except Exception: print("")' "$LAW_VERSION_FILE" 2>/dev/null || true)"
-  if [ -n "$v" ]; then
-    bump law-version ok "data/laws/.law_version = ${v}"
-  else
+  synced="$(python3 -c 'import sys,json
+try: print(json.load(open(sys.argv[1])).get("synced_at") or "")
+except Exception: print("")' "$LAW_VERSION_FILE" 2>/dev/null || true)"
+  if [ -z "$v" ]; then
     bump law-version warn "data/laws/.law_version 存在但讀不到 update_date（壞掉的 JSON）"
+    return 0
+  fi
+  # ── 陳舊度：update_date 只說「這批法規是哪天的」，不說「本機還在更新」──
+  # 2026-09-27 實測踩到：x570 離線、sync-snapshot.sh 每 10 分鐘記一次
+  # 「source offline, skip」，但 .law_version 仍留著舊的 synced_at，而原本的
+  # 檢查只看檔案在不在 → 報 law-version ok。於是 doctor 說「沒有 fail」，
+  # 實際上 RAG 答的是 9 天前的法規，而且**沒有任何症狀**。這比壞掉更糟。
+  #
+  # 只在這台是「從別台拉快照的備援機」時才判（sync log 存在才成立）。
+  # source 機的 synced_at 語意不同（自己 ingest），拿同一條規則去判會誤報 ——
+  # 而 source 機此刻離線，無法實測，所以寧可漏判也不亂報。
+  if [ -f "$SYNC_LOG" ] && [ -n "$synced" ]; then
+    # ⚠️ synced_at 由 sync-snapshot.sh 的 `date '+%F %T'` 產生：**無時區標記的
+    #    本機時間**（2026-09-27 實測：msi 是 CST +0800，寫出 "00:40:05" 其實是
+    #    16:40 UTC）。所以不能把 naive 當 UTC —— 那會**少算 8 小時**，
+    #    6 小時的門檻實際變成 14 小時（第一版就這樣寫錯過，實測報 13h 而非 21.9h）。
+    #    正確做法是**兩邊都用本機時間**，同框相減，不去猜時區。
+    #    若日後有人改成帶 offset 的 ISO 字串，fromisoformat 會回 aware，
+    #    這裡分兩條路處理，不要讓 TypeError 被吞掉變成「靜默跳過檢查」。
+    age_h="$(python3 -c 'import sys,datetime
+try:
+    t=datetime.datetime.fromisoformat(sys.argv[1])
+    if t.tzinfo is None:
+        age=(datetime.datetime.now()-t).total_seconds()      # naive ↔ 本機
+    else:
+        age=(datetime.datetime.now(datetime.timezone.utc)-t).total_seconds()
+    print(int(age//3600))
+except Exception: print("")' "$synced" 2>/dev/null || true)"
+    if [ -n "$age_h" ] && [ "$age_h" -ge "$LAW_SYNC_STALE_H" ]; then
+      lastline="$(tail -1 "$SYNC_LOG" 2>/dev/null || true)"
+      case "$lastline" in
+        *offline*) why="；同步 log 最後一行說來源離線（${lastline##*] }）" ;;
+        *) why="；同步 log 最後一行：${lastline:-（讀不到）}" ;;
+      esac
+      bump law-version warn "快照已 ${age_h} 小時沒成功更新（synced_at=${synced}，門檻 ${LAW_SYNC_STALE_H} 小時）——本機 qdrant 仍可查，但法規版本是 ${v} 的，**不是最新的**${why}"
+      return 0
+    fi
+  fi
+  if [ -n "$v" ]; then
+    if [ -n "$synced" ]; then
+      bump law-version ok "data/laws/.law_version = ${v}（synced_at=${synced}）"
+    else
+      bump law-version ok "data/laws/.law_version = ${v}"
+    fi
   fi
 }
 
