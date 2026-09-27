@@ -30,3 +30,9 @@ data/laws/*
 
 # law-update 執行狀態機（request/status 檔由 api 寫、host worker 讀寫）
 data/.ops/
+
+# Windows NTFS 替代資料流（ADS）。從 Windows 拖進來／解壓縮時會附帶
+# 「檔名:Zone.Identifier」，內容只是來源路徑，無版本價值且會污染 git 狀態。
+# 2026-09-27：files/ 進版控時清掉一批（docs/ 三份文件的 originals）。
+*:Zone.Identifier
+*:Zone.Identifier:*

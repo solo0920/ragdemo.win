@@ -1,0 +1,528 @@
+{
+  "project": "ragdemo.win",
+  "version": "2026-09-27",
+  "description": "RAGDemo 模組化開發架構（OpenCode Agent 版）",
+  "metadata": {
+    "total_modules": 6,
+    "concurrent_max": 1,
+    "note": "三機共用同一份 repo，同時最多一個 scope 進行中（防止半成品被自動分發）"
+  },
+  "modules": [
+    {
+      "id": "M1",
+      "name": "env",
+      "full_name": "環境變數系統",
+      "owner_agent": "env-ops",
+      "objective": "三台環境變數的單一真相：哪個共用、哪個 per-host、哪個 per-host 機密，全部機器驗證",
+      "scope": {
+        "include": [
+          ".env (根，gitignored)",
+          ".env.example",
+          ".sops.yaml",
+          "settings/env/README.md",
+          "settings/env/common.env",
+          "settings/env/hosts.shared.env",
+          "settings/env/secrets.common.env.example",
+          "settings/env/secrets.common.enc.env",
+          "settings/env/secrets.host.env.example",
+          "scripts/env-audit.py",
+          "scripts/env-sync.sh"
+        ],
+        "exclude": [
+          "compose.yaml",
+          "backend 程式碼",
+          "frontend 程式碼",
+          "ingest 邏輯"
+        ],
+        "corrections_2026_09_27": "原漏列 common.env／secrets.common.env.example／secrets.common.enc.env／.sops.yaml —— 這 4 個是實際的分層與加密分發檔（2026-09-27 scope A/B/C 建的）。另注意：scripts/env-audit.py 與 env-sync.sh 原同時被 M1 與 M6 認領（雙重所有權＝第二真相），已明確劃給 M1，見 M6 的 scope_note。"
+      },
+      "architecture_doc": "settings/env/README.md",
+      "invariants": [
+        "Per-host 機密永不進 sops（QDRANT_API_KEY、POSTGRES_PASSWORD 只留本機 .env 600 mode）",
+        "HOST_ID 絕不能讀錯（改錯會讓 compose 無法啟動）",
+        "Tailscale IP 必須正確（寫 LAN_IP 會被 registry.py 過濾掉而無人發現）",
+        "兩份 .env 副本不能漂移（只有根 .env 是真相）"
+      ],
+      "pitfalls": [
+        "POSTGRES_PASSWORD（本機密碼）vs POSTGRES_DSN（指向 x570）混淆",
+        "Compose 只讀 QDRANT_URL，不讀 QDRANT_URLS（多機降級靠快照同步，不靠環境變數）",
+        "env-sync.sh render 要正確帶入 HOST_ID，否則變數展開失敗"
+      ],
+      "acceptance_tests": [
+        "python3 scripts/env-audit.py ✓",
+        "scripts/env-sync.sh --check ✓",
+        "三台 docker compose up -d 成功 ✓"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "M2",
+      "name": "backend",
+      "full_name": "後端檢索引擎",
+      "owner_agent": "backend",
+      "objective": "檢索本體：路由、模型選擇與降級、registry、rules 儲存",
+      "scope": {
+        "include": [
+          "backend/app/",
+          "backend/app/main.py",
+          "backend/app/rag.py",
+          "backend/app/registry.py",
+          "backend/app/rules_store.py",
+          "backend/app/usage.py",
+          "backend/app/law_struct.py",
+          "backend/app/sparse.py",
+          "backend/Dockerfile",
+          "backend/pyproject.toml"
+        ],
+        "exclude": [
+          "ingest 邏輯",
+          "frontend 程式碼",
+          "環境變數定義"
+        ],
+        "corrections_2026_09_27": [
+          "原寫 rules.py —— 該檔不存在，實際是 rules_store.py（2026-09-27 逐檔查證）",
+          "原漏列 law_struct.py 與 sparse.py（兩者都是真實的 M2 程式碼）"
+        ]
+      },
+      "architecture_doc": "backend/DESIGN.md",
+      "endpoints": [
+        "/health",
+        "/query",
+        "/ingest",
+        "/eval",
+        "/rules",
+        "/models",
+        "/status"
+      ],
+      "llm_providers": [
+        "openrouter/",
+        "zen/",
+        "nv/ (NVIDIA NIM)",
+        "gemini/",
+        "groq/",
+        "cohere/",
+        "hf/",
+        "mis/ (Mistral)"
+      ],
+      "invariants": [
+        "模型路由必須支援全 8 個雲端 provider 群組",
+        "_pick() 必須實現 x570→本機 降級邏輯（容器化後靠快照取代 live 降級）",
+        "/query 回應必含 confidence / trace 欄位（給前端顯示引註來源）",
+        "JEV 驗證信心閘門需設定（JEV_VERIFY_MIN/JEV_BANK_MIN）"
+      ],
+      "pitfalls": [
+        "Gemini 2.5 對新 key 回 404（新申請的 key 要用 3.x 系列）",
+        "CF AI Gateway 已下架 HuggingFace provider（要直連 router.huggingface.co）",
+        "Mistral 上游 rate limit 429（只有 ministral-8b-latest/codestral-latest 可用）",
+        "MSI 為何 qwen3:8b 而非 4b？4b 的 think:false 是 bug，連『1+1』都思考 1000+ token"
+      ],
+      "acceptance_tests": [
+        "curl localhost:8000/health | grep host_id ✓",
+        "curl -X POST localhost:8000/query -d '{\"q\":\"...\"}' | grep confidence ✓",
+        "pytest -q ✓（測試在 repo 根的 tests/，不是 backend/tests/）"
+      ],
+      "acceptance_tests_correction_2026_09_27": "原寫 pytest backend/tests/ -v —— backend/tests/ 不存在。測試 12 個檔、165 條，統一在 repo 根 tests/，由根 pyproject.toml 的 pytest 執行。",
+      "status": "active"
+    },
+    {
+      "id": "M3",
+      "name": "ingest",
+      "full_name": "資料攝入與清洗",
+      "owner_agent": "ingest",
+      "objective": "法規／判決的蒐集、清洗、切分、metadata",
+      "scope": {
+        "include": [
+          "ingest/laws/",
+          "ingest/laws/pg_load.py",
+          "ingest/laws/pg_schema.sql",
+          "ingest/laws/sync_daily.py",
+          "ingest/laws/normalize.py",
+          "ingest/laws/eda.py",
+          "ingest/laws/qdrant_load.py",
+          "ingest/laws/sparse.py",
+          "ingest/cases/",
+          "data/laws/"
+        ],
+        "exclude": [
+          "檢索邏輯（backend rag.py）",
+          "UI 表現（frontend）"
+        ],
+        "corrections_2026_09_27": "原只列 3 個檔，漏了 normalize.py／eda.py／qdrant_load.py／sparse.py —— 這 4 個是管線的實際步驟（清洗／歸檔／灌向量／稀疏權重）"
+      },
+      "architecture_doc": "ingest/laws/DESIGN.md, ingest/cases/DESIGN.md",
+      "data_pipeline": [
+        "官方 zip 下載",
+        "ChLaw.json 解析",
+        "PG 關鍵字表寫入",
+        "Qdrant 向量索引構建"
+      ],
+      "invariants": [
+        "切分塊大小必須與檢索配合（不能亂切會導致上下文丟失）",
+        "版本號必須取 ChLaw.json 內的 UpdateDate（不是 zip 檔名，檔名永遠固定）",
+        "容器內 data/laws 是唯讀掛載，寫入一律在 host 端由 cron 進行",
+        "Ingest 容器跑不了（Python subprocess 限制），只能在 host 端 law-update-worker.sh 跑"
+      ],
+      "pitfalls": [
+        "SRC_API_URL 是 per-machine 必要設定，但三台 8000 全綁 127.0.0.1",
+        "精簡包還沒完成（目前 3 筆，需 500~1000 筆）",
+        "sync-snapshot.sh 要指定 SRC_API_URL，否則無法取版本"
+      ],
+      "acceptance_tests": [
+        "Qdrant laws collection 點數檢查 ✓",
+        "data/laws/.law_version 更新 ✓",
+        "PG article 表行數 > 100 ✓"
+      ],
+      "acceptance_tests_correction_2026_09_27": "原寫「PG laws_keywords 表行數」—— 該表不存在。ingest/laws/pg_schema.sql 實際只有 law／article／law_import 三張表（2026-09-27 查證）。",
+      "status": "active",
+      "blockers": [
+        "精簡包未完成（目標 500~1000 筆法規，現況遠低於此）"
+      ],
+      "blockers_correction_2026_09_27": "原列「M3 rerank() 實作（目前 stub）」—— 已過期。rerank()（backend/app/rag.py:1044-1057）已實作且是真正的本地重排（條號精準分支領先 ＋ dense 相似度降序）。真正未做的是接上 cross-encoder 模型：RERANK_MODEL（rag.py:42）已宣告但全 backend 只出現在自己那一行定義、沒有任何消費者。歸 M2／M3 交界，見 SCOPE.md 佇列代號 H。"
+    },
+    {
+      "id": "M4",
+      "name": "frontend",
+      "full_name": "前端與 Cloudflare Worker",
+      "owner_agent": "frontend",
+      "objective": "UI 與 Cloudflare worker；只打後端相對路徑 /api/*",
+      "scope": {
+        "include": [
+          "frontend/",
+          "frontend/src/routes/api/[...path]/+server.ts (worker)",
+          "frontend/src/routes/auth/ (OAuth2)",
+          "frontend/src/routes/ (各頁面 .svelte)"
+        ],
+        "exclude": [
+          "直連 Ollama / Qdrant / pg"
+        ],
+        "corrections_2026_09_27": "原寫成 src/routes/…（像 repo 根層級），實際全部在 frontend/src/routes/ 下 —— 沒有 repo 根的 src/ 目錄"
+      },
+      "architecture_doc": "frontend/DESIGN.md",
+      "framework": "SvelteKit + Cloudflare Pages",
+      "guard_routes": [
+        "/query (需 Google 登入)",
+        "/ingest (需 Google 登入)",
+        "/eval (需 Google 登入)",
+        "/rules (需 Google 登入)"
+      ],
+      "invariants": [
+        "Worker /api/* 轉發必須 guard Google 登入（query/ingest/eval/rules 四個端點）",
+        "不帶 token 給後端（後端已靠 Google 登入 guard + port 收斂）",
+        "模型下拉必須即時顯示 free 額度、用量統計、限流標記"
+      ],
+      "pitfalls": [
+        "前端自製下拉（HTML <select> 無法對內部子字串著色）",
+        "/query 從 2026-09-24 起必須登入",
+        "CF Pages 環境變數需在 Dashboard 設定，不是 .env 檔案"
+      ],
+      "acceptance_tests": [
+        "pnpm run dev ✓ 連線轉發正常",
+        "Google 登入流程通過 ✓",
+        "模型下拉列表完整 ✓"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "M5",
+      "name": "eval",
+      "full_name": "評測與驗證",
+      "owner_agent": "eval",
+      "objective": "引註命中率；不通過不准進 UI 階段",
+      "scope": {
+        "include": [
+          "evals/",
+          "evals/questions.json",
+          "evals/README.md"
+        ],
+        "exclude": [
+          "只讀不寫碼"
+        ]
+      },
+      "architecture_doc": "evals/README.md",
+      "acceptance_threshold": {
+        "hit_rate_min": 0.8,
+        "question_count_min": 50,
+        "current_state": "19 題：14 題 expect_law（計入 hit_rate）＋ 5 題 expect_none（計入 neg_rate）＋ 0 題 expect_case。最近一次量測 hit_rate=1.0（14/14）、neg_rate=1.0（5/5），2026-09-24。n=14 統計上不足以宣稱穩定達標。",
+        "current_state_correction_2026_09_27": "原寫「~14 題，hit_rate 14/14」。14 是『計分題』數不是總題數；且原寫法會讓人以為只有 14 題。計分邏輯以 backend/app/main.py:234-274 與 evals/README.md §7 為準。"
+      },
+      "invariants": [
+        "題庫數量足夠（目前 ~14 題，需擴到 50+ 題以代表法規覆蓋度）",
+        "JEV 驗證信心閘門需設定（JEV_VERIFY_MIN/JEV_BANK_MIN）",
+        "Hit rate < 0.8 不准進 UI 階段"
+      ],
+      "pitfalls": [
+        "n=14 的 hit_rate=1.0 幾乎沒有證明『穩定 ≥ 0.8』：0 失敗／n=14 時單邊 95% 成功率下界（rule of three）只有 1−3/14 ≈ 0.79，雙邊 95% 精確區間下界 ≈ 0.23",
+        "expect_law 是子字串比對，寫太寬會讓 hit_rate 虛高；每題必須是真正該引的那條",
+        "hit_rate 與 neg_rate 要一起看：只會回 no_match 的退化引擎 neg_rate=1.0 但 hit_rate=0",
+        "本檔舊版開頭說『/eval 只計算有填 expect_case 的題目』是錯的 —— 現有 19 題裡 expect_case 是 0 題，計分的全是 expect_law",
+        "reranker 不是 stub：rerank() 已實作（本地重排）。RERANK_MODEL 是宣告了但沒接線的旋鈕（無消費者），且被 env-sync.sh 當 SHARED_CONFIG 分發 —— 『能被分發』不等於『在生效』"
+      ],
+      "acceptance_tests": [
+        "curl -X POST http://localhost:8000/eval | jq .hit_rate",
+        "hit_rate >= 0.8 ✓"
+      ],
+      "status": "active",
+      "blockers": [
+        "M5 questions.json 擴 50 題（目前 ~14 題）"
+      ]
+    },
+    {
+      "id": "M6",
+      "name": "ops",
+      "full_name": "運維與部署",
+      "owner_agent": "ops",
+      "objective": "三機部署、runbook、registry 心跳、版本一致性",
+      "scope": {
+        "include": [
+          "compose.yaml",
+          "scripts/sync-snapshot.sh",
+          "scripts/law-update-worker.sh",
+          "HOST-UPGRADE.md",
+          "X570-HANDOFF.md",
+          ".github/workflows/",
+          ".githooks/"
+        ],
+        "exclude": [
+          "檢索邏輯",
+          "憑證值決定"
+        ],
+        "scope_note": "2026-09-27 修正所有權：scripts/env-sync.sh 與 scripts/env-audit.py **不再由 M6 認領**，改由 M1 獨有（原表同時列在 M1 與 M6，雙重所有權就是第二真相）。M6 的 scripts/DESIGN.md §5 仍會列出這兩支腳本，但那是『現有腳本清單』（知道它們存在），不是『我擁有它們』—— 要改請找 M1 env-ops。"
+      },
+      "architecture_doc": "scripts/DESIGN.md, HOST-UPGRADE.md",
+      "core_commands": [
+        "docker compose up -d",
+        "bash scripts/sync-snapshot.sh",
+        "scripts/env-sync.sh pull"
+      ],
+      "machines": [
+        {
+          "id": "x570",
+          "name": "solo-X570-I-AORUS-PRO-WIFI",
+          "os": "Linux",
+          "tailscale_ip": "100.119.83.111",
+          "role": "主力（資料唯一來源）",
+          "llm": "qwen3:14b",
+          "containerized": true,
+          "runner": "docker compose"
+        },
+        {
+          "id": "mbp",
+          "name": "Lees-MacBook-Pro",
+          "os": "macOS",
+          "tailscale_ip": "100.64.121.9",
+          "role": "加速（快照備援）",
+          "llm": "qwen3:14b",
+          "containerized": true,
+          "runner": "OrbStack"
+        },
+        {
+          "id": "msi",
+          "name": "MSI (WSL2 Ubuntu)",
+          "os": "Windows",
+          "tailscale_ip": "100.65.68.106",
+          "role": "demo（快照備援）",
+          "llm": "qwen3:8b",
+          "containerized": true,
+          "runner": "Docker Desktop"
+        }
+      ],
+      "invariants": [
+        "Commit message 必須帶 msi:/mbp:/x570: 前綴（.githooks/commit-msg 強制）",
+        "Port 綁定規則嚴格：qdrant/pg 綁 tailscale IP，api 綁 127.0.0.1",
+        "快照同步是唯一真相（x570 離線時靠快照讓 mbp/msi 獨立作業）",
+        "QDRANT_URLS 在容器內實際用不到（compose 只傳 QDRANT_URL）"
+      ],
+      "pitfalls": [
+        "x570 / mbp 升級時先讀 HOST-UPGRADE.md（per-host 待辦清單）",
+        "compose.yaml 用 ${TS_IP} 變數，各機 .env 帶各自 tailscale IP 自動對應",
+        "dest 必須是容器綁的 ${TS_IP}:6333，不是 127.0.0.1:6333"
+      ],
+      "acceptance_tests": [
+        "三台 curl /health ✓",
+        "sync-snapshot.sh 成功 ✓",
+        "快照點數一致 ✓",
+        "git log --oneline 看到前綴 ✓"
+      ],
+      "status": "active",
+      "blockers": [
+        "M6 x570 確認 ingest 排程（2026-09-26 未跑過首輪）",
+        "M1 x570 補齊環境變數（POSTGRES_PEER_PASSWORD 取值）"
+      ]
+    }
+  ],
+  "module_contract": {
+    "required_sections": [
+      {
+        "number": 1,
+        "name": "目標",
+        "description": "一句話，以及『做到什麼算完成』"
+      },
+      {
+        "number": 2,
+        "name": "邊界",
+        "description": "這個模組不負責什麼（避免相鄰模組互相改）"
+      },
+      {
+        "number": 3,
+        "name": "不變量",
+        "description": "壞了會出事、但測試不一定抓得到的規則"
+      },
+      {
+        "number": 4,
+        "name": "陷阱",
+        "description": "實測踩過、文件沒寫就會再踩一次的坑"
+      },
+      {
+        "number": 5,
+        "name": "驗收",
+        "description": "這個模組改完後跑哪條指令算過"
+      }
+    ]
+  },
+  "workflow": {
+    "phase_1_scope": {
+      "step": 1,
+      "name": "確認 Scope（同時最多一個進行中）",
+      "actions": [
+        "從模組清單選一個待辦項目",
+        "在 SCOPE.md 登錄格式：[M#] <模組> <簡述> | <agent> | <預計完成日>",
+        "推送前檢查不進其他模組的檔案"
+      ]
+    },
+    "phase_2_architecture": {
+      "step": 2,
+      "name": "編寫架構書",
+      "actions": [
+        "進入 <模組>/DESIGN.md（或該模組自己的架構檔）",
+        "按模組契約 5 點覆蓋"
+      ]
+    },
+    "phase_3_implementation": {
+      "step": 3,
+      "name": "實作 → 驗收",
+      "actions": [
+        "按 M#-表的『驗收指令』跑測試",
+        "通過後提交"
+      ]
+    },
+    "phase_4_sync": {
+      "step": 4,
+      "name": "三機同步",
+      "commands": [
+        "git push  # 觸發 CI：guards + backend + 單檔大小檢查",
+        "bash scripts/env-sync.sh pull  # 各機拉最新環境變數",
+        "docker compose pull && docker compose up -d  # 各機重啟容器"
+      ]
+    }
+  },
+  "commit_rules": {
+    "message_format": "<host_id>: <module> <description>",
+    "examples": [
+      "msi: backend rag.py 修復 gemini 2.5 key 判斷",
+      "mbp: env-ops 補齊 POSTGRES_PEER_PASSWORD",
+      "x570: ingest sync_daily.py 版本取值修正"
+    ],
+    "enforced_by": ".githooks/commit-msg",
+    "setup": "git config core.hooksPath .githooks"
+  },
+  "ci_checks": {
+    "local_hook": {
+      "commit_prefix": "擋",
+      "python_syntax": "擋",
+      "lan_ip_detection": "擋",
+      "file_size": "—"
+    },
+    "github_ci": {
+      "commit_prefix": "只回報（企業帳號限定）",
+      "python_syntax": "全 push 都跑",
+      "lan_ip_detection": "全 push 都跑",
+      "file_size": "只回報（公開 repo 限制）",
+      "main_deletion": "真的擋（唯一伺服器端擋得住）"
+    }
+  },
+  "todos": {
+    "high_priority": [
+      {
+        "module": "M3",
+        "task": "精簡包完成（500~1000 筆法規）",
+        "impact": "影響 UI 驗收",
+        "correction_2026_09_27": "原第一條寫「rerank() 實作（目前 stub）」，已過期（見 M3 blockers_correction）；原第三條寫「目前 3 筆」指的是早期 demo 點（已備份在 laws_demo_backup），不是精簡包進度。兩條合併成一條以免同一件事被做兩次或漏掉一次。"
+      },
+      {
+        "module": "M5",
+        "task": "questions.json 擴 50 題（現況 14 題計分題／19 題總數）",
+        "impact": "影響 UI 驗收"
+      },
+      {
+        "module": "M2",
+        "task": "LLM 雲端路由完整驗證（已實作，待實測全 8 provider）",
+        "impact": "影響 UI 驗收"
+      }
+    ],
+    "medium_priority": [
+      {
+        "module": "M6",
+        "task": "x570 確認 ingest 排程（2026-09-26 未跑過首輪）",
+        "impact": "運維"
+      },
+      {
+        "module": "M1",
+        "task": "x570 補齊環境變數（POSTGRES_PEER_PASSWORD 取值）",
+        "impact": "運維"
+      },
+      {
+        "module": "M6",
+        "task": "輪換外洩的 qdrant key（x570 已開，其他兩台待 pull）",
+        "impact": "資安"
+      },
+      {
+        "module": "M6",
+        "task": "mbp launchd worker 補身份環境變數（SRC_API_URL）",
+        "impact": "運維"
+      }
+    ],
+    "low_priority": [
+      {
+        "module": "M6",
+        "task": "mbp/msi 離線 /hosts → 另建 pg 副本（目前依賴 x570 registry）",
+        "impact": "功能擴展"
+      },
+      {
+        "module": "M2",
+        "task": "個資去識別化迴圈",
+        "impact": "功能擴展"
+      },
+      {
+        "module": "M2",
+        "task": "OPENROUTER 真餘額顯示（需 management key）",
+        "impact": "功能擴展"
+      }
+    ]
+  },
+  "quick_reference": {
+    "env_checks": [
+      "python3 scripts/env-audit.py  # 列消費者、找幽靈變數",
+      "scripts/env-sync.sh --check  # 驗 schema 完整性",
+      "scripts/env-sync.sh render  # 預覽本機展開結果"
+    ],
+    "docker_operations": [
+      "docker compose up -d --build  # 首次或改 api 碼",
+      "docker compose up -d  # 只改環境變數或佈置文件",
+      "docker compose ps  # 查看容器狀態",
+      "docker compose logs -f api  # 查看日誌",
+      "docker compose exec api bash  # 進容器除錯"
+    ],
+    "snapshot_sync": [
+      "bash scripts/sync-snapshot.sh  # 手動同步（用於外出 demo 補最新版本）",
+      "tail -f ~/qdrant/sync.log  # 檢查同步狀態",
+      "cat ~/qdrant/.sync-state  # 查看同步狀態檔"
+    ]
+  },
+  "related_files": {
+    "complete_architecture": "ARCHITECTURE.md (2026-09-27，本檔基礎)",
+    "current_scope": "SCOPE.md (開發進度追蹤)",
+    "upgrade_runbook": "HOST-UPGRADE.md (x570/mbp 更新前必讀)",
+    "handoff_checklist": "X570-HANDOFF.md (x570 待確認事項)",
+    "roadmap": "ROADMAP.md (長期規劃，跨機遷移等)"
+  }
+}

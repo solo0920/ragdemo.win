@@ -23,6 +23,13 @@
 
 *（無）*
 
+> scope `I`（文件限定、跨 M1／M3／M5）已於 2026-09-27 完成，結果見〈已完成〉。
+> 當時的跨模組理由：產出**全部是 Markdown**，沒有任何可執行檔被改動，
+> 因此不存在「跨模組半成品被另外兩台 `env-sync pull` 自動分發」的風險 ——
+> 那個風險只來自程式碼與環境變數值。驗收條款刻意加上
+> 「`git diff --stat` 不得出現 `.py`／`.env`／`compose.yaml`」，
+> 一旦有人順手改了程式碼就會被自己抓到。
+
 ## 待套用（程式改完了，但還沒在機器上生效）
 
 這一節是「repo 與三台現況的落差」清單。**這些沒做，repo 就不是真相。**
@@ -58,3 +65,4 @@
 | 2026-09-27 | `secret-boundary`（A） | M1 | 憑證分界線改正：`QDRANT_API_KEY`／`POSTGRES_PASSWORD` 由「9 把共用」改成 **7 把共用 ＋ 2 把 per-host 機密**。新增 `secrets.host.env.example`、`PER_HOST_SECRETS`、合併引擎的 per-host 防線（apply 剔除／check 硬失敗）、`--check` 納入 per-host 層、**不解密就能驗**的「per-host 不得進加密檔」檢查（sops dotenv 讓鍵名保持明文，CI 沒有 age 私鑰也跑得到）、`.gitignore` 擋明文檔、測試 34 條。**另外兩台不需要做任何事**（有測試證明 pull 後 `.env` 那兩個鍵值原封不動）。副作用：作廢了 `HOST-UPGRADE.md` §0 與 `X570-HANDOFF.md` 事項 1 兩份「去另外兩台輪換 qdrant key 到同一把」的指示 |
 | 2026-09-27 | `container-env`（B） | M2 | `compose.yaml` 的 api `environment:` 補上 15 個「程式讀得到但容器拿不到」的旋鈕，預設值**逐字抄** `rag.py`／`registry.py` 的 `os.getenv` 第二個參數（有測試連原始碼那一行一起鎖）。修掉 MSI「永遠降級成自己的 8b、從沒用過 x570 的 14b」這個**不報錯**的 bug。另 3 個刻意不傳（`QDRANT_URLS`／兩個 `*_FILE`）並在 `backend/DESIGN.md` 記錄理由避免被當 bug 修回去；`OLLAMA_MODELS` 用巢狀 `${OLLAMA_MODELS:-${LLM_MODEL:-qwen3:14b}}` 而非字面值，抄成字面值會讓 MSI 三台 ollama 全滅；`.env.example` 重新產生；`env-audit.py` 修掉 `HOST_API_*` 因主機名含機台代號而來的假警告（`NAME_SCOPED_HOST`，不放寬 `TS_IP`／`HOST_ID` 的保護）；測試 19→39 條 |
 | 2026-09-27 | `arch-table`（C） | 跨模組 | `ARCHITECTURE.md`〈架構表〉6 模組 × 目標／擁有者 agent／架構書／邊界 ＋ 模組契約 5 題 ＋ 三段升級路徑；本檔；`.opencode/agents/ops.md`（第 6 個 agent）；5 個既有 agent 補上契約／陷阱／升級路徑；`backend/DESIGN.md`、`frontend/DESIGN.md`、`scripts/DESIGN.md` 三份骨架 |
+| 2026-09-27 | `I` | 跨 M1／M3／M5（**文件限定**） | 補齊剩下 3 個模組的契約 5 題 → **6/6 架構書全部合約**。`settings/env/README.md`（原本 richest 但零契約章節）、`ingest/laws/DESIGN.md`（寫成管線設計、無邊界/不變量/驗收）、`ingest/cases/DESIGN.md`（草案，加契約並明示**未實作**）、`evals/README.md`（原本只有 4 行）。`files/` 三份文件收進 `docs/` 納入版控、刪掉 Windows `:Zone.Identifier` ADS 髒檔、`.gitignore` 補 ADS 規則。**逐項查證並修正 6 處事實錯誤**：`rules.py`→`rules_store.py`、`pytest backend/tests/`→根 `tests/`、PG `laws_keywords`→`article`、~~rerank() 是 stub~~（已實作，真正缺的是接 cross-encoder）、M1/M6 對 `env-sync.sh` 的**雙重所有權**劃給 M1、`__init__.py` 慣例未落實。另修正 M5 README 對 `/eval` 計分邏輯的錯誤描述（原說只算 `expect_case`，實際 19 題裡 `expect_case` 是 0 題、計分的全是 `expect_law`）。**零程式碼**：`.py`/`.env`/`compose.yaml` 全未觸碰，`pytest -q` 165 條不 regression |
