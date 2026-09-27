@@ -16,7 +16,8 @@
 ```
 compose.yaml       # qdrant + postgres + api（三機共用，x570 已跑 docker compose）
 backend/           # FastAPI：/health /ingest /query /eval /rules /models
-  app/             #   main.py / rag.py / registry.py / usage.py / rules.py
+  app/             #   main.py / rag.py / registry.py / usage.py / rules_store.py
+                   #   law_struct.py / sparse.py / __init__.py
   .env.example     #   樣板（真實 .env 在 repo 根，不進版控）
 frontend/          # SvelteKit：只打 /api/*（Google 登入守護 SENSITIVE 路徑）
   src/routes/api/[...path]/+server.ts   # worker：登入 guard + 三台備援轉發
@@ -300,7 +301,7 @@ provider 地雷。這些是實測踩到的，不在任何程式碼裡 —— 刪
 
 ## 題庫（rules）與 JEV 驗證（2026-09-26）
 
-- `/rules`：題庫寫入（`rules.py`），關鍵字匹配 → 固定答案。讀取不需 token、寫入要 `ADMIN_TOKEN`
+- `/rules`：題庫寫入（`rules_store.py`），關鍵字匹配 → 固定答案。讀取不需 token、寫入要 `ADMIN_TOKEN`
   （`Authorization: Bearer`）。前端 worker 已把 `/rules` 列入 SENSITIVE（需 Google 登入）。
 - JEV（TypeSafe System One）驗證：LLM 產出「防編故事」驗證器，題庫採用時以驗證信心閘門
   （`JEV_VERIFY_MIN` 驗證、`JEV_BANK_MIN` 題庫採用的影響）把關；`TYPESAFE_API_KEY` 提供金鑰。

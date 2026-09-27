@@ -3,80 +3,12 @@
 給 **x570 上的 opencode** 讀。這是 MSI 端無法自行確認、必須在 x570 上查证的
 四件事。**請逐項查证後回報，不要先假設原因。**
 
-前置：x570 已有最新程式（實測 `/law-update` 200、`/status` 含 `law_version`），
-推測已 pull。請先 `git log --oneline -1` 確認是否為 `24a5d17` 或更新。
+前置：先 `bash scripts/host-sync.sh` 讓 x570 到最新（別用 `git log` 對某個 commit
+號判斷 —— 那個號碼會過期，而且 host-sync 還會順帶驗收）。若只想確認環境而不想改檔案，
+用 `bash scripts/host-doctor.sh`。
 
----
-
-## 事項 1：qdrant api key 401 —— **2026-09-27 判定：已不需要 x570 查證，作廢**
-
-> **本項作廢，請不要在 x570 上做任何查證或設定。** 2026-09-27 逐點 grep 查證後
-> 確認 `QDRANT_API_KEY` 的每個消費點都只指向自己那台的 qdrant
-> （`compose.yaml:12`、`compose.yaml:34` ＋ `rag.py:331`），**跨機認證走的是
-> `QDRANT_PEER_API_KEY`**。所以：
->
-> - 「用 MSI 的 key 打 x570 得到 401」是**正確行為**，不是故障 —— MSI 的 key 本來
->   就不該能打開 x570 的 qdrant。
-> - 原先「三台共用同一把所以等同三台外洩，請整組換掉」的判斷是錯的。
-> - **`QDRANT_PEER_API_KEY` 才是三台共用那一把**，它在
->   `settings/env/secrets.common.enc.env`（sops+age 加密），`env-sync.sh pull`
->   會自動分發。x570 只需要 `git pull` ＋ `env-sync.sh pull` ＋ 重建容器，
->   **不需要手動設定任何 key**。
-> - 「mbp 的 qdrant key 還是第三把舊的」這件事不是故障，不必處理。
->
-> 下面的原始查證步驟保留供追溯，**不要執行**。完整推理見
-> `ARCHITECTURE.md`〈密鑰管理〉與 `settings/env/README.md`。
-
-<details>
-<summary>（已作廢）原始現象與查證步驟 —— 保留供追溯，不要執行</summary>
-
-### 現象（MSI 端實測，2026-09-26）
-
-```
-用 MSI .env 的 QDRANT_API_KEY 測：
-  x570  http://100.119.83.111:6333/collections/laws  → HTTP 401
-  mbp   http://100.64.121.9:6333/collections/laws    → HTTP 401
-  msi   http://100.65.68.106:6333/collections/laws   → HTTP 200
-不帶 key 測 x570 → "Must provide an API key or an Authorization bearer token"
-```
-
-→ x570 的 qdrant **有開認證**，但它認的那把不是 MSI 手上這把。
-推測是 2026-09-26 在 x570 輪換過 key（當時為了處理 MSI 端 key 外洩），
-但 MSI／mbp 還沒跟上。
-
-### 請在 x570 上查（**只印指紋，不要印值**）
-
-```bash
-cd ~/projects/ragdemo          # 依你的實際 checkout 路徑調整
-set -a; . ./.env; set +a
-
-# A) x570 的 role（container 實際生效值）
-docker inspect ragdemo-qdrant-1 --format '{{range .Config.Env}}{{println .}}{{end}}' \
-  | grep -o 'QDRANT__SERVICE__API_KEY=.*' | sed 's/.*=//' \
-  | { read -r v; printf 'container 指紋 = %s 長度=%d\n' \
-      "$(printf '%s' "$v" | sha256sum | cut -c1-12)" "${#v}"; }
-
-# B) x570 的 .env
-printf '.env 指紋 = %s 長度=%d\n' \
-  "$(printf '%s' "$QDRANT_API_KEY" | sha256sum | cut -c1-12)" "${#QDRANT_API_KEY}"
-
-# C) MSI 手上那把的指紋（這是已知的比對基準）
-printf 'MSI 指紋   = 96c2dec03d81 長度=32\n'
-```
-
-### 判定與回報
-
-| A 與 B 關係 | 意義 | 你要回報什麼 |
-|---|---|---|
-| A ≠ B | `.env` 與容器不同步（改了沒重啟） | 說明差異，**不要自行改值** |
-| A = B ≠ MSI | x570 輪換過、MSI 未跟上（我的推測） | **只回報指紋**，由 MSI 端決定要不要對齊 |
-| A = B = MSI | 我的推測錯，401 另有原因 | 請追查（`docker logs ragdemo-qdrant-1`、compose 是否有第二份設定） |
-
-> ⚠️ **絕對不要把 key 的值貼回任何 agent 對話。** 只報 `sha256` 前 12 碼。
-> 2026-09-26 當天已因 `env | grep`、`bash -x`、`docker compose config`
-> 外洩過三次，第三次是三台共用的 key。
-
-</details>
+⚠️ 下面每段指令都**只印指紋／長度，不印值**。照抄即可，不要改成 `cat .env` 或
+`env | grep`，也不要在含憑證的指令上加 `bash -x`（2026-09-26 三次憑證外洩都是這樣）。
 
 ---
 

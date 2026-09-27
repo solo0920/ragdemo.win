@@ -23,6 +23,56 @@
 
 | 代號 | 模組 | 所屬模組／目標 | 不做什麼 | 驗收 | 預計完成日 |
 |---|---|---|---|---|---|
+| `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（事項 2/3/4/5 仍開著且需實體接觸 x570）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
+
+**為什麼現在做**：msi 即將重灌，而重灌後只靠 clone 這份 repo 復原，所以 repo 裡
+「過期但看起來還在用」的東西**會直接誤導重灌後的自己**。這是瘦身的最佳時機。
+
+### scope `J` 驗收結果（全部實跑，非推論）
+
+| # | 項目 | 結果 |
+|---|---|---|
+| 1 | 每個刪除都有引用者已更新 | ✅ 刪 2 份 `docs/` 交接文件，唯一引用者 `ingest/laws/DESIGN.md` 已改寫成獨立陷阱條目 |
+| 2 | `grep` 全 repo 無指向被刪內容的連結 | ✅ 兩份檔名 0 命中 |
+| 3 | 失效引用掃描（自寫檢查器） | ✅ 剩下的 27 筆逐一分類：`ChLaw.json`／`.law_sync.json` 是**執行期或資料檔非版控**、`host-onboard.sh` 是 **scope `F2` 刻意還沒做**、`rules.py` 是**真 bug 已修**（見下） |
+| 4 | `pytest -q` | ✅ 165 passed（與瘦身前同） |
+| 5 | CI 全關卡本機重跑 | ✅ 語法／`LAN_IP=`／`compose config -q`／單檔 <10MB／憑證格式 全部過；`pnpm run build` ✓ built in 4.13s |
+| 6 | `.env.example` == `env-audit --template` | ✅ 一致 |
+| 7 | `env-audit.py --quiet` | ✅ 0 項需處理 |
+| 8 | `bash -n` 全部腳本 | ✅ 5 支全過 |
+| 9 | xtrace 拒絕 | ✅ 兩支新腳本 `bash -x` → rc=1 |
+| 10 | `host-sync.sh --dry-run` | ✅ **實際攔下本次未 commit 的改動**並 exit 3 路徑 —— 護欄實測有效 |
+| 11 | 死碼 | ✅ 零。backend 7 模組全有引用，frontend 5 route。**體積全在文件** |
+
+### 行數對照
+
+| 檔案 | 前 | 後 | 差 |
+|---|---:|---:|---:|
+| `docs/OPENCODE_HANDOFF_CHECKLIST.md` | 311 | 0 | **−311** |
+| `docs/MODULAR_ARCHITECTURE_2026-09-27.md` | 378 | 0 | **−378** |
+| `HOST-UPGRADE.md` | 351 | 259 | **−92** |
+| `X570-HANDOFF.md` | 310 | 242 | **−68** |
+| `ROADMAP.md` | 1183 | 1187 | +4（只修過期標題） |
+| **全部 `.md`** | **5129** | **4292** | **−837（−16.3%）** |
+
+刪的 849 行裡，**沒有一行是只有該處記載的資訊** —— 刪前逐條確認結論都存活在
+`ARCHITECTURE.md`／`settings/env/README.md`／新的 `host-sync.sh`／`scripts/DESIGN.md`。
+
+### 越界說明（`J` 動了 `.sh`，原訂只動 `.md`）
+
+smoke test 抓到 `scripts/host-doctor.sh`（M6）的**「跑全部檢查」整段被貼了兩份**，
+連帶一個亂碼字。症狀：每個檢查跑兩次、報告整段印兩遍、`--json` 條目數 double
+（28 應為 15）、warn 計數翻倍。
+
+- 為什麼是這個 bug：它是 scope `F` **自己**的產物，且 doctor 是三台唯一的診斷入口，
+  報告重複會直接讓「讀報告的人」誤判狀態。
+- 為什麼上次沒抓到：當時只驗「`--json` 是不是合法 JSON」—— 重複條目**仍然是合法
+  JSON**。要驗的是**條目數**。已寫成該處的註解。
+- 同理修掉 `ARCHITECTURE.md:19`／`:303` 殘留的 `rules.py`（真實檔名 `rules_store.py`）——
+  scope `I` 宣稱修過這個錯，但這兩處漏了。
+
+兩者都是「自己前一個 scope 留下的、且會誤導診斷」的問題，不修就是明知有錯還推給三台。
+
 **已完成 scope `F`**（`scripts/host-sync.sh` ＋ `scripts/host-doctor.sh` ＋ `scripts/DESIGN.md`），
 驗收結果見下。三台的套用方式在〈待套用〉。**還沒在真實部署路徑上跑過** —— 本機
 （msi）刻意不啟動容器，所以 `compose up` 與 `verify` 兩步只做了靜態檢查。
@@ -95,6 +145,32 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | 加 `POSTGRES_PEER_PASSWORD` | 先 `x570` | 見 `X570-HANDOFF.md` 事項 2 | 被「x570 的 pg role 密碼未知」阻塞。值到齊後才加，**不要提前加沒人讀的幽靈鍵** |
 | 收 age 公鑰 | `x570`、`mbp` | 見 `X570-HANDOFF.md` 事項 5 | 公鑰到齊 → `.sops.yaml` 加 recipients → `sops updatekeys` |
 | 修 git 認證 | `x570` | `gh auth refresh -h github.com -s repo` | repo 轉 private 後舊 token 失效。**需使用者在該機互動執行** |
+
+### msi 重灌前置（2026-09-27 查證，**重灌前必讀**）
+
+已逐項確認「重灌後能不能只靠 clone 這份 repo 復原」：
+
+| 會消失的東西 | 在 repo 裡嗎 | 結論 |
+|---|---|---|
+| `QDRANT_API_KEY`（per-host 機密） | ❌ 不在 repo、不加密、不同步 | **可重選**。只有 msi 自己的 api 讀它，本機 qdrant 是全新的 |
+| `POSTGRES_PASSWORD`（per-host 機密） | ❌ 同上 | **可重選**。msi 的 `POSTGRES_DSN` 指向 x570，本機 pg 容器**沒有任何程式在用** |
+| 法規快照（`data/laws/*`、`.law_version`） | ❌ gitignored | **會自己回來**，`sync-snapshot.sh` 從 x570 拉（10 分鐘內） |
+| opencode 設定 | ✅ `settings/opencode/{global,project}/msi/` | **已備份**，含 `{file:...}` token 參照的路徑 |
+| 憑證（7 把共用） | ✅ `secrets.common.enc.env`（sops+age） | `env-sync.sh pull` 會解密合併 |
+
+**結論：沒有會永久遺失的東西。** 但重灌後要走完這條路徑（**目前沒有腳本自動化**，
+就是 scope `F2` `host-onboard.sh` 要做的事）：
+
+1. 裝 Docker（msi 是 Docker Desktop + WSL2，`TS_IP` 填 **Windows host** 的 `100.65.68.106`）
+2. `git clone` ＋ 設 `HOST_ID=msi`
+3. `cp .env.example .env` → 填 `TS_IP`／`HOST_NAME`／`HOST_MACHINE_ID`（`HOST-UPGRADE.md` §0、§1）
+4. `env-sync.sh pull`（解密 7 把共用憑證）＋ **重選** `QDRANT_API_KEY`／`POSTGRES_PASSWORD`
+5. 加 `SRC_API_URL=https://api-x570.ragdemo.win`（`HOST-UPGRADE.md` §3.1，否則法規版本欄永遠是 `—`）
+6. 設 crontab（快照同步 `*/10`）
+7. `bash scripts/host-sync.sh` ＋ `bash scripts/host-doctor.sh` 驗收
+
+⚠️ 步驟 4 的兩把 per-host 機密**要自己生**，repo 幫不上忙 —— 這是重灌唯一需要
+「人決定」的一步。
 
 ## 佇列
 

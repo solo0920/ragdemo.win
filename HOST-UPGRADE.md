@@ -1,129 +1,35 @@
-# 三機升級runbook（2026-09-26 容器化後的 per-host 待辦）
+# 三機升級 runbook — **腳本管不到的 per-host 手工步驟**
 
-本檔是**給 x570 與 mbp 看的行動清單**：pull 之後照著做即可。
-MSI 已全部完成，本檔對 MSI 只作為「為什麼要這樣做」的說明。
+> **2026-09-27 瘦身**：本檔原本 351 行、含 73 行「本節作廢不要照做」與整段被
+> `scripts/host-sync.sh` 取代的 pull/重建步驟，都已刪除（351 → 244 行）。
+> 現在這份是**「剩下來的、只能手工做的」**。已刪部分的結論全部存活在
+> `ARCHITECTURE.md`〈密鑰管理〉、§2 指向的 `host-sync.sh`、`settings/env/README.md`。
 
-改動集中在三處：身份識別改走環境變數、法規版本欄位＋更新按鈕、快照同步的
-兩個修正。全部可在 `docker compose up -d --build` 後生效。
+## 先跑腳本，再回來看這裡
+
+```bash
+bash scripts/host-sync.sh        # 升級＋重建＋驗收（取代原本的 pull/重建/驗收三節）
+bash scripts/host-doctor.sh      # 診斷（取代原本的驗收節）
+```
+
+**剩下的手工步驟只有三類**，都是排程或「需要人決定」的事，寫成腳本反而更難讀：
+
+- **§1 身份環境變數** —— 新機/重灌必做（`HOST_NAME` / `HOST_MACHINE_ID`）
+- **§3–§5 排程與角色** —— crontab / launchd 設定、x570 的每日 ingest
+- **§7 已知非問題** —— 別誤判成故障的現象
+
+**本檔對三台都適用**（2026-09-27 修正）：原文寫「MSI 已全部完成」是當時的狀況，
+不是永久屬性。msi 重灌後，§1 與 §3.1 對它又重新變成待辦。
 
 ---
 
-## 0. ~~先做這件（兩台都要）：輪換 qdrant api key~~ → 2026-09-27 判定：**兩台都不需要做**
+## 0. .env 只有一個（2026-09-26 收斂，已完成）
 
-> **本節整個作廢，不要照做。** 2026-09-27 逐點 grep 查證後確認：`QDRANT_API_KEY`
-> 的每一個消費點（`compose.yaml:12` 自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`；
-> `compose.yaml:34` ＋ `rag.py:331` api 打 `compose.yaml:33` 寫死的
-> `QDRANT_URL: http://qdrant:6333`）**都只指向自己那台**。跨機認證走的是
-> `QDRANT_PEER_API_KEY`（`scripts/sync-snapshot.sh:108`）。
->
-> 所以 `QDRANT_API_KEY` 是 **per-host 機密**：各機的值彼此無關，**不需要一致**。
-> 下面原文說「三台共用同一把，所以等同三台外洩，請整組換掉」—— 那是錯的。
-> 外洩的影響只限於拿到那把 key 的那台機器的 qdrant，而 qdrant 只綁 tailscale IP
-> （`compose.yaml:9`），沒有公網曝露面。
->
-> **「mbp 的 qdrant key 還是第三把舊的」這件事不是故障**，不必處理。若真的去
-> 「統一」它，改動當下反而有把某一台本地 qdrant 弄壞的風險。
->
-> 仍然值得輪換的只有 `QDRANT_PEER_API_KEY`（那一把**是**三台共用、走 sops 分發的）。
-> 而且因為它經加密檔分發，**另外兩台只要 `env-sync.sh pull` 就會拿到新值**，
-> 不需要像本文原本寫的那樣逐台手動改。見 `settings/env/README.md`〈輪換憑證〉。
->
-> 2026-09-27 起 `QDRANT_API_KEY` 與 `POSTGRES_PASSWORD` 已從共用憑證改列
-> **per-host 機密**（`settings/env/secrets.host.env.example`）。憑證分類標準只有
-> 一條：**有沒有跨機的讀寫關係**。完整查證見 `ARCHITECTURE.md`〈密鑰管理〉。
-
-<details>
-<summary>（已作廢）原本的輪換步驟，保留供追溯 —— 不要執行</summary>
-
-> 2026-09-27 起有正規流程：`settings/env/README.md`（sops+age 加密分發，
-> `env-sync.sh pull` 合併）。下面手動步驟仍有效，是加密檔還沒覆蓋到你之前
-> 的 fallback；兩種方式不要混用同一把 key 的兩次輪換。
-
-> **pull 之前先設 `HOST_ID`**（`x570` / `mbp` / `msi` 擇一寫在 `.env`）。
-> `env-sync.sh pull` 最後會 render per-host 值，選擇器就是它；沒設會明確
-> 報錯而不是猜。per-host 的值（`TS_IP`／`LLM_MODEL`／`OLLAMA_*` 等）不在
-> 各自的 `.env` 手寫，而是 `settings/env/hosts.shared.env` 三台同一個檔，
-> render 會挑本機那一欄寫進來。
-
-**為什麼要輪換**：2026-09-26 診斷時，這把 key 兩次被印進 agent 的對話紀錄
-（`env | grep` 與 `bash -x` 各一次）。三台共用同一把，所以等同三台外洩。
-目前流通中的值是**已外洩**的，請整組換掉。
-
-在任一台產生新值（**不要貼到任何聊天工具**）：
-
-```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-然後在**根目錄的 `.env`** 把 `QDRANT_API_KEY=` 換成新值，接著重建容器 ——
-key 是啟動參數，不重啟不會生效：
-
-```bash
-cd ~/projects/ragdemo.win        # mbp 請用你的 checkout 路徑（見 §4）
-set -a; . ./.env; set +a
-docker compose up -d --force-recreate qdrant
-docker compose up -d --force-recreate api
-```
-
-驗證（不印值）：
-
-```bash
-printf '%s' "$QDRANT_API_KEY" | sha256sum | cut -c1-12   # 三台應一致
-curl -s -o /dev/null -w 'HTTP %{http_code}\n' \
-  http://127.0.0.1:6333/collections/laws -H "api-key: $QDRANT_API_KEY"   # 應 200
-```
-
-> 若三台的 key 不一致（`QDRANT_PEER_API_KEY` 沒設時會退回自己的 key），
-> 快照同步會出現「本機 200、遠端 401」。比較指紋（sha256 前 12 碼）即可定位，
-> 不需要看到值。
-
-</details>
-
----
-
-## 0b. .env 只有一个（2026-09-26 收斂）
-
-**只維護 repo 根目錄的 `.env`**，`backend/.env` 已於 2026-09-26 在 MSI 移除
-（x570/mbp 若還有，可直接刪）。
-
-原本根 `.env` 給 compose、`backend/.env` 給 host 腳本，25 個變數兩份副本 ——
-`QDRANT_API_KEY` 曾在兩者間漂移，造成「本機 qdrant 200、遠端 401」的非對稱故障。
-現在 `sync-snapshot.sh` 與 `law-update-worker.sh` 會**自己載入根 `.env`**，
-crontab 也不必再寫 `set -a; . .../backend/.env; set +a;`。
-
-遷移後請確認：
-
-```bash
-# 1) 刪除殘留的 backend/.env（腳本已改讀根 .env，刪了不影響運作）
-ls -la backend/.env && rm backend/.env || echo "已無"
-
-# 2) 稽核工具確認沒有幽靈變數與副本漂移
-python3 scripts/env-audit.py
-# 期望只剩 3 項「幽靈變數」（QDRANT_URLS / EMBED_MODEL / RERANK_MODEL），
-# 那是刻意留著的說明性項目，原因會附在 .env.example 註解裡
-```
-
-⚠️ **刪除前務必先比對兩份是否一致**（值可能已經漂移）：
-
-```bash
-python3 -c "
-import pathlib, re
-def load(p):
-    d = {}
-    for line in pathlib.Path(p).read_text(encoding='utf-8').splitlines():
-        m = re.match(r'^([A-Z_][A-Z_0-9]*)=(.*)$', line)
-        if m: d[m.group(1)] = m.group(2)
-    return d
-root, back = load('.env'), load('backend/.env')
-print('值不一致:', [k for k in set(root) & set(back) if root[k] != back[k]] or '無')
-print('只在根:', sorted(set(root) - set(back)) or '無')
-print('只在 backend:', sorted(set(back) - set(root)) or '無')
-"
-```
-
-> 2026-09-26 MSI 實際刪除時就發現 `POSTGRES_PASSWORD` 兩份不同
-> （指紋 `e328bd31728a` vs `55cebf3c8276`），必須先對齊才能刪。
-> 這正是重複維護的後果 —— 副本漂移會靜默發生。
+**只維護 repo 根目錄的 `.env`**。`backend/.env` 已於 2026-09-26 刪除，程式與腳本
+一律讀根目錄那份 —— 25 個變數兩份副本的時代，`QDRANT_API_KEY` 曾在兩者間漂移，
+造成「本機 qdrant 200、遠端 401」的非對稱故障。實際刪除時就發現 `POSTGRES_PASSWORD`
+兩份不同（指紋 `e328bd31728a` vs `55cebf3c8276`）—— **副本漂移會靜默發生**。
+新機直接 `cp .env.example .env`，不存在遷移問題。
 
 ### 機台專屬變數的前綴
 
@@ -163,20 +69,19 @@ chmod 600 "$f"            # 內含憑證，務必 600
 
 ---
 
-## 2. pull 並重建
+## 2. ~~pull 並重建~~ → 已由 `scripts/host-sync.sh` 取代
+
+原本是手動四步（`git pull` → `docker compose config -q` → `up -d --build` → `curl /health`）。
+2026-09-27 起這條路徑是一個指令：
 
 ```bash
-git pull origin main
-docker compose config -q          # 先確認 compose 檔可解析
-docker compose up -d --build      # --build 只有改到 backend/app/*.py 才需要
-curl -s localhost:8000/health     # 應回 host_id=<你的機器>
+bash scripts/host-sync.sh              # 升級到目前分支
+bash scripts/host-sync.sh --dry-run    # 只看會做什麼，不寫檔不動容器
 ```
 
-確認身份正確：
-
-```bash
-curl -s localhost:8000/health | python3 -m 'import json,sys; d=json.load(sys.stdin); print(d["host_id"], d["hostname"], len(d["machine_id"]))'
-```
+它比手動版多做的事：工作樹不乾淨就**拒絕**（不覆蓋未提交改動）、xtrace 下拒絕執行、
+驗收失敗**不回滾**已完成的步驟、exit code 契約區分「驗收未通過(5)」與「驗收被略過(6)」。
+細節見 `scripts/DESIGN.md`〈host-sync.sh〉。
 
 ---
 
@@ -203,29 +108,26 @@ grep -q '^SRC_API_URL=' .env || echo 'SRC_API_URL=https://api-x570.ragdemo.win' 
 沒設的後果**不是錯誤** —— 腳本會記
 `law version: 取不到（...）` 並正常跳過，法規版本欄位維持舊值。
 
-### 3.2 `QDRANT_PEER_API_KEY` → 2026-09-27 起**不要手動設，`env-sync.sh pull` 會給你**
+### 3.2 `QDRANT_PEER_API_KEY` —— **不要手動設，`env-sync.sh pull` 會給你**
 
-原本這裡要手動把 x570 的 key 抄進各機 `.env`。**現在不用了**：
-`QDRANT_PEER_API_KEY` 是 7 把共用憑證之一，值在 `settings/env/secrets.common.enc.env`
-（sops+age 加密），`env-sync.sh pull` 會解密合併進 `.env`。手動抄反而會被 `pull` 覆蓋。
-
-三台之間唯一的 qdrant 跨機認證就是這一條（`scripts/sync-snapshot.sh:108` 拉 x570 的快照），
-而它現在是自動同步的。`pull` 完確認一下（不印值）：
+它是 7 把共用憑證之一，值在 `settings/env/secrets.common.enc.env`（sops+age 加密），
+`env-sync.sh pull` 會解密合併進 `.env`。手動抄反而會被 `pull` 覆蓋。
+`pull` 完確認（不印值）：
 
 ```bash
 scripts/env-sync.sh --fingerprints | grep QDRANT_PEER_API_KEY   # 與另外兩台的 sha12 應一致
 ```
 
-**順帶釐清一個容易搞反的事**（2026-09-27 查證）：
+**容易搞反的一件事**（這裡也曾是 73 行的「不要照做」，2026-09-27 瘦身時
+只留下這張表，完整查證見 `ARCHITECTURE.md`〈密鑰管理〉）：
 
 | 鍵 | 給誰用 | 三台要一致嗎 |
 |---|---|---|
 | `QDRANT_API_KEY` | **自己**那台的 qdrant 容器 ＋ 自己那台的 api | **不要**（per-host 機密，各機不同沒問題） |
 | `QDRANT_PEER_API_KEY` | 連**別台**（x570）的 qdrant 做快照同步 | **要**（走加密檔自動分發） |
 
-所以「mbp 的 `QDRANT_API_KEY` 和別台不一樣」不是故障；只有 `QDRANT_PEER_API_KEY`
-不一致才是。`sync-snapshot.sh` 仍有 `PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"`
-這條 fallback，三台都設定了 peer key 時不會觸發。
+所以「某台的 `QDRANT_API_KEY` 和別台不一樣」不是故障；只有 `QDRANT_PEER_API_KEY`
+不一致才是。
 
 ---
 
@@ -306,17 +208,21 @@ data/laws/laws_flat.parquet
 
 ## 6. 三台都要驗收
 
+**日常驗收用 `scripts/host-doctor.sh`**（7 段：git／工具／容器／`env-sync --check`／
+憑證指紋／registry 心跳／法規版本，且永不印值）。部署後的當次驗收由
+`scripts/host-sync.sh` 第 6 步自動做（`/health` 的 `host_id` 必須等於 `.env` 的
+`HOST_ID`，加上 `/status?probe=0` 的 `law_version`）。
+
+⚠️ 呼叫別台的 `/status` **必須帶 `?probe=0`**，否則 A→B→C→A 互相探測，
+請求數指數成長（2026-09-26 實作時踩過）。
+
+腳本**沒有**覆蓋、仍需人工確認的兩項：
+
 ```bash
-# 1) 容器
-docker compose ps                       # 三個都 Up
-# 2) 健康
-curl -s localhost:8000/health | python3 -m json.tool
-# 3) 三機探測 + 法規版本（x570 pull 後才會有版本值）
-curl -s localhost:8000/status | python3 -m 'import json,sys; d=json.load(sys.stdin); print(d["log"]); print(d["versions"])'
-# 4) 資料完整
+# 1) qdrant 點數（腳本只查容器在不在，不查資料量）
 curl -s http://${TS_IP}:6333/collections/laws -H "api-key: $QDRANT_API_KEY" \
   | python3 -c 'import json,sys; r=json.load(sys.stdin)["result"]; print(r["status"], r["points_count"])'
-# 5) 更新機制（不帶 token 應 401）
+# 2) 更新機制的 auth（不帶 token 應 401）
 curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8000/law-update
 ```
 
@@ -338,14 +244,16 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8000/law-update
 
 ---
 
-## 8. 這次順手修掉的既有 bug（了解即可）
+## 8. 已修的 bug —— 這些是**陷阱**，別改回去
 
-1. **api 在 WSL 上每次 Docker 重啟都死**：`/etc/hostname`、`/etc/machine-id`
-   的單檔 bind mount 在 Docker Desktop 不可靠（exit=127）。改走 env（見 §1）。
-2. **條號精準比對是死碼**：整段被巢狀在 `if HAS_SPARSE:` 內，而 `laws`
-   collection 沒有 sparse vectors → 「民法第184條」只能靠 dense 0.55 < 門檻
-   0.58 → `no_match`。已移到兩條召回路徑之外。
-3. **2 字法名偵測不到**：`_detect_law()` 的 `len>=3` 門檻讓「民法」（全 corpus
-   唯一 2 字法名）永遠認不出。放寬到 `>=2`。
-4. **同步成功卻回報失敗**：`ver="$(curl … | python3 …)"` 在 `pipefail` 下，
-   curl 連不上會讓賦值回傳非零，`set -e` 在判斷前就中止。已加 `|| true`。
+> 原本這節是「順手修掉的 bug」changelog。2026-09-27 瘦身時改成陷阱清單：
+> 修掉的事實本身不值得記錄（git 歷史有），但**描述現行行為**的那兩條值得記，
+> 否則下次有人會「順手整理」回去。
+
+1. **條號精準比對不可重新巢狀進 `if HAS_SPARSE:`**。它原本被那樣包住，而
+   `laws` collection 沒有 sparse vectors，於是整段是死碼 → 「民法第184條」
+   只能靠 dense 0.55 < 門檻 0.58 → `no_match`。已移到兩條召回路徑之外。
+2. **`_detect_law()` 的法名長度門檻是 `>=2`，不可收回 `>=3`**。「民法」是全
+   corpus 唯一的 2 字法名，`>=3` 會讓它永遠認不出。
+3. **`SHELL_PATH`／`REPO_PATH` 之類排程用變數不要刪**（§4）。它們是
+   launchd/crontab 唯一能把 repo 路徑帶進去的地方。

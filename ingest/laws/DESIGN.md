@@ -83,9 +83,11 @@ curl -s -X POST http://localhost:8000/eval | python3 -m json.tool
 Qdrant `laws` collection 點數與 PG `article` 表行數屬於
 **需要活服務的檢查**，列在下方〈跨機檢查〉；`pytest` 那 38 條不需要。
 
-⚠️ 交接文件（`docs/modules-matrix.json` 與 `docs/MODULAR_ARCHITECTURE_2026-09-27.md`）
-的驗收指令寫「PG `laws_keywords` 表行數」—— **該表不存在**。
+⚠️ **陷阱：PG 沒有 `laws_keywords` 這張表。** 驗證點數時若照抄別處出現過的
+「PG `laws_keywords` 表行數」會直接報 relation does not exist。
 `ingest/laws/pg_schema.sql` 實際只有三張表：`law`、`article`、`law_import`（§8）。
+要查關鍵詞請用 `article` 表。（此錯誤源自 2026-09-27 已刪除的交接文件，
+修正後的驗收指令以本檔 §8 為準。）
 
 ### 跨機／活服務檢查（需對得上 x570）
 
