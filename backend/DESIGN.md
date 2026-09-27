@@ -63,11 +63,17 @@
 
 已補上的 15 個（補在 `compose.yaml` 的 api `environment:`，每個旁邊都有
 「原本讀得到但容器拿不到，2026-09-27 補上」的註解）：
-`CF_AIG_GATEWAY_ID`、`HOST_API_MBP`、`HOST_API_MSI`、`HOST_API_X570`、
+`CF_AIG_GATEWAY_ID`、`HOST_API_URLS`、
 `JEV_DISABLED`、`JEV_MODEL`、`OLLAMA_MODELS`、`PICK_TTL`、`PROBE_TIMEOUT`、
 `RAG_HIGH_DENSE`、`RAG_MID_DENSE`、`RAG_MIN_DENSE`、`REGISTRY_HEARTBEAT`、
 `REGISTRY_STALE_MIN`、`TYPESAFE_URL`。
 `tests/test_env_audit.py` 有斷言把「15 個必須有、3 個必須沒有」鎖住。
+
+> 2026-09-27：`HOST_API_MBP`／`HOST_API_MSI`／`HOST_API_X570` 三個已合併成
+> `HOST_API_URLS=x570=網址,msi=網址`。舊的三變數是「機台名寫進變數名」，
+> 第 4 台要改 compose 並重新 build；而且**不保留**舊鍵的相容 fallback ——
+> 留著就等於要求 env-audit 永遠維持一個沒有使用者的機制。刪除不是靜默的：
+> `env-audit.py` 的 `REMOVED_KEYS` 會把殘留的舊鍵報成幽靈並附遷移指引。
 
 ## 5. 驗收
 

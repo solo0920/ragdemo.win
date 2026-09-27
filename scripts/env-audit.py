@@ -567,6 +567,35 @@ def load_env(path: Path) -> dict[str, str]:
     return vals
 
 
+def declared_hosts() -> list[str]:
+    """總表宣告的機台清單（讀 `hosts.shared.env` 的 `HOSTS=` 那一行）。
+
+    找不到檔案或沒宣告 → 空清單。呼叫端要自己決定怎麼報（缺宣告與
+    「沒有 peer」是兩件事，不能混為一談）。
+    """
+    table = ROOT / "settings" / "env" / "hosts.shared.env"
+    if not table.exists():
+        return []
+    for raw in table.read_text(encoding="utf-8").splitlines():
+        m = ASSIGN.match(raw.strip())
+        if m and m.group(1) == "HOSTS":
+            return [h.strip() for h in m.group(2).split(",") if h.strip()]
+    return []
+
+
+def _is_machine_scoped(key: str) -> bool:
+    """這個鍵名是否帶了機台前綴（`msi_OLLAMA_URLS` 這種）。
+
+    機台清單來自總表宣告，不寫死。找不到宣告時**不**回報（此時報「每個鍵都
+    帶前綴」會是滿屏假警告）；`check_hosts_table` 會另外報缺宣告。
+    """
+    hosts = declared_hosts()
+    if not hosts:
+        return False
+    prefix = key.partition("_")[0]
+    return prefix.lower() in {h.lower() for h in hosts}
+
+
 def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
     """settings/env/hosts.shared.env 的每個 base 鍵都必須真的有程式讀取。
 
@@ -593,6 +622,7 @@ def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
     # `("x570", "mbp", "msi")`，第 4 台就查不到自己的列（而且是**靜默**漏查：
     # 不報錯、只是少算，輸出的「N 個鍵 × 3 台」看起來完全正常）。
     hosts = [h.strip() for h in rows.pop("HOSTS", "").split(",") if h.strip()]
+    del rows  # 只留 base 鍵；宣告列已取出
     if not hosts:
         print(f"  [per-host 總表] {table} 缺少 `HOSTS=<機台,機台,…>` 宣告")
         return 1
@@ -715,7 +745,7 @@ def audit(env: dict[str, str], reg: dict[str, Ref], label: str) -> int:
             print(f"    - {k:<22} {reg[k].readers_label}")
         problems += len(host_only)
 
-    per_machine = sorted(k for k in env if re.match(r"^(msi|mbp|x570)_", k, re.I))
+    per_machine = sorted(k for k in env if _is_machine_scoped(k))
     if per_machine:
         print(f"  [{label}] 前綴變數寫在執行期 .env（無效）: {'、'.join(per_machine)}")
         print("        compose 只認 ${VAR}，沒有依 HOST_ID 動態選前綴的能力 ——")

@@ -190,8 +190,15 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 因此前綴活在**被追蹤的總表**裡，`render` 才挑列寫成不帶前綴的鍵。
 好處是三台的值第一次變成同一個檔裡可比對、可 review、受 code review 保護。
 
-另一種把機台名放進變數名的寫法（同一台機器**同時**要有多組設定時用）：
-`HOST_API_X570` / `HOST_API_MBP` / `HOST_API_MSI`（`rag.py:167-171`）。
+同一台機器**同時**要有多組設定時，機台名放進**值**而不是變數名：
+`HOST_API_URLS=x570=https://…,msi=https://…`（逗號分隔，順序無特別意義；
+未設＝單機無 peer）。格式與 `OLLAMA_URLS`／`QDRANT_URLS` 一致，純網址也收
+（id 由主機名第一段推導）。
+
+> 2026-09-27 之前這裡是 `HOST_API_X570` / `HOST_API_MBP` / `HOST_API_MSI`
+> 三個變數（`rag.py:167-171`）。那種寫法把機台名燒進**變數名**，第 4 台就得
+> 改程式重新 build。舊鍵全刪、不留相容 fallback；`.env` 裡若有殘留，
+> `env-audit.py` 會報成幽靈鍵並給遷移指引。
 
 ## 10. 總表規則（`hosts.shared.env`）
 

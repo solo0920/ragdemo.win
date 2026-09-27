@@ -6,12 +6,17 @@
 ## 1. 目標
 
 UI 與 Cloudflare Pages worker。做到什麼算完成：`pnpm run build` 通過
-＋ 三台主機切換按鈕與「連線與來源」log 正確。
+＋ 各機台切換按鈕與「連線與來源」log 正確（機台數量由設定決定，不是三台）。
 
 ## 2. 邊界（不負責）
 
 - 不動 `backend/app/`、不動 `ingest/`
-- 跨機主機網址（`HOST_API_*`）歸 M1／M2；本模組只消費 `/health`、`/status` 既有欄位
+- 跨機主機網址（`HOST_API_URLS`）歸 M1／M2；本模組只消費 `/health`、`/status`
+  既有欄位，加上 `known`（`/status` 回的 peer 清單，前端據此組出切換器）
+- **程式碼不得列舉機台**（舊版寫死三台的地方 2026-09-27 全刪）——
+  `tests/test_frontend_hosts.py` 有原始碼層級的守門測試
+- worker 的 `API_ORIGINS` 支援 `id=網址` 與純網址，與後端同一份契約；
+  **未設就是單機**（回 503 說明缺什麼），不退回任何內建清單
 - 部署到 Pages 與版本相容性歸 M6 `ops`
 
 ## 3. 不變量
