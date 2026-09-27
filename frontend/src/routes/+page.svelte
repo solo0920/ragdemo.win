@@ -5,10 +5,20 @@
   // known 來自後端的 HOST_API_URLS；未設就是空 → 只剩「自動」，單機部署正常。
   // 舊版這裡寫死 x570/mbp/msi 三台，第 4 台部署的人必須改程式才能切過去。
   let knownHosts = {};
-  $: BACKENDS = [
+  const buildBackends = () => [
     { id: 'auto', label: '自動', base: '' },
     ...Object.entries(knownHosts).map(([id, url]) => ({ id, label: id, base: url })),
   ];
+  // ⚠️ 這裡**同時**給初值與反應式賦值，兩個都要留。
+  // 起因是 2026-09-28 的一次回歸：原本這裡只有 `$: BACKENDS = ...`，而
+  // 當時 restoreBackend() / checkHealth() / loadStatus() 三個呼叫寫在 script
+  // 頂層 —— 那時 instance() 主體才剛跑完、反應式區塊還沒求值，BACKENDS 是
+  // undefined。瀏覽器裡 BACKENDS.some() 未捕捉地丟出、instance 中斷，樣板的
+  // {#each BACKENDS} 跟著炸 → 整頁空白；SSR 那邊錯誤字串則被燒進 HTML。
+  // 那三個呼叫後來搬進了 onMount（見上方），但初值仍保留：`base()` 與樣板都會
+  // 讀 BACKENDS，讓它不依賴反應式語句的求值時機，才不會再出現同類問題。
+  let BACKENDS = buildBackends();
+  $: BACKENDS = buildBackends();
 
   let question = '';
   let ta;
@@ -73,6 +83,15 @@
       const d = await r.json();
       if (d.ok) user = d.user;
     } catch (_) {}
+    // 這三個必須留在 onMount 裡，不要提到 script 頂層。
+    // 兩個原因：
+    //  1) SSR 階段 SvelteKit 禁止相對網址的 eager fetch，症狀是 health 徽章顯示
+    //     "Cannot call `fetch` eagerly during server-side rendering"，
+    //     而且 /status、/models 都不會載入（整頁看起來是空的）。
+    //  2) 順序有意義：loadStatus 填完 knownHosts 之後 BACKENDS 才更新，
+    //     restoreBackend 才知道上次選的是哪台；loadModels 再據此決定打到哪台後端。
+    await checkHealth();
+    await loadStatus();
     loadModels();
     requestAnimationFrame(grow);
   });
@@ -403,9 +422,8 @@
     // 不要硬切到一台不存在的後端。
     if (saved && BACKENDS.some((x) => x.id === saved)) backendId = saved;
   }
-  restoreBackend();
-  checkHealth();
-  loadStatus();
+  // 這三個原本在 script 頂層呼叫（restoreBackend / checkHealth / loadStatus），
+  // 已搬進 onMount —— 見上方說明。留在頂層會讓 SSR 直接報錯、整頁載不到資料。
 </script>
 
 <main>

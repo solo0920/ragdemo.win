@@ -183,3 +183,171 @@ def test_worker_keeps_good_entries_when_one_is_bad(tmp_path: Path) -> None:
     got = _run_parse_origins(
         "notaurl,box=https://api-box.example.com,msi", tmp_path)
     assert got == [{"id": "box", "url": "https://api-box.example.com"}]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 下面這組是 2026-09-28 補的：把 BACKENDS 從 `const` 改成 `$:` 造成的回歸。
+# 症狀是 https://ragdemo.win/ 整頁空白，而錯誤訊息（"Cannot read properties
+# of undefined (reading 'find')"）被燒進 SSR 的 HTML，所以只看線上看起來像
+# 「頁面壞掉」而不是「某個變數沒初始化」。
+# ──────────────────────────────────────────────────────────────────────
+
+def _onmount_span(code: str) -> tuple[int, int]:
+    """回傳 onMount(...) 回呼在 script 裡的字元範圍（用大括號配對）。"""
+    m = re.search(r"\bonMount\s*\(", code)
+    assert m, "找不到 onMount —— 這個測試假設它還在，若被改名請同步維護"
+    i = code.index("{", m.end())
+    depth, j = 0, i
+    while j < len(code):
+        if code[j] == "{":
+            depth += 1
+        elif code[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return m.start(), j
+        j += 1
+    raise AssertionError("onMount 的大括號沒配對到")
+
+
+def _top_level_call_sites(code: str, name: str) -> list[int]:
+    """回傳 `name(...)` 出現在「script 頂層」（大括號深度 0）的位置。
+
+    不能用「整行剛好是 `fn();`」來判 —— 那會把函式**內部**的合法呼叫
+    （例如 `switchBackend()` 裡的 `loadModels()`）也算出來，而那些是對的：
+    它們由使用者操作觸發、確定在瀏覽器裡。真正要擋的是沒有任何函式包住、
+    會在組件初始化時就執行的呼叫。
+
+    掃描時跳過註解、字串、樣板字串（含 `${}` 巢狀），因為那些裡面的大括號
+    不代表區塊深度。
+    """
+    i, n, depth, sites = 0, len(code), 0, []
+    while i < n:
+        ch = code[i]
+        if ch == "/" and code[i + 1:i + 2] == "/":
+            j = code.find("\n", i)
+            i = n if j == -1 else j
+            continue
+        if ch == "/" and code[i + 1:i + 2] == "*":
+            j = code.find("*/", i + 2)
+            i = n if j == -1 else j + 2
+            continue
+        if ch in "\"'":
+            q, i = ch, i + 1
+            while i < n and code[i] != q:
+                i += 2 if code[i] == "\\" else 1
+            i += 1
+            continue
+        if ch == "`":
+            i, tdepth = i + 1, 0
+            while i < n:
+                if code[i] == "\\":
+                    i += 2
+                    continue
+                if code[i] == "$" and code[i + 1:i + 2] == "{":
+                    tdepth, i = tdepth + 1, i + 2
+                    continue
+                if code[i] == "}" and tdepth:
+                    tdepth, i = tdepth - 1, i + 1
+                    continue
+                if code[i] == "`" and tdepth == 0:
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "{":
+            depth += 1
+            i += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            i += 1
+            continue
+        if depth == 0 and code.startswith(name + "(", i):
+            prev = code[i - 1] if i else ""
+            if not (prev.isalnum() or prev in "_$.'"):
+                j, lvl = i + len(name), 0
+                while j < n:
+                    if code[j] == "(":
+                        lvl += 1
+                    elif code[j] == ")":
+                        lvl -= 1
+                        if lvl == 0:
+                            break
+                    j += 1
+                if code[j + 1:j + 2] in ("", ";", "\n"):
+                    sites.append(i)
+                i = j + 1
+                continue
+        i += 1
+    return sites
+
+
+def test_page_backends_has_eager_initializer_not_only_reactive() -> None:
+    """`BACKENDS` 必須有初值，不能只靠 `$:`。
+
+    Svelte 的反應式賦值是在 `instance()` 主體跑完**之後**才求值的。任何在
+    script 頂層就去讀它的東西（`base()`、樣板裡的 `{#each}`）都會拿到
+    undefined —— 而那會讓整個 component 的掛載中斷，症狀是空白頁。
+    """
+    code = _code_only(PAGE)
+    assert re.search(r"^\s*let\s+BACKENDS\s*=", code, re.M), \
+        "BACKENDS 需要一個 non-reactive 的初值（`let BACKENDS = ...`）；" \
+        "只有 `$: BACKENDS = ...` 會讓頂層讀取拿到 undefined"
+    assert re.search(r"^\s*\$\:\s*BACKENDS\s*=", code, re.M), \
+        "BACKENDS 仍需保留反應式賦值，knownHosts 進來後要能更新"
+
+
+def test_page_startup_fetches_live_in_onmount_not_at_script_top_level() -> None:
+    """`checkHealth` / `loadStatus` / `loadModels` 不得在 script 頂層呼叫。
+
+    它們打的是相對網址（`/api/health`）。SvelteKit 在 SSR 階段會直接丟出
+    "Cannot call `fetch` eagerly during server-side rendering"，於是 health
+    徽章變紅、`/status` 與 `/models` 都不載入 —— 整頁看起來是空的。
+    這兩件事都只能在瀏覽器做，所以必須在 `onMount`（或某個函式）裡。
+
+    在函式內（例如 `switchBackend()`）呼叫是對的，那條不在此限。
+    """
+    code = _code_only(PAGE)
+    for fn in ("checkHealth", "loadStatus", "loadModels"):
+        bad = _top_level_call_sites(code, fn)
+        assert not bad, (
+            f"{fn}() 在 script 頂層被呼叫（字元 {bad}）——沒有任何函式包住，"
+            "會在組件初始化時執行。SSR 階段 SvelteKit 禁止相對網址的 fetch，"
+            "會讓整頁載不到資料。請移進 onMount。"
+        )
+
+
+def test_page_startup_fetches_are_actually_awaited_in_onmount() -> None:
+    """光「不在頂層」不夠 —— 必須真的在 onMount 裡被呼叫到。
+
+    有人可能把三個呼叫整段刪掉，那上一條測試會綠，但頁面就再也沒有資料了。
+    這條守住它們仍然接得上。
+    """
+    code = _code_only(PAGE)
+    lo, hi = _onmount_span(code)
+    inside = code[lo:hi]
+    for fn in ("checkHealth", "loadStatus", "loadModels"):
+        assert re.search(rf"\b{fn}\(\)", inside), \
+            f"onMount 裡應該要呼叫 {fn}() —— 沒有它的話頁面不會載入資料"
+
+
+def test_page_restore_backend_only_runs_once_known_hosts_arrived() -> None:
+    """還原上次選的後端必須在 knownHosts 填好之後，且只做一次。
+
+    knownHosts 還是空時 `BACKENDS` 只有「自動」，比對永遠不成立 —— 那時還原
+    等於沒做。這是 `restoreTried` 存在的原因，順便守住「只跑一次」，
+    否則使用者手動切到別台後，下次 loadStatus 會把他無聲無息切回去。
+    """
+    code = _code_only(PAGE)
+    assert "restoreTried" in code, "restoreBackend 應有「只試一次」的旗標"
+    m = re.search(r"knownHosts\s*=\s*[^;]+;\s*\n\s*restoreBackend\(\)", code)
+    assert m, "restoreBackend() 應緊接在 knownHosts 賦值之後（loadStatus 裡）"
+
+
+# 這裡原本還有一條「用 svelte/compiler 編譯後比對 let BACKENDS = 的位置是否
+# 在頂層呼叫之前」的測試。**拿掉了**，因為它測的是錯的東西：
+# 把三個呼叫搬進 onMount 之後，求值順序就不再是問題（編譯後已無任何頂層呼叫），
+# 那條測試對一個已經不存在的風險做 regex 比對，而且會隨 Svelte 版本的輸出格式
+# 碎掉。真正守住這個不變式的是上面那三條：初值、不得在頂層、onMount 裡確實有呼叫。
+# 三條都實測過會紅（見 commit 訊息）。
+
