@@ -72,6 +72,7 @@ OLLAMA_URLS, OLLAMA_LABELS = _split_endpoints(
     os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT), OLLAMA_DEFAULT)
 QDRANT_URLS, QDRANT_LABELS = _split_endpoints(
     os.getenv("QDRANT_URLS", QDRANT_DEFAULT), QDRANT_DEFAULT)
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
 # OLLAMA_MODELS：與 OLLAMA_URLS 同順序的 LLM model 清單；未設則全部用 LLM_MODEL。
