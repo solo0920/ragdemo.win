@@ -1,5 +1,5 @@
 """sparse tokenizer / 稀疏向量（純函式，Qdrant u32 限制）。"""
-from app import sparse as S
+from app.common import sparse as S
 
 MAX_U32 = 1 << 32
 

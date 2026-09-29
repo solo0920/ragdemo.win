@@ -9,17 +9,19 @@
 """
 import asyncio
 import hashlib
-import json
 import os
 import sys
 from pathlib import Path
 
 import httpx
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sparse import sparse_vector  # noqa: E402
-
 ROOT = Path(__file__).resolve().parents[2]
+# sparse tokenizer 只有一份，在 backend/app/common/。ingest 與 backend 共用同一個
+# 實作（過去這裡另有一份 byte-identical 的 sparse.py，兩邊各自演化已經分叉的風險）。
+sys.path.insert(0, str(ROOT / "backend"))
+from app.common.jsonl import load_jsonl  # noqa: E402  # pg_load.py 共用同一份
+from app.common.sparse import sparse_vector  # noqa: E402
+
 DATA = ROOT / "data" / "laws"
 # ingest 跑在 host 端（不是容器內），所以預設就是本機 ollama。
 # 舊預設是 x570 的 tailscale IP：一台沒設 OLLAMA 的新機器會去戳別台機器的 ollama，
@@ -38,10 +40,6 @@ COLLECTION_CFG = {
     "on_disk_payload": True,
     "hnsw_config": {"m": 32, "ef_construct": 256},
 }
-
-
-def load_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def chunk_text(content: str, maxlen: int = MAX_DOC) -> list[str]:

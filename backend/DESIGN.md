@@ -58,8 +58,8 @@
 | 變數 | 為什麼刻意不傳 |
 |---|---|
 | `QDRANT_URLS` | 容器化的降級模型是**快照同步**（`scripts/sync-snapshot.sh` 每 10 分鐘把 x570 的快照推到 mbp/msi），不是讓 mbp/msi 的容器 live 去讀 x570。傳進去會讓 mbp/msi 的容器**依賴 x570 在線**，與快照模型的初衷相反（x570 掛了要能繼續服務）。而且 `QDRANT_URLS` 的 peer 就是**別台的 qdrant**，那會把 `QDRANT_API_KEY` 逼成三台同值 —— 正是 scope `A` 正在拆掉的鎖步輪換。容器一律走 `QDRANT_URL=http://qdrant:6333`。 |
-| `HOST_MACHINE_ID_FILE` | `registry.py:24` 把它當「主機檔案」的 fallback 路徑（預設 `/run/secrets/host-machine-id`）。Docker Desktop 掛單一檔案不可靠（見上），所以設計上就走 `HOST_MACHINE_ID` 環境變數（`registry.py:31`，值優先於檔案）。這個 fallback 只在**原生執行**（host 端直接 `uvicorn`）時才有意義；傳進容器等於宣告「容器裡有那個檔案」而實際沒有。 |
-| `HOST_HOSTNAME_FILE` | 同上（`registry.py:25` ＋ `registry.py:32`）。 |
+| `HOST_MACHINE_ID_FILE` | `registry.py:20` 把它當「主機檔案」的 fallback 路徑（預設 `/run/secrets/host-machine-id`）。Docker Desktop 掛單一檔案不可靠（見上），所以設計上就走 `HOST_MACHINE_ID` 環境變數（`registry.py:27`，值優先於檔案）。這個 fallback 只在**原生執行**（host 端直接 `uvicorn`）時才有意義；傳進容器等於宣告「容器裡有那個檔案」而實際沒有。 |
+| `HOST_HOSTNAME_FILE` | 同上（`registry.py:21` ＋ `registry.py:28`）。 |
 
 已補上的 15 個（補在 `compose.yaml` 的 api `environment:`，每個旁邊都有
 「原本讀得到但容器拿不到，2026-09-27 補上」的註解）：

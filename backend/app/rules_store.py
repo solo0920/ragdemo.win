@@ -14,6 +14,8 @@ import threading
 import uuid
 from pathlib import Path
 
+from .common.text import squash
+
 logger = logging.getLogger("ragdemo")
 
 PATHS = [Path("data/rules/rules.json"), Path("/app/data/rules/rules.json")]
@@ -173,7 +175,7 @@ def match_rule(question: str, law: str | None, rules: list[dict] | None = None) 
     """回第一個命中的已啟用規則；無則 None。law 優先於辦法名限定的規則。"""
     if rules is None:
         rules = load()
-    q = _cw(question)
+    q = squash(question)
     for r in rules:
         if not r.get("enabled", True):
             continue
@@ -182,7 +184,7 @@ def match_rule(question: str, law: str | None, rules: list[dict] | None = None) 
         kind = r.get("kind", "contains")
         m = r.get("match", "")
         if kind == "exact":
-            hit = q == _cw(m)
+            hit = q == squash(m)
         elif kind == "regex":
             try:
                 hit = re.search(m, q) is not None
@@ -195,16 +197,12 @@ def match_rule(question: str, law: str | None, rules: list[dict] | None = None) 
     return None
 
 
-def _cw(s: str) -> str:
-    return re.sub(r"\s+", "", s or "")
-
-
 _PROBE_FLOOR = 0.5  # 近似候選最低 token 覆蓋率（以下不送 JEV）
 
 
 def _shingles(s: str) -> set[str]:
     """淺層 token：拉丁文切字＋CJK 雙字（不依賴外部分詞、無依賴）。"""
-    s = _cw(s or "")
+    s = squash(s or "")
     out: set[str] = set()
     for run in re.findall(r"[A-Za-z0-9]+|[\u3400-\u9fff]+", s):
         if run.isascii():
@@ -232,7 +230,7 @@ def probe(question: str, law: str | None) -> dict | None:
     法名限定規則須法名相符；停用規則跳過；無候選回 None。回最佳一筆。"""
     best: dict | None = None
     best_score = 0.0
-    q = _cw(question)
+    q = squash(question)
     for r in load():
         if not r.get("enabled", True):
             continue
@@ -240,7 +238,7 @@ def probe(question: str, law: str | None) -> dict | None:
             continue
         kind = r.get("kind", "contains")
         m = r.get("match", "")
-        mo = _cw(m)
+        mo = squash(m)
         score = 0.0
         ident = False
         if kind == "exact":

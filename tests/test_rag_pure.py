@@ -3,7 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import rag, law_struct, sparse  # noqa: F401  # import 觸發後端設定載入
+# import 觸發後端設定載入；_ref 已於 2026-09-29 隨檢索層搬去 retrieve。
+from app import rag, law_struct  # noqa: F401  # import 觸發後端設定載入
+from app.common import sparse  # noqa: F401
 
 
 def _law_hit(payload_extra=None, text="一、返還之。\n二、利息。", score=0.9):

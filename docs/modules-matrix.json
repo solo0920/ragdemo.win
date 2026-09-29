@@ -70,7 +70,7 @@
           "backend/app/rules_store.py",
           "backend/app/usage.py",
           "backend/app/law_struct.py",
-          "backend/app/sparse.py",
+          "backend/app/common/",
           "backend/Dockerfile",
           "backend/pyproject.toml"
         ],
@@ -139,7 +139,6 @@
           "ingest/laws/normalize.py",
           "ingest/laws/eda.py",
           "ingest/laws/qdrant_load.py",
-          "ingest/laws/sparse.py",
           "ingest/cases/",
           "data/laws/"
         ],

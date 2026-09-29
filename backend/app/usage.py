@@ -7,14 +7,7 @@ prompt_eval_count+eval_count，各家格式不同，取得到就記、取不到 
 calls 一定記）。前端在選單 model 名後顯示「今日 N 次／約 T tokens」。
 寫入失敗只吞掉不影響 query（best-effort）。
 """
-try:
-    import asyncpg
-except ImportError:
-    asyncpg = None
-
-POSTGRES_DSN = __import__("os").getenv(
-    "POSTGRES_DSN", "postgresql://rag@postgres:5432/ragdemo"
-)
+from .common import pg
 
 DDL = """
 CREATE TABLE IF NOT EXISTS model_usage (
@@ -27,22 +20,11 @@ CREATE TABLE IF NOT EXISTS model_usage (
 );
 """
 
-_pool = None
-
-
-async def _pool_get():
-    global _pool
-    if _pool is None:
-        if asyncpg is None:
-            raise RuntimeError("asyncpg 未安裝")
-        _pool = await asyncpg.create_pool(POSTGRES_DSN, min_size=1, max_size=2)
-    return _pool
-
 
 async def track(provider: str, model: str, tokens: int = 0) -> None:
     """best-effort 記錄一次成功呼叫；任何失敗（PG 掛/連不上）都吞掉。"""
     try:
-        pool = await _pool_get()
+        pool = await pg.pool_get()
         async with pool.acquire() as con:
             await con.execute(DDL)
             await con.execute(
@@ -56,13 +38,15 @@ async def track(provider: str, model: str, tokens: int = 0) -> None:
                 provider, model, int(tokens or 0),
             )
     except Exception:
-        pass
+        # 丟掉可能已經斷掉的池，否則 PG 重啟後 usage 會一直抱著死池不放、永遠不自癒
+        # （registry.heartbeat 原本就有做這件事，usage 沒有）。
+        await pg.drop_pool()
 
 
 async def snapshot() -> list[dict]:
     """今日各 (provider, model) 的累計 calls / tokens（排序：tokens 多→少）。"""
     try:
-        pool = await _pool_get()
+        pool = await pg.pool_get()
         async with pool.acquire() as con:
             await con.execute(DDL)
             rows = await con.fetch(
@@ -75,4 +59,5 @@ async def snapshot() -> list[dict]:
             )
         return [dict(r) for r in rows]
     except Exception:
+        await pg.drop_pool()
         return []

@@ -19,7 +19,8 @@ from urllib.parse import urlparse
 
 import httpx
 
-from . import sparse as _sparse
+from .common import sparse as _sparse
+from .common.text import collapse_ws
 from . import law_struct as _law
 from . import rules_store as _rules
 from . import usage as _usage
@@ -730,11 +731,6 @@ def _try_load_law_meta() -> None:
     logger.warning("laws_meta 未找到，規則題庫拿不到後設資料")
 
 
-def _cw(s: str) -> str:
-    """歸一連續空白（含全形）為單一空格並去頭尾。"""
-    return re.sub(r"\s+", " ", s).strip()
-
-
 def _fmt_rm_date(s: str | None) -> str | None:
     """YYYYMMDD → 「民國 Y年 M月 D 日（西元 YYYY）」。非該格式原樣回。"""
     if not s:
@@ -754,7 +750,7 @@ def _fmt_rm_date(s: str | None) -> str | None:
 
 def _meta_authority(m: dict) -> str | None:
     """主管機關：法規分類開頭為「行政＞…」取第二段，否則回整個分類。"""
-    cat = _cw(m.get("law_category") or "")
+    cat = collapse_ws(m.get("law_category") or "")
     if cat.startswith("行政") and "＞" in cat:
         return cat.split("＞")[1] or (cat or None)
     return cat or None
@@ -764,13 +760,13 @@ def _meta_history(m: dict) -> str | None:
     h = (m.get("law_histories") or "").strip()
     if not h:
         return None
-    return _cw(h.split("\r\n")[0].split("\n")[0]) or None
+    return collapse_ws(h.split("\r\n")[0].split("\n")[0]) or None
 
 
 def _meta_card(law: str, m: dict) -> str:
     """「什麼是X法」的規則卡：位階＋分類＋條數＋沿革首行（不進 LLM，零編造）。"""
     lv = m.get("law_level") or "法規"
-    cat = _cw(m.get("law_category") or "")
+    cat = collapse_ws(m.get("law_category") or "")
     n = _LAW_COUNTS.get(law)
     cnt = f"現行有效條文 {n} 條" if n else "條文數不明"
     hist = _meta_history(m)
@@ -818,7 +814,7 @@ def _rule_answer(intent: str, law: str) -> str | None:
         if sd:
             parts.append(f"自 {sd} 起施行")
         if note:
-            parts.append(f"（{_cw(note[:80])}）")
+            parts.append(f"（{collapse_ws(note[:80])}）")
         return f"《{law}》{''.join(parts)}。" if parts else None
     if intent == "revised":
         md = _fmt_rm_date((m.get("law_modified_date") or "").strip() or None)
@@ -1653,7 +1649,7 @@ def _jev_snippets(top: list[dict], max_chars: int = 160) -> list[dict]:
         out.append({
             "law": p.get("law_name", ""),
             "article": (p.get("article_no") or "").replace(" ", ""),
-            "text": _cw(p.get("text", ""))[:max_chars],
+            "text": collapse_ws(p.get("text", ""))[:max_chars],
         })
     return out
 
@@ -1743,7 +1739,7 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
         rule = p["rule"]
         base = {"ok": True, "host": HOST_ID, "no_match": False, "src": src,
                 "log": await _host_probe_log()}
-        ms = _cw(rule.get("match", ""))[:24]
+        ms = collapse_ws(rule.get("match", ""))[:24]
         if p["identity"]:
             base["answer"] = f"{HOST_ID}: {rule.get('answer', '')}"
             base["confidence"] = "user_rule"

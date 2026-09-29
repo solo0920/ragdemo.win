@@ -17,7 +17,10 @@
 compose.yaml       # qdrant + postgres + api（三機共用，x570 已跑 docker compose）
 backend/           # FastAPI：/health /ingest /query /eval /rules /models
   app/             #   main.py / rag.py / registry.py / usage.py / rules_store.py
-                   #   law_struct.py / sparse.py / __init__.py
+                   #   law_struct.py / __init__.py
+    common/        #   backend 與 ingest 共用：sparse.py（法規 sparse tokenizer，
+                   #   純 stdlib）/ text.py（空白正規化）/ pg.py（共用連線池）
+                   #   / jsonl.py（JSONL 讀取）。ingest 走 sys.path 引用同一份。
   .env.example     #   樣板（真實 .env 在 repo 根，不進版控）
 frontend/          # SvelteKit：只打 /api/*（Google 登入守護 SENSITIVE 路徑）
   src/routes/api/[...path]/+server.ts   # worker：登入 guard + 三台備援轉發

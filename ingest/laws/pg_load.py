@@ -15,6 +15,9 @@ from pathlib import Path
 import asyncpg
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "backend"))
+from app.common.jsonl import load_jsonl  # noqa: E402  # qdrant_load.py 共用同一份
+
 DATA = ROOT / "data" / "laws"
 DSN = os.getenv("POSTGRES_DSN", "postgresql://rag@localhost:5432/ragdemo")
 DDL = (Path(__file__).resolve().parent / "pg_schema.sql").read_text(encoding="utf-8")
@@ -27,10 +30,6 @@ def sha256f(path: Path) -> str:
         for block in iter(lambda: f.read(1 << 20), b""):
             h.update(block)
     return h.hexdigest()
-
-
-def load_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def content_hash(text: str) -> str:

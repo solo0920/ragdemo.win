@@ -7,14 +7,10 @@ import socket
 import subprocess
 import uuid
 
+from .common import pg
+
 logger = logging.getLogger("ragdemo")
 
-try:
-    import asyncpg
-except ImportError:
-    asyncpg = None
-
-POSTGRES_DSN = os.getenv("POSTGRES_DSN", "postgresql://rag@postgres:5432/ragdemo")
 HOST_ID = os.getenv("HOST_ID", "")
 HOSTNAME = os.getenv("HOST_NAME", "") or socket.gethostname()
 TS_IP = os.getenv("TS_IP", "")
@@ -46,8 +42,6 @@ CREATE TABLE IF NOT EXISTS backends (
     ok         BOOLEAN NOT NULL DEFAULT TRUE
 );
 """
-
-_pool = None
 
 
 def _read_id(paths: list[str]) -> str:
@@ -126,19 +120,9 @@ def _ips() -> list[str]:
     return out
 
 
-async def _pool_get():
-    global _pool
-    if _pool is None:
-        if asyncpg is None:
-            raise RuntimeError("asyncpg 未安裝")
-        _pool = await asyncpg.create_pool(POSTGRES_DSN, min_size=1, max_size=3)
-    return _pool
-
-
 async def heartbeat(models: list[str], llm: str, ok: bool = True) -> None:
-    global _pool
     try:
-        pool = await _pool_get()
+        pool = await pg.pool_get()
         async with pool.acquire() as con:
             await con.execute(DDL)
             await con.execute(
@@ -161,19 +145,15 @@ async def heartbeat(models: list[str], llm: str, ok: bool = True) -> None:
                 STALE_MIN,
             )
     except Exception as e:
-        if _pool is not None:
-            try:
-                await _pool.close()
-            except Exception:
-                pass
-            _pool = None
+        # 連線斷掉時丟掉死掉的池，下次呼叫才會重建（自癒）。
+        await pg.drop_pool()
         raise RuntimeError(f"registry heartbeat failed: {e}") from e
 
 
 async def list_hosts() -> list[dict]:
     rows: list[dict] = []
     try:
-        pool = await _pool_get()
+        pool = await pg.pool_get()
         async with pool.acquire() as con:
             await con.execute(DDL)
             r = await con.fetch("SELECT * FROM backends ORDER BY last_seen DESC")
@@ -197,10 +177,4 @@ async def list_hosts() -> list[dict]:
 
 
 async def close() -> None:
-    global _pool
-    if _pool is not None:
-        try:
-            await _pool.close()
-        except Exception:
-            pass
-        _pool = None
+    await pg.drop_pool()
