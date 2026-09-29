@@ -34,7 +34,12 @@
     await refresh();
   });
 
-  function auth() {
+  // 回傳型別標成 HeadersInit：沒有它，TS 推不出 `{} | {authorization: string}`
+  // 的聯集，svelte-check 會在三處 `...auth()` 展開處報
+  // "Type '{authorization: string; ...} | {authorization?: undefined; ...}'
+  //  is not assignable to type 'HeadersInit'"（2026-09-30 實測）。
+  // 只標型別、不改行為。
+  function auth(): HeadersInit {
     return token ? { authorization: `Bearer ${token}` } : {};
   }
 
