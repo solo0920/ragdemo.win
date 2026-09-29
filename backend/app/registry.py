@@ -17,8 +17,8 @@ TS_IP = os.getenv("TS_IP", "")
 LAN_IP = os.getenv("LAN_IP", "")
 HEARTBEAT = int(os.getenv("REGISTRY_HEARTBEAT") or "30")
 STALE_MIN = int(os.getenv("REGISTRY_STALE_MIN") or "3")
-HOST_MACHINE_ID = os.getenv("HOST_MACHINE_ID_FILE", "/run/secrets/host-machine-id")
-HOST_HOSTNAME = os.getenv("HOST_HOSTNAME_FILE", "/run/secrets/host-hostname")
+HOST_MACHINE_ID = os.getenv("HOST_MACHINE_ID_FILE") or "/run/secrets/host-machine-id"
+HOST_HOSTNAME = os.getenv("HOST_HOSTNAME_FILE") or "/run/secrets/host-hostname"
 # 值優先於檔案。為什麼需要這條路徑：Docker Desktop（WSL）掛「單一檔案」型 bind mount
 # 不可靠，實測容器 init 直接 exit=127（error mounting ... not a directory），
 # 而同樣的「目錄型」掛載正常 —— 只有 /etc/hostname、/etc/machine-id 這兩個單檔掛載會死。

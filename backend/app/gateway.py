@@ -73,8 +73,8 @@ OLLAMA_URLS, OLLAMA_LABELS = _split_endpoints(
 QDRANT_URLS, QDRANT_LABELS = _split_endpoints(
     os.getenv("QDRANT_URLS", QDRANT_DEFAULT), QDRANT_DEFAULT)
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
-EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
+EMBED_MODEL = os.getenv("EMBED_MODEL") or "bge-m3:latest"
+LLM_MODEL = os.getenv("LLM_MODEL") or "qwen3:14b"
 # OLLAMA_MODELS：與 OLLAMA_URLS 同順序的 LLM model 清單；未設則全部用 LLM_MODEL。
 OLLAMA_MODELS = [m.strip() for m in os.getenv("OLLAMA_MODELS", LLM_MODEL).split(",") if m.strip()] or [LLM_MODEL]
 CF_AIG_TOKEN = os.getenv("CF_AIG_TOKEN", "").strip()

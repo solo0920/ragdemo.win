@@ -26,18 +26,61 @@ DATA = ROOT / "data" / "laws"
 # ingest 跑在 host 端（不是容器內），所以預設就是本機 ollama。
 # 舊預設是 x570 的 tailscale IP：一台沒設 OLLAMA 的新機器會去戳別台機器的 ollama，
 # 然後把「連不上」誤認成「嵌入失敗」，除錯方向整個跑掉。
-OLLAMA = os.getenv("OLLAMA", "http://127.0.0.1:11434").rstrip("/")
-QDRANT = os.getenv("QDRANT", "http://localhost:6333").rstrip("/")
+OLLAMA = os.getenv("OLLAMA") or "http://127.0.0.1:11434".rstrip("/")
+QDRANT = os.getenv("QDRANT") or "http://localhost:6333".rstrip("/")
 # qdrant 啟用 QDRANT__SERVICE__API_KEY 後，所有請求都要帶 api-key header，
 # 否則 401（實測）。compose.yaml:15 有設那個 key，所以這支腳本一定要帶。
 # 讀不到值時不帶 header —— 讓無認證的 qdrant（本機測試）仍能用。
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 QDRANT_HEADERS = {"api-key": QDRANT_API_KEY} if QDRANT_API_KEY else {}
-EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
+# `or` 不是多餘的：.env 裡 `EMBED_MODEL=`（存在但空）會讓 os.getenv 回空字串，
+# 送出 {'model': ''} → ollama 回 404 "model '' not found"（實測踩到）。
+# 與 tests/test_env_empty_values.py 鎖的是同一件事。
+EMBED_MODEL = os.getenv("EMBED_MODEL") or "bge-m3:latest"
 COLLECTION = "laws"
 DENSE = 1024
 MAX_DOC = 7900
+
+# ollama 0.34.4（2026-09-29 實測）對**單次請求的總字元數**有上限，超過就回
+# 400 且錯誤訊息是誤導性的：
+#     Post "http://127.0.0.1:55765/tokenize": dial tcp ...: connection refused
+# 那個 port 是 ollama 內部 worker 的隨機臨時埠，看起來像「連不上 ollama」，
+# 實際是它自己把請求送進去時爆掉。實測臨界點（bge-m3，中文法規文本）：
+#     256 筆 × 短文本（總 5,120 字元）  → 200
+#     320 筆 × 短文本（總 6,400 字元）  → 400
+#     256 筆 × 法規文本（總 18,537 字元）→ 200
+#     512 筆 × 法規文本（總 41,584 字元）→ 400
+# 所以上限大約在 **1 萬～2 萬字元**之間，與筆數無關（1,024 筆短文本也會炸）。
+#
+# 原先的 EMB_BATCH=256 只是碰巧安全 —— 法規文本平均 70 字元時 256 筆約 1.8 萬
+# 字元，剛好沒超過。換個資料集（平均更長）就會炸，而且症狀是整條管線在最後
+# 一階段崩，前面 5 萬條都算好了。改成**依字元數**切分，這才對齊真正的限制。
+#
+# 1.2 萬字元留一點餘裕：實測 1 萬 2000 可過，但 ollama 版本升級可能收緊。
+EMB_CHARS = 12_000
 EMB_BATCH, UP_BATCH = 256, 512
+
+
+def chunk_by_chars(texts: list[str], limit: int = EMB_CHARS) -> list[list[str]]:
+    """依**總字元數**切批次，不是依筆數。
+
+    單筆可能接近 MAX_DOC=7900，所以要保證「累積到 limit 就切」而不是
+    「每 limit 筆切一批」—— 後者會讓一批的總字元數遠超 ollama 的上限。
+    超長單筆（> limit）自己成一批，因為 ollama 的限制是總量不是單筆。
+    """
+    out: list[list[str]] = []
+    cur: list[str] = []
+    total = 0
+    for t in texts:
+        n = len(t)
+        if cur and total + n > limit:
+            out.append(cur)
+            cur, total = [], 0
+        cur.append(t)
+        total += n
+    if cur:
+        out.append(cur)
+    return out
 
 COLLECTION_CFG = {
     "vectors": {"dense": {"size": DENSE, "distance": "Cosine"}},
@@ -93,8 +136,7 @@ async def _embed_one(c: httpx.AsyncClient, text: str) -> list[float]:
 
 async def embed(c: httpx.AsyncClient, texts: list[str]) -> list[list[float]]:
     out: list[list[float]] = []
-    for i in range(0, len(texts), EMB_BATCH):
-        batch = [t[:MAX_DOC] for t in texts[i:i + EMB_BATCH]]
+    for batch in chunk_by_chars([t[:MAX_DOC] for t in texts]):
         r = None
         for _ in range(3):  # ollama 忙/瞬斷重試
             try:
@@ -107,7 +149,13 @@ async def embed(c: httpx.AsyncClient, texts: list[str]) -> list[list[float]]:
         if r is not None and r.status_code == 200:
             out.extend(r.json()["embeddings"])
             continue
-        # 整批 400（某筆超長/膨脹）→ 拆單筆連演
+        # 整批失敗（400：總字元超 ollama 上限；或 ollama 內部 worker 掛掉）
+        # → 拆單筆連演。單筆永不超過 EMB_CHARS，所以這條路一定走得通。
+        # 印出原因：ollama 那個 "connection refused" 誤導性很強，不印出來
+        # 會被誤判成「連不上 ollama」（實際 ollama 好好地回應了這個 400）。
+        print(f"  批次失敗（{len(batch)} 筆 / {sum(len(t) for t in batch)} 字元，"
+              f"HTTP {r.status_code if r is not None else 'n/a'}）→ 拆單筆重試"
+              f"{'：' + (r.text[:80] if r is not None else '') if r is not None else ''}")
         out.extend([await _embed_one(c, t) for t in batch])
     return out
 
@@ -212,7 +260,9 @@ async def run(limit: int = 0) -> None:
 
         sp = [None] * len(pts)
         texts = [p["_text"] for p in pts]
-        print("dense embed 開始（ollama bge-m3）…（185 批次，約 2-8 分鐘）")
+        n_batches = len(chunk_by_chars([p["_text"][:MAX_DOC] for p in pts]))
+        print(f"dense embed 開始（ollama bge-m3）…（{n_batches} 批次，"
+              f"每批 ≤{EMB_CHARS} 字元，約 2-8 分鐘）")
         t0 = __import__("time").time()
         dense = await embed(c, texts)
         print(f"dense 完成 {len(dense)}，耗時 {int(__import__('time').time() - t0)}s，sparse 計算中…")

@@ -51,6 +51,61 @@ def test_no_numeric_getenv_with_literal_default():
         "`os.getenv(K) or \"預設\"`：\n  " + "\n  ".join(offenders))
 
 
+# 預設值「非空」的字串型 getenv：空值會被原樣帶進程式，症狀依變數而異 ——
+#   EMBED_MODEL → 送出 {'model': ''} → ollama 404 "model '' not found"（實測）
+#   COLLECTION → 查詢錯的 collection，症狀是「查不到東西但沒有錯誤」
+#   *_BASE_URL → 拿空字串去組 URL
+# 預設值是空字串的不在此列 —— 那是刻意允許留空的（如 ADMIN_TOKEN）。
+# 刻意排除的兩個：gateway.py 的 OLLAMA_DEFAULT / QDRANT_DEFAULT —— 那一行的
+# docstring 說明 env-audit pass 3 是逐行字面比對，改寫法會讓「低優先來源」
+# 提示安靜消失（原作者實測踩到兩次）。它們留空是安全的：空值會被
+# _split_endpoints 的 fallback 邏輯吸收。
+STRING_GETENV = re.compile(
+    r"""\bos\.getenv\(\s*"""
+    r"""(?P<q>["'])(?P<key>[A-Za-z_][A-Za-z_0-9]*)(?P=q)\s*,"""
+    r"""(?P<q2>["'])(?P<default>[^"']+?)(?P=q2)\s*\)""", re.M)
+EXEMPT = {("gateway.py", "OLLAMA_BASE_URL"), ("gateway.py", "QDRANT_URL")}
+
+
+def test_no_string_getenv_with_nonempty_default():
+    """字串型 getenv 帶非空預設時，空值會被帶進程式 —— 一律要用 `or "預設"`。"""
+    offenders = []
+    for p in _targets():
+        src = p.read_text(encoding="utf-8")
+        for m in STRING_GETENV.finditer(src):
+            key, default = m.group("key"), m.group("default")
+            if (p.name, key) in EXEMPT:
+                continue
+            line = src[:m.start()].count("\n") + 1
+            line_text = src.splitlines()[line - 1]
+            if "or " in line_text:      # 已用 or 修過
+                continue
+            offenders.append(
+                f"{p.relative_to(p.parents[2])}:{line} {key} "
+                f'→ getenv("{key}", "{default}")')
+    assert not offenders, (
+        "以下 getenv 在 .env 留空時會把空字串帶進程式（EMBED_MODEL 會讓 ollama "
+        "回 404），改用 `os.getenv(K) or \"預設\"`：\n  " + "\n  ".join(offenders))
+
+
+def test_embed_model_never_empty():
+    """專門盯 EMBED_MODEL：它空掉時的症狀最難查（404 不是 500）。"""
+    import os
+    for mod_name in ("app.gateway",):
+        saved = os.environ.get("EMBED_MODEL")
+        try:
+            os.environ["EMBED_MODEL"] = ""
+            import importlib
+            m = importlib.reload(importlib.import_module(mod_name))
+            assert m.EMBED_MODEL, f"{mod_name}.EMBED_MODEL 成了空字串"
+            assert m.EMBED_MODEL == "bge-m3:latest"
+        finally:
+            if saved is None:
+                os.environ.pop("EMBED_MODEL", None)
+            else:
+                os.environ["EMBED_MODEL"] = saved
+
+
 def test_shipped_env_never_breaks_numeric_parsing():
     """實際驗證：把每個數值型變數設成空字串，import 與轉換都不該拋。"""
     import importlib

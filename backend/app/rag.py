@@ -56,7 +56,7 @@ OPENROUTER_MODELS = [m.strip() for m in os.getenv(
 ).split(",") if m.strip()]
 # OpenCode Zen（free 模型）：model="zen/<id>" 時走 zen 的 openai-compatible chat/completions。
 # ZEN_API_KEY 留空時路由已備好、但呼叫會回清楚錯誤（選到時前端提示「Zen key 未設定」）。
-ZEN_BASE_URL = os.getenv("ZEN_BASE_URL", "https://opencode.ai/zen/v1").rstrip("/")
+ZEN_BASE_URL = os.getenv("ZEN_BASE_URL") or "https://opencode.ai/zen/v1".rstrip("/")
 ZEN_API_KEY = os.getenv("ZEN_API_KEY", "").strip()
 ZEN_FREE_MODELS = [m.strip() for m in os.getenv(
     "ZEN_FREE_MODELS",
@@ -67,7 +67,7 @@ ZEN_FREE_MODELS = [m.strip() for m in os.getenv(
 # NVIDIA NIM（build.nvidia.com）：model="nv/<id>" 走 integrate.api.nvidia.com（OpenAI-compatible）。
 # 用 NVIDIA_API_KEY（nvapi-...）；未設時拋 GatewayUnconfigured（下拉選單標「需 NIM key」）。
 # 路由前綴用「nv/」而非「nvidia/」，避免與模型自身 org 前綴（nvidia/nemotron-…）碰撞。
-NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1").rstrip("/")
+NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL") or "https://integrate.api.nvidia.com/v1".rstrip("/")
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
 NVIDIA_MODELS = [m.strip() for m in os.getenv(
     "NVIDIA_MODELS",
@@ -78,7 +78,7 @@ NVIDIA_MODELS = [m.strip() for m in os.getenv(
 # Google Gemini（經 Cloudflare AI Gateway 的 google-ai-studio provider）：model="gemini/<id>"。
 # Gemini key 在 gateway 後台新增（AI Studio key）；走原生 generateContent 一 stage（非 streaming）。
 # 注意：gemini-2.5-* 對新 key 回 404「no longer available to new users」、高峰時期可能是 503 UNAVAILABLE。
-GEMINI_GATEWAY_ID = os.getenv("CF_AIG_GATEWAY_ID", "cloudflaregateway")
+GEMINI_GATEWAY_ID = os.getenv("CF_AIG_GATEWAY_ID") or "cloudflaregateway"
 GEMINI_GATEWAY_URL = os.getenv("GEMINI_GATEWAY_URL", "").rstrip("/") or (
     OPENROUTER_GATEWAY_URL.removesuffix("/openrouter") + "/google-ai-studio" if OPENROUTER_GATEWAY_URL else "-"
 )
@@ -108,7 +108,7 @@ COHERE_MODELS = [m.strip() for m in os.getenv(
 # Hugging Face Inference Providers（router.huggingface.co，OpenAI-compatible）：model="hf/<id>"。
 # 註：CF AI Gateway 的 huggingface provider 目前指向已下架 api-inference.huggingface.co（530 Origin DNS error），
 # 故直接接官方新端點 router.huggingface.co/v1（FAI 2026-09-26 實測 OK）。用 HF token（hf_...）認證。
-HF_BASE_URL = os.getenv("HF_BASE_URL", "https://router.huggingface.co/v1").rstrip("/")
+HF_BASE_URL = os.getenv("HF_BASE_URL") or "https://router.huggingface.co/v1".rstrip("/")
 HF_TOKEN = os.getenv("HF_TOKEN", "").strip()
 HF_MODELS = [m.strip() for m in os.getenv(
     "HF_MODELS",
@@ -129,15 +129,15 @@ MISTRAL_MODELS = [m.strip() for m in os.getenv(
 # JEV（TypeSafe System One 決策模型）：只做 Noul 驗證，不當計數/日期/主管機關的題庫。
 # 全走 fail-open：任何失敗（網路／超時／無 key）回 None，退回原本規則邏輯，絕不擋 query。
 TYPESAFE_KEY = os.getenv("TYPESAFE_API_KEY", "").strip()
-TYPESAFE_URL = os.getenv("TYPESAFE_URL", "https://api.typesafe.ai/v1/systemone").rstrip("/")
-JEV_MODEL = os.getenv("JEV_MODEL", "jev-latest")
+TYPESAFE_URL = os.getenv("TYPESAFE_URL") or "https://api.typesafe.ai/v1/systemone".rstrip("/")
+JEV_MODEL = os.getenv("JEV_MODEL") or "jev-latest"
 JEV_DISABLED = os.getenv("JEV_DISABLED", "") in ("1", "true", "True", "yes")
 try:
     JEV_VERIFY_MIN = float(os.getenv("JEV_VERIFY_MIN") or "0.4")  # 校準樣本：0.26 該退、0.5/0.89 該留
 except ValueError:
     JEV_VERIFY_MIN = 0.4
 try:
-    JEV_BANK_MIN = float(os.getenv("JEV_BANK_MIN", "0.6"))  # 題庫採用閘門：比驗證更嚴（採用即固定答案）
+    JEV_BANK_MIN = float(os.getenv("JEV_BANK_MIN") or "0.6")  # 題庫採用閘門：比驗證更嚴（採用即固定答案）
 except ValueError:
     JEV_BANK_MIN = 0.6
 _jev_fails = 0        # 連續失敗次數（熔斷用）

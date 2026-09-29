@@ -19,8 +19,8 @@ from .common import sparse as _sparse
 
 logger = logging.getLogger("ragdemo")
 
-RERANK_MODEL = os.getenv("RERANK_MODEL", "qllama/bge-reranker-v2-m3:latest")
-COLLECTION = os.getenv("COLLECTION", "laws")
+RERANK_MODEL = os.getenv("RERANK_MODEL") or "qllama/bge-reranker-v2-m3:latest"
+COLLECTION = os.getenv("COLLECTION") or "laws"
 DIM = 1024  # bge-m3 向量維度
 # 相關性/信心閘門（校準自本機量測：正題 top dense 0.64–0.76、無關語意題 0.43–0.57）：
 # - dense 命中 < RAG_MIN_DENSE   → 直接 no_match（低相關，不問 LLM）

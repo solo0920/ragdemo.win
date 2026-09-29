@@ -21,7 +21,7 @@ try:
 except ImportError:
     asyncpg = None
 
-POSTGRES_DSN = os.getenv("POSTGRES_DSN", "postgresql://rag@postgres:5432/ragdemo")
+POSTGRES_DSN = os.getenv("POSTGRES_DSN") or "postgresql://rag@postgres:5432/ragdemo"
 
 # 收掉 usage.py 原本的 `__import__("os").getenv(...)` 寫法。
 _pool = None

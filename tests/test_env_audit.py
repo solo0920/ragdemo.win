@@ -168,7 +168,7 @@ def test_vars_read_but_not_forwarded_to_container():
 # 測試就變成沒有約束力。鎖住原始碼那一行才抓得到。
 SCOPE_B_FORWARDED = [
     ("CF_AIG_GATEWAY_ID", "backend/app/rag.py",
-     'os.getenv("CF_AIG_GATEWAY_ID", "cloudflaregateway")', "cloudflaregateway"),
+     'os.getenv("CF_AIG_GATEWAY_ID") or "cloudflaregateway"', "cloudflaregateway"),
     # HOST_API_X570/MBP/MSI 原本在這張表裡各鎖一句
     # `os.getenv("HOST_API_X570", "https://api-x570.ragdemo.win")`。
     # 2026-09-27 三個鍵合併成 `HOST_API_URLS`（把機台清單從程式移回資料），
@@ -177,11 +177,11 @@ SCOPE_B_FORWARDED = [
     # 而 HOST_API_URLS 在原始碼的預設值是空字串（單機無 peer），照樣得鎖 ——
     # 有人把它改回內建三台，這裡就紅。
     ("HOST_API_URLS", "backend/app/gateway.py",
-     'os.getenv("HOST_API_URLS", "")', ""),
+      'os.getenv("HOST_API_URLS", "")', ""),
     ("JEV_DISABLED", "backend/app/rag.py",
-     'os.getenv("JEV_DISABLED", "")', ""),
+      'os.getenv("JEV_DISABLED", "")', ""),
     ("JEV_MODEL", "backend/app/rag.py",
-     'os.getenv("JEV_MODEL", "jev-latest")', "jev-latest"),
+      'os.getenv("JEV_MODEL") or "jev-latest"', "jev-latest"),
     ("PICK_TTL", "backend/app/gateway.py",
      'float(os.getenv("PICK_TTL") or "30")', "30"),
     ("PROBE_TIMEOUT", "backend/app/gateway.py",
@@ -197,7 +197,7 @@ SCOPE_B_FORWARDED = [
     ("REGISTRY_STALE_MIN", "backend/app/registry.py",
      'int(os.getenv("REGISTRY_STALE_MIN") or "3")', "3"),
     ("TYPESAFE_URL", "backend/app/rag.py",
-     'os.getenv("TYPESAFE_URL", "https://api.typesafe.ai/v1/systemone")',
+      'os.getenv("TYPESAFE_URL") or "https://api.typesafe.ai/v1/systemone"',
      "https://api.typesafe.ai/v1/systemone"),
 ]
 

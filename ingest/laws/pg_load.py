@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from app.common.jsonl import load_jsonl  # noqa: E402  # qdrant_load.py 共用同一份
 
 DATA = ROOT / "data" / "laws"
-DSN = os.getenv("POSTGRES_DSN", "postgresql://rag@localhost:5432/ragdemo")
+DSN = os.getenv("POSTGRES_DSN") or "postgresql://rag@localhost:5432/ragdemo"
 DDL = (Path(__file__).resolve().parent / "pg_schema.sql").read_text(encoding="utf-8")
 CHUNK = 2000
 
