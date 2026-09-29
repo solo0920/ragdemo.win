@@ -79,7 +79,8 @@ def main() -> None:
     flat_n = meta_n = 0
     with open(flat_path, "w", encoding="utf-8") as ff, open(meta_path, "w", encoding="utf-8") as fm:
         for law in data["Laws"]:
-            law["_pcode"] = pcode_of(law)
+            pcode = pcode_of(law)
+            law["_pcode"] = pcode
             arts = law_articles(law)
             meta = {
                 "pcode": pcode,

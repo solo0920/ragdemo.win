@@ -84,7 +84,7 @@ CF_AIG_TOKEN_FILE = os.getenv("CF_AIG_TOKEN_FILE", str(Path.home() / ".config" /
 # 而且 /query 會自稱 x570，與 registry 記的空字串互相矛盾。
 HOST_ID = os.getenv("HOST_ID", "")
 # 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
-PICK_TTL = float(os.getenv("PICK_TTL", "30"))
+PICK_TTL = float(os.getenv("PICK_TTL") or "30")
 # 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
 KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
 # 前端「連線與來源」彈窗的主機探測（dev 路徑；prod 由 Pages worker 自行探測後覆蓋此欄位）。
@@ -111,7 +111,7 @@ def _parse_id_urls(raw: str) -> dict[str, str]:
             out[hid] = url
     return out
 HOST_API = _parse_id_urls(os.getenv("HOST_API_URLS", ""))
-PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT", "2.5"))
+PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT") or "2.5")
 def keep_alive_value():
     """ollama 的 keep_alive：純數字（含 -1）要傳 number，其餘（如 "30m"）傳字串。"""
     s = str(KEEP_ALIVE).strip()

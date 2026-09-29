@@ -28,6 +28,11 @@ DATA = ROOT / "data" / "laws"
 # 然後把「連不上」誤認成「嵌入失敗」，除錯方向整個跑掉。
 OLLAMA = os.getenv("OLLAMA", "http://127.0.0.1:11434").rstrip("/")
 QDRANT = os.getenv("QDRANT", "http://localhost:6333").rstrip("/")
+# qdrant 啟用 QDRANT__SERVICE__API_KEY 後，所有請求都要帶 api-key header，
+# 否則 401（實測）。compose.yaml:15 有設那個 key，所以這支腳本一定要帶。
+# 讀不到值時不帶 header —— 讓無認證的 qdrant（本機測試）仍能用。
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
+QDRANT_HEADERS = {"api-key": QDRANT_API_KEY} if QDRANT_API_KEY else {}
 EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
 COLLECTION = "laws"
 DENSE = 1024
@@ -201,7 +206,7 @@ async def run(limit: int = 0) -> None:
     pts = build_points(flat, limit) if limit else build_points(flat, len(flat))
     print(f"待灌 {len(pts)} 條（排除已廢止/刪除）")
 
-    async with httpx.AsyncClient() as c:
+    async with httpx.AsyncClient(headers=QDRANT_HEADERS) as c:
         await backup_old(c)
         await rebuild_collection(c)
 
@@ -231,5 +236,9 @@ async def run(limit: int = 0) -> None:
 
 
 if __name__ == "__main__":
-    lim = int(os.getenv("LIMIT", "0"))
+    # `os.getenv(K, default)` 只在變數**不存在**時用 default；.env 裡寫
+    # `LIMIT=`（空值）會原樣回傳空字串 → int("") 拋 ValueError。
+    # .env 有 dozens 個空鍵是合法寫法（表示「用預設」），所以讀整數型
+    # 環境變數都要容忍空字串。
+    lim = int(os.getenv("LIMIT") or 0)
     asyncio.run(run(lim))

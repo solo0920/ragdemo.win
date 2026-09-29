@@ -133,7 +133,7 @@ TYPESAFE_URL = os.getenv("TYPESAFE_URL", "https://api.typesafe.ai/v1/systemone")
 JEV_MODEL = os.getenv("JEV_MODEL", "jev-latest")
 JEV_DISABLED = os.getenv("JEV_DISABLED", "") in ("1", "true", "True", "yes")
 try:
-    JEV_VERIFY_MIN = float(os.getenv("JEV_VERIFY_MIN", "0.4"))  # 校準樣本：0.26 該退、0.5/0.89 該留
+    JEV_VERIFY_MIN = float(os.getenv("JEV_VERIFY_MIN") or "0.4")  # 校準樣本：0.26 該退、0.5/0.89 該留
 except ValueError:
     JEV_VERIFY_MIN = 0.4
 try:

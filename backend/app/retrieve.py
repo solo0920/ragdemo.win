@@ -26,9 +26,9 @@ DIM = 1024  # bge-m3 向量維度
 # - dense 命中 < RAG_MIN_DENSE   → 直接 no_match（低相關，不問 LLM）
 # - 無「法律語意訊號」且 < RAG_MID_DENSE → no_match（不明語意不猜）
 # - >= RAG_HIGH_DENSE → high；否則 medium（生成時加「不確定就明說」附註）
-MIN_DENSE = float(os.getenv("RAG_MIN_DENSE", "0.58"))
-MID_DENSE = float(os.getenv("RAG_MID_DENSE", "0.62"))
-HIGH_DENSE = float(os.getenv("RAG_HIGH_DENSE", "0.70"))
+MIN_DENSE = float(os.getenv("RAG_MIN_DENSE") or "0.58")
+MID_DENSE = float(os.getenv("RAG_MID_DENSE") or "0.62")
+HIGH_DENSE = float(os.getenv("RAG_HIGH_DENSE") or "0.70")
 # collection 能力偵測：有 sparse 命名向量 → 走 hybrid(DBSF)；單一未命名 dense → 舊 search。
 HAS_SPARSE = False
 _HAS_NAMED = False
