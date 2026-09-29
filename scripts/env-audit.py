@@ -621,8 +621,15 @@ def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
     # 機台清單讀總表裡的 `HOSTS=` 那一行。2026-09-27 之前這裡寫死
     # `("x570", "mbp", "msi")`，第 4 台就查不到自己的列（而且是**靜默**漏查：
     # 不報錯、只是少算，輸出的「N 個鍵 × 3 台」看起來完全正常）。
+    #
+    # ⚠️ 2026-09-29 修掉一個讓整支腳本必定崩潰的 bug：原本這裡是
+    # `del rows  # 只留 base 鍵；宣告列已取出`，下一行 `for k in rows:`
+    # 于是 100% 撞上 UnboundLocalError —— 任何一次完整審計（`env-audit.py`
+    # 不帶參數）都跑到這裡就死，所以「完整審計可用」這件事從未被驗證過。
+    # 宣告列已經由上面的 `rows.pop("HOSTS", ...)` 移除了，`del rows` 從來
+    # 沒有它宣稱的「只留 base 鍵」作用 —— 它只是把整個名稱刪掉。
+    # 刪掉那行即可，`rows` 此時自然只剩 base 鍵。
     hosts = [h.strip() for h in rows.pop("HOSTS", "").split(",") if h.strip()]
-    del rows  # 只留 base 鍵；宣告列已取出
     if not hosts:
         print(f"  [per-host 總表] {table} 缺少 `HOSTS=<機台,機台,…>` 宣告")
         return 1
