@@ -86,7 +86,7 @@ HOST_ID = os.getenv("HOST_ID", "")
 # 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
 PICK_TTL = float(os.getenv("PICK_TTL") or "30")
 # 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
-KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
+KEEP_ALIVE = os.getenv("KEEP_ALIVE") or "-1"
 # 前端「連線與來源」彈窗的主機探測（dev 路徑；prod 由 Pages worker 自行探測後覆蓋此欄位）。
 #
 # 單一變數取代舊的 HOST_API_X570 / HOST_API_MBP / HOST_API_MSI：

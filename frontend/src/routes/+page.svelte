@@ -94,6 +94,21 @@
     await loadStatus();
     loadModels();
     requestAnimationFrame(grow);
+
+    // 定期重抓，讓「連線與來源」面板反映當下狀態而不是開頁面那一瞬間的。
+    // 為什麼需要：後端 registry 每 REGISTRY_HEARTBEAT 秒（預設 30）寫一次
+    // 心跳，`/status` 讀的是那張表；沒有輪詢的話，使用者看到的是
+    // 「上次重新整理時」的拓撲 —— 某台掉線不會自己反映出來。
+    //
+    // 30s 配合心跳週期：抓得再快也不會有新資料，只是白打 API。
+    // 只輪詢 /status，不碰 /query（那會重置查詢狀態）。
+    // 分頁不可見時暫停；SvelteKit 換頁會觸發 onDestroy 自動收掉 timer。
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (statusLoading) return;          // 避免疊請求
+      loadStatus();
+    }, 30_000);
+    return () => clearInterval(timer);
   });
 
   async function loadModels() {
@@ -225,6 +240,22 @@
     await checkHealth();
     await loadStatus();
     loadModels();
+    requestAnimationFrame(grow);
+
+    // 定期重抓，讓「連線與來源」面板反映當下狀態而不是開頁面那一瞬間的。
+    // 為什麼需要：後端 registry 每 REGISTRY_HEARTBEAT 秒（預設 30）寫一次
+    // 心跳，`/status` 讀的是那張表；沒有輪詢的話，使用者看到的是
+    // 「上次重新整理時」的拓撲 —— 某台掉線不會自己反映出來。
+    //
+    // 30s 配合心跳週期：抓得再快也不會有新資料，只是白打 API。
+    // 只輪詢 /status，不碰 /query（那會重置查詢狀態）。
+    // 分頁不可見時暫停；SvelteKit 換頁會觸發 onDestroy 自動收掉 timer。
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (statusLoading) return;          // 避免疊請求
+      loadStatus();
+    }, 30_000);
+    return () => clearInterval(timer);
   }
 
   async function loadStatus() {
