@@ -16,11 +16,13 @@ set -euo pipefail
 echo "== pre-push smoke =="
 
 # 1) Python 語法
+#    用 find 而非 globstar：`backend/app/*.py` 只掃到第一層，common/ 等子目錄
+#    裡的檔案會被漏掉（2026-09-29 補上，當時正好在切模組）。
 fail=0
-for f in backend/app/*.py; do
+while IFS= read -r f; do
   python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],"rb").read())' "$f" \
     || { echo "✗ 語法錯誤: $f"; fail=1; }
-done
+done < <(find backend/app -name '*.py' -type f | sort)
 if [ "$fail" -ne 0 ]; then
   echo "✗ backend Python 語法檢查失敗，中止 push" >&2
   exit 1

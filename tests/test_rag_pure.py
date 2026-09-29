@@ -4,7 +4,8 @@ from types import SimpleNamespace
 import pytest
 
 # import 觸發後端設定載入；_ref 已於 2026-09-29 隨檢索層搬去 retrieve。
-from app import rag, law_struct  # noqa: F401  # import 觸發後端設定載入
+# import 觸發後端設定載入；_ref 已於 2026-09-29 隨檢索層搬去 retrieve。
+from app import law_struct, rag, retrieve  # noqa: F401
 from app.common import sparse  # noqa: F401
 
 
@@ -36,27 +37,27 @@ def test_hit_view_case_fallback():
 
 def test_ref_law_with_structure_suffix():
     h = _law_hit(text="一、返還之。\n二、利息。")
-    r = rag._ref(h)
+    r = retrieve._ref(h)
     assert r.startswith("[法條:民法 第259條")
     assert "1項2款" in r  # summarize 摘要帶上
 
 
 def test_ref_law_single_paragraph_no_suffix():
     h = _law_hit(text="唯一一段。")
-    r = rag._ref(h)
+    r = retrieve._ref(h)
     assert not r.rstrip("]").endswith("｜")   # 無 ｜ 尾巴
     assert "[法條:民法" in r
 
 
 def test_ref_case():
     p = {"case_no": "案號123", "law": "刑法", "law_name": "", "text": "x"}
-    r = rag._ref({"payload": p})
+    r = retrieve._ref({"payload": p})
     assert r == "[案號:案號123 法條:刑法]"
 
 
 def test_ref_chapter_included():
     h = _law_hit(payload_extra={"chapter": "第二章"}, text="一段。")
-    assert "（第二章）" in rag._ref(h)
+    assert "（第二章）" in retrieve._ref(h)
 
 
 def test_structure_integration_with_real_law():

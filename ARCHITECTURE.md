@@ -16,11 +16,18 @@
 ```
 compose.yaml       # qdrant + postgres + api（三機共用，x570 已跑 docker compose）
 backend/           # FastAPI：/health /ingest /query /eval /rules /models
-  app/             #   main.py / rag.py / registry.py / usage.py / rules_store.py
+  app/             #   main.py / registry.py / usage.py / rules_store.py
                    #   law_struct.py / __init__.py
-    common/        #   backend 與 ingest 共用：sparse.py（法規 sparse tokenizer，
-                   #   純 stdlib）/ text.py（空白正規化）/ pg.py（共用連線池）
-                   #   / jsonl.py（JSONL 讀取）。ingest 走 sys.path 引用同一份。
+                   #   ── 檢索分層（2026-09-29 由 rag.py 1848 行切出）──
+    gateway.py     #     對外連線：主機發現、端點選取、_req、embed。底層，無專案相依
+    law_meta.py    #     法規後設資料：法名／條號／內建題庫。純字串處理，無 I/O
+    retrieve.py    #     檢索本體：Qdrant 讀寫、dense+sparse 融合、rerank、要不要回答
+    cn_parse.py    #     條號抽取與中文數字。純函式
+    rag.py         #     剩下的：answer 編排、provider 呼叫（openrouter/gemini/…）、
+                   #     JEV 驗證、law-update ops 通道
+    common/        #     backend 與 ingest 共用：sparse.py（法規 sparse tokenizer，
+                   #     純 stdlib）/ text.py（空白正規化）/ pg.py（共用連線池）
+                   #     / jsonl.py（JSONL 讀取）。ingest 走 sys.path 引用同一份。
   .env.example     #   樣板（真實 .env 在 repo 根，不進版控）
 frontend/          # SvelteKit：只打 /api/*（Google 登入守護 SENSITIVE 路徑）
   src/routes/api/[...path]/+server.ts   # worker：登入 guard + 三台備援轉發
@@ -171,7 +178,7 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 
 ### 認證
 - **qdrant**：`QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}`（`.env`）。無 key 回 401。
-  `rag.py` `_req(kind="qdrant")` 自動帶 `api-key` header；`sync-snapshot.sh` 支援
+  `gateway.py` `_req(kind="qdrant")` 自動帶 `api-key` header；`sync-snapshot.sh` 支援
   `QDRANT_API_KEY` env（出站認證，mbp/msi 的 crontab/launchd 要帶）。
 - **postgres**：`POSTGRES_PASSWORD` 採 `:?` 必填語法，**移除了 `changeme` fallback**。
   **坑**：`POSTGRES_PASSWORD` 只對首次容器初始化生效——既有 volume 需 `ALTER USER rag PASSWORD` 手動同步
@@ -214,7 +221,7 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 
   | 鍵 | 消費點 | 為什麼是 per-host |
   |---|---|---|
-  | `QDRANT_API_KEY` | `compose.yaml:12`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、`compose.yaml:34` ＋ `rag.py:331`（api 打 `compose.yaml:33` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 跨機認證走的是 `QDRANT_PEER_API_KEY` |
+  | `QDRANT_API_KEY` | `compose.yaml:12`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、`compose.yaml:34` ＋ `gateway.py`（`QDRANT_API_KEY`，api 打 `compose.yaml:33` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 跨機認證走的是 `QDRANT_PEER_API_KEY` |
   | `POSTGRES_PASSWORD` | `compose.yaml:24`（自己的 pg 容器）、`compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`，也是自己的） | 連 x570 的 pg 密碼應另設 `POSTGRES_PEER_PASSWORD` |
 
   兩把改為 **per-host 機密**：鍵名宣告在 `settings/env/secrets.host.env.example`
@@ -257,7 +264,7 @@ QDRANT_URLS=http://100.119.83.111:6333,http://${TS_IP}:6333
 # ⚠️ 容器內其實用不到這行：compose 只傳 QDRANT_URL=http://qdrant:6333（服務名解析），
 #    不傳 QDRANT_URLS。此變數只影響「原生執行」的情況（已全數容器化 → 現行無作用）
 ```
-`rag.py _pick()`：依序試候選，首個通連者快取；連線錯誤自動降級下一個。
+`gateway.py _pick()`：依序試候選，首個通連者快取；連線錯誤自動降級下一個。
 → x570 在線用 x570（最新）；離線自動切本機（快照資料），query 不中斷。
 
 ### 外出 demo 模式（2026-09-23 定案：零改造）
@@ -353,9 +360,9 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
 - 雲端路由：`OPENROUTER_GATEWAY_URL`、`CF_AIG_TOKEN`（或 `CF_AIG_TOKEN_FILE`）、`ZEN_API_KEY`、
   `NVIDIA_API_KEY`、`HF_TOKEN`、各 provider `*_MODELS` 清單。
 - 驗證/權限：`TYPESAFE_API_KEY`、`JEV_VERIFY_MIN`、`JEV_BANK_MIN`、`ADMIN_TOKEN`。
-- **變數預設值只有一份真值**：`compose.yaml` 的 `${VAR:-default}` 必須與 `rag.py` 的
+- **變數預設值只有一份真值**：`compose.yaml` 的 `${VAR:-default}` 必須與 `gateway.py`／`retrieve.py` 的
   `os.getenv("VAR", default)` 一致，否則「走 compose 的機器」與「直接跑 uvicorn 的機器」
-  預設行為不同（2026-09-26 統一 `JEV_VERIFY_MIN`：compose 0.5 → 0.4，與 rag.py／`.env.example` 齊平）。
+  預設行為不同（2026-09-26 統一 `JEV_VERIFY_MIN`：compose 0.5 → 0.4，與 gateway／`.env.example` 齊平）。
 - IP 準則：全部 tailscale 位址；本機服務才允許 127.0.0.1，不用 LAN_IP。
 
 ## 依賴與映像版號策略（2026-09-26 定案）
@@ -394,7 +401,7 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
   Google 登入守護（401 未登入）——前端「登入才可查詢」；`/health`、`/models` 不需登入（探測用）。
 
 ## TODO
-* `rag.py rerank()` 還是 stub，待接真正 reranker 打分
+* `retrieve.py rerank()` 還是 stub，待接真正 reranker 打分
 * `evals/questions.json` 佔位，待擴 50 題（目前 ~14 題，`/eval` 14/14）
 * 判決注意個資去識別化，回答僅供參考非法律意見
 * 精簡包擴到 500~1000 筆（目前 3 筆，同步機制已就位）

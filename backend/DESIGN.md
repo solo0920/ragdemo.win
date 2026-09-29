@@ -28,7 +28,7 @@
 - **「程式讀得到」≠「容器拿得到」**：compose 沒列 `environment:` 的變數在容器裡
   fallback 到原始碼預設且**不報錯**。判斷：`python3 scripts/env-audit.py`
   看「沒傳入容器」區段。
-  - 2026-09-27 實測 19 個（`rag.py`／`registry.py` 有讀、compose 沒列）。
+  - 2026-09-27 實測 19 個（`gateway.py`／`registry.py` 有讀、compose 沒列）。
   - **已於 scope B 修掉 15 個**（補進 `compose.yaml` 的 api `environment:`，
     預設值逐字抄原始碼 `os.getenv` 第二個參數）。
   - **剩下 4 個是有理由的**：刻意不傳的那 3 個（見本節末）＋ 政策性停用的
@@ -36,11 +36,11 @@
   - 所以 `env-audit` 現在報出的「沒傳入容器」**只應該**是那 3 個刻意的
     （實際只列 `.env` 裡真的有設值的，所以常常只看得到 `QDRANT_URLS`）。
     出現第 4 個就是 scope B 被回退、或有人加了新旋鈕忘了補 compose。
-- **`_ollama_probe`（`rag.py:290`）檢查模型是否真的存在**（`need <= have`），
+- **`_ollama_probe`（`gateway.py`）檢查模型是否真的存在**（`need <= have`），
   所以 `OLLAMA_MODELS` 進不了容器時症狀是「安靜地永遠挑最差的候選」，不是報錯。
-- `OLLAMA_MODELS` 與 `OLLAMA_URLS` 位置對應（`rag.py:215` 用 index 取值）。
+- `OLLAMA_MODELS` 與 `OLLAMA_URLS` 位置對應（`gateway.py _llm_model_for()` 用 index 取值）。
   這也是為什麼 compose 裡 `OLLAMA_MODELS` 的預設值是**巢狀**的
-  `${OLLAMA_MODELS:-${LLM_MODEL:-qwen3:14b}}`：`rag.py:41` 的
+  `${OLLAMA_MODELS:-${LLM_MODEL:-qwen3:14b}}`：`gateway.py` 的
   `os.getenv("OLLAMA_MODELS", LLM_MODEL)` 第二個參數是 `LLM_MODEL` 這個
   **變數本身**、不是字面值。抄成 `qwen3:14b` 會是靜默劣化 ——
   MSI（`LLM_MODEL=qwen3:8b`）三台 ollama 會全被要求 14b 而 probe 全滅，

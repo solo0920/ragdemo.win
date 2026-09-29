@@ -1,10 +1,10 @@
-"""RAG 管線：embed -> Qdrant 召回 -> rerank(預留) -> LLM 生成。
+"""RAG 管線：gateway.embed -> Qdrant 召回 -> retrieve.rerank(預留) -> LLM 生成。
 
-服務位址一律走候選清單（OLLAMA_URLS / QDRANT_URLS），先後順序即優先權：
-- 首選「優先權最高且目前可用（TCP＋模型齊備）」者，快取一段時間（PICK_TTL）。
-- 連線錯誤 / model 404 自動降級到下一台；PICK_TTL 過期會重新掃描，率先主機回復即自動切回。
-- 每台 ollama 主機可配不同 LLM model（OLLAMA_MODELS 與 OLLAMA_URLS 同順序對應）。
-- 模型 keepalive：要求常駐（KEEP_ALIVE，預設 -1 永久），api 啟動時 warmup 預載，避免首個 query 冷載入。
+服務位址一律走候選清單（gateway.OLLAMA_URLS / gateway.QDRANT_URLS），先後順序即優先權：
+- 首選「優先權最高且目前可用（TCP＋模型齊備）」者，快取一段時間（gateway.PICK_TTL）。
+- 連線錯誤 / model 404 自動降級到下一台；gateway.PICK_TTL 過期會重新掃描，率先主機回復即自動切回。
+- 每台 ollama 主機可配不同 LLM model（gateway.OLLAMA_MODELS 與 gateway.OLLAMA_URLS 同順序對應）。
+- 模型 keepalive：要求常駐（gateway.KEEP_ALIVE，預設 -1 永久），api 啟動時 gateway.warmup 預載，避免首個 query 冷載入。
 """
 import asyncio
 import json
@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from . import cn_parse, gateway, law_meta, retrieve
 from .common import sparse as _sparse
 from .common.text import collapse_ws
 from . import law_struct as _law
@@ -31,69 +32,14 @@ logger = logging.getLogger("ragdemo")
 class GatewayUnconfigured(Exception):
     """請求 openrouter 閉源模型但 CF gateway 未設定（URL／token 缺一）。"""
 
-# 預設值不得是「別台機器的位址」——2026-09-27 解除三台鎖死時改掉。
-# 舊預設是 x570 的 tailscale IP：一台全新的機器只要沒設 OLLAMA_*，查詢就會去戳
-# 別台機器的 ollama，然後得到「連不上」而不是用自己的。
-# host.docker.internal 是 Docker 慣用名：Docker Desktop 自動提供，
-# Linux 需 compose 裡的 extra_hosts: ["host.docker.internal:host-gateway"]（已加）。
-OLLAMA_DEFAULT = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434").rstrip("/")
-QDRANT_DEFAULT = os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
 
 
-def _split_endpoints(raw: str, fallback: str = "") -> tuple[list[str], dict[str, str]]:
-    """把候選清單拆成 (純網址清單, 網址→主機標籤)。清單空時回 [fallback]。
-
-    每段可以是純網址，也可以是 '主機id=網址'。標籤**只是給人看的**（前端
-    「連線與來源」要顯示這台 ollama 是誰），不影響選取、順序或索引對應 ——
-    所以 OLLAMA_MODELS 的位置對應關係不受影響。
-
-    為什麼需要這個：`_KNOWN_IPS` 那張寫死的 IP→id 對照表就是為了讓
-    `http://100.x.x.x:11434` 顯示成「x570」而存在的。刪掉它之後如果不給
-    別的來源，這裡就會退化顯示裸 IP（資訊沒少，src.llm.url 仍在，但面板
-    少了「這是哪台」的辨識）。把標籤交給設定檔，就不必在程式裡列舉主機。
-
-    ⚠️ 空清單的回退**在這裡**做，不要寫成在外面 `or [那個常數]`：
-    那樣那個常數會多出一個使用點，env-audit 的「純連鎖」判定（pass 3 要求
-    該常數**除了定義與當預設值外沒有其他用處**）就會失效，於是
-    OLLAMA_BASE_URL 不再被標成被 OLLAMA_URLS 蓋掉 —— 那條提示會從
-    .env.example 與稽核輸出裡安靜消失。實測踩到。
-    ⚠️ 連這段說明文字本身也不能寫出那個常數名：pass 3 是逐行字面比對，
-       docstring 裡出現一次就算一次「使用」。這是同一個陷阱的第二次。
-    """
-    urls: list[str] = []
-    labels: dict[str, str] = {}
-    for part in (raw or "").split(","):
-        part = part.strip()
-        if not part:
-            continue
-        hid, sep, url = part.partition("=")
-        if not sep or "://" not in part:
-            url = part
-        url = url.strip().rstrip("/")
-        if "://" not in url:
-            continue
-        urls.append(url)
-        if sep:
-            labels[url] = hid.strip()
-    return (urls, labels) if urls else ([fallback] if fallback else [], labels)
 
 
-OLLAMA_URLS, OLLAMA_LABELS = _split_endpoints(
-    os.getenv("OLLAMA_URLS", OLLAMA_DEFAULT), OLLAMA_DEFAULT)
-QDRANT_URLS, QDRANT_LABELS = _split_endpoints(
-    os.getenv("QDRANT_URLS", QDRANT_DEFAULT), QDRANT_DEFAULT)
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
-EMBED_MODEL = os.getenv("EMBED_MODEL", "bge-m3:latest")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:14b")
-# OLLAMA_MODELS：與 OLLAMA_URLS 同順序的 LLM model 清單；未設則全部用 LLM_MODEL。
-OLLAMA_MODELS = [m.strip() for m in os.getenv("OLLAMA_MODELS", LLM_MODEL).split(",") if m.strip()] or [LLM_MODEL]
-RERANK_MODEL = os.getenv("RERANK_MODEL", "qllama/bge-reranker-v2-m3:latest")
 # 雲端閉源模型路由（OpenRouter via Cloudflare AI Gateway）：/query 指定 model="openrouter:<id>" 時走此。
-# OPENROUTER_GATEWAY_URL＝openai-compatible base（含 /openrouter 尾段）；token 用 CF_AIG_TOKEN env，
-# 未設則自動讀 CF_AIG_TOKEN_FILE（預設 ~/.config/opencode/cf-aig-token，本機 demo 即測即用）。
+# OPENROUTER_GATEWAY_URL＝openai-compatible base（含 /openrouter 尾段）；token 用 gateway.CF_AIG_TOKEN env，
+# 未設則自動讀 gateway.CF_AIG_TOKEN_FILE（預設 ~/.config/opencode/cf-aig-token，本機 demo 即測即用）。
 OPENROUTER_GATEWAY_URL = os.getenv("OPENROUTER_GATEWAY_URL", "").rstrip("/")
-CF_AIG_TOKEN = os.getenv("CF_AIG_TOKEN", "").strip()
-CF_AIG_TOKEN_FILE = os.getenv("CF_AIG_TOKEN_FILE", str(Path.home() / ".config" / "opencode" / "cf-aig-token"))
 OPENROUTER_MODELS = [m.strip() for m in os.getenv(
     "OPENROUTER_MODELS",
     # CF AI Gateway→OpenRouter 目前提供 18 個 :free 模型（2026-09-26 實測），全部納入下拉選單；
@@ -180,12 +126,6 @@ MISTRAL_MODELS = [m.strip() for m in os.getenv(
     # CF gateway→mistral 實測 200：ministral-8b-latest、codestral-latest
     "ministral-8b-latest,codestral-latest",
 ).split(",") if m.strip()]
-COLLECTION = os.getenv("COLLECTION", "laws")
-DIM = 1024  # bge-m3 向量維度
-# 預設空字串（與 registry.py 一致）。舊預設是 "x570"，那不只是鎖死，還是 bug：
-# 一台沒設 HOST_ID 的新機器會冒用 x570 的身分，覆寫它在 registry 的條目，
-# 而且 /query 會自稱 x570，與 registry 記的空字串互相矛盾。
-HOST_ID = os.getenv("HOST_ID", "")
 # JEV（TypeSafe System One 決策模型）：只做 Noul 驗證，不當計數/日期/主管機關的題庫。
 # 全走 fail-open：任何失敗（網路／超時／無 key）回 None，退回原本規則邏輯，絕不擋 query。
 TYPESAFE_KEY = os.getenv("TYPESAFE_API_KEY", "").strip()
@@ -202,364 +142,53 @@ except ValueError:
     JEV_BANK_MIN = 0.6
 _jev_fails = 0        # 連續失敗次數（熔斷用）
 _jev_until = 0.0      # 熔斷截止（unix 秒）；期間直接跳過，避免每 query 卡 timeout
-# 重新掃描優先權的間隔（秒）：降級後每 PICK_TTL 重測一次，高位主機回復就切回。
-PICK_TTL = float(os.getenv("PICK_TTL", "30"))
-# 模型常駐時間（ollama keep_alive）：-1=永久常駐（預設）、0=即時卸載、"30m"=30 分鐘。
-KEEP_ALIVE = os.getenv("KEEP_ALIVE", "-1")
-# 相關性/信心閘門（校準自本機量測：正題 top dense 0.64–0.76、無關語意題 0.43–0.57）：
-# - dense 命中 < RAG_MIN_DENSE   → 直接 no_match（低相關，不問 LLM）
-# - 無「法律語意訊號」且 < RAG_MID_DENSE → no_match（不明語意不猜）
-# - >= RAG_HIGH_DENSE → high；否則 medium（生成時加「不確定就明說」附註）
-MIN_DENSE = float(os.getenv("RAG_MIN_DENSE", "0.58"))
-MID_DENSE = float(os.getenv("RAG_MID_DENSE", "0.62"))
-HIGH_DENSE = float(os.getenv("RAG_HIGH_DENSE", "0.70"))
-# 前端「連線與來源」彈窗的主機探測（dev 路徑；prod 由 Pages worker 自行探測後覆蓋此欄位）。
-#
-# 單一變數取代舊的 HOST_API_X570 / HOST_API_MBP / HOST_API_MSI：
-#   HOST_API_URLS=x570=https://api-x570.ragdemo.win,msi=https://api-msi.ragdemo.win
-# 純 URL（沒有 "id=" 前綴）也收，此時 id 由 hostname 推導。**未設＝單機，沒有 peer**。
-# 舊的三個變數名已刪（留著就是「非必要程式碼」）；env-audit.py 會報出殘留的 HOST_API_* 鍵，
-# 所以三台升級時會被叫到，不會靜默掉 peer。
-def _parse_id_urls(raw: str) -> dict[str, str]:
-    """解析 'id=url,id=url' 或 'url,url' → {id: url}。跳過空片段與解析不出 id 的項。"""
-    out: dict[str, str] = {}
-    for part in (raw or "").split(","):
-        part = part.strip().rstrip("/")
-        if not part:
-            continue
-        hid, sep, url = part.partition("=")
-        if not sep or "://" not in part:
-            # 純 URL：id 取 hostname 的第一段（api-x570.ragdemo.win → api-x570）
-            url = part
-            hid = (urlparse(url).hostname or url).split(".")[0]
-        hid, url = hid.strip(), url.strip().rstrip("/")
-        if hid and "://" in url:
-            out[hid] = url
-    return out
 
 
-HOST_API = _parse_id_urls(os.getenv("HOST_API_URLS", ""))
-PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT", "2.5"))
 
 
-def keep_alive_value():
-    """ollama 的 keep_alive：純數字（含 -1）要傳 number，其餘（如 "30m"）傳字串。"""
-    s = str(KEEP_ALIVE).strip()
-    return int(s) if s.lstrip("-").isdigit() else s
 
 
-def _gateway_token() -> str:
-    """CF AI Gateway token：先看 CF_AIG_TOKEN env，未設（本機 dev）讀 token 檔。"""
-    if CF_AIG_TOKEN:
-        return CF_AIG_TOKEN
-    try:
-        return Path(CF_AIG_TOKEN_FILE).read_text().strip()
-    except Exception:
-        return ""
 
 SYSTEM = "你是法規判決檢索助理。只依據提供的資料回答，並標註案號/條號；若資料與問題無關或僅模糊相關，直接回「沒有符合比對的法條」，不要編造、不要臆測。回答某條時，除主旨外若該條含款/項，請說明其下共幾項、幾款並摘要各款要旨。"
 
-_bases: dict[str, str] = {}
-_base_ts: dict[str, float] = {}
-_base_lock = asyncio.Lock()
 
 
-async def _tcp_open(url: str, timeout: float = 2.0) -> bool:
-    p = urlparse(url)
-    port = p.port or (443 if p.scheme == "https" else 80)
-    try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(p.hostname, port, ssl=p.scheme == "https"), timeout
-        )
-        writer.close()
-        await writer.wait_closed()
-        return True
-    except Exception:
-        return False
 
 
-def _llm_model_for(url: str) -> str:
-    """該 ollama 主機對應的 LLM model（OLLAMA_MODELS 與 OLLAMA_URLS 同順序）。"""
-    try:
-        i = OLLAMA_URLS.index(url)
-        return OLLAMA_MODELS[i] if i < len(OLLAMA_MODELS) else LLM_MODEL
-    except ValueError:
-        return LLM_MODEL
 
 
-def active_llm_source() -> str:
-    """目前快取的 ollama 主機與其 model（未 pick 前回本機宣告）。"""
-    base = _bases.get("ollama")
-    if not base:
-        return f"{OLLAMA_URLS[0]} -> {_llm_model_for(OLLAMA_URLS[0])}"
-    return f"{base} -> {_llm_model_for(base)}"
 
 
-def host_label(url: str) -> str:
-    """把服務 URL 映射成主機 id（無法辨識則回 hostname，本機則回 HOST_ID）。
-
-    舊版拿一張寫死的 IP → id 對照表（_KNOWN_IPS），那正是「鎖死三台」的東西：
-    第 4 台進來就必須改程式。現在改從 HOST_API_URLS 反向建索引，所以
-    「配了哪些 peer」就等於「認識哪些主機」——單一來源。
-    """
-    host = (urlparse(url).hostname or "").lower()
-    if host in ("127.0.0.1", "localhost"):
-        return HOST_ID
-    for table in (OLLAMA_LABELS, QDRANT_LABELS):  # 候選清單上運營者自訂的標籤
-        for u, hid in table.items():
-            if (urlparse(u).hostname or "").lower() == host:
-                return hid
-    for hid, api in HOST_API.items():  # 從設定反推，不寫死
-        if (urlparse(api).hostname or "").lower() == host:
-            return hid
-    if "." not in host:  # compose service 名（如 qdrant）在本機跑 → 標本機
-        return HOST_ID
-    return host
 
 
-async def _host_probe_log() -> dict[str, str]:
-    """探測 HOST_API_URLS 裡的 peer /health，回傳前端「連線與來源」的 log（與 worker 同字串）。
-    worker 在 prod 會用自己探的 log 覆蓋；此函式主要服務 dev（vite proxy 直連 backend）。
-
-    **本機永遠在 log 裡**（有回應本身就是「活著」的證據，值恆為連線成功）。
-    舊版本機之所以會出現，只是因為它剛好被寫死在那三台清單裡 —— 一旦清單變成
-    設定值，單機部署的 log 就會變空，前端面板會整個消失。
-    """
-    async def _one(url: str) -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
-                r = await c.get(f"{url}/health")
-                return r.status_code < 500
-        except Exception:
-            return False
-    peers = {h: u for h, u in HOST_API.items() if h != HOST_ID}
-    ok = await asyncio.gather(*(_one(u) for u in peers.values()))
-    out = {h: ("連線成功" if o else "連線失敗") for h, o in zip(peers, ok)}
-    if HOST_ID:
-        out[HOST_ID] = "連線成功"
-    return out
 
 
-async def _host_law_versions() -> dict[str, str]:
-    """並行抓 peer（連同本機）的法規版本。回 {host_id: "2026-09-11" or "-"}。
-
-    刻意不比照 _host_probe_log 的 `< 500` 判定：版本要的是 /status 的
-    200 內容，5xx 以外的錯誤回應（反代 4xx 等）不該被當成有版本。
-    """
-    async def _one(url: str) -> str:
-        try:
-            # probe=0 一定要帶：遠端的 /status 預設會再去探測「它的」三台主機。
-            # 不加這個參數就是 A→B→C→A 的遞迴，請求數會指數成長。
-            async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
-                r = await c.get(f"{url}/status", params={"probe": 0})
-                if r.status_code != 200:
-                    return "-"
-                return (r.json().get("law_version") or {}).get("update_date") or "-"
-        except Exception:
-            return "-"
-    peers = list(zip(HOST_API, await asyncio.gather(*(_one(u) for u in HOST_API.values()))))
-    # 本機：HOST_API_URLS 列的是 peer，本機版號直接從磁碟取（免一次自我 HTTP）
-    me = law_version().get("update_date") or "-"
-    pairs = {h: v for h, v in peers if h != HOST_ID}  # 別把自己重複列兩次
-    return {**pairs, HOST_ID: me} if HOST_ID else pairs
 
 
-async def _ollama_probe(url: str) -> bool:
-    """ollama 主機可用：TCP 通，且同時具備該機對應的 LLM model 與 EMBED_MODEL（避免 404）。"""
-    if not await _tcp_open(url):
-        return False
-    try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(f"{url}/api/tags")
-        r.raise_for_status()
-        have = {m["name"] for m in r.json().get("models", [])}
-        need = {_llm_model_for(url), EMBED_MODEL}
-        return need <= have
-    except Exception:
-        return False
 
 
-async def _pick(kind: str, candidates: list[str], probe=None) -> str:
-    """依優先權選取可用主機：快取新鮮（PICK_TTL 內）直接用；過期重新掃描，
-    先位主機回復即自動切回。全部不通時退回候選首位（由 _req 依錯誤降級）。"""
-    now = time.monotonic()
-    cur = _bases.get(kind)
-    if cur and now - _base_ts.get(kind, 0) < PICK_TTL:
-        return cur
-    async with _base_lock:
-        cur = _bases.get(kind)
-        if cur and now - _base_ts.get(kind, 0) < PICK_TTL:
-            return cur
-        for url in candidates:
-            ok = await _tcp_open(url)
-            if ok and probe is not None:
-                ok = await probe(url)
-            if ok:
-                _bases[kind] = url
-                _base_ts[kind] = now
-                return url
-    _bases[kind] = candidates[0]
-    _base_ts[kind] = now
-    return candidates[0]
 
 
-def _drop(kind: str) -> None:
-    _bases.pop(kind, None)
-    _base_ts.pop(kind, None)
 
 
-async def _req(kind: str, candidates: list[str], method: str, path: str,
-               *, timeout: float = 120, retry_on: tuple = (), **kw) -> httpx.Response:
-    probe = _ollama_probe if kind == "ollama" else None
-    headers = dict(kw.pop("headers", {}) or {})
-    if kind == "qdrant" and QDRANT_API_KEY:
-        headers.setdefault("api-key", QDRANT_API_KEY)
-    for _ in range(2):
-        base = await _pick(kind, candidates, probe=probe)
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as c:
-                r = await getattr(c, method)(f"{base}{path}", headers=headers, **kw)
-        except (httpx.ConnectError, httpx.ConnectTimeout):
-            _drop(kind)
-            continue
-        if r.status_code in retry_on:
-            _drop(kind)  # 例如 404 model not found → 換下一台
-            continue
-        return r
-    raise httpx.ConnectError(f"{kind} unreachable")
 
 
-async def embed(texts: list[str]) -> list[list[float]]:
-    r = await _req("ollama", OLLAMA_URLS, "post", "/api/embed",
-                   json={"model": EMBED_MODEL, "input": texts, "keep_alive": keep_alive_value()},
-                   retry_on=(404,))
-    r.raise_for_status()
-    return r.json()["embeddings"]
 
 
-# collection 能力偵測：有 sparse 命名向量 → 走 hybrid(DBSF)；單一未命名 dense → 舊 search。
-HAS_SPARSE = False
-_HAS_NAMED = False
-# hybrid 查詢預設過濾：只找人吃得到的現行條文（demo/ingest 或 backup 舊點會被排除）
-_BASE_FILTER = {"must": [
-    {"key": "is_repealed", "match": {"value": False}},
-    {"key": "is_abandoned", "match": {"value": False}},
-]}
 
 
-async def _collection_capabilities() -> None:
-    """讀 collection 設定，記錄 HAS_SPARSE/_HAS_NAMED（供 search 選路）。"""
-    global HAS_SPARSE, _HAS_NAMED
-    try:
-        r = await _req("qdrant", QDRANT_URLS, "get", f"/collections/{COLLECTION}", timeout=30)
-        if r.status_code != 200:
-            return
-        params = r.json()["result"]["config"]["params"]
-        vectors = params.get("vectors", {})
-        _HAS_NAMED = isinstance(vectors, dict) and "size" not in vectors
-        HAS_SPARSE = bool(params.get("sparse_vectors"))
-    except Exception as e:
-        logger.warning("collection 能力偵測失敗（%s），退回舊 search", e)
 
 
-async def ensure_collection() -> None:
-    await _collection_capabilities()
-    await _ensure_law_names()  # 法名清單：collection 通常已存在，也會提前建
-    r = await _req("qdrant", QDRANT_URLS, "get", f"/collections/{COLLECTION}", timeout=30)
-    if r.status_code == 200:
-        return
-    r = await _req("qdrant", QDRANT_URLS, "put", f"/collections/{COLLECTION}", timeout=30,
-                   json={"vectors": {"dense": {"size": DIM, "distance": "Cosine"}},
-                         "sparse_vectors": {"sparse": {"modifier": "idf"}}})
-    r.raise_for_status()
-    await _collection_capabilities()
-    await _ensure_law_names()
 
 
-# corpus 法名清單（啟動時快取）：供「裸法名查詢」走法名分支（例:「證券交易法」→ 列出該法來源）。
-# _LAW_COUNTS＝各法「現行有效條文單元數」（主條＋增訂子條，不含刪除空號、不含拆段）。
-# _LAW_SUBS＝其中帶 '-' 的增訂子條數。_LAW_ALIASES＝常見簡稱 → 全名。
-# _LAW_META＝各法靜態後設資料（位階/分類/日期/沿革），規則題庫用。
-_LAW_NAMES: list[str] = []
-_LAW_COUNTS: dict[str, int] = {}
-_LAW_SUBS: dict[str, int] = {}
-_LAW_META: dict[str, dict] = {}
-_LAW_ALIASES = {
-    "證交法": "證券交易法",
-    "證交稅": "證券交易稅條例",
-    "勞基法": "勞動基準法",
-    "消保法": "消費者保護法",
-    "個資法": "個人資料保護法",
-    "民訴": "民事訴訟法",
-    "刑訴": "刑事訴訟法",
-    "行訴": "行政訴訟法",
-    "道交條例": "道路交通管理處罰條例",
-    "遺贈稅法": "遺產及贈與稅法",
-    "強執法": "強制執行法",
-    "公司法": "公司法",
-}
 
 
-async def _ensure_law_names() -> None:
-    """scroll 全量 payload（law_name＋article_no）收集法名與條文數，best-effort：失敗則留空、法名分支略過。"""
-    global _LAW_NAMES, _LAW_COUNTS, _LAW_SUBS
-    if _LAW_NAMES:
-        return
-    seen: dict[str, set[str]] = {}
-    subs: dict[str, int] = {}
-    offset = None
-    prev = None
-    try:
-        while True:
-            body = {"limit": 5000, "with_payload": ["law_name", "article_no"], "with_vector": False}
-            if offset is not None:
-                body["offset"] = offset
-            r = await _req("qdrant", QDRANT_URLS, "post",
-                           f"/collections/{COLLECTION}/points/scroll", json=body, timeout=60)
-            r.raise_for_status()
-            pts = r.json()["result"]["points"]
-            for p in pts:
-                pl = p.get("payload", {})
-                n, an = pl.get("law_name"), pl.get("article_no")
-                if not (n and an):
-                    continue
-                s = seen.setdefault(n, set())
-                if an not in s:
-                    s.add(an)
-                    if "-" in an.replace(" ", ""):
-                        subs[n] = subs.get(n, 0) + 1
-            if not pts:
-                break
-            prev, offset = offset, pts[-1]["id"]
-            # 近 u64 上限的點（u64 id 換算高於 i64 等）scroll 永不前進 → 防死循環
-            if offset == prev:
-                break
-    except Exception:
-        return
-    _LAW_COUNTS = {n: len(s) for n, s in seen.items()}
-    _LAW_SUBS = subs
-    _LAW_NAMES = sorted(seen, key=lambda n: (-len(seen[n]), n))
-    _try_load_law_meta()
 
 
-_COUNT_RE = re.compile(r"(多少條|幾條|條文數|幾個條文|有多少條|共有?)")
 
 
-def _is_count_question(q: str) -> bool:
-    """「證交法有多少條？」這類條數問句 → 直接回答條文數，不必走 LLM。"""
-    return bool(_COUNT_RE.search(q)) and "條文內容" not in q
 
 
-def _law_count_line(law: str) -> str | None:
-    """現行有效條文數的一句話（例：「《證券交易法》現行有效條文共 209 條…」）。"""
-    n = _LAW_COUNTS.get(law)
-    if not n:
-        return None
-    sub = _LAW_SUBS.get(law, 0)
-    s = f"《{law}》現行有效條文共 {n} 條。"
-    if sub:
-        s += f"（主條 {n - sub} 則＋增訂子條 {sub} 則；主條編號依原序，號碼間含已刪除空號，因此最大值未滿 {n}）"
-    return s
 
 
 # ── 法規版本（前端「法規版本」欄位）────────────────────────────────────────
@@ -643,7 +272,7 @@ def request_law_update(actor: str) -> dict:
     ok = _ops_write(f"{OPS_NAME}.request", {
         "requested_at": datetime.now().isoformat(timespec="seconds"),
         "requested_by": actor,
-        "host_id": HOST_ID,
+        "host_id": gateway.HOST_ID,
         "current_version": law_version().get("update_date", ""),
     })
     if not ok:
@@ -705,559 +334,67 @@ def law_version() -> dict:
     return val
 
 
-def _try_load_law_meta() -> None:
-    """載入 laws_meta.jsonl（容器 /app/data/laws 或 repo data/laws）；失敗留空＝題庫退守 LLM。"""
-    global _LAW_META
-    if _LAW_META:
-        return
-    cands = [Path("data/laws/laws_meta.jsonl"), Path("/app/data/laws/laws_meta.jsonl")]
-    for p in cands:
-        try:
-            if not p.exists():
-                continue
-            with p.open(encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    m = json.loads(line)
-                    n = m.get("law_name")
-                    if n:
-                        _LAW_META[n] = m
-            logger.info("題庫後設資料載入 %d 部法（%s）", len(_LAW_META), p)
-            return
-        except Exception:
-            _LAW_META = {}
-    logger.warning("laws_meta 未找到，規則題庫拿不到後設資料")
-
-
-def _fmt_rm_date(s: str | None) -> str | None:
-    """YYYYMMDD → 「民國 Y年 M月 D 日（西元 YYYY）」。非該格式原樣回。"""
-    if not s:
-        return None
-    m = re.match(r"^(\d{4})(\d{2})?(\d{2})?$", s.strip())
-    if not m:
-        return s
-    y, mo, d = m.group(1), m.group(2), m.group(3)
-    rm = int(y) - 1911
-    seg = f"民國 {rm} 年"
-    if mo:
-        seg += f" {int(mo)} 月"
-    if d:
-        seg += f" {int(d)} 日"
-    return f"{seg}（西元 {y}）"
-
-
-def _meta_authority(m: dict) -> str | None:
-    """主管機關：法規分類開頭為「行政＞…」取第二段，否則回整個分類。"""
-    cat = collapse_ws(m.get("law_category") or "")
-    if cat.startswith("行政") and "＞" in cat:
-        return cat.split("＞")[1] or (cat or None)
-    return cat or None
-
-
-def _meta_history(m: dict) -> str | None:
-    h = (m.get("law_histories") or "").strip()
-    if not h:
-        return None
-    return collapse_ws(h.split("\r\n")[0].split("\n")[0]) or None
-
-
-def _meta_card(law: str, m: dict) -> str:
-    """「什麼是X法」的規則卡：位階＋分類＋條數＋沿革首行（不進 LLM，零編造）。"""
-    lv = m.get("law_level") or "法規"
-    cat = collapse_ws(m.get("law_category") or "")
-    n = _LAW_COUNTS.get(law)
-    cnt = f"現行有效條文 {n} 條" if n else "條文數不明"
-    hist = _meta_history(m)
-    s = f"{lv}《{law}》：{cat}；{cnt}。"
-    if hist:
-        s += f" 沿革：{hist}。"
-    return s
-
-
-_RULE_INTENTS = [
-    ("count", re.compile(r"(多少條|幾條|條文數|幾個條文|有多少條|共有?)")),
-    ("authority", re.compile(r"(主管機關|主責機關|管轄機關|哪個機關|哪個單位|何機關)")),
-    ("effective", re.compile(r"(何時施行|施行日期|生效日期|何時生效|何時實施|哪時施行|何時公布|公布日期)")),
-    ("revised", re.compile(r"(何時修正|什麼時候修正|修正日期|最近修正|修改日期)")),
-    ("rev_count", re.compile(r"(幾次修正|修正幾次|修正次數|共修正|改過幾次|修過幾次|修改幾次|修正過幾次)")),
-    ("level", re.compile(r"(法律還是|還是法律|法規命令|位階|中央法規|地方自治還是|屬於.{0,8}法規?)")),
-    ("active", re.compile(r"(是否廢止|已廢止|還有在用|還有效|仍然有效|是否有效)")),
-    ("brief", re.compile(r"(什麼是|是什麼|介紹一下|簡介)")),
-]
-
-
-def _route_law_intent(question: str) -> str | None:
-    """規則題庫路由：法名校準後（由呼叫端保證），此處判斷問句該由哪條規則直接答。"""
-    q = "".join(question.split())
-    for intent, pat in _RULE_INTENTS:
-        if pat.search(q):
-            return intent
-    return None
-
-
-def _rule_answer(intent: str, law: str) -> str | None:
-    """給定法名與題庫 intent，回規則答案；無資料回 None（呼叫端退守 LLM）。"""
-    if intent == "count":
-        return _law_count_line(law)
-    m = _LAW_META.get(law)
-    if not m:
-        return None
-    if intent == "authority":
-        a = _meta_authority(m)
-        return f"《{law}》的主管機關是 {a}。" if a else None
-    if intent == "effective":
-        sd = _fmt_rm_date((m.get("law_effective_date") or "").strip() or None)
-        note = (m.get("law_effective_note") or "").strip()
-        parts = []
-        if sd:
-            parts.append(f"自 {sd} 起施行")
-        if note:
-            parts.append(f"（{collapse_ws(note[:80])}）")
-        return f"《{law}》{''.join(parts)}。" if parts else None
-    if intent == "revised":
-        md = _fmt_rm_date((m.get("law_modified_date") or "").strip() or None)
-        return f"《{law}》最近一次修正公布：{md}。" if md else None
-    if intent == "rev_count":
-        c = len(re.findall(r"(?:^|\r?\n)\s*\d+\.", m.get("law_histories") or ""))
-        md = _fmt_rm_date((m.get("law_modified_date") or "").strip() or None)
-        if not c:
-            return None
-        return f"《{law}》歷來共修正 {c} 次" + (f"（最近：{md}）" if md else "") + "。"
-    if intent == "level":
-        lv = m.get("law_level")
-        return f"《{law}》位階屬「{lv}」。" if lv else None
-    if intent == "active":
-        if not m.get("is_abandoned"):
-            return f"《{law}》現行有效（未廢止）。"
-        return f"《{law}》已廢止：{m.get('law_abandon_note') or '（無說明）'}。"
-    if intent == "brief":
-        return _meta_card(law, m)
-    return None
-
-
-_RULE_INTENT_LABELS = {
-    "count": "條數問句（主條＋子條、現行有效；不含刪除空號）",
-    "authority": "主管機關（法規分類第二段）",
-    "effective": "施行／生效日期",
-    "revised": "最近修正公布日期",
-    "rev_count": "歷來修正次數（沿革編號計數）",
-    "level": "位階（法律／法規命令…）",
-    "active": "現行有效或已廢止",
-    "brief": "什麼是X法 → 位階＋分類＋條數＋沿革卡",
-}
-
-
-def builtin_catalog(sample_law: str = "證券交易法") -> list[dict]:
-    """題庫頁顯示用：內建 intent → 觸發關鍵字／範例／規則作答範本。"""
-    _try_load_law_meta()
-    out = []
-    for intent, pat in _RULE_INTENTS:
-        line = _rule_answer(intent, sample_law) or ""
-        out.append({
-            "id": intent,
-            "category": "內建",
-            "label": _RULE_INTENT_LABELS.get(intent, intent),
-            "pattern": getattr(pat, "pattern", ""),
-            "sample_answer": line,
-        })
-    return out
-
-
-def _alias_to_law(qq: str) -> str | None:
-    """簡稱 → 全名：簡稱精準等於查詢 → 或簡稱嵌在查詢內（長度>=3）。"""
-    for alias, name in _LAW_ALIASES.items():
-        if qq == alias:
-            return name
-    for alias, name in _LAW_ALIASES.items():
-        if len(alias) >= 3 and alias in qq:
-            # 結尾為「第N條」= 具體條號查詢，推給條號分支，不當法名簡稱；
-            # 結尾只是「幾條/多少條」仍算法名問句（如「勞基法共有幾條」）。
-            if qq.endswith("條") and _ART_REF_RE.search(qq):
-                continue
-            return name
-    return None
-
-
-def _detect_law(question: str) -> str | None:
-    """查詢是否對應 corpus 某部法名：簡稱 → 法名精準等於 → 法名以此開頭 → 法名包含 → 法名嵌於問句。"""
-    qq = "".join(question.split())
-    if not qq:
-        return None
-    law = _alias_to_law(qq)
-    if law:
-        return law
-    for name in _LAW_NAMES:
-        if qq == name.replace(" ", ""):
-            return name
-    for name in _LAW_NAMES:
-        n = name.replace(" ", "")
-        if n.startswith(qq) and len(qq) >= 3:
-            return name
-    for name in _LAW_NAMES:
-        n = name.replace(" ", "")
-        if qq in n and len(qq) >= 4 and not qq.endswith("條"):
-            return name
-    for name in _LAW_NAMES:  # 法名嵌在問句內（例:「什麼是證券交易法」）
-        n = name.replace(" ", "")
-        # >= 2 而非 >= 3：門檻原本是 3，但 corpus 1025 部法裡「民法」只有 2 字，
-        # 于是「民法第184條…」永遠偵測不到法名 → 走不到條號精準分支 → 只剩 dense
-        # 0.55 < 門檻 0.58 → no_match（2026-09-26 實測）。全 corpus 只有「民法」
-        # 一個 2 字法名，放寬只影響它。
-        if len(n) >= 2 and n in qq:
-            return name
-    return None
-
-
-def _law_brief(law: str) -> str:
-    """法規基本敘述（不含條號）：《法名》（共N條）。"""
-    n = _LAW_COUNTS.get(law)
-    return f"《{law}》（共{n}條）" if n else f"《{law}》"
-
-
-_ART_REF_RE = re.compile(r"第\s*[0-9]+(?:\s*-\s*[0-9]+)?\s*條")
-
-
-def _strip_article_refs(text: str) -> str:
-    """去掉含「第X條」的句子（法名查詢的基本敘述不該指名任何條號）。"""
-    parts = [s for s in text.split("。") if s and not _ART_REF_RE.search(s)]
-    return "。".join(parts) + ("。" if parts else "")
-
-
-_ART_HEAD_RE = re.compile(r"^第\s*(\d+)")
-
-
-def _art_flno(article_no: str) -> str | None:
-    """條號 → moj 單條文 flno 參數（例:「第 10-1 條」→「10-1」）。"""
-    m = re.match(r"^第\s*([0-9]+(?:\s*-\s*[0-9]+)?)", article_no or "")
-    return m.group(1).replace(" ", "") if m else None
-
-
-def _law_url(pcode: str | None, article_no: str | None = None) -> str | None:
-    """法規來源連結（全國法規資料庫 law.moj.gov.tw）：給條號→單條文頁；否則→整部法頁。"""
-    if not pcode:
-        return None
-    base = "https://law.moj.gov.tw/LawClass/"
-    if article_no:
-        flno = _art_flno(article_no)
-        if flno:
-            return f"{base}LawSingle.aspx?pcode={pcode}&flno={flno}"
-    return f"{base}LawAll.aspx?pcode={pcode}"
-
-
-def _art_sort_key(article_no: str) -> tuple[int, int]:
-    """條號排序鍵：主號（負數排最前，讓「第1條」先於其他）＋子號。"""
-    m = _ART_HEAD_RE.match(article_no or "")
-    head = int(m.group(1)) if m else 10 ** 9
-    return (head, 0) if m else (10 ** 9, 0)
-
-
-async def upsert(docs: list[dict]) -> int:
-    vecs = await embed([d["text"] for d in docs])
-    points = [
-        {"id": str(uuid.uuid4()),
-         "vector": {"dense": v} | ({"sparse": _sparse.sparse_vector(d["text"])} if HAS_SPARSE else {}),
-         "payload": d}
-        for v, d in zip(vecs, docs)
-    ]
-    r = await _req("qdrant", QDRANT_URLS, "put", f"/collections/{COLLECTION}/points",
-                   json={"points": points})
-    r.raise_for_status()
-    return len(points)
-
-
-async def _points_query(body: dict) -> list[dict]:
-    r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
-                   json=body, timeout=30)
-    r.raise_for_status()
-    return r.json()["result"]["points"]
-
-
-def _fusion_sort(hits: list[dict]) -> list[dict]:
-    """本端 DBSF 融合（決定性）：dense 餘弦與 sparse idf-score 各自 min-max 正規化後加總。
-    不用 RRF：RRF 只看排名，熱門條號(如「第11條」)兩腿都被灌滿時，真身(e.g. 證交法11)
-    在 sparse 腿排到上百名，被融合丟掉；「同時命中兩組 token」的文件會勝出。"""
-    dvals = [h["_dense"] for h in hits if h.get("_dense") is not None]
-    svals = [h["_sparse"] for h in hits if h.get("_sparse") is not None]
-    dlo, dhi = (min(dvals), max(dvals)) if dvals else (0.0, 0.0)
-    slo, shi = (min(svals), max(svals)) if svals else (0.0, 0.0)
-
-    def norm(x, lo, hi):
-        return (x - lo) / (hi - lo) if hi > lo else 0.0
-
-    for h in hits:
-        h["_fused"] = norm(h.get("_dense") or 0.0, dlo, dhi) + norm(h.get("_sparse") or 0.0, slo, shi)
-    return sorted(hits, key=lambda h: h["_fused"], reverse=True)
-
-
-async def search(question: str, vector: list[float], limit: int = 50) -> list[dict]:
-    """召回：dense(bge-m3)＋sparse(TF) 兩腿分開查，本端 DBSF 融合（決定性、可控）。
-    filter 只吃現行條文（is_repealed/abandoned=false）。"""
-    prefetch = max(limit, 500)
-    if HAS_SPARSE:
-        dense_pts = await _points_query({"query": vector, "using": "dense", "limit": prefetch,
-                                         "filter": _BASE_FILTER, "with_payload": True})
-        sq = _sparse.sparse_vector(question)
-        sparse_pts: list[dict] = []
-        if sq["indices"]:
-            sparse_pts = await _points_query(
-                {"query": {"indices": sq["indices"], "values": sq["values"]},
-                 "using": "sparse", "limit": prefetch, "filter": _BASE_FILTER, "with_payload": True})
-        pool: dict[int, dict] = {}
-        for p in dense_pts:
-            pool[p["id"]] = {"id": p["id"], "payload": p["payload"], "_dense": p["score"], "_sparse": 0.0}
-        for p in sparse_pts:
-            e = pool.setdefault(p["id"], {"id": p["id"], "payload": p["payload"], "_dense": 0.0, "_sparse": 0.0})
-            e["_sparse"] = p["score"]
-        hits = _fusion_sort(list(pool.values()))[:limit]
-        for h in hits:
-            h["score"] = h["_fused"]
-            h.pop("_fused", None)
-    else:
-        # 純 dense（laws collection 目前沒有 sparse vectors → HAS_SPARSE=False）。
-        # /points/search 對具名向量要 {"name":..,"vector":..}；{"dense": ..} 是
-        # /points/upsert 與 /points/query+using 的形式，在這裡會被 400
-        # （"did not match any variant of untagged enum NamedVectorStruct"）。
-        body = ({"vector": {"name": "dense", "vector": vector}} if _HAS_NAMED
-                else {"vector": vector})
-        body.update({"limit": limit, "with_payload": True})
-        r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/search",
-                       json=body, timeout=30)
-        r.raise_for_status()
-        hits = r.json()["result"]
-    # 條號精準分支：query 含「第N條」時，同時對「同條號、跨法」候選以 dense 打分，
-    # 破除熱門條號被擁擠（例「證券交易法第20條」sparse 腿排到數百名外）與"湊巧含法名子串"
-    # 的文件搶位的問題；法名+條號組合下真正的條文會衝到最前。
-    an = extract_article_no(question)
-    if an:
-        # 法名＋條號（含簡稱，例:「勞基法第38條」）：直接滾「該法該條」當精準來源。
-        # 為什麼不能只靠「跨法同條號」競爭（實測）：
-        # ① query 為「法名＋第N條」時 sparse tokenizer 的 CJK run 把「第」吃進法名 bigram，
-        #    數字被 latin 拆出 → 根本沒有「第38條」條號 token；② doc 端 min(tf,4) 飽和讓
-        #    罰責類條文的「規定/條規」高頻字拿 3~4 權重，與 query「規定什麼」假重疊→虛高
-        #    sparse dot（事業用爆炸物管理條例38 got 7 vs 勞動基準法38 got 2，語意無關卻霸榜）；
-        #    ③ 簡稱「勞基法」對法名「勞動基準法」bigram 重疊=0，加分失效、正確條文掉到 top5。
-        # 偵測到法名→鎖該法該條；僅條號查詢（無法名）仍走下方跨法競爭。
-        law = _detect_law(question)
-        if law:
-            f_law = {"must": _BASE_FILTER["must"] +
-                     [{"key": "law_name", "match": {"value": law}},
-                      {"key": "article_no", "match": {"value": an}}]}
-            r = await _req("qdrant", QDRANT_URLS, "post",
-                           f"/collections/{COLLECTION}/points/scroll",
-                           json={"filter": f_law, "limit": 10,
-                                 "with_payload": True, "with_vector": False}, timeout=30)
-            r.raise_for_status()
-            solo = [h for h in r.json()["result"]["points"] if h.get("payload")]
-            if solo:
-                qv = _sparse.sparse_vector(question)
-                q = dict(zip(qv["indices"], qv["values"]))
-                for h in solo:
-                    d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
-                    h["score"] = sum(q.get(t, 0.0) * v for t, v in d.items())
-                    h["_exact_rank"] = True  # 精準命中，rerank 置頂
-                exact = solo[:3]
-                exact_ids = {h["id"] for h in exact}
-                hits = exact + [h for h in hits if h["id"] not in exact_ids]
-                return hits
-        # 同條號跨法候選（僅條號查詢）：scroll 全拉（不依賴 dense 排位，避免真身被擠出
-        # 小 limit），本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
-        f2 = {"must": _BASE_FILTER["must"] + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
-        r = await _req("qdrant", QDRANT_URLS, "post",
-                       f"/collections/{COLLECTION}/points/scroll",
-                       json={"filter": f2, "limit": 1000, "with_payload": True, "with_vector": False},
-                       timeout=30)
-        r.raise_for_status()
-        exact = r.json()["result"]["points"]
-        if exact:
-            qv = _sparse.sparse_vector(question)
-            q = dict(zip(qv["indices"], qv["values"]))
-            qbig = _bigrams(question)
-            for h in exact:
-                d = dict(zip(*_sparse.sparse_vector(h["payload"].get("text", "")).values()))
-                # dot＝內容/特徵重疊；＋法名 bigram 重疊破「內容不含法名詞彙引致的同分」
-                law = h["payload"].get("law_name", "")
-                h["_exact"] = sum(q.get(t, 0.0) * v for t, v in d.items()) + 3.0 * len(qbig & _bigrams(law))
-            exact.sort(key=lambda h: h["_exact"], reverse=True)
-            exact = [h for h in exact if h["_exact"] > 0][:3]
-            for h in exact:
-                h["score"] = h.pop("_exact", 0.0)
-                h["_exact_rank"] = True  # 供本地 rerank 保留精準分支的領先順序
-        exact_ids = {h["id"] for h in exact}
-        # exact 排最前，一併去重（可能已在 fused hit 中段）；top_k 才能看到真身。
-        hits = exact + [h for h in hits if h["id"] not in exact_ids]
-    else:
-        # 法名分支：查詢即法名（例:「證券交易法」）時，dense 前段常被「提及該法名」的其他法
-        # 條文佔據，本法條文反而排不進 top；滾出本法條文（條號升序）prepend 當「來源」。
-        law = _detect_law(question)
-        if law:
-            r = await _req("qdrant", QDRANT_URLS, "post",
-                           f"/collections/{COLLECTION}/points/scroll",
-                           json={"filter": {"must": _BASE_FILTER["must"] +
-                                            [{"key": "law_name", "match": {"value": law}}]},
-                                 "limit": 300, "with_payload": True, "with_vector": False},
-                           timeout=30)
-            r.raise_for_status()
-            arts = sorted(r.json()["result"]["points"],
-                          key=lambda h: _art_sort_key(h["payload"].get("article_no", "")))
-            top = arts[:3]
-            for h in top:
-                h["score"] = 0.0          # 穩定排序用（rerank 的精準分支維持輸入順序）
-                h["_brief"] = _law_brief(law)
-                h["_exact_rank"] = True   # 視同精準命中（法名精準），rerank 置頂
-            lid = {h["id"] for h in top}
-            hits = top + [h for h in hits if h["id"] not in lid]
-    return hits
-
-
-async def _dense_leg(vector: list[float], limit: int) -> dict[int, float]:
-    """dense 腿單查：回「該 query 在 corpus 的最佳 dense 餘弦」集合，供閘門（絕對值）。
-    Qdrant 的 id match any 不接受超過 i64 的 u64 id（md5 id 常超過），故不能對特定 id 回拉。"""
-    r = await _req("qdrant", QDRANT_URLS, "post", f"/collections/{COLLECTION}/points/query",
-                   json={"query": vector, "using": "dense", "limit": limit,
-                         "with_payload": False}, timeout=30)
-    r.raise_for_status()
-    return {p["id"]: p["score"] for p in r.json()["result"]["points"]}
-
-
-def rerank(question: str, hits: list[dict], dense_scores: dict | None = None,
-           top_k: int = 5) -> list[dict]:
-    """本地重排（純計算）：條號精準分支（_exact_rank）領先；其餘依「真實 dense 語意相似度」降序
-    （pool 已附每筆 dense，稀疏僅主導的噪音自然沉底）。_dense 缺時補自頂層 dense leg。"""
-    dense = dense_scores or {}
-    exact = [h for h in hits if h.get("_exact_rank")]
-    rest = sorted((h for h in hits if not h.get("_exact_rank")),
-                  key=lambda h: h.get("_dense") if h.get("_dense") is not None else -1.0,
-                  reverse=True)
-    out = (exact + rest)[:top_k]
-    for h in out:
-        if h.get("_dense") is None:
-            h["_dense"] = dense.get(h["id"])
-    return out
-
-
-# 法律領域提示語彙（寬鬆即可；真正門檻是 dense，此僅決定「弱區間」要不要放行）
-_LAW_HINTS = ("法條", "條文", "契約", "債", "侵權", "賠償", "損害", "婚姻", "離婚", "繼承",
-              "遺產", "贈與", "買賣", "租", "工資", "勞工", "僱", "雇", "刑", "罪", "罰",
-              "訴訟", "起訴", "上訴", "判決", "被害人", "詐欺", "竊盜", "侵占", "偽造",
-              "背信", "酒駕", "肇事", "交通", "保險", "稅", "股份有限公司", "董事", "股東",
-              "親權", "扶養", "監護", "戶政", "土地", "鄰居", "噪音", "合夥", "委任", "承攬",
-              "保證", "被繼承", "特留分", "應繼分", "營業秘密", "定型化契約", "商品責任",
-              "特別休假", "資遣費", "退休金", "職災", "工時", "調解", "公證", "執行" )
-
-
-def _trace(question: str, an: str | None, exact_n: int, dense_max: float,
-           level: str, reason: str,
-           min_dense: float = MIN_DENSE, mid: float = MID_DENSE,
-           high: float = HIGH_DENSE) -> str:
-    """流程判定摘要（以「｜」間隔，便於人讀）：條號 → 精準命中 → 語意相似度/門檻 → 語意訊號 → 信心判定。"""
-    sig = "有" if _legal_signal(question) else "無"
-    return (f"條號:{an or '無'}｜精準:{exact_n}篇｜"
-            f"dense:{dense_max:.2f}(門檻{min_dense:.2f}/{mid:.2f}/{high:.2f})｜"
-            f"語意:{sig}｜判定:{level}({reason})")
-
-
-def _legal_signal(question: str) -> bool:
-    """整題有無「法律語意」：含條號、含法律語彙即可。"""
-    if extract_article_no(question):
-        return True
-    qq = "".join(question.split())
-    if any(k in qq for k in _LAW_HINTS):
-        return True
-    return False
-
-
-def _exact_match(hits: list[dict], article_no: str) -> bool:
-    """精準分支是否有命中「與條號完全相同」的點（article_no 已去空白比對）。"""
-    want = "".join(article_no.split())
-    return any(h.get("_exact_rank")
-               and "".join((h.get("payload", {}).get("article_no") or "").split()) == want
-               for h in hits)
-
-
-def _decide(question: str, hits: list[dict], dense_max: float,
-            min_dense: float = MIN_DENSE, mid: float = MID_DENSE,
-            high: float = HIGH_DENSE) -> tuple[str, str]:
-    """信心分級（純計算）：corpus 無密合語意（dense_max 太低）→ no_match（不問 LLM）；
-    中間區間要「法律語意」才放行。dense_max＝該 query 在 corpus 的最佳 dense 餘弦（跨候選）。
-    法名精準命中（例:「證券交易法」及其簡稱）→ 意圖明確、永不放 no_match（來源由法名分支列出）。"""
-    if not hits:
-        return "no_match", "empty"
-    law = _detect_law(question)
-    if law and any((h.get("payload") or {}).get("law_name") == law for h in hits):
-        cos = max(dense_max, 0.0)
-        return "high", f"law_name@{cos:.2f}"
-    cos = max(dense_max, 0.0)
-    if cos < min_dense:
-        # 條號精準命中不因 dense 偏低被誤判（精準分支本為破「熱門條號被擁擠」而生）
-        an = extract_article_no(question)
-        if an and _exact_match(hits, an):
-            return "medium", f"exact_article@cos:{cos:.2f}"
-        return "no_match", f"low_relevance@{cos:.2f}"
-    if not _legal_signal(question) and cos < mid:
-        return "no_match", f"ambiguous_no_signal@{cos:.2f}"
-    if cos >= high:
-        return "high", f"cos@{cos:.2f}"
-    return "medium", f"cos@{cos:.2f}"
-
-
-_CN_DIG = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
-
-
-def _cn2num(s: str) -> int:
-    """中文數字→int（支援至千位）：十一=11、二十三=23、一百零五=105、兩百=200。"""
-    s = s.replace("兩", "二").replace("零", "")
-    total = cur = 0
-    for ch in s:
-        if ch == "千":
-            total += (cur or 1) * 1000; cur = 0
-        elif ch == "百":
-            total += (cur or 1) * 100; cur = 0
-        elif ch == "十":
-            total += (cur or 1) * 10; cur = 0
-        elif ch in _CN_DIG:
-            cur = cur * 10 + _CN_DIG[ch]
-    return total + cur
-
-
-_ART_RE = re.compile(
-    r"第\s*(?:(?P<ab>[0-9]+(?:\s*-\s*[0-9]+)?)|(?P<cn>[一二三四五六七八九十百零兩]+(?:之[一二三四五六七八九十零兩]+)?))\s*條"
-)
-
-
-def _bigrams(s: str) -> set[str]:
-    """字串的 CJK bigram 集合（去掉空白），用以比對法名與 query 的重疊。"""
-    s = "".join(s.split())
-    return {s[i:i + 2] for i in range(len(s) - 1)} if len(s) >= 2 else set()
-
-
-def extract_article_no(question: str) -> str | None:
-    """從查詢抽出「條」的標準格式（例:「第20條」→「第 20 條」、「第10條之1」→「第 10-1 條」）。"""
-    m = _ART_RE.search(question)
-    if not m:
-        return None
-    if m.group("cn"):
-        raw = m.group("cn")
-        if "之" in raw:
-            head, tail = raw.split("之", 1)
-            s = f"{_cn2num(head)}-{_cn2num(tail)}"
-        else:
-            s = str(_cn2num(raw))
-    else:
-        s = m.group("ab").strip()
-    return f"第 {s.strip()} 條"
-
-
-def _ref(h: dict) -> str:
-    """把 hit 渲染成可標註的引用：moj 條文有 law_name/article_no；判決/ingest 走 case_no/law。"""
-    p = h.get("payload", {})
-    if p.get("law_name"):
-        chap = f"（{p['chapter']}）" if p.get("chapter") else ""
-        st = _law.summarize(p.get("text", ""))
-        suffix = f"｜{st}" if st else ""
-        return f"[法條:{p['law_name']} {p.get('article_no', '').strip()} {chap}{suffix}]"
-    return f"[案號:{p.get('case_no', '?')} 法條:{p.get('law', '?')}]"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 async def _nvidia_complete(model: str, prompt: str) -> str:
@@ -1284,7 +421,7 @@ async def _gemini_complete(model: str, prompt: str) -> str:
     Gemini key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
     if not GEMINI_GATEWAY_URL or GEMINI_GATEWAY_URL == "-":
         raise GatewayUnconfigured("GEMINI_GATEWAY_URL 未設定：走不了 Google Gemini（需 CF AI Gateway 的 google-ai-studio 路由）")
-    tok = _gateway_token()
+    tok = gateway._gateway_token()
     if not tok:
         raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Google Gemini")
     headers = {
@@ -1309,7 +446,7 @@ async def _groq_complete(model: str, prompt: str) -> str:
     Groq key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
     if not GROQ_GATEWAY_URL or GROQ_GATEWAY_URL == "-":
         raise GatewayUnconfigured("GROQ_GATEWAY_URL 未設定：走不了 Groq（需 CF AI Gateway 的 groq 路由）")
-    tok = _gateway_token()
+    tok = gateway._gateway_token()
     if not tok:
         raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Groq")
     headers = {
@@ -1333,7 +470,7 @@ async def _cohere_complete(model: str, prompt: str) -> str:
     Cohere key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
     if not COHERE_GATEWAY_URL or COHERE_GATEWAY_URL == "-":
         raise GatewayUnconfigured("COHERE_GATEWAY_URL 未設定：走不了 Cohere（需 CF AI Gateway 的 cohere 路由）")
-    tok = _gateway_token()
+    tok = gateway._gateway_token()
     if not tok:
         raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Cohere")
     headers = {
@@ -1378,7 +515,7 @@ async def _mistral_complete(model: str, prompt: str) -> str:
     Mistral key 在 gateway 後台代管，此處用 CF token（cf-aig-authorization）認證即可。"""
     if not MISTRAL_GATEWAY_URL or MISTRAL_GATEWAY_URL == "-":
         raise GatewayUnconfigured("MISTRAL_GATEWAY_URL 未設定：走不了 Mistral（需 CF AI Gateway 的 mistral 路由）")
-    tok = _gateway_token()
+    tok = gateway._gateway_token()
     if not tok:
         raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 Mistral")
     headers = {
@@ -1514,7 +651,7 @@ async def _openrouter_complete(model: str, prompt: str) -> str:
     """經 Cloudflare AI Gateway 呼叫 OpenRouter 閉源模型（chat/completions）。"""
     if not OPENROUTER_GATEWAY_URL:
         raise GatewayUnconfigured("OPENROUTER_GATEWAY_URL 未設定：無法走 OpenRouter 閉源模型")
-    tok = _gateway_token()
+    tok = gateway._gateway_token()
     if not tok:
         raise GatewayUnconfigured("CF_AIG_TOKEN 未設定：無法走 OpenRouter 閉源模型")
     headers = {
@@ -1537,7 +674,7 @@ async def _openrouter_complete(model: str, prompt: str) -> str:
 
 async def generate(question: str, contexts: list[dict], cautious: bool = False,
                    brief_law: str | None = None, model: str = "") -> str:
-    blocks = "\n\n".join(f"{_ref(h)} {h['payload'].get('text', '')}" for h in contexts)
+    blocks = "\n\n".join(f"{retrieve._ref(h)} {h['payload'].get('text', '')}" for h in contexts)
     if brief_law:
         guard = (f"使用者查詢的是《{brief_law}》這部法本身。請只用一到三句話做基本敘述"
                  "（規範領域、大致內容）。嚴禁出現任何條號（第1條、第2條……），"
@@ -1574,23 +711,23 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     # Mistral（經 CF AI Gateway mistral provider）→ chat/completions（gateway 代管 Mistral key）。
     if model.startswith("mis/"):
         return await _mistral_complete(model.removeprefix("mis/"), prompt)
-    # ollama 路線：model 依選中的 ollama 主機而定（OLLAMA_MODELS 同序對應），或明確指定 model。
+    # ollama 路線：model 依選中的 ollama 主機而定（gateway.OLLAMA_MODELS 同序對應），或明確指定 model。
     # model 容錯 removeprefix("ollama/")（前端地端選項 value 純名，但外部呼叫可能帶前綴）。
     # 連線錯誤 / 404(model not found) 降級下一台；迴圈可走遍所有候選。
-    for _ in range(len(OLLAMA_URLS) + 1):
-        base = await _pick("ollama", OLLAMA_URLS, probe=_ollama_probe)
-        model = (model.removeprefix("ollama/") if model else "") or _llm_model_for(base)
+    for _ in range(len(gateway.OLLAMA_URLS) + 1):
+        base = await gateway._pick("ollama", gateway.OLLAMA_URLS, probe=gateway._ollama_probe)
+        model = (model.removeprefix("ollama/") if model else "") or gateway._llm_model_for(base)
         try:
             async with httpx.AsyncClient(timeout=300) as c:
                 r = await c.post(f"{base}/api/generate",
                                  json={"model": model, "prompt": prompt, "stream": False,
-                                       "think": False, "keep_alive": keep_alive_value(),
+                                       "think": False, "keep_alive": gateway.keep_alive_value(),
                                        "options": {"num_predict": 500}})
         except (httpx.ConnectError, httpx.ConnectTimeout):
-            _drop("ollama")
+            gateway._drop("ollama")
             continue
         if r.status_code == 404:
-            _drop("ollama")  # 該機沒有此 model → 換下一台
+            gateway._drop("ollama")  # 該機沒有此 model → 換下一台
             continue
         _rstatus(r, f"ollama/{model}")
         j = r.json()
@@ -1599,42 +736,8 @@ async def generate(question: str, contexts: list[dict], cautious: bool = False,
     raise httpx.ConnectError("ollama unreachable")
 
 
-async def local_models() -> list[str]:
-    """問本機 ollama 持有的模型清單（供 registry 記錄），失敗回空。"""
-    try:
-        r = await _req("ollama", OLLAMA_URLS, "get", "/api/tags", timeout=10)
-        return [m["name"] for m in r.json().get("models", [])]
-    except Exception:
-        return []
 
 
-async def warmup() -> None:
-    """啟動時預載「選中主機」的預設 LLM 與 embedding 模型並常駐（keep_alive=KEEP_ALIVE）。
-
-    best-effort：ollama 未就緒就跳過，首個 query 再載；萬一失敗不影響 api 上線。
-    """
-    try:
-        base = await _pick("ollama", OLLAMA_URLS, probe=_ollama_probe)
-    except Exception:
-        return
-    try:
-        async with httpx.AsyncClient(timeout=300) as c:
-            results = await asyncio.gather(
-                c.post(f"{base}/api/generate",
-                       json={"model": _llm_model_for(base), "prompt": "", "stream": False,
-                             "think": False, "keep_alive": keep_alive_value(),
-                             "options": {"num_predict": 1}}),
-                c.post(f"{base}/api/embed",
-                       json={"model": EMBED_MODEL, "input": "", "keep_alive": keep_alive_value()}),
-                return_exceptions=True,
-            )
-        for r in results:
-            if isinstance(r, Exception) or (hasattr(r, "status_code") and r.status_code >= 400):
-                logger.warning("warmup 部分失敗（%s），將在首個 query 載入", r)
-                return
-        logger.info("warmup 完成：%s 常駐 %s ＋ %s", base, _llm_model_for(base), EMBED_MODEL)
-    except Exception as e:
-        logger.warning("warmup 失敗（%s），將在首個 query 載入", e)
 
 
 def _jev_enabled() -> bool:
@@ -1719,15 +822,15 @@ async def _jev_rule_pick(question: str, rule: dict) -> float | None:
 
 
 async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "") -> dict:
-    # ── 題庫第一關（pre-RAG）：法名／條號純正則，不耗 embed＋Qdrant ──
-    brief_law = _detect_law(question)
-    an = extract_article_no(question)
+    # ── 題庫第一關（pre-RAG）：法名／條號純正則，不耗 gateway.embed＋Qdrant ──
+    brief_law = law_meta._detect_law(question)
+    an = cn_parse.extract_article_no(question)
     src = {
-        "qdrant": {"host": host_label(_bases.get("qdrant", QDRANT_URLS[0])),
-                   "url": _bases.get("qdrant", QDRANT_URLS[0])},
-        "llm": {"host": host_label(_bases.get("ollama", OLLAMA_URLS[0])),
-                "url": _bases.get("ollama", OLLAMA_URLS[0]),
-                "model": model or _llm_model_for(_bases.get("ollama", OLLAMA_URLS[0]))},
+        "qdrant": {"host": gateway.host_label(gateway._bases.get("qdrant", gateway.QDRANT_URLS[0])),
+                   "url": gateway._bases.get("qdrant", gateway.QDRANT_URLS[0])},
+        "llm": {"host": gateway.host_label(gateway._bases.get("ollama", gateway.OLLAMA_URLS[0])),
+                "url": gateway._bases.get("ollama", gateway.OLLAMA_URLS[0]),
+                "model": model or gateway._llm_model_for(gateway._bases.get("ollama", gateway.OLLAMA_URLS[0]))},
     }
     # 使用者題庫（記憶體庫）：完全相符直接答；近似命中由 JEV 裁決；否決／無候選才進 RAG。
     bank_note = None
@@ -1737,17 +840,17 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
         p = None
     if p:
         rule = p["rule"]
-        base = {"ok": True, "host": HOST_ID, "no_match": False, "src": src,
-                "log": await _host_probe_log()}
+        base = {"ok": True, "host": gateway.HOST_ID, "no_match": False, "src": src,
+                "log": await gateway._host_probe_log()}
         ms = collapse_ws(rule.get("match", ""))[:24]
         if p["identity"]:
-            base["answer"] = f"{HOST_ID}: {rule.get('answer', '')}"
+            base["answer"] = f"{gateway.HOST_ID}: {rule.get('answer', '')}"
             base["confidence"] = "user_rule"
             base["trace"] = f"題庫:{ms}(identity)"
             return base
         jv = await _jev_rule_pick(question, rule)
         if jv is not None and jv >= JEV_BANK_MIN:
-            base["answer"] = f"{HOST_ID}: {rule.get('answer', '')}"
+            base["answer"] = f"{gateway.HOST_ID}: {rule.get('answer', '')}"
             base["confidence"] = "user_rule"
             base["trace"] = f"題庫:{ms}｜JEV:{jv:.2f}(採題庫)"
             return base
@@ -1756,32 +859,32 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
     # 內建規則題庫（不進 LLM）：法名問句命中 count/authority/effective/revised/level/active/brief
     # 任一 intent，直接以規則答（metadata 精確計算），避免 LLM 編故事。
     if brief_law is not None and an is None:
-        _try_load_law_meta()
-        intent = _route_law_intent(question)
+        law_meta._try_load_law_meta()
+        intent = law_meta._route_law_intent(question)
         if intent:
-            line = _rule_answer(intent, brief_law)
+            line = law_meta._rule_answer(intent, brief_law)
             if line:
-                base = {"ok": True, "host": HOST_ID, "confidence": "rule",
-                        "no_match": False, "src": src, "log": await _host_probe_log()}
-                base["answer"] = f"{HOST_ID}: {line}"
+                base = {"ok": True, "host": gateway.HOST_ID, "confidence": "rule",
+                        "no_match": False, "src": src, "log": await gateway._host_probe_log()}
+                base["answer"] = f"{gateway.HOST_ID}: {line}"
                 base["trace"] = f"題庫:{intent}(內建)"
                 return base
-    # ── RAG 引擎（題庫 miss 才花 embed＋search）──
-    vecs = await embed([question])
-    hits = await search(question, vecs[0], limit=recall)
-    dense = await _dense_leg(vecs[0], max(recall, 50))
+    # ── RAG 引擎（題庫 miss 才花 gateway.embed＋retrieve.search）──
+    vecs = await gateway.embed([question])
+    hits = await retrieve.search(question, vecs[0], limit=recall)
+    dense = await retrieve._dense_leg(vecs[0], max(recall, 50))
     dense_max = max(dense.values(), default=0.0)
-    top = rerank(question, hits, dense, top_k)
-    level, reason = _decide(question, top, dense_max, MIN_DENSE, MID_DENSE, HIGH_DENSE)
+    top = retrieve.rerank(question, hits, dense, top_k)
+    level, reason = retrieve._decide(question, top, dense_max, retrieve.MIN_DENSE, retrieve.MID_DENSE, retrieve.HIGH_DENSE)
     exact_n = sum(1 for h in hits if h.get("_exact_rank"))
     # 純法名查詢（無條號）→ 整部法連結；其餘（含條號/語意命中具體條文）→ 單條文連結
     law_only = bool(brief_law) and an is None
     views = [_hit_view(h, law_only=law_only) for h in top]
-    base = {"ok": True, "host": HOST_ID, "confidence": level, "relevance": reason,
+    base = {"ok": True, "host": gateway.HOST_ID, "confidence": level, "relevance": reason,
             "no_match": False,
-            "trace": _trace(question, an, exact_n, dense_max, level, reason),
+            "trace": retrieve._trace(question, an, exact_n, dense_max, level, reason),
             "src": src, "hits": views,
-            "log": await _host_probe_log()}
+            "log": await gateway._host_probe_log()}
     if bank_note:
         base["trace"] += bank_note
     if level == "no_match":
@@ -1789,13 +892,13 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
         base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"
         return base
     if brief_law and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
-        brief = _law_brief(brief_law)
+        brief = law_meta._law_brief(brief_law)
         try:
             text = await generate(question, top, cautious=level == "medium", brief_law=brief_law, model=model)
         except (httpx.ConnectError, httpx.TimeoutException):
-            base["answer"] = f"{HOST_ID}: {brief}"  # LLM 掛了也要回應基本敘述
+            base["answer"] = f"{gateway.HOST_ID}: {brief}"  # LLM 掛了也要回應基本敘述
             return base
-        text = _strip_article_refs(text) or brief
+        text = law_meta._strip_article_refs(text) or brief
         # 模型若誤回「沒有符合比對的法條」等拒答（法名本身已確認存在），直接退回基本敘述，
         # 避免拼出「《公司法》（共..條）：沒有符合比對的法條」這種多餘句。
         if "沒有符合比對的法條" in text or "未收錄" in text:
@@ -1808,11 +911,11 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
                 text = brief  # 驗證不通過 → 整段退回可核實的規則卡，不讓 LLM 敘述留著編造
             if jv is not None:
                 base["trace"] += f"｜JEV:{jv:.2f}{'(退回規則卡)' if jv < JEV_VERIFY_MIN else '(keep)'}"
-        base["answer"] = f"{HOST_ID}: {text}"
+        base["answer"] = f"{gateway.HOST_ID}: {text}"
         return base
     text = await generate(question, top, cautious=level == "medium", model=model)
     jv = await _jev_verify(question, text, top)  # 一般分支先只記錄分數，供校準閾值
-    base["answer"] = f"{HOST_ID}: {text}"
+    base["answer"] = f"{gateway.HOST_ID}: {text}"
     if jv is not None:
         base["trace"] += f"｜JEV:{jv:.2f}(keep)"
     return base
@@ -1838,7 +941,7 @@ def _hit_view(h: dict, law_only: bool = False) -> dict:
     view = {"score": h["score"], "payload": p, "jud": jud, "law": law,
             "rel": rel,
             "exact": bool(h.get("_exact_rank")),
-            "url": _law_url(p.get("pcode"), None if law_only else art_no),
+            "url": law_meta._law_url(p.get("pcode"), None if law_only else art_no),
             "art": (art_no or "").replace(" ", "") or p.get("law", ""),
             "law_name": p.get("law_name", ""),
             "item": _law.cite_item(p.get("text", ""))}
@@ -1846,3 +949,54 @@ def _hit_view(h: dict, law_only: bool = False) -> dict:
     view["para_count"] = s["para"]
     view["item_count"] = len(s["items"])
     return view
+
+
+# ── 相容層：main.py 仍以 `rag.<名稱>` 呼叫 gateway 的函式與設定 ────────────
+# 這些名字在 2026-09-29 切模組前住在 rag.py。轉出而非改 main.py，是為了讓
+# 「HTTP 呼叫去 gateway、檢索去 retrieve」這件事在 import 邊界就看得出來，
+# 而不是靠一層一層的轉發。
+#
+# ⚠️ 轉出只適合「呼叫端不 patch」的情況。要 monkeypatch 這些符號（例如測試
+# 攔截 _req），必須 patch `gateway` 模組本身 —— patch `rag._req` 只會改到
+# 這裡的別名，gateway 內部的呼叫看不到。tests/test_rag_engine.py 與
+# tests/test_rag_public.py 都已改為 patch 擁有者模組。
+from .gateway import (  # noqa: E402,F401
+    HOST_API,
+    LLM_MODEL,
+    _gateway_token,
+    _host_law_versions,
+    _host_probe_log,
+    active_llm_source,
+    local_models,
+    warmup,
+)
+
+
+# ── 相容層：main.py 仍以 `rag.<名稱>` 呼叫下層的函式與設定 ────────────────
+# 這些名字在 2026-09-29 切模組前住在 rag.py。轉出而非改 main.py，是為了讓
+# 「HTTP 呼叫去 gateway、檢索去 retrieve」這件事在 import 邊界就看得出來。
+# main.py 用到 36 個 rag.* 名稱，逐一改會讓 diff 淹沒真正的分層改動。
+#
+# ⚠️ 轉出只適合「呼叫端不 patch」的情況。要 monkeypatch 這些符號（例如測試
+# 攔截 _req），必須 patch 擁有者模組 —— patch rag._req 只會改到這裡的別名，
+# gateway 內部的呼叫看不到。tests/test_rag_engine.py、test_rag_public.py、
+# test_rag_pure.py 都已改為 patch 擁有者模組。
+from .law_meta import builtin_catalog  # noqa: E402,F401
+from .retrieve import COLLECTION, ensure_collection, upsert  # noqa: E402,F401
+from .gateway import (  # noqa: E402,F401
+    HOST_API,
+    LLM_MODEL,
+    _gateway_token,
+    _host_law_versions,
+    _host_probe_log,
+    active_llm_source,
+    local_models,
+    warmup,
+)
+
+
+# ── 注入點：把 law_version 交給 gateway，避免 gateway → rag 循環依賴 ──────
+# gateway._host_law_versions 需要本機法規版號，但 law_version 有 TTL 快取、
+# 住在 rag.py。直接 import 會形成 rag → gateway → rag。
+# 這裡在 import 時單向注入，維持 gateway 不依賴 rag 的分層。
+gateway._LAW_VERSION_FN = law_version

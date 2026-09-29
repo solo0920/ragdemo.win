@@ -70,6 +70,10 @@
           "backend/app/rules_store.py",
           "backend/app/usage.py",
           "backend/app/law_struct.py",
+          "backend/app/gateway.py",
+          "backend/app/law_meta.py",
+          "backend/app/retrieve.py",
+          "backend/app/cn_parse.py",
           "backend/app/common/",
           "backend/Dockerfile",
           "backend/pyproject.toml"

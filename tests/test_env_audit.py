@@ -176,21 +176,21 @@ SCOPE_B_FORWARDED = [
     # 「compose 轉發的預設值必須逐字等於原始碼 os.getenv 的第二個參數」，
     # 而 HOST_API_URLS 在原始碼的預設值是空字串（單機無 peer），照樣得鎖 ——
     # 有人把它改回內建三台，這裡就紅。
-    ("HOST_API_URLS", "backend/app/rag.py",
+    ("HOST_API_URLS", "backend/app/gateway.py",
      'os.getenv("HOST_API_URLS", "")', ""),
     ("JEV_DISABLED", "backend/app/rag.py",
      'os.getenv("JEV_DISABLED", "")', ""),
     ("JEV_MODEL", "backend/app/rag.py",
      'os.getenv("JEV_MODEL", "jev-latest")', "jev-latest"),
-    ("PICK_TTL", "backend/app/rag.py",
+    ("PICK_TTL", "backend/app/gateway.py",
      'float(os.getenv("PICK_TTL", "30"))', "30"),
-    ("PROBE_TIMEOUT", "backend/app/rag.py",
+    ("PROBE_TIMEOUT", "backend/app/gateway.py",
      'float(os.getenv("PROBE_TIMEOUT", "2.5"))', "2.5"),
-    ("RAG_HIGH_DENSE", "backend/app/rag.py",
+    ("RAG_HIGH_DENSE", "backend/app/retrieve.py",
      'float(os.getenv("RAG_HIGH_DENSE", "0.70"))', "0.70"),
-    ("RAG_MID_DENSE", "backend/app/rag.py",
+    ("RAG_MID_DENSE", "backend/app/retrieve.py",
      'float(os.getenv("RAG_MID_DENSE", "0.62"))', "0.62"),
-    ("RAG_MIN_DENSE", "backend/app/rag.py",
+    ("RAG_MIN_DENSE", "backend/app/retrieve.py",
      'float(os.getenv("RAG_MIN_DENSE", "0.58"))', "0.58"),
     ("REGISTRY_HEARTBEAT", "backend/app/registry.py",
      'int(os.getenv("REGISTRY_HEARTBEAT", "30"))', "30"),
@@ -240,7 +240,7 @@ def test_scope_b_ollama_models_fallback_is_nested_not_literal():
     assert "${OLLAMA_MODELS:-${LLM_MODEL:-" in compose_src, \
         "OLLAMA_MODELS 的預設值應巢狀回 LLM_MODEL（rag.py:41 的 fallback 鏈）"
     assert 'os.getenv("OLLAMA_MODELS", LLM_MODEL)' in \
-        (ROOT / "backend/app/rag.py").read_text(encoding="utf-8")
+        (ROOT / "backend/app/gateway.py").read_text(encoding="utf-8")
     assert REG["OLLAMA_MODELS"].compose_ref, \
         "OLLAMA_MODELS 必須轉發進容器，否則 MSI 永遠降級成用自己的 8b"
 

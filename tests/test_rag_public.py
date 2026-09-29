@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from app import rag
+from app import cn_parse, rag, gateway, law_meta, retrieve
 
 
 class FakeResp:
@@ -31,25 +31,25 @@ class FakeResp:
 # 去空白後的完全比對（見 _exact_match）。所以格式改動等於換掉比對基準。
 
 def test_extract_article_no_arabic():
-    assert rag.extract_article_no("第20條") == "第 20 條"
-    assert rag.extract_article_no("第 20 條") == "第 20 條"
-    assert rag.extract_article_no("契約第259條違約金") == "第 259 條"
+    assert cn_parse.extract_article_no("第20條") == "第 20 條"
+    assert cn_parse.extract_article_no("第 20 條") == "第 20 條"
+    assert cn_parse.extract_article_no("契約第259條違約金") == "第 259 條"
 
 
 def test_extract_article_no_chinese_numerals():
-    assert rag.extract_article_no("第十條") == "第 10 條"
-    assert rag.extract_article_no("第二十條") == "第 20 條"
-    assert rag.extract_article_no("第一百零五條") == "第 105 條"
-    assert rag.extract_article_no("第兩百條") == "第 200 條"
+    assert cn_parse.extract_article_no("第十條") == "第 10 條"
+    assert cn_parse.extract_article_no("第二十條") == "第 20 條"
+    assert cn_parse.extract_article_no("第一百零五條") == "第 105 條"
+    assert cn_parse.extract_article_no("第兩百條") == "第 200 條"
 
 
 def test_extract_article_no_range_form():
-    assert rag.extract_article_no("第3-5條") == "第 3-5 條"
+    assert cn_parse.extract_article_no("第3-5條") == "第 3-5 條"
 
 
 def test_extract_article_no_returns_none_without_article():
-    assert rag.extract_article_no("沒有條號的問題") is None
-    assert rag.extract_article_no("") is None
+    assert cn_parse.extract_article_no("沒有條號的問題") is None
+    assert cn_parse.extract_article_no("") is None
 
 
 def test_extract_article_no_sub_article_is_DROPPED_known_gap():
@@ -67,72 +67,72 @@ def test_extract_article_no_sub_article_is_DROPPED_known_gap():
     精準分支失效後會掉回模糊／跨法競爭 —— 引用到**別條**。
     要修的話得動 regex（把 之/之N 移到條號之後），屬行為變更，未經同意不擅改。
     """
-    assert rag.extract_article_no("第10條之1") == "第 10 條"   # 之1 被丟掉
-    assert rag.extract_article_no("第十條之一") == "第 10 條"  # 之一 被丟掉
+    assert cn_parse.extract_article_no("第10條之1") == "第 10 條"   # 之1 被丟掉
+    assert cn_parse.extract_article_no("第十條之一") == "第 10 條"  # 之一 被丟掉
     # 之 分支只有這種不自然寫法才會觸發（之 在 條 之前）
-    assert rag.extract_article_no("第一之三條") == "第 1-3 條"
+    assert cn_parse.extract_article_no("第一之三條") == "第 1-3 條"
 
 
 # ── keep_alive_value：型別決定 ollama 收不收得下 ──────────────────────────
 
 def test_keep_alive_numeric_forms_return_int(monkeypatch):
-    monkeypatch.setattr(rag, "KEEP_ALIVE", "-1")
-    assert rag.keep_alive_value() == -1
-    assert isinstance(rag.keep_alive_value(), int)
-    monkeypatch.setattr(rag, "KEEP_ALIVE", " 600 ")
-    assert rag.keep_alive_value() == 600
+    monkeypatch.setattr(gateway, "KEEP_ALIVE", "-1")
+    assert gateway.keep_alive_value() == -1
+    assert isinstance(gateway.keep_alive_value(), int)
+    monkeypatch.setattr(gateway, "KEEP_ALIVE", " 600 ")
+    assert gateway.keep_alive_value() == 600
 
 
 def test_keep_alive_duration_forms_return_str(monkeypatch):
     """ollama 的 keep_alive 允許 "30m" 這種時長字串；傳成 number 會被 ollama 拒。"""
-    monkeypatch.setattr(rag, "KEEP_ALIVE", "30m")
-    assert rag.keep_alive_value() == "30m"
-    assert isinstance(rag.keep_alive_value(), str)
+    monkeypatch.setattr(gateway, "KEEP_ALIVE", "30m")
+    assert gateway.keep_alive_value() == "30m"
+    assert isinstance(gateway.keep_alive_value(), str)
 
 
 # ── host_label：URL → 主機 id ───────────────────────────────────────────
 
 def test_host_label_localhost_is_this_host(monkeypatch):
-    monkeypatch.setattr(rag, "HOST_ID", "msi")
-    assert rag.host_label("http://127.0.0.1:11434") == "msi"
-    assert rag.host_label("http://localhost:8000") == "msi"
+    monkeypatch.setattr(gateway, "HOST_ID", "msi")
+    assert gateway.host_label("http://127.0.0.1:11434") == "msi"
+    assert gateway.host_label("http://localhost:8000") == "msi"
 
 
 def test_host_label_compose_service_is_this_host(monkeypatch):
     """`qdrant` 這種 compose service 名沒有點，視為本機。"""
-    monkeypatch.setattr(rag, "HOST_ID", "msi")
-    assert rag.host_label("http://qdrant:6333") == "msi"
+    monkeypatch.setattr(gateway, "HOST_ID", "msi")
+    assert gateway.host_label("http://qdrant:6333") == "msi"
 
 
 def test_host_label_from_configured_peer(monkeypatch):
     """設計重點：不寫死 IP 對照表，只認 HOST_API_URLS 裡配過的 peer。"""
-    monkeypatch.setattr(rag, "HOST_ID", "msi")
-    monkeypatch.setattr(rag, "HOST_API", {"x570": "https://api-x570.ragdemo.win/query"})
-    assert rag.host_label("https://api-x570.ragdemo.win/anything") == "x570"
+    monkeypatch.setattr(gateway, "HOST_ID", "msi")
+    monkeypatch.setattr(gateway, "HOST_API", {"x570": "https://api-x570.ragdemo.win/query"})
+    assert gateway.host_label("https://api-x570.ragdemo.win/anything") == "x570"
 
 
 def test_host_label_unknown_fqdn_returns_hostname(monkeypatch):
-    monkeypatch.setattr(rag, "HOST_ID", "msi")
-    monkeypatch.setattr(rag, "HOST_API", {})
-    monkeypatch.setattr(rag, "OLLAMA_LABELS", {})
-    monkeypatch.setattr(rag, "QDRANT_LABELS", {})
-    assert rag.host_label("https://stranger.example.com/x") == "stranger.example.com"
+    monkeypatch.setattr(gateway, "HOST_ID", "msi")
+    monkeypatch.setattr(gateway, "HOST_API", {})
+    monkeypatch.setattr(gateway, "OLLAMA_LABELS", {})
+    monkeypatch.setattr(gateway, "QDRANT_LABELS", {})
+    assert gateway.host_label("https://stranger.example.com/x") == "stranger.example.com"
 
 
 # ── active_llm_source ───────────────────────────────────────────────────
 
 def test_active_llm_source_before_pick(monkeypatch):
-    monkeypatch.setattr(rag, "_bases", {})
-    monkeypatch.setattr(rag, "OLLAMA_URLS", ["http://127.0.0.1:11434"])
-    monkeypatch.setattr(rag, "OLLAMA_MODELS", ["qwen3:14b"])
-    assert rag.active_llm_source() == "http://127.0.0.1:11434 -> qwen3:14b"
+    monkeypatch.setattr(gateway, "_bases", {})
+    monkeypatch.setattr(gateway, "OLLAMA_URLS", ["http://127.0.0.1:11434"])
+    monkeypatch.setattr(gateway, "OLLAMA_MODELS", ["qwen3:14b"])
+    assert gateway.active_llm_source() == "http://127.0.0.1:11434 -> qwen3:14b"
 
 
 def test_active_llm_source_after_pick(monkeypatch):
-    monkeypatch.setattr(rag, "_bases", {"ollama": "http://100.65.68.106:11434"})
-    monkeypatch.setattr(rag, "OLLAMA_URLS", ["http://127.0.0.1:11434", "http://100.65.68.106:11434"])
-    monkeypatch.setattr(rag, "OLLAMA_MODELS", ["qwen3:8b", "qwen3:14b"])
-    assert rag.active_llm_source() == "http://100.65.68.106:11434 -> qwen3:14b"
+    monkeypatch.setattr(gateway, "_bases", {"ollama": "http://100.65.68.106:11434"})
+    monkeypatch.setattr(gateway, "OLLAMA_URLS", ["http://127.0.0.1:11434", "http://100.65.68.106:11434"])
+    monkeypatch.setattr(gateway, "OLLAMA_MODELS", ["qwen3:8b", "qwen3:14b"])
+    assert gateway.active_llm_source() == "http://100.65.68.106:11434 -> qwen3:14b"
 
 
 # ── law-update ops 通道：狀態機 ─────────────────────────────────────────
@@ -244,8 +244,8 @@ async def test_local_models_returns_names(monkeypatch):
     async def fake_req(kind, cands, method, path, **kw):
         return FakeResp(200, {"models": [{"name": "qwen3:14b"}, {"name": "bge-m3:latest"}]})
 
-    monkeypatch.setattr(rag, "_req", fake_req)
-    assert await rag.local_models() == ["qwen3:14b", "bge-m3:latest"]
+    monkeypatch.setattr(gateway, "_req", fake_req)
+    assert await gateway.local_models() == ["qwen3:14b", "bge-m3:latest"]
 
 
 @pytest.mark.asyncio
@@ -254,8 +254,8 @@ async def test_local_models_returns_empty_on_failure(monkeypatch):
     async def boom(*a, **kw):
         raise RuntimeError("ollama down")
 
-    monkeypatch.setattr(rag, "_req", boom)
-    assert await rag.local_models() == []
+    monkeypatch.setattr(gateway, "_req", boom)
+    assert await gateway.local_models() == []
 
 
 @pytest.mark.asyncio
@@ -264,8 +264,8 @@ async def test_warmup_survives_ollama_not_ready(monkeypatch):
     async def no_pick(*a, **kw):
         raise RuntimeError("no ollama")
 
-    monkeypatch.setattr(rag, "_pick", no_pick)
-    await rag.warmup()  # 不拋即為通過
+    monkeypatch.setattr(gateway, "_pick", no_pick)
+    await gateway.warmup()  # 不拋即為通過
 
 
 # ── Qdrant 層 ───────────────────────────────────────────────────────────
@@ -282,12 +282,12 @@ async def test_collection_capabilities_detects_sparse(monkeypatch):
             "sparse_vectors": {"sparse": {"modifier": "idf"}},
         }}}})
 
-    monkeypatch.setattr(rag, "_req", fake_req)
-    monkeypatch.setattr(rag, "HAS_SPARSE", False)
-    monkeypatch.setattr(rag, "_HAS_NAMED", False)
-    await rag._collection_capabilities()
-    assert rag.HAS_SPARSE is True
-    assert rag._HAS_NAMED is True
+    monkeypatch.setattr(gateway, "_req", fake_req)
+    monkeypatch.setattr(retrieve, "HAS_SPARSE", False)
+    monkeypatch.setattr(retrieve, "_HAS_NAMED", False)
+    await retrieve._collection_capabilities()
+    assert retrieve.HAS_SPARSE is True
+    assert retrieve._HAS_NAMED is True
 
 
 @pytest.mark.asyncio
@@ -296,12 +296,12 @@ async def test_collection_capabilities_legacy_dense_only(monkeypatch):
         return FakeResp(200, {"result": {"config": {"params": {
             "vectors": {"size": 1024, "distance": "Cosine"}}}}})
 
-    monkeypatch.setattr(rag, "_req", fake_req)
-    monkeypatch.setattr(rag, "HAS_SPARSE", True)
-    monkeypatch.setattr(rag, "_HAS_NAMED", True)
-    await rag._collection_capabilities()
-    assert rag.HAS_SPARSE is False
-    assert rag._HAS_NAMED is False, "有 size 欄位 → 未命名 dense → 舊 search"
+    monkeypatch.setattr(gateway, "_req", fake_req)
+    monkeypatch.setattr(retrieve, "HAS_SPARSE", True)
+    monkeypatch.setattr(retrieve, "_HAS_NAMED", True)
+    await retrieve._collection_capabilities()
+    assert retrieve.HAS_SPARSE is False
+    assert retrieve._HAS_NAMED is False, "有 size 欄位 → 未命名 dense → 舊 search"
 
 
 @pytest.mark.asyncio
@@ -309,10 +309,10 @@ async def test_collection_capabilities_survives_qdrant_down(monkeypatch):
     async def boom(*a, **kw):
         raise RuntimeError("qdrant down")
 
-    monkeypatch.setattr(rag, "_req", boom)
-    monkeypatch.setattr(rag, "HAS_SPARSE", True)
-    await rag._collection_capabilities()  # 不拋
-    assert rag.HAS_SPARSE is True, "偵測失敗時保留原狀，不要誤判成沒有 sparse"
+    monkeypatch.setattr(gateway, "_req", boom)
+    monkeypatch.setattr(retrieve, "HAS_SPARSE", True)
+    await retrieve._collection_capabilities()  # 不拋
+    assert retrieve.HAS_SPARSE is True, "偵測失敗時保留原狀，不要誤判成沒有 sparse"
 
 
 @pytest.mark.asyncio
@@ -329,9 +329,9 @@ async def test_ensure_collection_skips_create_when_exists(monkeypatch):
     async def noop_names():
         return None
 
-    monkeypatch.setattr(rag, "_req", fake_req)
-    monkeypatch.setattr(rag, "_ensure_law_names", noop_names)
-    await rag.ensure_collection()
+    monkeypatch.setattr(gateway, "_req", fake_req)
+    monkeypatch.setattr(retrieve, "_ensure_law_names", noop_names)
+    await retrieve.ensure_collection()
     assert "put" not in methods, "collection 已存在時不該重建（重建會掉資料）"
 
 
@@ -346,22 +346,22 @@ async def test_upsert_includes_sparse_only_when_enabled(monkeypatch):
         sent["points"] = kw.get("json", {}).get("points")
         return FakeResp(200, {})
 
-    monkeypatch.setattr(rag, "embed", fake_embed)
-    monkeypatch.setattr(rag, "_req", fake_req)
-    monkeypatch.setattr(rag, "HAS_SPARSE", False)
-    n = await rag.upsert([{"text": "第259條 違約金"}])
+    monkeypatch.setattr(gateway, "embed", fake_embed)
+    monkeypatch.setattr(gateway, "_req", fake_req)
+    monkeypatch.setattr(retrieve, "HAS_SPARSE", False)
+    n = await retrieve.upsert([{"text": "第259條 違約金"}])
     assert n == 1
     assert "sparse" not in sent["points"][0]["vector"]
 
-    monkeypatch.setattr(rag, "HAS_SPARSE", True)
-    await rag.upsert([{"text": "第259條 違約金"}])
+    monkeypatch.setattr(retrieve, "HAS_SPARSE", True)
+    await retrieve.upsert([{"text": "第259條 違約金"}])
     assert "sparse" in sent["points"][0]["vector"]
 
 
 # ── builtin_catalog ─────────────────────────────────────────────────────
 
 def test_builtin_catalog_shape():
-    cat = rag.builtin_catalog()
+    cat = law_meta.builtin_catalog()
     assert cat, "內建目錄不該是空的"
     ids = [r["id"] for r in cat]
     assert len(ids) == len(set(ids)), "id 不可重複（前端當 key 用）"
@@ -385,8 +385,8 @@ def test_builtin_catalog_threads_sample_law_through(monkeypatch):
         seen.append((intent, law))
         return f"{law}／{intent}"
 
-    monkeypatch.setattr(rag, "_rule_answer", fake_answer)
-    cat = rag.builtin_catalog("勞動基準法")
+    monkeypatch.setattr(law_meta, "_rule_answer", fake_answer)
+    cat = law_meta.builtin_catalog("勞動基準法")
     assert seen, "_rule_answer 應被呼叫"
     assert all(law == "勞動基準法" for _intent, law in seen)
     assert all(row["sample_answer"].startswith("勞動基準法／") for row in cat)
