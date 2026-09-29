@@ -12,7 +12,35 @@ bash scripts/host-sync.sh        # 升級＋重建＋驗收（取代原本的 pu
 bash scripts/host-doctor.sh      # 診斷（取代原本的驗收節）
 ```
 
-**剩下的手工步驟只有三類**，都是排程或「需要人決定」的事，寫成腳本反而更難讀：
+## ⭐ §0 git hooks（**新機／重灌必做，最容易漏**）
+
+```bash
+git config core.hooksPath .githooks
+```
+
+**為什麼列在最前面**：這是全份 runbook 裡唯一「漏了不會立刻發現」的一項。
+`core.hooksPath` 是 **per-clone 的 git 設定**，不在版控裡、也不是環境變數 ——
+所以 `host-sync.sh` 管不到（它只碰檔案與容器），新機 clone 完預設就是**沒設**。
+
+沒設的後果不是報錯，是**檢查靜默消失**：commit message 少了 `msi:` 前綴也過、
+`LAN_IP=` 違規也過、pytest 掛掉也照 push。症狀要等到「某台機器 push 出違規
+commit、或壞掉的 commit 上線」才會浮現，而那時已經難回溯是誰按的。
+
+驗證有沒有生效（會印 pre-push 的三行檢查結果）：
+
+```bash
+git push --dry-run origin main   # 應看到「✓ pytest N passed」
+```
+
+`git config --get core.hooksPath` 沒有輸出 = 沒設。
+
+（2026-09-29 msi 重灌後實測：這個值不見了，連續 11 個 commit 是在沒有任何
+pre-push 檢查的情況下產生的。內容碰巧都安全 —— 因為每次都另外手動跑了 pytest ——
+但機制本身是失效的。`ARCHITECTURE.md`〈提交準則〉有寫這條，顯然不夠顯眼。）
+
+## 剩下的手工步驟只有三類
+
+都是排程或「需要人決定」的事，寫成腳本反而更難讀：
 
 - **§1 身份環境變數** —— 新機/重灌必做（`HOST_NAME` / `HOST_MACHINE_ID`）
 - **§3–§5 排程與角色** —— crontab / launchd 設定、x570 的每日 ingest
@@ -20,6 +48,18 @@ bash scripts/host-doctor.sh      # 診斷（取代原本的驗收節）
 
 **本檔對三台都適用**（2026-09-27 修正）：原文寫「MSI 已全部完成」是當時的狀況，
 不是永久屬性。msi 重灌後，§1 與 §3.1 對它又重新變成待辦。
+
+## 重灌後 30 秒自我檢查
+
+```bash
+git config --get core.hooksPath || echo "✗ 缺 §0 的 hooksPath"
+command -v docker >/dev/null && id -nG | grep -qx docker || echo "✗ 不在 docker 群組"
+systemctl is-active docker cloudflared 2>/dev/null
+curl -sf localhost:8000/health >/dev/null && echo "✓ api 在線" || echo "✗ api 沒起來"
+```
+
+四行涵蓋 2026-09-29 msi 重灌後**實際踩到的全部問題**（hooksPath 遺失、
+docker 群組沒加、cloudflared 沒裝、api 沒跑）。
 
 ---
 

@@ -358,11 +358,23 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 
 1. 裝 Docker（msi 是 Docker Desktop + WSL2，`TS_IP` 填 **Windows host** 的 `100.65.68.106`）
 2. `git clone` ＋ 設 `HOST_ID=msi`
-3. `cp .env.example .env` → 填 `TS_IP`／`HOST_NAME`／`HOST_MACHINE_ID`（`HOST-UPGRADE.md` §0、§1）
-4. `env-sync.sh pull`（解密 7 把共用憑證）＋ **重選** `QDRANT_API_KEY`／`POSTGRES_PASSWORD`
-5. 加 `SRC_API_URL=https://api-x570.ragdemo.win`（`HOST-UPGRADE.md` §3.1，否則法規版本欄永遠是 `—`）
-6. 設 crontab（快照同步 `*/10`）
-7. `bash scripts/host-sync.sh` ＋ `bash scripts/host-doctor.sh` 驗收
+3. **`git config core.hooksPath .githooks`**（`HOST-UPGRADE.md` §0）—— 這是
+   per-clone 的 git 設定，不在版控裡，`host-sync.sh` 管不到。**漏了不會報錯，
+   只會讓 pre-push 的三項檢查（commit 前綴／語法＋`LAN_IP=`／pytest）靜默消失**。
+   2026-09-29 實測：msi 重灌後這項不見了，連續 11 個 commit 在無任何檢查下產生。
+4. **加自己進 docker 群組並重開終端**：`sudo usermod -aG docker $USER`。
+   漏了的症狀是 `permission denied ... /var/run/docker.sock`（daemon 活著、
+   群組沒加）。同樣是靜默失效：症狀要等到第一次 `docker compose up` 才出現。
+5. `cp .env.example .env` → 填 `TS_IP`／`HOST_NAME`／`HOST_MACHINE_ID`（`HOST-UPGRADE.md` §0、§1）
+6. `env-sync.sh pull`（解密 7 把共用憑證）＋ **重選** `QDRANT_API_KEY`／`POSTGRES_PASSWORD`
+7. 加 `SRC_API_URL=https://api-x570.ragdemo.win`（`HOST-UPGRADE.md` §3.1，否則法規版本欄永遠是 `—`）
+8. 設 crontab（快照同步 `*/10`）
+9. **裝 cloudflared 並起 tunnel**（`api-<主機>.ragdemo.win` 是 530 的話）。
+   備份有 `config.yml` 與 tunnel 憑證（`~/.cloudflared/`），但**二進位不會跟著備份**。
+   2026-09-29：msi 重灌後三台全 530，前端完全連不上。
+   開機自起用 `systemd --user` ＋ `loginctl enable-linger`（沒有 linger，
+   沒有任何 Linux 進程時 WSL 會停，tunnel 跟著死，systemd 的 enabled 等於沒設）
+10. `bash scripts/host-sync.sh` ＋ `bash scripts/host-doctor.sh` 驗收
 
 ⚠️ 步驟 4 的兩把 per-host 機密**要自己生**，repo 幫不上忙 —— 這是重灌唯一需要
 「人決定」的一步。
