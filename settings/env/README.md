@@ -63,6 +63,13 @@
 - **`${VAR}` 引用為空要硬失敗**：寫出空密碼的 DSN 比不寫更糟。
 - **共享憑證是啟動參數**：換值不重啟容器等於沒換。
 - **不要重跑 `--init-secrets`** —— 它是「第一台建立加密檔」用的，會覆蓋整份。
+- ⚠️ **共用憑證清單裡可能混著「沒有任何一台設過」的空殼**（2026-09-30 實測：
+  `ZEN_API_KEY` 在共用層待了兩年，enc 檔裡是空值、沒有機台設過、`zen_ready` 永遠
+  false）。**判斷一把共用憑證該不該留著，看 `secrets.common.enc.env` 裡那行有沒有
+  `ENC[...]` 就知道** —— 空值＝沒人設過，那不是保險，是幽靈鍵。分發它還有個隱形
+  成本：`--check` 的鍵覆蓋率會要求**每台** `.env` 都有那一行，於是沒用過的機器
+  天天報「缺鍵」（`ZEN_API_KEY` 當時就是這樣讓 mbp 的 `--check` 恆紅）。
+  **程式還在 `os.getenv()` 讀它，不是留在共用層的理由。**
 - ⚠️ **「變數被分發」≠「變數有消費者」**：`RERANK_MODEL` 被 `env-sync.sh` 當成
   `SHARED_CONFIG` 分發、被 `env-audit.py` 當成「程式有讀」而豁免，但它在
   `backend/app/` 裡**只出現在自己的定義行**（`rag.py:42`），沒有任何地方使用它。
@@ -83,7 +90,7 @@ bash -n scripts/env-sync.sh          # 語法
 pytest -q tests/test_env_audit.py tests/test_env_sync.py
 ```
 
-`--check` 驗的東西：鍵覆蓋率（`.env` 必須有 7 把共用 ＋ 2 把 per-host 機密 ＋
+`--check` 驗的東西：鍵覆蓋率（`.env` 必須有 6 把共用 ＋ 2 把 per-host 機密 ＋
 `common.env` 的鍵）、`secrets.common.env.example` 的鍵 == 腳本 `SHARED_SECRETS`、
 `secrets.host.env.example` 的鍵 == 腳本 `PER_HOST_SECRETS`、
 **per-host 機密的鍵名不得出現在 `secrets.common.enc.env`**（sops 的 dotenv 輸出
@@ -102,7 +109,7 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 
 兩個問題，兩種病：
 
-1. **共用憑證會漂移**：`QDRANT_PEER_API_KEY` 等 7 把有跨機讀寫關係，必須三台一致，
+1. **共用憑證會漂移**：`QDRANT_PEER_API_KEY` 等 6 把有跨機讀寫關係，必須三台一致，
    過去靠人工複製，2026-09-26 已造成兩次不對稱故障（本機 200、遠端 401；registry 心跳失敗）。
 2. **per-host 值會寫錯地方**：`HOST_ID`、`TS_IP`、`LLM_MODEL`（msi 是 8b）、
    `OLLAMA_URLS`、`POSTGRES_DSN` 每台不同，整份 `.env` 同步會直接寫壞機器。
@@ -113,8 +120,8 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 |---|---|---|
 | `common.env` | 是（明文） | 共用**非敏感**鍵。值空＝用 compose 預設 |
 | `hosts.shared.env` | 是（明文） | **per-host 值的唯一真相**：`<機台>_<鍵>=<值>`，三台同檔 |
-| `secrets.common.env.example` | 是（明文） | **7 把**共用憑證的鍵名，值一律空 |
-| `secrets.common.enc.env` | 是（**加密**） | 7 把共用憑證真值，sops+age 加密 |
+| `secrets.common.env.example` | 是（明文） | **6 把**共用憑證的鍵名，值一律空 |
+| `secrets.common.enc.env` | 是（**加密**） | 6 把共用憑證真值，sops+age 加密 |
 | `secrets.host.env.example` | 是（明文） | **2 把** per-host 機密的鍵名，值一律空 |
 | `secrets.host.env`（若有人手建） | **否**（.gitignore） | 從不建立也不建議存在；真值只留各機 `.env` |
 | `.sops.yaml`（repo 根） | 是 | age recipient 公鑰清單 |
@@ -123,18 +130,33 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 合併順序（低 → 高）：`common.env` → 解密後的 secrets → render 出的 per-host 值。
 本機 `.env` 裡不在任何分層的鍵（例如 `HOST_ID`）永遠保留。
 
-## 7. 共用憑證 vs per-host 機密（2026-09-27 改正：9 把 → 7＋2）
+## 7. 共用憑證 vs per-host 機密（2026-09-27 改正：9 把 → 7＋2；2026-09-30：7 → 6）
 
 **判斷標準只有一個：這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
 分類錯了不會立刻壞掉，症狀是「時間全花在 debug key 上」—— 所以標準要寫死成
 可查證的規則，而不是「我覺得它該共用」。
 
-### 共用憑證（7 把，必須三台同值 → sops 分發）
+### 共用憑證（6 把，必須三台同值 → sops 分發）
 
 | 鍵 | 跨機關係 |
 |---|---|
 | `QDRANT_PEER_API_KEY` | 唯一跨機的 qdrant 認證：`scripts/sync-snapshot.sh` 拉 **x570** 的快照 |
-| `ADMIN_TOKEN` / `CF_AIG_TOKEN` / `HF_TOKEN` / `NVIDIA_API_KEY` / `TYPESAFE_API_KEY` / `ZEN_API_KEY` | 三台拿**同一個值**去跟**同一個外部服務**認證 |
+| `ADMIN_TOKEN` / `CF_AIG_TOKEN` / `HF_TOKEN` / `NVIDIA_API_KEY` / `TYPESAFE_API_KEY` | 三台拿**同一個值**去跟**同一個外部服務**認證 |
+
+**2026-09-30 移出：`ZEN_API_KEY`（7 把 → 6 把）**。判定依據是可查證的，不是推測：
+
+* `secrets.common.enc.env` 裡它**是空值**（其餘 6 把都有 `ENC[...]`）。該檔由
+  `--init-secrets` 從第一台機器的 `.env` 抽值建檔，**空值代表沒有任何一台設過它**
+* msi/mbp 實測 `GET /models` 回 `zen_ready: false`；msi 的 `usage` snapshot 沒有
+  任何 zen 記錄
+* 分發一個沒人設的空值，唯一效果是讓每台 `.env` 被 `pull` 塞一行永遠不會變的
+  `ZEN_API_KEY=` —— 而 `--check` 的鍵覆蓋率還會把它當成「該機缺鍵」報錯
+
+⚠️ **移出共用層 ≠ 程式不能讀它。** `rag.py` 照樣 `os.getenv("ZEN_API_KEY")`，
+拿不到值就讓 `_zen_complete` 回 false，前端已優雅降級（列項但 disable），不會壞。
+要復活就重新申請 key 並同時加回 `SHARED_SECRETS` 與 `secrets.common.env.example`
+（`tests/test_env_sync.py` 會鎖兩者同步）。**不要因為「程式還在讀」就把一把
+沒人設的憑證留在共用層** —— 那正是幽靈鍵的來源。
 
 ### per-host 機密（2 把，各機不同 → **不分發**）
 
@@ -172,7 +194,7 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 
 追蹤檔不得出現任何憑證值；per-host 機密永不進 sops、永不進總表。`--check` 會驗：
 
-* 鍵覆蓋率：`.env` 必須有 7 把共用 ＋ 2 把 per-host 機密 ＋ `common.env` 的鍵
+* 鍵覆蓋率：`.env` 必須有 6 把共用 ＋ 2 把 per-host 機密 ＋ `common.env` 的鍵
 * `secrets.common.env.example` 的鍵 == 腳本的 `SHARED_SECRETS`
 * `secrets.host.env.example` 的鍵 == 腳本的 `PER_HOST_SECRETS`
 * **per-host 機密的鍵名不得出現在 `secrets.common.enc.env`**（sops 的 dotenv 輸出
@@ -249,7 +271,7 @@ scripts/env-sync.sh pull            # 解密＋合併＋render（一次同步所
 scripts/env-sync.sh render          # 只做 per-host（不需 sops）
 scripts/env-sync.sh render --dry-run  # 只印「會動哪幾個鍵」，不寫檔、不印值
 scripts/env-sync.sh --check         # 鍵覆蓋率＋總表 schema＋漂移＋版控衛生
-scripts/env-sync.sh --fingerprints  # 7 把共用（跨機比對）＋2 把 per-host（不跨機比對）
+scripts/env-sync.sh --fingerprints  # 6 把共用（跨機比對）＋2 把 per-host（不跨機比對）
 ```
 
 輪換**共用**憑證：任一台 `sops settings/env/secrets.common.enc.env` 改值存檔，

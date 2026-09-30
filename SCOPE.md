@@ -168,7 +168,7 @@ stderr 就是它已修好的證據。**cron 本身是好的。**）
 | mbp 指 `postgres` 卻用 `${POSTGRES_PEER_PASSWORD}`（反向錯） | 紅 | ✅ 紅 |
 | 還原 | 綠 | ✅ 綠 |
 
-順帶記錄：`--fingerprints` 對 9 把憑證輸出 `len=` 與 `sha12=`、**不印值**，
+順帶記錄：`--fingerprints` 對 8 把憑證輸出 `len=` 與 `sha12=`、**不印值**，
 所以「比對兩台憑證是否同值」這件事在 repo 內已經可做，不需要人眼比對。
 
 ### 方法教訓：一支壞的驗證工具差點產出錯誤架構結論
@@ -338,7 +338,7 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | ~~套用 15 個容器環境變數~~ | `x570`、`mbp` | `bash scripts/host-sync.sh` | 已併入上一列。`host-sync.sh` 第 4 步就是 `env-sync.sh pull`，不必分開跑 |
 | 換 `QDRANT_PEER_API_KEY` | 三台 | 改 `secrets.common.enc.env` → commit → 各台 `env-sync.sh pull` | 值已外洩（見 `ARCHITECTURE.md`〈密鑰管理〉）。**不需要逐台手動改**，`pull` 會覆蓋 |
 | ~~加 `POSTGRES_PEER_PASSWORD`~~ | — | — | **2026-09-30 取消**。沒有任何程式讀它（全 repo 只剩註解、`.example` 說明文字、測試 docstring）。當初的跨機 pg 需求已隨「各台 `/hosts` 改讀自己的 pg」消失。**不要加幽靈鍵** |
-| 收 age 公鑰 | `x570`、`mbp` | 見 `X570-HANDOFF.md` 事項 5／`MBP-HANDOFF.md` 事項 5 | **這是三機復原唯一還會擋住事的一項**：`.sops.yaml` recipients 只有 msi 一把，另兩台 `env-sync.sh pull` 會解不開 7 把共用憑證。公鑰到齊 → 加 recipients → `sops updatekeys` |
+| 收 age 公鑰 | `x570`、`mbp` | 見 `X570-HANDOFF.md` 事項 5／`MBP-HANDOFF.md` 事項 5 | **這是三機復原唯一還會擋住事的一項**：`.sops.yaml` recipients 只有 msi 一把，另兩台 `env-sync.sh pull` 會解不開 6 把共用憑證。公鑰到齊 → 加 recipients → `sops updatekeys` |
 | 修 git 認證 | `x570` | `gh auth refresh -h github.com -s repo` | repo 轉 private 後舊 token 失效。**需使用者在該機互動執行** |
 
 ### msi 重灌前置（2026-09-27 查證，**重灌前必讀**）
@@ -351,7 +351,7 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | `POSTGRES_PASSWORD`（per-host 機密） | ❌ 同上 | **可重選**。msi 的 `POSTGRES_DSN` 指向 x570，本機 pg 容器**沒有任何程式在用** |
 | 法規快照（`data/laws/*`、`.law_version`） | ❌ gitignored | **會自己回來**，`sync-snapshot.sh` 從 x570 拉（10 分鐘內） |
 | opencode 設定 | ✅ `settings/opencode/{global,project}/msi/` | **已備份**，含 `{file:...}` token 參照的路徑 |
-| 憑證（7 把共用） | ✅ `secrets.common.enc.env`（sops+age） | `env-sync.sh pull` 會解密合併 |
+| 憑證（6 把共用） | ✅ `secrets.common.enc.env`（sops+age） | `env-sync.sh pull` 會解密合併 |
 
 **結論：沒有會永久遺失的東西。** 但重灌後要走完這條路徑（**目前沒有腳本自動化**，
 就是 scope `F2` `host-onboard.sh` 要做的事）：
@@ -366,7 +366,7 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
    漏了的症狀是 `permission denied ... /var/run/docker.sock`（daemon 活著、
    群組沒加）。同樣是靜默失效：症狀要等到第一次 `docker compose up` 才出現。
 5. `cp .env.example .env` → 填 `TS_IP`／`HOST_NAME`／`HOST_MACHINE_ID`（`HOST-UPGRADE.md` §0、§1）
-6. `env-sync.sh pull`（解密 7 把共用憑證）＋ **重選** `QDRANT_API_KEY`／`POSTGRES_PASSWORD`
+6. `env-sync.sh pull`（解密 6 把共用憑證）＋ **重選** `QDRANT_API_KEY`／`POSTGRES_PASSWORD`
 7. 加 `SRC_API_URL=https://api-x570.ragdemo.win`（`HOST-UPGRADE.md` §3.1，否則法規版本欄永遠是 `—`）
 8. 設 crontab（快照同步 `*/10`）
 9. **裝 cloudflared 並起 tunnel**（`api-<主機>.ragdemo.win` 是 530 的話）。

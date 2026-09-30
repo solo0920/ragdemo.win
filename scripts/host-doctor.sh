@@ -13,7 +13,7 @@
 #   KEY=value 形式，只用「鍵名 值」的中文排版。
 #
 #   證據：--fingerprints 的指紋直接呼叫 env-sync.sh --fingerprints，
-#   **不在這裡重算一份**。這裡若另存一份 7 把共用憑證的清單，就是兩份真相，
+#   **不在這裡重算一份**。這裡若另存一份 6 把共用憑證的清單，就是兩份真相，
 #   而「少印一把」看起來跟「那台沒設」一樣難查（env-sync.sh 指紋函式註解
 #   記的就是這個教訓）。唯一的例外是下面那條輪換規則需要知道兩個鍵名。
 #
@@ -284,9 +284,9 @@ ch_rotate() {
     case "$FP" in
       *MISSING*) MISS="${MISS} $(printf '%s' "$FP" | awk '{print $1}')" ;;
       # 空值與缺鍵要分開報。空＝「設定了但沒給」，在 env-sync 的模型裡是合法狀態
-      # （共用層「空值不合併」，各機沿用自己現值；env-sync.sh 註解也記著
-      # MSI 的 ZEN_API_KEY 目前就是空的）。所以空是 warn 不是 fail ——
-      # 報成 fail 會讓這支 doctor 天天紅燈，而紅燈久了就等於沒有燈。
+      # （共用層「空值不合併」，各機沿用自己現值；env-sync.sh 註解也記著曾有過
+      # 這種狀態）。所以空是 warn 不是 fail —— 報成 fail 會讓這支 doctor 天天紅燈，
+      # 而紅燈久了就等於沒有燈。
       *EMPTY*)   EMPTY="${EMPTY} $(printf '%s' "$FP" | awk '{print $1}')" ;;
     esac
   done <<<"$out"
@@ -296,11 +296,20 @@ ch_rotate() {
   if [ -n "$PEER" ] && [ "$PEER" = "$SELF" ]; then
     SAME="yes"
   fi
-  bump rotate-fp ok "9 把憑證的長度＋sha12 已取得（值不顯示）"
+  # 數量**從指紋表實際數出來**，不寫死。寫死過（"9 把"／"7 把共用"），而
+  # 2026-09-30 把 ZEN_API_KEY 移出 SHARED_SECRETS（7→6 把，連帶 per-host 合計
+  # 9→8）之後，這兩行就開始報過時的數字 —— 與本檔第 16 行「不在這裡重算一份
+  # 清單」的原則同一件事：數量也是 env-sync.sh 的真相，這裡只負責數。
+  local N_TOTAL N_SHARED
+  N_TOTAL="$(printf '%s\n' "$out" | awk 'NF && $1 !~ /^#/{n++} END{print n+0}')"
+  # 共用層 = 這台應有的那幾把。--fingerprints 的輸出把 per-host 2 把標成
+  # "[per-host；...]"，用它數就不必在這裡另存一份 SHARED_SECRETS。
+  N_SHARED="$(printf '%s\n' "$out" | awk 'NF && $1 !~ /^#/ && !/per-host；/{n++} END{print n+0}')"
+  bump rotate-fp ok "${N_TOTAL} 把憑證的長度＋sha12 已取得（值不顯示）"
   if [ -n "$MISS" ]; then
     bump rotate-key fail "本機缺這些鍵:${MISS}（症狀是 401／心跳失敗，且極難回推是環境變數缺了）"
   else
-    bump rotate-key ok "7 把共用憑證都在（值不顯示，指紋見 rotate-fp）"
+    bump rotate-key ok "${N_SHARED} 把共用憑證都在（值不顯示，指紋見 rotate-fp）"
   fi
   if [ -n "$EMPTY" ]; then
     bump rotate-empty warn "這些鍵是空值（未設定）:${EMPTY}；共用層空值不合併，各機沿用自己現值"

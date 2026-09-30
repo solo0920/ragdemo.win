@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # env-sync — 三機共用設定與憑證的分發、合併、稽核（sops + age）。
 #
-# 解決的問題：7 把共用憑證必須三台一致，過去靠人工複製，2026-09-26 已造成
+# 解決的問題：6 把共用憑證必須三台一致，過去靠人工複製，2026-09-26 已造成
 # 兩次不對稱 401／心跳失敗。另有 2 把是 per-host 機密，**刻意不**走這條路。
 #
 # 分層（詳見 settings/env/README.md），合併順序由低到高：
 #   settings/env/common.env              追蹤明文，共用非敏感鍵
-#   settings/env/secrets.common.enc.env  追蹤加密，7 把共用憑證真值
+#   settings/env/secrets.common.enc.env  追蹤加密，6 把共用憑證真值
 #   settings/env/hosts.shared.env        追蹤明文，三台 per-host 值（前綴 <機台>_<鍵>）
 #   .env（repo 根）                      不追蹤、chmod 600，執行期唯一真相
 #
@@ -41,12 +41,20 @@ TABLE="$ENV_DIR/hosts.shared.env"
 # 判斷標準只有一個：**這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
 # QDRANT_PEER_API_KEY 是唯一跨機的 qdrant 認證（sync-snapshot.sh 拉來源機的快照）。
 #
+# 2026-09-30：移出 ZEN_API_KEY（7 把 → 6 把）。它不符合「共用」的定義之外的任何
+# 理由 —— 實測 `secrets.common.enc.env` 裡它是**空值**（其餘 6 把都有 ENC[...]），
+# 而 --init-secrets 是從第一台機器的 .env 抽值建檔的，空值代表**沒有任何一台設過它**；
+# msi/mbp 實測 `zen_ready: false`、usage snapshot 無 zen 記錄。分發一個沒人設的
+# 空值只會讓每台 .env 都被塞一行永遠不會變的 `ZEN_API_KEY=`。
+# ⚠️ 移出本清單**不等於** backend 不能讀它：`rag.py` 仍讀 `os.getenv("ZEN_API_KEY")`，
+#   值留空就讓 `_zen_complete` 回 false（前端已優雅降級）。真要復活就重新申請 key
+#   並加回本行 —— 不要因為「程式還在讀」就把它留在共用層，那正是幽靈鍵的來源。
 # 2026-09-30：曾為連 x570 的 pg 而保留 POSTGRES_PEER_PASSWORD 的位置，但它
 # **沒有任何程式讀取** —— 全 repo 只剩註解、.example 說明文字與測試 docstring。
 # 當初要它，是因為三台 /hosts 指向同一個 pg（x570 的），密碼未知會互相鎖死；
 # 2026-09-30 實測各台 /hosts 已改讀自己的 pg，鎖死不存在，該鍵無用。
 # 所以：**不要加這個幽靈鍵**，未來若真的需要跨機讀 pg 再重新設計。
-SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY"
+SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY"
 # per-host 機密（與 secrets.host.env.example 同步）：各機自己的值，**不分發**。
 # 這份清單**只用於兩件事**：`--check` 的鍵覆蓋率、`--fingerprints` 的輸出標記。
 # 絕不可把它們寫進 .env、絕不可加進 py_apply 的任何 layer ——
@@ -80,8 +88,8 @@ usage: env-sync.sh <command> [options]
   render [--host ID]       只做 per-host render（不需 sops）
   render --dry-run         只印「會動哪幾個鍵」，不寫檔、不印值
   --check                  鍵覆蓋率、總表 schema、per-host 漂移、版控衛生（不需 sops）
-  --fingerprints [FILE]    7 把共用憑證（跨機比對用）＋2 把 per-host 機密的長度＋sha12
-  --init-secrets [--force] 從本機 .env 抽出 7 把共用憑證建加密檔（只在第一台跑一次）
+  --fingerprints [FILE]    6 把共用憑證（跨機比對用）＋2 把 per-host 機密的長度＋sha12
+  --init-secrets [--force] 從本機 .env 抽出 6 把共用憑證建加密檔（只在第一台跑一次）
 EOF
 }
 
@@ -91,7 +99,7 @@ EOF
 # 而「少印」看起來跟「那台沒設」一樣，正是 2026-09-26 診斷不出問題的那類。
 #
 # 兩段輸出的用途不同，不要混為一談：
-#   共用 7 把 → 三台必須一致，橫向互比（不同就是有人沒 pull）
+#   共用 6 把 → 三台必須一致，橫向互比（不同就是有人沒 pull）
 #   per-host 2 把 → 各機獨立存在，**不跨機比對**；只為「輪換前後在這台各跑一次，
 #                   確認這台真的換掉了」。看到不同不代表故障。
 fingerprints() {
@@ -544,9 +552,12 @@ for line in open(sys.argv[1], encoding="utf-8").read().splitlines():
     if m:
         vals[m.group(1)] = m.group(2)
 want = sys.argv[3].split()
-# 缺鍵（整行不存在）是錯誤；空值放行 —— 空＝「未設定」
-# （例：MSI 的 ZEN_API_KEY 目前是空的）。合併端本來就會跳過空值，
+# 缺鍵（整行不存在）是錯誤；空值放行 —— 空＝「未設定」。合併端本來就會跳過空值，
 # 所以空值進加密檔不會清空別台的真值；只報鍵名，不印值。
+# （2026-09-30 前的 ZEN_API_KEY 就是這樣的案例：分發了兩年、沒有任何一台設過。
+#  那把已從 SHARED_SECRETS 移出 —— 「分發一個沒人設的空值」不是保險，
+#  是幽靈鍵。要判斷一把共用憑證該不該留在清單裡，看的是「有沒有機真的設過它」，
+#  而這件事看 enc 檔裡那行有沒有 ENC[...] 就知道，不必靠猜。）
 missing = [k for k in want if k not in vals]
 if missing:
     print("env-sync --init-secrets: .env 缺少鍵: " + " ".join(missing), file=sys.stderr)

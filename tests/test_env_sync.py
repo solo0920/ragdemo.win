@@ -18,8 +18,13 @@ ROOT = Path(__file__).resolve().parents[1]
 SYNC = ROOT / "scripts" / "env-sync.sh"
 
 # 鏡像 env-sync.sh 的 SHARED_SECRETS（改一處必須改另一處，下面有測試鎖）。
+# 2026-09-30：ZEN_API_KEY 移出（7 → 6）。它是共用層裡的空殼：enc 檔裡沒有
+# ENC[...]、沒有任何一台設過、zen_ready 恆 false。見 env-sync.sh 註解。
 SHARED_SECRETS = ("QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN "
-                  "NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY").split()
+                  "NVIDIA_API_KEY TYPESAFE_API_KEY").split()
+# 2026-09-30 移出共用層的鍵。**刻意留在 .env fixture 裡**（見 fx）：
+# 留著才能證明 --init-secrets 不再抽它（不回歸），也證明它的存在不影響 pull。
+RETIRED_SHARED_SECRETS = ("ZEN_API_KEY",)
 # per-host 機密：各機自己的值，**不分發**。刻意不放進 SHARED_SECRETS。
 PER_HOST_SECRETS = ("QDRANT_API_KEY POSTGRES_PASSWORD").split()
 
@@ -106,6 +111,9 @@ def fx(tmp_path):
         "HF_TOKEN=OLD-HF\n"
         "NVIDIA_API_KEY=OLD-NV\n"
         "TYPESAFE_API_KEY=OLD-TS\n"
+        # 2026-09-30 移出共用層的鍵，**刻意留在 .env 裡且有值**：
+        # 這樣 --init-secrets 就必須主動不抽它（而不是「.env 裡剛好沒這行」而僥倖
+        # 通過），pull 也必須原樣保留它。兩個都是靜默退化最容易發生的地方。
         "ZEN_API_KEY=OLD-ZEN\n",
         encoding="utf-8")
     return env_dir, dotenv, str(bindir)
@@ -463,7 +471,7 @@ def test_check_flags_missing_per_host_secret(fx):
 
 def test_fingerprints_marks_per_host_keys_as_not_cross_host(fx):
     """--fingerprints 的 per-host 段必須自我說明「不跨機比對」。
-    Friction 點：7 把共用＋2 把 per-host 印在一起，若沒有標記，讀者會拿 9 行
+    Friction 點：6 把共用＋2 把 per-host 印在一起，若沒有標記，讀者會拿 8 行
     去三台互比 —— 而 per-host 的值本來就該不同，比出「不一致」就會誤開輪換工單，
     也就是這個 scope 要消除的成本又長回來。
     """
@@ -532,7 +540,7 @@ def test_check_pass_and_fail(fx):
 # ── --init-secrets ────────────────────────────────────────────
 
 def test_init_secrets_roundtrip(fx, monkeypatch):
-    """--init-secrets 只抽 7 把共用憑證；空值放行、缺鍵拒絕；暫存必清。
+    """--init-secrets 只抽 6 把共用憑證；空值放行、缺鍵拒絕；暫存必清。
     Friction 點：EXIT trap 引用已出作用域的 local 在 set -u 下報 unbound，
     且失敗時暫存殘留（2026-09-27 MSI 實測，ZEN_API_KEY 為空觸發）。
     """
@@ -552,7 +560,7 @@ def test_init_secrets_roundtrip(fx, monkeypatch):
     r = run_sync(["--init-secrets", "--force"], env_dir, dotenv, bindir)
     assert r.returncode == 0, r.stderr
     enc = parse_env(env_dir / "secrets.common.enc.env")
-    # 只抽 7 把：per-host 機密進了就是「不分發」這條規則被破壞
+    # 只抽 6 把：per-host 機密進了就是「不分發」這條規則被破壞
     assert set(enc) == set(SHARED_SECRETS)
     assert not (set(enc) & set(PER_HOST_SECRETS))
     assert enc["QDRANT_PEER_API_KEY"] == "OLD-PEER"  # stub 是 cp，明文可驗
@@ -644,6 +652,69 @@ def test_a_key_is_claimed_by_exactly_one_layer():
     # 對端憑證必須是共用（它是唯一有跨機讀寫關係的），本機的必須不是
     assert "QDRANT_PEER_API_KEY" in shared
     assert "QDRANT_API_KEY" in perhost and "POSTGRES_PASSWORD" in perhost
+
+
+def test_retired_shared_secrets_are_not_distributed_again(fx, tmp_path, monkeypatch):
+    """2026-09-30：移出共用層的鍵不得被 --init-secrets 抽回加密檔。
+
+    Friction 點（為什麼這條要獨立成測試）：移出共用層的 `ZEN_API_KEY` 是個**空殼** ——
+    沒有任何一台設過它，所以它留在清單裡時每台機器的症狀只是「`--check` 恆報缺鍵」，
+    看起來像小毛病，於是很可能被「反正程式還在讀」加回去。真正會出事的是
+    `--init-secrets`：它按 SHARED_SECRETS 抽值，一旦有人在沒有意識的情況下把鍵名
+    加回清單並重跑，就會把本機 .env 的值分發到三台 —— 而症狀要等到**下次輪換**
+    才浮現（別台的 key 被換掉）。
+
+    這裡刻意讓 .env 裡有 `ZEN_API_KEY=OLD-ZEN`（見 fx）：若 .env 剛好沒這行，
+    「沒被抽出去」只是因為沒東西可抽，證明不了任何事。
+    """
+    for k in RETIRED_SHARED_SECRETS:
+        assert k not in SHARED_SECRETS, (
+            f"{k} 又被加回共用層了。空殼憑證（沒有任何一台設過）分發下去只會讓每台 "
+            f".env 被塞一行永遠不會變的空值，並讓 --check 報缺鍵。要復活就重新申請 key。")
+        assert k not in PER_HOST_SECRETS, (
+            f"{k} 是被移出，不是改成 per-host —— 移它出去是因為沒有任何一台設過。")
+
+    # 真實 repo：範本與加密檔都不得再認領它（兩者都是被追蹤的檔）
+    example = (ROOT / "settings/env" / "secrets.common.env.example").read_text(encoding="utf-8")
+    enc = (ROOT / "settings/env" / "secrets.common.enc.env").read_text(encoding="utf-8")
+    for k in RETIRED_SHARED_SECRETS:
+        assert not re.search(rf"^{k}=", example, re.M), \
+            f"{k} 仍在 secrets.common.env.example（--check 會要求每台 .env 都有它）"
+        assert not re.search(rf"^{k}=", enc, re.M), \
+            f"{k} 仍在共用加密檔裡（會被 pull 分發到三台）"
+
+    # 機制驗證：--init-secrets 不得抽它。
+    env_dir, dotenv, bindir = fx
+    monkeypatch.setenv("STUB_SRC", "__unused__")
+    stub = Path(bindir) / "sops"
+    stub.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        "out=''; args=()\n"
+        "while [ $# -gt 0 ]; do case \"$1\" in "
+        "--output) out=\"$2\"; shift 2;; "
+        "--filename-override) shift 2;; "
+        "--*) shift;; "
+        "*) args+=(\"$1\"); shift;; esac; done\n"
+        "cp \"${args[${#args[@]}-1]}\" \"$out\"\n", encoding="utf-8")  # bash 3.2 友善（mbp 實測）
+    r = run_sync(["--init-secrets", "--force"], env_dir, dotenv, bindir)
+    assert r.returncode == 0, r.stderr
+    enc_keys = set(parse_env(env_dir / "secrets.common.enc.env"))
+    assert enc_keys == set(SHARED_SECRETS)
+    for k in RETIRED_SHARED_SECRETS:
+        assert k not in enc_keys, f"--init-secrets 又把 {k} 抽進加密檔了"
+    assert "OLD-ZEN" not in (env_dir / "secrets.common.enc.env").read_text(encoding="utf-8")
+
+    # 機制驗證：pull 必須原樣保留 .env 裡既有的該鍵（pull 只增不刪，
+    # 所以另外兩台不需要做任何事 —— 這是整個模組賴以成立的前提）。
+    decrypted = tmp_path / "decrypted.env"
+    decrypted.write_text("QDRANT_PEER_API_KEY=NEW-PEER\nADMIN_TOKEN=NEW-ADMIN\n",
+                         encoding="utf-8")
+    monkeypatch.setenv("STUB_SRC", str(decrypted))
+    r = run_sync(["pull"], env_dir, dotenv, bindir)
+    assert r.returncode == 0, r.stderr
+    after = parse_env(dotenv)
+    for k in RETIRED_SHARED_SECRETS:
+        assert after.get(k) == "OLD-ZEN", f"pull 動到已移出共用層的 {k}"
 
 
 def test_per_host_secrets_never_in_shared_layers():

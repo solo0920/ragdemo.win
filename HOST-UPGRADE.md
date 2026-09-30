@@ -150,7 +150,7 @@ grep -q '^SRC_API_URL=' .env || echo 'SRC_API_URL=https://api-x570.ragdemo.win' 
 
 ### 3.2 `QDRANT_PEER_API_KEY` —— **不要手動設，`env-sync.sh pull` 會給你**
 
-它是 7 把共用憑證之一，值在 `settings/env/secrets.common.enc.env`（sops+age 加密），
+它是 6 把共用憑證之一，值在 `settings/env/secrets.common.enc.env`（sops+age 加密），
 `env-sync.sh pull` 會解密合併進 `.env`。手動抄反而會被 `pull` 覆蓋。
 `pull` 完確認（不印值）：
 

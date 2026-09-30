@@ -5,7 +5,7 @@
 > ⚠️ **x570／mbp 端待確認事項：見 [`X570-HANDOFF.md`](X570-HANDOFF.md) 與
 > [`MBP-HANDOFF.md`](MBP-HANDOFF.md)**。**2026-09-30 大幅縮減**：兩台當初的
 > 問題（qdrant key 輪換、`POSTGRES_PASSWORD` 三台不一致、2026-09-26 關機異常）
-> 都已解決或失效 —— 7 把共用憑證改走 sops＋age 加密分發、各台 `/hosts` 改讀自己的
+> 都已解決或失效 —— 6 把共用憑證改走 sops＋age 加密分發、各台 `/hosts` 改讀自己的
 > pg、機器持續運行至今。**唯一還會擋住事的是 age 公鑰**（`.sops.yaml` 的 recipients
 > 只有 msi 一把，另兩台的 `env-sync.sh pull` 會解不開共用憑證）。
 >
@@ -214,11 +214,16 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
   **2026-09-30 更新**：各台 `/hosts` 已改讀自己的 pg（實測 `api-msi /hosts` 只回
   msi、`api-x570 /hosts` 只回 x570），跨機讀 pg 的需求消失，故
   `POSTGRES_PEER_PASSWORD` **不納管**（沒有任何程式讀它）。
-- **共用憑證分發（2026-09-27）**：7 把**必須三台一致**的憑證
+- **共用憑證分發（2026-09-27）**：**6 把**必須三台一致的憑證
   （`QDRANT_PEER_API_KEY`／`ADMIN_TOKEN`／`CF_AIG_TOKEN`／`HF_TOKEN`／
-  `NVIDIA_API_KEY`／`TYPESAFE_API_KEY`／`ZEN_API_KEY`）改走 `settings/env/` 分層
+  `NVIDIA_API_KEY`／`TYPESAFE_API_KEY`）改走 `settings/env/` 分層
   ＋`sops`+`age` 加密追蹤，`scripts/env-sync.sh pull` 合併進各機 `.env`。
   流程見 `settings/env/README.md`。
+  **2026-09-30 更新**：移出 `ZEN_API_KEY`（原 7 把）。它是共用層裡的空殼 ——
+  加密檔裡是空值（沒有任何一台設過）、`zen_ready` 實測恆 false。分發它會讓
+  `--check` 的鍵覆蓋率要求每台 `.env` 都有那一行，於是沒用過的機器恆報缺鍵。
+  `rag.py` 仍讀 `os.getenv("ZEN_API_KEY")`，缺值只是讓該 provider 不可用
+  （前端已優雅降級），**不是程式壞掉**。
 - **憑證分類標準只有一條：有沒有跨機的讀寫關係**（2026-09-27 逐點 grep 查證後改正）。
   `QDRANT_API_KEY` 與 `POSTGRES_PASSWORD` 曾被歸為「三台必須同值」，查證每一個
   消費點後確認**都只指向自己那台**：

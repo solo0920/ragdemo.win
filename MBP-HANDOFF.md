@@ -39,10 +39,10 @@ worker 依序嘗試（**msi 第一**），任一台掛掉會自動輪到下一�
 ## 事項 5：報回 age 公鑰（唯一會擋住事的）★先做★
 
 `.sops.yaml` 的 recipients **只有 msi 一把**（x570 與 mbp 都還是 TODO）。
-`env-sync.sh pull` 要 `sops -d` 那 7 把共用憑證，sops 只能用名單裡的公鑰解 ——
+`env-sync.sh pull` 要 `sops -d` 那 6 把共用憑證，sops 只能用名單裡的公鑰解 ——
 **mbp 的年齡金鑰不在名單，pull 就會失敗**（`ADMIN_TOKEN`／
 `QDRANT_PEER_API_KEY`／`CF_AIG_TOKEN`／`HF_TOKEN`／`NVIDIA_API_KEY`／
-`TYPESAFE_API_KEY`／`ZEN_API_KEY`）。
+`TYPESAFE_API_KEY`）。
 
 **per-host 的 2 把機密（`QDRANT_API_KEY`／`POSTGRES_PASSWORD`）不在加密檔裡**，
 用你原本的值就對 —— 不要因為 pull 失敗去動它們。
@@ -97,7 +97,7 @@ per-clone 的 git 設定，不在版控裡。漏了**不報錯**，只是 pre-pu
   conns=4、ingress 正確）。DNS 記錄在 Cloudflare 側，本來就沒動過
 - **從 msi 的備份還原 `.env`** —— `/mnt/d/backup/.../root.env` 是 **msi 那台的**，
   裡面的 `QDRANT_API_KEY`／`POSTGRES_PASSWORD` 是 msi 自己重選的值，
-  **mbp 不能用**。共用憑證（7 把）要靠事項 5 的 sops 管道，不要走備份
+  **mbp 不能用**。共用憑證（6 把）要靠事項 5 的 sops 管道，不要走備份
 - **查 pg 密碼／`POSTGRES_PEER_PASSWORD`** —— 沒有任何程式讀它（全 repo 只剩
   註解、`.example` 說明文字、測試 docstring）。加了就是幽靈鍵
 
