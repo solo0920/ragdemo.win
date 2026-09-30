@@ -134,7 +134,13 @@ jobs:
       #                                        （只有跑過 sync_daily 才存在）
       #
       # 缺環境（4）—— 需要 CI runner 沒有的東西：
-      #   test_detect_host_endpoint.py:152     WSL 專用路徑，runner 不是 WSL
+      #   test_detect_host_endpoint.py:157     本機不是 WSL → detect_host_endpoint()
+      #                                        回空 → 函式自己 pytest.skip。
+      #                                        ⚠️ 別搞混：:152 那個
+      #                                        `skipif(sys.platform != "linux")`
+      #                                        在 CI **不觸發**（runner 是 linux），
+      #                                        它擋的是 macOS（mbp）。刪掉會讓
+      #                                        mbp 那台直接跑這條而失敗。
       #   test_sync_snapshot_auth.py:107 ×2   需要本機 qdrant 在跑
       #   test_sync_snapshot_auth.py:134      同上
       #
