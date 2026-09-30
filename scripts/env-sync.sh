@@ -39,10 +39,13 @@ TABLE="$ENV_DIR/hosts.shared.env"
 # tests/test_env_sync.py 會鎖）。per-host 鍵永遠不在此列。
 # ⚠️ 這裡是「各機都該有同一個值」的清單，不是「本機自己的值」的清單。
 # 判斷標準只有一個：**這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
-# QDRANT_PEER_API_KEY 是唯一跨機的 qdrant 認證（sync-snapshot.sh 拉 x570 的快照）。
-# 連 x570 的 pg 密碼應另設 POSTGRES_PEER_PASSWORD（照 *_PEER_* 慣例），
-# 尚未納管 —— 值待 x570 查證（X570-HANDOFF.md 事項 2），在此之前不要加這個
-# 沒人讀的幽靈鍵。
+# QDRANT_PEER_API_KEY 是唯一跨機的 qdrant 認證（sync-snapshot.sh 拉來源機的快照）。
+#
+# 2026-09-30：曾為連 x570 的 pg 而保留 POSTGRES_PEER_PASSWORD 的位置，但它
+# **沒有任何程式讀取** —— 全 repo 只剩註解、.example 說明文字與測試 docstring。
+# 當初要它，是因為三台 /hosts 指向同一個 pg（x570 的），密碼未知會互相鎖死；
+# 2026-09-30 實測各台 /hosts 已改讀自己的 pg，鎖死不存在，該鍵無用。
+# 所以：**不要加這個幽靈鍵**，未來若真的需要跨機讀 pg 再重新設計。
 SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY ZEN_API_KEY"
 # per-host 機密（與 secrets.host.env.example 同步）：各機自己的值，**不分發**。
 # 這份清單**只用於兩件事**：`--check` 的鍵覆蓋率、`--fingerprints` 的輸出標記。

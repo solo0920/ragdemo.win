@@ -64,10 +64,13 @@ per-host 值的唯一真相是 `settings/env/hosts.shared.env`，格式 `<機台
 `OLLAMA_MODELS`／`OLLAMA_URLS` 長度必須一致。`HOST_ID` 是 render 的選擇器，不在表內。
 
 ⚠️ **`POSTGRES_DSN` 裡的密碼不是 `POSTGRES_PASSWORD`**：後者是本機 pg 容器的
-密碼（各機可不同），DSN 指向 x570。2026-09-27 MSI 實測兩者指紋不同
-（`55cebf3c8276` vs `e328bd31728a`）。連 x570 的 pg 密碼應另設
-`POSTGRES_PEER_PASSWORD`（照 `QDRANT_PEER_API_KEY` 慣例），值待 x570 查證
-（`X570-HANDOFF.md` 事項 2）後納管；在此之前三列 `POSTGRES_DSN` 保持空值。
+密碼（各機可不同），DSN 若指向別台就必須用**對端**的密碼。2026-09-27 MSI 實測兩者
+指紋不同（`55cebf3c8276` vs `e328bd31728a`）。
+
+**2026-09-30 更正**：三列 `POSTGRES_DSN` 現在**全部保持空值是正確的**，因為各台
+`/hosts` 已改讀自己的 pg，沒有跨機需求。`POSTGRES_PEER_PASSWORD` **不納管** ——
+沒有任何程式讀它（全 repo 只剩註解、`.example` 說明文字、測試 docstring）。
+**不要為了填滿它而去查別台的 pg 密碼。**
 
 ## 日常操作
 
@@ -90,8 +93,9 @@ per-host 值的唯一真相是 `settings/env/hosts.shared.env`，格式 `<機台
 `TYPESAFE_API_KEY`、`ZEN_API_KEY`
 
 - `QDRANT_PEER_API_KEY` 是唯一跨機的 qdrant 認證（`sync-snapshot.sh` 拉 x570 的快照）。
-- `POSTGRES_PEER_PASSWORD` 尚未納管（值待 x570 查證，見 `X570-HANDOFF.md` 事項 2）。
-  值到齊後才加進這 7 把，**不要提前加一個沒人讀的幽靈鍵**。
+- `POSTGRES_PEER_PASSWORD` **不納管**（2026-09-30 定案）。它沒有任何程式讀取 ——
+  當初要它是因為三台 `/hosts` 指向同一個 pg，現已各讀自己的，鎖死不存在。
+  **不要加進這 7 把**，加了就是沒人讀的幽靈鍵。
 
 ### per-host 機密（2 把，各機不同 → **不分發**）
 

@@ -26,7 +26,7 @@
 | `M` | 跨 M3／M6／frontend／M1 | **解除三台鎖死：只要本機有就能跑** | 不刪「連線與來源」功能（單機時它顯示自己，不是多主機專屬）。不動 x570/mbp 兩台的**資料**設定。**不推送** | 見下方驗收表 | 2026-09-27 |
 | `L` ✅ | M6 | 修 `host-doctor.sh` 的**靜默陳舊**：本機快照同步停擺時仍報 `law-version ok` | 不加第 16 個檢查（擴充既有的 `ch_law_version`，檢查數維持 15）、不改門檻語意成 fail（跨機無法實測，只能 warn）、不碰 sync 排程本身。**沒**順手修 `env-audit.py` 的 `SH_ASSIGN`（屬 M1，且屬行為變更） | 見下方驗收表 | 2026-09-27 |
 | `K` ✅ | **M1 限定**（原訂跨 M1／M6） | **msi 成為唯一開發主機**：本機自給自足，實測跑起來 | **不做**「解除三台寫死」——那要動 `backend/app/rag.py`（M3）與 frontend，屬另一個模組、另一個 scope（見〈沒做而記錄下來〉）。不動 x570/mbp 的既有設定。**不推送** | 見下方驗收表 | 2026-09-27 |
-| `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（事項 2/3/4/5 仍開著且需實體接觸 x570）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
+| `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（**2026-09-30 精簡**：原本的事項 2/3/4 已作廢或失效，只剩事項 5 age 公鑰是真阻塞）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
 
 ### 為什麼現在做（2026-09-27 使用者決策）
 
@@ -272,7 +272,7 @@ smoke test 抓到 `scripts/host-doctor.sh`（M6）的**「跑全部檢查」整�
 驗收結果見下。三台的套用方式在〈待套用〉。**還沒在真實部署路徑上跑過** —— 本機
 （msi）刻意不啟動容器，所以 `compose up` 與 `verify` 兩步只做了靜態檢查。
 
-**為什麼做這個**：`HOST-UPGRADE.md`(351 行)＋`X570-HANDOFF.md`(310 行)＝601 行散文
+**為什麼做這個**：`HOST-UPGRADE.md`(351 行)＋`X570-HANDOFF.md`(310 行)＝601 行散文（**2026-09-30 已把兩份 handoff 精簡到只剩真待辦**）
 runbook，`scripts/` 下 0 個部署腳本，全 repo 沒有任何 `git pull`（升級完全靠人）。
 這是**降低複雜度最多的單一改動**，而且是純新增檔案 —— 跑不動就刪，沒有後果。
 
@@ -337,8 +337,8 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | 首次在真實路徑上跑 `host-sync.sh` | `x570`、`mbp` | `bash scripts/host-sync.sh`（不帶 `--ref`，先 `pull --ff-only`） | **這是 `F` 唯一沒被驗證過的部分**：`compose up -d --build` 與 `/health`＋`/status?probe=0` 驗收。建議在 x570 跑（它是 source 機，出事影響最大所以先試） |
 | ~~套用 15 個容器環境變數~~ | `x570`、`mbp` | `bash scripts/host-sync.sh` | 已併入上一列。`host-sync.sh` 第 4 步就是 `env-sync.sh pull`，不必分開跑 |
 | 換 `QDRANT_PEER_API_KEY` | 三台 | 改 `secrets.common.enc.env` → commit → 各台 `env-sync.sh pull` | 值已外洩（見 `ARCHITECTURE.md`〈密鑰管理〉）。**不需要逐台手動改**，`pull` 會覆蓋 |
-| 加 `POSTGRES_PEER_PASSWORD` | 先 `x570` | 見 `X570-HANDOFF.md` 事項 2 | 被「x570 的 pg role 密碼未知」阻塞。值到齊後才加，**不要提前加沒人讀的幽靈鍵** |
-| 收 age 公鑰 | `x570`、`mbp` | 見 `X570-HANDOFF.md` 事項 5 | 公鑰到齊 → `.sops.yaml` 加 recipients → `sops updatekeys` |
+| ~~加 `POSTGRES_PEER_PASSWORD`~~ | — | — | **2026-09-30 取消**。沒有任何程式讀它（全 repo 只剩註解、`.example` 說明文字、測試 docstring）。當初的跨機 pg 需求已隨「各台 `/hosts` 改讀自己的 pg」消失。**不要加幽靈鍵** |
+| 收 age 公鑰 | `x570`、`mbp` | 見 `X570-HANDOFF.md` 事項 5／`MBP-HANDOFF.md` 事項 5 | **這是三機復原唯一還會擋住事的一項**：`.sops.yaml` recipients 只有 msi 一把，另兩台 `env-sync.sh pull` 會解不開 7 把共用憑證。公鑰到齊 → 加 recipients → `sops updatekeys` |
 | 修 git 認證 | `x570` | `gh auth refresh -h github.com -s repo` | repo 轉 private 後舊 token 失效。**需使用者在該機互動執行** |
 
 ### msi 重灌前置（2026-09-27 查證，**重灌前必讀**）

@@ -35,7 +35,7 @@ permissions:
 | 事實 | 位置 |
 |---|---|
 | 升級 runbook 313 行 | `HOST-UPGRADE.md` |
-| x570 待辦 288 行 | `X570-HANDOFF.md` |
+| x570／mbp 待辦（僅剩 age 公鑰等） | `X570-HANDOFF.md`、`MBP-HANDOFF.md` |
 | `scripts/` 下 **0 個**部署腳本 | — |
 | 全 repo **沒有任何** `git pull` | grep 過 |
 

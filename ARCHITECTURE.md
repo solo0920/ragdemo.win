@@ -2,9 +2,12 @@
 
 > 本檔描述**目前實作**（2026-09-26）。規劃中的跨機遷移見 `ROADMAP.md` §4.1.1。
 >
-> ⚠️ **x570 端另有待確認事項：見 [`X570-HANDOFF.md`](X570-HANDOFF.md)** ——
-> qdrant key 輪換後 MSI／mbp 被 401、`POSTGRES_PASSWORD` 三台不一致導致 registry
-> 心跳失敗、2026-09-26 關機異常根因未證實、每日 ingest 尚未排程。
+> ⚠️ **x570／mbp 端待確認事項：見 [`X570-HANDOFF.md`](X570-HANDOFF.md) 與
+> [`MBP-HANDOFF.md`](MBP-HANDOFF.md)**。**2026-09-30 大幅縮減**：兩台當初的
+> 問題（qdrant key 輪換、`POSTGRES_PASSWORD` 三台不一致、2026-09-26 關機異常）
+> 都已解決或失效 —— 7 把共用憑證改走 sops＋age 加密分發、各台 `/hosts` 改讀自己的
+> pg、機器持續運行至今。**唯一還會擋住事的是 age 公鑰**（`.sops.yaml` 的 recipients
+> 只有 msi 一把，另兩台的 `env-sync.sh pull` 會解不開共用憑證）。
 >
 > ⚠️ **x570 / mbp 升級時請先看 [`HOST-UPGRADE.md`](HOST-UPGRADE.md)** ——
 > 2026-09-26 容器化與檢索修正後，兩台各有一份 per-host 待辦：輪換外洩的 qdrant
@@ -207,9 +210,10 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
   pg 容器的密碼（各機可不同），而 `POSTGRES_DSN` 指向 **x570**，裡面必須是
   x570 的 pg 密碼。兩者 sha256 前 12 碼不同（`55cebf3c8276` vs `e328bd31728a`，
   皆 32 字元）。用 `${POSTGRES_PASSWORD}` 展開 DSN 會製造「設定都有、
-  心跳就是 password authentication failed」。連 x570 的 pg 密碼目前沒有對應
-  變數（照 `QDRANT_PEER_API_KEY` 慣例應叫 `POSTGRES_PEER_PASSWORD`），
-  值待 x570 查證後納管 —— 見 `X570-HANDOFF.md` 事項 2。
+  心跳就是 password authentication failed」。
+  **2026-09-30 更新**：各台 `/hosts` 已改讀自己的 pg（實測 `api-msi /hosts` 只回
+  msi、`api-x570 /hosts` 只回 x570），跨機讀 pg 的需求消失，故
+  `POSTGRES_PEER_PASSWORD` **不納管**（沒有任何程式讀它）。
 - **共用憑證分發（2026-09-27）**：7 把**必須三台一致**的憑證
   （`QDRANT_PEER_API_KEY`／`ADMIN_TOKEN`／`CF_AIG_TOKEN`／`HF_TOKEN`／
   `NVIDIA_API_KEY`／`TYPESAFE_API_KEY`／`ZEN_API_KEY`）改走 `settings/env/` 分層

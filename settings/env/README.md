@@ -44,12 +44,16 @@
   （腳本偵測到 xtrace 直接拒絕執行；2026-09-26 的三次外洩都是這類）。
 - **不要 `docker compose config` 後貼輸出** —— 它會展開所有憑證。
   只驗語法請用 `config -q`。
-- **`POSTGRES_PASSWORD`（本機 pg 密碼）≠ `POSTGRES_DSN` 裡的密碼**（那是 x570 的）。
-  2026-09-27 MSI 實測兩者指紋不同（`e328bd31728a` vs `55cebf3c8276`）。
-  **不要在總表寫死 `POSTGRES_DSN`**；正解是新增 `POSTGRES_PEER_PASSWORD`
-  （照 `QDRANT_PEER_API_KEY` 慣例）並以 `${POSTGRES_PEER_PASSWORD}` 引用，
-  值待 x570 查證（`X570-HANDOFF.md` 事項 2）後納管。
-  **值到齊前不要加這個沒人讀的幽靈鍵**，在此之前總表三列 `POSTGRES_DSN` 保持空值。
+- **`POSTGRES_PASSWORD`（本機 pg 密碼）≠ `POSTGRES_DSN` 裡的密碼**（若 DSN 指向
+  別台，那是別台的）。2026-09-27 MSI 實測兩者指紋不同（`e328bd31728a` vs
+  `55cebf3c8276`），用 `${POSTGRES_PASSWORD}` 展開 DSN 會製造「設定都有、心跳就是
+  password authentication failed」。
+  **2026-09-30 更新**：各台 `/hosts` 已改讀**自己的** pg（實測 `api-msi /hosts` 只
+  回 msi、`api-x570 /hosts` 只回 x570），沒有跨機讀 pg 的需求，所以
+  `POSTGRES_PEER_PASSWORD` **不納管** —— 它沒有任何程式讀取（全 repo 只剩註解、
+  `.example` 說明文字、測試 docstring）。
+  **不要加這個沒人讀的幽靈鍵，也不要為了填它去查別台的 pg 密碼。**
+  總表三列 `POSTGRES_DSN` 保持空值是正確狀態，不是待辦。
 - **前綴不能放進 `.env`**：`docker compose` 只認 `${VAR}` 插值，沒有「依 `HOST_ID`
   動態選 `msi_`／`x570_`」的能力。放進去會讓 MSI 的 8b 設定被**靜默吃掉**
   （回退原始碼預設 `qwen3:14b`、零錯誤訊息）；`TS_IP` 更嚴重，`ports` 會去 bind
