@@ -29,6 +29,22 @@ if [ "$fail" -ne 0 ]; then
 fi
 echo "✓ backend Python 語法 OK"
 
+# 1b) shell 腳本語法
+#     為什麼要加：scripts/ 下有 6 支會被三台直接執行的 shell（env-sync.sh 是
+#     換憑證的必经之路），而 Python 語法檢查完全不管 .sh。一支壞掉的
+#     env-sync.sh 症狀是「pull 失敗」——而 pull 失敗又被誤解成「私鑰不見了」
+#     或「recipients 少了我的公鑰」（2026-09-30 msi 就走過那段誤診）。
+#     語法錯要在這裡擋，而不是在別台機器上發現。
+fail=0
+while IFS= read -r f; do
+  bash -n "$f" || { echo "✗ shell 語法錯誤: $f"; fail=1; }
+done < <(find scripts .githooks -name '*.sh' -o -name 'pre-push' -o -name 'commit-msg' 2>/dev/null | sort -u)
+if [ "$fail" -ne 0 ]; then
+  echo "✗ shell 語法檢查失敗，中止 push" >&2
+  exit 1
+fi
+echo "✓ shell 語法 OK"
+
 # 2) IP 準則：追蹤檔案不得含 LAN_IP=
 if git grep -nE '^LAN_IP=' -- 2>/dev/null | grep -q .; then
   echo "✗ 追蹤檔案含 LAN_IP= 賦值（違反 IP 準則），移除後再 push" >&2
