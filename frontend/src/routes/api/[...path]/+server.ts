@@ -72,6 +72,37 @@ function parsed(path: string): string {
   return path.split('/')[0];
 }
 
+// ── Cloudflare Access 的 Service Token ──────────────────────────────────
+// 後端只綁 127.0.0.1:8000（compose.yaml:33），唯一入口是 tunnel，所以邊緣
+// 驗證就是完整防護。但 Access 的登入是「瀏覽器導向 302」—— Pages Function
+// 那次 fetch 沒有 cookie，跟不到登入頁。必須用 Service Token（機器對機器、
+// header 驗證），這是這條路徑唯一的可行方案。
+//
+// ⚠️ 這個 token 會送給 API_ORIGINS 裡的**每一台**。三台都必須同時開 Access
+// —— 只護住一台時，failover 會把請求送到未護住的那台，驗證等於不存在。
+// 這是設定面的一致性要求，程式端無法代替。
+function cfHeaders(): Record<string, string> {
+  const id = env.CF_ACCESS_CLIENT_ID;
+  const secret = env.CF_ACCESS_CLIENT_SECRET;
+  if (!id || !secret) return {};
+  return { 'CF-Access-Client-Id': id, 'CF-Access-Client-Secret': secret };
+}
+
+// 缺 token 時**主動說清楚缺哪個**，不要讓症狀被系統說成謊。
+//
+// 沒有這道檢查的話：token 缺 → 三個站點都不帶 header → Access 回 302 →
+// probe() 跟到登入頁拿到 200+text/html → 判失敗 → 使用者看到
+// 「所有後端皆無法連線（x570: 200 但非 JSON…）」。那句話是**假的** —— 三台
+// 後端都活得好好的。這正是同一個檔案裡 guard() 對缺 SESSION_SECRET 做的事
+// （503 + 點名缺哪個變數），through() 對缺 API_ORIGINS 也是這樣。沿用既有
+// 慣例，不是新發明。
+function cfUnconfigured(): string | null {
+  const miss: string[] = [];
+  if (!env.CF_ACCESS_CLIENT_ID) miss.push('CF_ACCESS_CLIENT_ID');
+  if (!env.CF_ACCESS_CLIENT_SECRET) miss.push('CF_ACCESS_CLIENT_SECRET');
+  return miss.length ? miss.join(' / ') : null;
+}
+
 interface Env {
   API_ORIGIN?: string;
   API_ORIGINS?: string;
@@ -145,6 +176,15 @@ function jsonError(phase: string, e: unknown): Response {
 }
 
 async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }, headers?: Headers): Promise<Response> {
+  // CF token 檢查放在 API_ORIGINS 之前：兩者都缺時，先講比較具體的那個
+  // （Access 是這輪 rollout 的新設定，最可能漏的就是它）。
+  const cfMiss = cfUnconfigured();
+  if (cfMiss) {
+    return new Response(JSON.stringify({ detail: `${cfMiss} 未設定（請在 Cloudflare Pages 變數設定）—— 這是 Cloudflare Access 的 Service Token，沒有它後端會被 Access 擋在門外` }), {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
   const origins = hostsOf(platform).map((h) => h.url);
   if (origins.length === 0) {
     return new Response(JSON.stringify({ detail: 'API_ORIGINS/API_ORIGIN 未設定（請在 Cloudflare Pages 變數設定）' }), {
@@ -156,6 +196,10 @@ async function through(method: string, path: string, body: string | undefined, p
   // 透傳管理 token（/rules 寫入用），不落入 cookie
   const ah = headers?.get('authorization');
   if (ah) init.headers['authorization'] = ah;
+  // ⚠️ **merge 進去，不要取代** init.headers —— 否則上面那把管理 token 會被
+  // 蓋掉，/rules 寫入會變成 401。兩者鍵不衝突，但順序刻意放在 authorization
+  // 之後：CF 的 header 一定要在最外層。
+  Object.assign(init.headers as Record<string, string>, cfHeaders());
   if (body !== undefined) init.body = body;
 
   const failures: string[] = [];
@@ -189,10 +233,15 @@ async function through(method: string, path: string, body: string | undefined, p
 // 兩個字串（+page.svelte 用 `=== '連線成功'` 精確比對，gateway._host_probe_log
 // 產同一組字串）—— 這裡刻意不擴充它，那要前後端同時改。
 async function probe(url: string): Promise<{ ok: boolean; seen: string }> {
+  // 缺 Service Token 時**不要發三次注定失敗的請求**，直接回一個不會誤導的
+  // 原因。queryRoute 正常情況會在呼叫 probe 之前就先 503（見 cfUnconfigured），
+  // 這裡是防呆：萬一 probe 日後被別處呼叫，也不該拿「200 但非 JSON」去
+  // 冒充真正的診斷。
+  if (cfUnconfigured()) return { ok: false, seen: '缺 Service Token（未發請求）' };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 6000);
   try {
-    const r = await fetch(`${url}/health`, { signal: ctrl.signal });
+    const r = await fetch(`${url}/health`, { signal: ctrl.signal, headers: cfHeaders() });
     // 兩個條件缺一不可，理由與 gateway._host_probe_log 完全相同：
     //   r.ok          —— 已經擋掉 4xx/5xx。
     //   content-type  —— Workers 的 fetch() 依 Fetch 規範預設 redirect:"follow"，
@@ -223,6 +272,14 @@ function json(data: unknown, status = 200): Response {
 // 先列出各台連線 log（清單來自 API_ORIGINS，不是程式裡寫死的三台），
 // 再依指定或自動選一台生成回答。
 async function queryRoute(request: Request, platform?: { env?: Env }): Promise<Response> {
+  // ⚠️ 這裡必須自己檢查一次，不能靠 through() —— /api/query **不經過** through()
+  // （POST handler 對 'query' 直接改走 queryRoute）。漏了這一處的症狀是：
+  // 登入正常、規則頁正常、只有查詢壞掉。
+  const cfMiss = cfUnconfigured();
+  if (cfMiss) {
+    return json({ ok: false, host: null, log: {},
+      detail: `${cfMiss} 未設定（請在 Cloudflare Pages 變數設定）—— 這是 Cloudflare Access 的 Service Token，沒有它 /query 會被 Access 擋在門外` }, 503);
+  }
   const hosts = hostsOf(platform);
   const want = new URL(request.url).searchParams.get('backend');
   const id = hosts.some((h) => h.id === want) ? want : 'auto';
@@ -256,7 +313,7 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
   try {
     const r = await fetch(`${base}/query`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...cfHeaders() },
       body,
     });
     const data = await r.json();

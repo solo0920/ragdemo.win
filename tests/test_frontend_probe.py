@@ -31,70 +31,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
-WORKER = Path(__file__).resolve().parents[1] / "frontend/src/routes/api/[...path]/+server.ts"
+from conftest import WORKER, decl_body
 
 # 見上方 docstring：哨兵網址，保證 stub 失效時不會打到 production。
 SENTINEL = "https://sentinel.invalid/api"
-
-
-def _decl_body(code: str, marker: str) -> str:
-    """取出一個宣告（含主體）。
-
-    與 ``test_frontend_hosts._decl_body`` 的差異：**回傳型別裡的大括號**。
-
-    那個版本在參數列配對完之後直接找第一個 ``{`` 當主體。它對
-    ``relay(r, origin): Promise<Response>`` 這類沒問題，但 ``probe`` 的回傳
-    型別是 ``Promise<{ ok: boolean; seen: string }>`` —— 第一個 ``{`` 在
-    ``Promise<`` 後面，會抽出一個**截斷的宣告**（少了主體），丟給 node 就是
-    ``Expected ',', got 'const'``。
-
-    所以這裡在參數列之後多走一步：若下一個非空白字元是 ``:``，先跨過回傳
-    型別（含 ``<``/``>`` 配對）再找主體的大括號。
-    """
-    assert marker in code, f"找不到宣告 {marker!r} —— 若被改名請同步維護呼叫它的測試"
-    start = code.index(marker)
-    depth, j = 0, code.index("(", start)
-    while j < len(code):
-        if code[j] == "(":
-            depth += 1
-        elif code[j] == ")":
-            depth -= 1
-            if depth == 0:
-                break
-        j += 1
-    assert j < len(code), f"{marker} 的參數列沒配對到"
-
-    k = j + 1
-    while k < len(code) and code[k] in " \t":
-        k += 1
-    if k < len(code) and code[k] == ":":
-        # 跨過回傳型別。<> 配對，並容忍 { } 巢狀（Promise<{...}>）。
-        gdepth = 0
-        while k < len(code):
-            ch = code[k]
-            if ch in "<{":
-                gdepth += 1
-            elif ch in ">}":
-                gdepth -= 1
-                if gdepth == 0:
-                    break
-            k += 1
-        assert k < len(code), f"{marker} 的回傳型別沒配對到"
-        k += 1
-        while k < len(code) and code[k] in " \t":
-            k += 1
-
-    depth, b = 0, code.index("{", k)
-    while b < len(code):
-        if code[b] == "{":
-            depth += 1
-        elif code[b] == "}":
-            depth -= 1
-            if depth == 0:
-                return code[start:b + 1]
-        b += 1
-    raise AssertionError(f"{marker} 的大括號沒配對到")
 
 
 def _run_probe(spec: dict, tmp_path: Path) -> dict:
@@ -110,11 +50,18 @@ def _run_probe(spec: dict, tmp_path: Path) -> dict:
     if not node:
         pytest.skip("node 不在 PATH")
     code = WORKER.read_text(encoding="utf-8")
-    probe = _decl_body(code, "async function probe")
-
+    # probe() 依賴 cfUnconfigured()（缺 Service Token 時直接回、不發請求），
+    # 所以那兩個宣告要一起抽出來，並給 `env` 一個 shim —— 實作是從
+    # $env/dynamic/private 拿的，node 裡沒有那個模組解析。
+    parts = [
+        f"const env = {json.dumps(spec.get('env', {'CF_ACCESS_CLIENT_ID': 'id.test', 'CF_ACCESS_CLIENT_SECRET': 'secret.test'}))};",
+        decl_body(code, "function cfHeaders"),
+        decl_body(code, "function cfUnconfigured"),
+        decl_body(code, "async function probe"),
+    ]
     script = tmp_path / "probe.ts"
     script.write_text(
-        probe + "\n"
+        "\n".join(parts) + "\n"
         "const spec = JSON.parse(process.argv[2]);\n"
         "let requested = null;\n"
         "globalThis.fetch = async (url, init) => {\n"

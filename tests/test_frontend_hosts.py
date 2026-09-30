@@ -26,6 +26,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import balanced, decl_body
+
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "frontend" / "src" / "routes" / "+page.svelte"
 WORKER = ROOT / "frontend" / "src" / "routes" / "api" / "[...path]" / "+server.ts"
@@ -369,70 +371,6 @@ def test_page_restore_backend_only_runs_once_known_hosts_arrived() -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _balanced(code: str, start: int) -> str:
-    """從 start 起取一段配對完整的宣告。
-
-    配對到收尾的 `]` / `}` 之後，還要**連帶吃掉**後面的 `)` —— 否則
-    `new Set([...])` 會被截成 `new Set([...]`，貼到另一支腳本裡就是語法錯。
-    """
-    i = min(p for p in (code.find("{", start), code.find("[", start)) if p != -1)
-    open_ch, close_ch = code[i], "}" if code[i] == "{" else "]"
-    depth, j = 0, i
-    while j < len(code):
-        if code[j] == open_ch:
-            depth += 1
-        elif code[j] == close_ch:
-            depth -= 1
-            if depth == 0:
-                break
-        j += 1
-    assert j < len(code), f"{code[start:start + 30]!r} 的括號沒配對到"
-    j += 1
-    while j < len(code):
-        if code[j] in ");,":
-            j += 1
-            continue
-        if code[j].isspace():
-            j += 1
-            continue
-        break
-    return code[start:j]
-
-
-def _decl_body(code: str, marker: str) -> str:
-    """取出一個宣告（含主體），主體用大括號配對。
-
-    ⚠️ 不能直接找第一個 '{'：宣告的**參數列裡就有** `platform?: { env?: Env }`
-    這種型別，第一個 '{' 是型別不是主體。所以先配對出參數列的收尾 ')'，
-    那之後的 '{' 才是主體。
-
-    這是本次寫測試時真實踩到的：原本想沿用 `_onmount_span`（它要求標記是
-    `onMount(`），結果對 `through(...)` 根本找不到。
-    """
-    assert marker in code, f"找不到宣告 {marker!r} —— 若被改名請同步維護呼叫它的測試"
-    start = code.index(marker)
-    depth, j = 0, code.index("(", start)
-    while j < len(code):
-        if code[j] == "(":
-            depth += 1
-        elif code[j] == ")":
-            depth -= 1
-            if depth == 0:
-                break
-        j += 1
-    assert j < len(code), f"{marker} 的參數列沒配對到"
-    depth, k = 0, code.index("{", j)
-    while k < len(code):
-        if code[k] == "{":
-            depth += 1
-        elif code[k] == "}":
-            depth -= 1
-            if depth == 0:
-                return code[start:k + 1]
-        k += 1
-    raise AssertionError(f"{marker} 的大括號沒配對到")
-
-
 def _run_relay(upstream: str, tmp_path: Path) -> dict:
     """把 relay() 真的跑一次，回傳它送出的 headers 與 body 長度。
 
@@ -443,8 +381,8 @@ def _run_relay(upstream: str, tmp_path: Path) -> dict:
     if not node:
         pytest.skip("node 不在 PATH")
     code = WORKER.read_text(encoding="utf-8")
-    drop = _balanced(code, code.index("const DROP_ON_PROXY"))
-    relay = _decl_body(code, "async function relay")
+    drop = balanced(code, code.index("const DROP_ON_PROXY"))
+    relay = decl_body(code, "async function relay")
 
     script = tmp_path / "relay.ts"
     script.write_text(
@@ -545,7 +483,7 @@ def test_worker_never_lets_a_throw_become_a_cloudflare_error_page() -> None:
     assert "e instanceof Error" in code, \
         "jsonError 應帶上真正的錯誤訊息；只回一句『轉發失敗』等於沒診斷能力"
     for verb in ("GET", "POST"):
-        span = _decl_body(code, f"export const {verb}")
+        span = decl_body(code, f"export const {verb}")
         assert re.search(r"\btry\s*\{", span), f"{verb} 轉發的程式碼沒有 try 包住"
         assert f'jsonError(`{verb} /' in span, \
             f"{verb} 的 catch 應呼叫 jsonError 並標明是哪個路徑失敗"
@@ -557,7 +495,7 @@ def test_relay_is_inside_through_try_so_origin_is_named() -> None:
     上游 body 讀到一半斷掉會拋出。若 relay 在 try 外面，錯誤會變成無來源的
     502，而且明明已經知道是哪一台 origin 壞了卻沒被記下來。
     """
-    span = _decl_body(_code_only(WORKER), "async function through")
+    span = decl_body(_code_only(WORKER), "async function through")
     assert "await relay(r, origin)" in span, "through() 仍應呼叫 relay()"
     assert re.search(r"try\s*\{.*?await relay", span, re.S), (
         "relay() 在 try 之外 —— body 讀取失敗時會丟掉 origin 資訊"
