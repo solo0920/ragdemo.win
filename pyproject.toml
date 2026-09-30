@@ -13,3 +13,13 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[tool.pytest.ini_options]
+markers = [
+  # 真的會等外部逾時的測試（2026-09-30 新增：連一個丟包不回 RST 的保留位址，
+  # 證明 connect_timeout 真的生效）。單跑約 63s，所以預設排除：
+  #   pytest -q -m "not slow"   （CI 與 pre-push 走這條）
+  #   pytest -q -m slow         （想確認逾時行為時手動跑）
+  "slow: 需要等待真實網路逾時的測試（預設不跑）",
+]
+addopts = "-m 'not slow'"

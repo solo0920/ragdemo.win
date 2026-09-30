@@ -41,6 +41,12 @@ services:
       # registry 共享：預設指向本機 postgres；要讓別台機器的 backends 心跳進你的
       # registry，才在 .env 改成 ${POSTGRES_PASSWORD}@<你的 TS_IP>:5432。
       POSTGRES_DSN: ${POSTGRES_DSN:-postgresql://rag:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 必填}@postgres:5432/ragdemo}
+      # 建立 pg 連線的逾時（秒）。不傳的話 asyncpg 用預設 60s，而症狀不是
+      # 「等 60 秒後報錯」而是更難查的東西：2026-09-30 mbp 實測 DSN 指向離線
+      # 位址時 /query +60s、/hosts 與 /models 掛死（Tailscale 上對端不回 RST，
+      # TCP connect 一路掛到逾時，不像 localhost 的 refused 那樣立刻失敗）。
+      # 程式端預設值已是 3（backend/app/common/pg.py），這裡只是讓 .env 能調。
+      PG_CONNECT_TIMEOUT: ${PG_CONNECT_TIMEOUT:-3}
       # 預設指向**本機** ollama。舊預設是 x570 的 tailscale IP，一台沒設定的機器
       # 會去戳別台機器的 ollama，然後得到「連不上」而不是用自己的。
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
