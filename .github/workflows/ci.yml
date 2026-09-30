@@ -255,6 +255,27 @@ jobs:
       # 這些字面 pattern 不會匹配到本檔自己：`[` 不在 [A-Za-z0-9_-] 類別裡。
       # 長度門檻 20 是刻意的 —— 實測過 {8,} 也沒誤報，但 20 能擋掉像是變數名
       # （cfut_underscore）這類巧合命中。
+      #
+      # ⚠️⚠️ 這四個 pattern **不是全部的防線**。別把它們當成憑據守的完整名單。
+      #
+      # 無前綴的 key 一個都匹配不到 —— qdrant 的 key 是 43 字元無前綴隨機串，
+      # 而上面已說明 push protection 只認 GitHub 合作廠商清單。那些 key 由
+      # **值層級**檢查守，而那層是**分目錄範圍**的：
+      #
+      #   tests/test_env_sync.py::test_no_tracked_secret_values
+      #     掃 `git ls-files settings/env/` —— 6 個檔，佔全 repo 4.7%
+      #
+      # ⚠️ 而 `.env.example` **不在那個範圍內**，它卻是全部 8 個憑證鍵的模板、
+      #    最容易被人手誤貼真值進去。它靠的是**另一套機制**：
+      #    test_env_audit.py 的「tracked == body」—— .env.example 必須逐字等於
+      #    `env-audit.py --template` 的輸出，而生成器只印 `NAME=`（空值）。
+      #
+      # 三層的實際分工：
+      #   settings/env/*  → 值層級測試（認鍵名、不認格式）
+      #   .env.example    → generator 相等性（認「必須逐字等於生成結果」）
+      #   其餘 121 個檔   → 只認上面那 4 個廠商前綴
+      #
+      # 一把無前綴的 key 若被貼進第三類檔案，**沒有任何一層會擋**。
       - name: 追蹤檔案不得含憑證
         run: |
           bad=0

@@ -862,8 +862,18 @@ def print_template(reg: dict[str, Ref]) -> None:
                 print(f"#   預設值：{r.compose_default}")
             if r.required:
                 print("#   必填：compose 用 ${...:?} 或 Python 讀取時沒給預設")
-            if r.in_ports:
+            if r.in_ports and not r.compose_default:
+                # 沒有預設值可退 → docker 真的會綁不上、啟動失敗。
                 print("#   必填：用在 compose 的 ports:（綁定 IP），沒設會啟動失敗")
+            elif r.in_ports:
+                # ⚠️ 這裡曾對**所有** ports: 變數都印「必填…沒設會啟動失敗」。
+                # 那是錯的：只要寫成 ${VAR:-預設}，留空就會退回預設、**不會**失敗
+                # （`${VAR:?}` 才會）。錯的說法會產出「TS_IP 必填」——
+                # 而 TS_IP 實務上三台都留空，只在**某台自己的** .env 設值才會
+                # 讓對端能直連。一份說「必填」的範例檔會誘導人填 tailscale 位址，
+                # 那正好把 qdrant(6333) 與 postgres(5432) 的暴露面從 localhost
+                # 擴大到 tailnet 可達。文件主動引導那個方向，比不寫更糟。
+                print(f"#   選填：用在 compose 的 ports:（綁定 IP）；留空則綁 {r.compose_default}")
             elif r.has_identity_default() and not r.superseded_by:
                 print(f"#   預設值屬別台機器，本機必須覆蓋")
             if r.superseded_by:

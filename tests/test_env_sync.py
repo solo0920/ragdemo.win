@@ -877,3 +877,41 @@ def test_shared_table_dsn_password_matches_the_host_it_points_at():
         f"指向別台時必須用對端的 POSTGRES_PEER_PASSWORD。兩者寫反: {wrong}"
     )
 
+
+
+# ── 機器本地的鍵不得進總表 ────────────────────────────────────────────
+# 為什麼需要這個測試：總表是「唯一被追蹤的 per-host 真相」，
+# `py_apply` 會把 layer 裡的鍵**覆寫**進該機的 `.env`（只保留不在 layer 裡的）。
+# 所以一個「該由各機自己設、不該被同步」的鍵放進總表，等於**每次 pull 都會把它抹掉**。
+#
+# 實例（2026-09-30 實測）：`*_TS_IP` 三列空值放在總表裡，而 x570 的 `.env`
+# 有真實值（qdrant/pg 綁在它的 tailscale IP，msi 從 tailnet 連得到 200）。
+# 任何一次 `env-sync.sh pull` 都會把那份值蓋成空 → `${TS_IP:-127.0.0.1}` →
+# qdrant(6333) 與 postgres(5432) 重綁迴圈 → 跨機快照同步靜默失效。
+# 沒有錯誤訊息、沒有測試會紅、CI 全綠。
+#
+# 為什麼 TS_IP 特別不該在表裡：tailscale IP 會變（重灌／換網路／重新登入），
+# 而這是被追蹤的靜態值 —— 過期值會讓 `docker compose up` 直接失敗
+# （cannot assign requested address，2026-09-29 實測踩到）。表原本的註解
+# 就說「不用（也不該）把它的值寫進這張共用表」，但當時只有註解、沒有結構配合。
+MACHINE_LOCAL_KEYS = ("TS_IP",)
+
+
+def test_no_machine_local_keys_in_table():
+    """機器本地的鍵（值由各機 .env 自己持有）不得出現在 per-host 總表。
+
+    放進去的後果不是「記錯值」，是 `env-sync.sh pull` 每次都會把那台的
+    `.env` 覆寫成表裡的值（通常是空）—— 靜默、沒有錯誤、CI 不會紅。
+    """
+    table = (ROOT / "settings/env" / "hosts.shared.env").read_text(encoding="utf-8")
+    for key in MACHINE_LOCAL_KEYS:
+        for line in table.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line)
+            assert not (m and m.group(1).endswith("_" + key)), (
+                f"總表出現機器本地鍵 {m.group(1)}={m.group(2)!r}。"
+                f"{key} 的值該在該台自己的 .env 設 —— 放進總表會讓 env-sync.sh pull "
+                f"每次都把它覆寫掉，而且不會有任何錯誤。"
+            )
