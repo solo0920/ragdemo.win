@@ -556,11 +556,15 @@ def test_init_secrets_roundtrip(fx, monkeypatch):
         "--filename-override) shift 2;; "
         "--*) shift;; "
         "*) args+=(\"$1\"); shift;; esac; done\n"
-        "cp \"${args[-1]}\" \"$out\"\n", encoding="utf-8")
+        # 不用 ${args[-1]}：負數陣列索引要 bash 4.2+，macOS 預設是 3.2 →
+        # 這兩條測試在 mbp 上「永遠失敗」（2026-09-30 mbp 回報）。${#a[@]} 在
+        # 3.2 可用，所以自己算索引。
+        "last=$(( ${#args[@]} - 1 )); cp \"${args[$last]}\" \"$out\"\n",
+        encoding="utf-8")
     r = run_sync(["--init-secrets", "--force"], env_dir, dotenv, bindir)
     assert r.returncode == 0, r.stderr
     enc = parse_env(env_dir / "secrets.common.enc.env")
-    # 只抽 6 把：per-host 機密進了就是「不分發」這條規則被破壞
+    # 只抽共用那幾把：per-host 機密進了就是「不分發」這條規則被破壞
     assert set(enc) == set(SHARED_SECRETS)
     assert not (set(enc) & set(PER_HOST_SECRETS))
     assert enc["QDRANT_PEER_API_KEY"] == "OLD-PEER"  # stub 是 cp，明文可驗
@@ -594,7 +598,8 @@ def test_init_secrets_never_exports_per_host_secrets(fx, monkeypatch):
         "--filename-override) shift 2;; "
         "--*) shift;; "
         "*) args+=(\"$1\"); shift;; esac; done\n"
-        "cp \"${args[-1]}\" \"$out\"\n", encoding="utf-8")
+        "last=$(( ${#args[@]} - 1 )); cp \"${args[$last]}\" \"$out\"\n",
+        encoding="utf-8")
     r = run_sync(["--init-secrets", "--force"], env_dir, dotenv, bindir)
     assert r.returncode == 0, r.stderr
     raw = (env_dir / "secrets.common.enc.env").read_text(encoding="utf-8")

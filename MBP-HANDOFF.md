@@ -13,7 +13,7 @@ mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`�
 
 ---
 
-## 現況：已上線，**沒有故障要修**
+## 現況：已上線
 
 2026-09-30 01:39–01:45 msi 端實測，連抽 8 輪穩定：
 
@@ -22,6 +22,10 @@ api-mbp.ragdemo.win  → HTTP 200
 api-x570.ragdemo.win → HTTP 200
 api-msi.ragdemo.win  → HTTP 200
 ```
+
+⚠️ **200 不等於沒問題。** 這段只是背景，不能當驗收 —— 你 2026-09-30 回報過
+`api-mbp` 明明 200，但容器是空的、映像落後 4 天、DSN 指向離線的 x570 讓查詢
+多 60s。理由見下方〈外部症狀不足以判斷〉。
 
 `ragdemo.win` 前端 `x-ragdemo-origin: https://api-msi.ragdemo.win`，
 worker 依序嘗試（**msi 第一**），任一台掛掉會自動輪到下一台。
@@ -90,9 +94,6 @@ per-clone 的 git 設定，不在版控裡。漏了**不報錯**，只是 pre-pu
 
 ## 不需要做的事（別去查）
 
-- **查容器／`.env`／ollama** —— 2026-09-29 版曾把這些列為待查，
-  當時因為 `api-mbp` 是 502 而懷疑環境不全。**現在 200 代表全都正常**，
-  `OLLAMA_URLS` 與模型名也都對（`/health` 回 `llm=qwen3:14b`）
 - **裝 cloudflared／動 DNS** —— tunnel 早就通了（`ragdemo-mbp` status=healthy、
   conns=4、ingress 正確）。DNS 記錄在 Cloudflare 側，本來就沒動過
 - **從 msi 的備份還原 `.env`** —— `/mnt/d/backup/.../root.env` 是 **msi 那台的**，
@@ -100,6 +101,33 @@ per-clone 的 git 設定，不在版控裡。漏了**不報錯**，只是 pre-pu
   **mbp 不能用**。共用憑證（6 把）要靠事項 5 的 sops 管道，不要走備份
 - **查 pg 密碼／`POSTGRES_PEER_PASSWORD`** —— 沒有任何程式讀它（全 repo 只剩
   註解、`.example` 說明文字、測試 docstring）。加了就是幽靈鍵
+- **把 `OLLAMA_URLS` 改成 `localhost:11434`** —— ⚠️ **我 2026-09-30 上午寫錯過，
+  已在此更正**。當時說「mbp 的 ollama 在本機所以用 localhost」。**錯**：
+  這個變數是**容器內**的 `gateway.py` 讀的，容器裡的 `localhost` 是 api 容器
+  自己，不是你的 Mac。你實測 `localhost:11434` → ConnectError、
+  `host.docker.internal:11434` → 200，正解是後者。
+  （msi 用 WSL 閘道 IP 是因為那是**原生 Linux Docker**、沒有
+  `host.docker.internal` 自動解析；macOS 的 Docker Desktop 有。）
+
+---
+
+## ⚠️ 外部症狀不足以判斷「有沒有問題」
+
+2026-09-30 上午我從 msi 端看到 `api-mbp` 200，就寫下「已上線、沒有故障要修」，
+並把「查容器／`.env`／ollama」列成不需要做的事。
+
+**那次是錯的。** 你實測：`docker compose ps` 是空的（無容器）、api 映像建於
+2026-09-26 落後 HEAD 4 天、`POSTGRES_DSN` 指向離線的 x570 讓每次查詢多 60s、
+`/hosts` 與 `/models` 掛死 >20s。**這些全部發生在 `api-mbp` 回 200 的同時。**
+
+為什麼外部症狀會誤導：200 只證明 **tunnel 通、某個東西在聽**。它不證明
+- 那個東西是**這個 repo 的當前版本**（你的映像落後 4 天）
+- 它的**設定指向正確的依賴**（DSN 指向已離線的別台）
+- 它的**每個路徑都健康**（`/health` 正常但 `/hosts` 掛死）
+
+**所以這份文件的「現況」段落只該當背景，不能當驗收。** 真正的驗收是
+`bash scripts/host-doctor.sh`（它會查容器、版本、指紋），以及本文件末尾
+要求回報的項目。
 
 ---
 

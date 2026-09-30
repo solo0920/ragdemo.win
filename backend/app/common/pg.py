@@ -23,6 +23,19 @@ except ImportError:
 
 POSTGRES_DSN = os.getenv("POSTGRES_DSN") or "postgresql://rag@postgres:5432/ragdemo"
 
+# 建立連線的逾時上限（秒）。asyncpg 預設 60，但**症狀不是「等 60 秒後報錯」
+# 而是更難查的東西**：
+#
+# 2026-09-30 mbp 實測 —— DSN 指向離線的 x570 時，/query +60s、/hosts 與 /models
+# 掛死 >20s。原因是 Tailscale 路徑上對端不回 RST（不像 localhost 的 refused），
+# TCP connect 就一直掛著。**同樣的病不限於 pg**：任何 POSTGRES_DSN /
+# OLLAMA_URLS / HOST_API_URLS 裡的位址不可達都會重演。
+#
+# 3 秒是因為這裡只連**本機 compose 的 pg 容器**（各台 /hosts 已改讀自己的 pg，
+# 2026-09-30 實測），正常是毫秒級；3 秒足以容忍容器剛起來的慢啟動，又不會
+# 讓一個離線位址拖垮整個 request。
+PG_CONNECT_TIMEOUT = float(os.getenv("PG_CONNECT_TIMEOUT") or "3")
+
 # 收掉 usage.py 原本的 `__import__("os").getenv(...)` 寫法。
 _pool = None
 
@@ -32,7 +45,12 @@ async def pool_get():
     if _pool is None:
         if asyncpg is None:
             raise RuntimeError("asyncpg 未安裝")
-        _pool = await asyncpg.create_pool(POSTGRES_DSN, min_size=1, max_size=3)
+        # connect_kwargs 是 asyncpg 轉給 connect() 的 kwargs；`timeout` 才是
+        # connect 的逾時參數（create_pool 自己**沒有** timeout 參數，容易看漏）。
+        _pool = await asyncpg.create_pool(
+            POSTGRES_DSN, min_size=1, max_size=3,
+            connect_kwargs={"timeout": PG_CONNECT_TIMEOUT},
+        )
     return _pool
 
 

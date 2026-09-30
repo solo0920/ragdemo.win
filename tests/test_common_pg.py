@@ -1,7 +1,12 @@
-"""共用層的行為契約：連線池自癒 ＋ 兩種空白處理的語意差異。
+"""共用層的行為契約：連線池自癒 ＋ 兩種空白處理的語意差異 ＋ 連線逾時。
 
 這裡測的是過去**沒有任何測試**的東西（registry/usage 的 pool 生命週期），
 以及一對容易被誤認成重複程式碼的函式。
+
+2026-09-30（mbp 回報）追加「連線逾時」一節：mbp 的 `POSTGRES_DSN` 指向離線的
+x570 時 `/query` +60s、`/hosts` 掛死 >20s。根因是 `asyncpg.create_pool` **自己
+沒有** `timeout` 參數 —— connect 的逾時要經 `connect_kwargs` 轉給
+`asyncpg.connect()`，兩層簽名都不顯眼。細節見該節的說明。
 """
 import pytest
 
@@ -21,9 +26,10 @@ class _FakeAsyncpg:
     def __init__(self):
         self.created = []
 
-    async def create_pool(self, dsn, min_size=1, max_size=3):
+    async def create_pool(self, dsn, min_size=1, max_size=3, **kw):
         p = _FakePool()
-        self.created.append((dsn, min_size, max_size, p))
+        # 保留 kwargs：逾時那節要斷言 connect_kwargs 真的送進來
+        self.created.append((dsn, min_size, max_size, p, kw))
         return p
 
 
@@ -53,7 +59,7 @@ async def test_pool_sized_for_concurrent_heartbeat(monkeypatch):
     fake = _FakeAsyncpg()
     monkeypatch.setattr(pg, "asyncpg", fake)
     await pg.pool_get()
-    _dsn, min_size, max_size, _p = fake.created[0]
+    _dsn, min_size, max_size, _p, _kw = fake.created[0]
     assert (min_size, max_size) == (1, 3)
 
 
@@ -171,3 +177,98 @@ def test_the_two_disagree_which_is_the_point():
 
 def test_squash_tolerates_none():
     assert text.squash(None) == ""
+
+
+# --- 連線逾時（2026-09-30 mbp 實測）-----------------------------------
+
+@pytest.mark.asyncio
+async def test_pool_passes_connect_timeout_via_connect_kwargs():
+    """逾時必須走 connect_kwargs —— create_pool 本身沒有 timeout 參數。
+
+    用既有的 `_FakeAsyncpg`（它的 `created` 現在會記 kwargs），不用另做一個
+    fake：少一個 fake 就少一處「這個 fake 沒模擬到真實行為」的風險。
+    """
+    fake = _FakeAsyncpg()
+    pg._pool = None
+    orig, pg.asyncpg = pg.asyncpg, fake
+    try:
+        await pg.pool_get()
+    finally:
+        pg.asyncpg = orig
+        pg._pool = None
+    _dsn, _ms, _mx, _p, kw = fake.created[0]
+    assert "connect_kwargs" in kw, (
+        "create_pool 沒有 connect_kwargs → 逾時會退回 asyncpg 預設 60s"
+    )
+    assert kw["connect_kwargs"]["timeout"] == pg.PG_CONNECT_TIMEOUT
+    # 釘住「不是 60」：60 就是 2026-09-30 mbp 掛 60s 的那個值
+    assert kw["connect_kwargs"]["timeout"] < 60
+
+
+def _reload_pg(monkeypatch):
+    """重讀 pg 模組讓常數重算，並在測試結束後還原。
+
+    不用「刪 sys.modules」：那對已被 package `__init__` 釘住的屬性無效
+    （踩過：`test_connect_timeout_env_override` 因此拿到舊值 3.0 而失敗）。
+    `importlib.reload` 才真的重跑模組層程式碼。
+    """
+    import importlib
+    from app.common import pg
+
+    monkeypatch.delenv("PG_CONNECT_TIMEOUT", raising=False)
+    reloaded = importlib.reload(pg)
+    return reloaded, monkeypatch
+
+
+def test_connect_timeout_default_is_three_seconds(monkeypatch):
+    """預設 3 秒（可由 PG_CONNECT_TIMEOUT 覆蓋）。
+
+    3 秒的根據：這裡只連**本機 compose 的 pg 容器**（2026-09-30 各台 /hosts 已
+    改讀自己的 pg），正常是毫秒級。3 秒足夠容忍容器剛起來的慢啟動，又不會讓
+    一個離線位址把整個 request 拖掉。
+    """
+    reloaded, mp = _reload_pg(monkeypatch)
+    import importlib
+    try:
+        assert reloaded.PG_CONNECT_TIMEOUT == 3.0
+    finally:
+        mp.undo()
+        importlib.reload(reloaded)
+
+
+def test_connect_timeout_env_override(monkeypatch):
+    """`PG_CONNECT_TIMEOUT=7.5` 要真的生效。
+
+    這條抓得到一個真陷阱：`monkeypatch.delenv` 在同一個 module 物件上無效 ——
+    刪 `sys.modules` 只會讓下一次 import 重跑，而 `app.common.pg` 已經被
+    `app.common` 這個 package 的 `__init__` 屬性釘住。所以這裡改用
+    `importlib.reload`，並在最後還原（否則後面的測試會拿到 7.5）。
+    """
+    import importlib
+    from app.common import pg
+
+    monkeypatch.setenv("PG_CONNECT_TIMEOUT", "7.5")
+    reloaded = importlib.reload(pg)
+    try:
+        assert reloaded.PG_CONNECT_TIMEOUT == 7.5
+    finally:
+        monkeypatch.undo()
+        importlib.reload(pg)
+
+
+def test_empty_env_value_does_not_produce_zero_timeout(monkeypatch):
+    """空值不能變成 0 —— 0 在 asyncpg 意為「不設逾時」，等於回到 60s 病根。
+
+    這是本專案反覆出現的一類 bug（2026-09-29 一次過修掉 25 處
+    `os.getenv(K, D)` 空值陷阱），所以釘住。
+    """
+    monkeypatch.setenv("PG_CONNECT_TIMEOUT", "")
+    import importlib
+    from app.common import pg
+
+    reloaded = importlib.reload(pg)
+    try:
+        assert reloaded.PG_CONNECT_TIMEOUT == 3.0
+    finally:
+        monkeypatch.undo()
+        importlib.reload(pg)

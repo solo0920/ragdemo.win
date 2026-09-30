@@ -125,6 +125,13 @@ TOOL_ENV = {
     # 本專案測試 harness 的覆寫點（tests/test_env_sync.py 用 fixture 目錄
     # 隔離執行 scripts/env-sync.sh；不是給 .env 設的，不進 .env.example）
     "ENV_SYNC_DIR", "ENV_SYNC_ENV",
+    # 同上：tests/test_rotate_secret.py 用它把 rotate-secret.sh 的 ROOT 指向
+    # tmp 裡的假 repo。踩過的理由很具體 —— 沒列的話，env-audit 反查原始碼會把
+    # `${ROTATE_SECRET_ROOT_OVERRIDE:-}` 抓成一個「該暴露給使用者調的參數」，
+    # 於是 .env.example 多一行、CI 的 template 一致性檢查紅燈。而它一旦出現在
+    # .env.example，等於在文件裡邀請人設一個只給測試用的變數 —— 那個變數設錯
+    # 會讓腳本操作另一個目錄的加密檔。
+    "ROTATE_SECRET_ROOT_OVERRIDE",
 }
 
 SECRET_HINT = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)", re.I)

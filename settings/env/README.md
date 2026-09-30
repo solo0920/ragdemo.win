@@ -53,7 +53,9 @@
   `POSTGRES_PEER_PASSWORD` **不納管** —— 它沒有任何程式讀取（全 repo 只剩註解、
   `.example` 說明文字、測試 docstring）。
   **不要加這個沒人讀的幽靈鍵，也不要為了填它去查別台的 pg 密碼。**
-  總表三列 `POSTGRES_DSN` 保持空值是正確狀態，不是待辦。
+  總表的 `<機台>_POSTGRES_DSN` **該機自己填自己的**（值用
+  `${POSTGRES_PASSWORD}` 展開本機密碼），別台留空表示「沿用該機 `.env` 現值」
+  —— 留空是合法的默認狀態，不是待辦，也不是「三列都要空」。
 - **前綴不能放進 `.env`**：`docker compose` 只認 `${VAR}` 插值，沒有「依 `HOST_ID`
   動態選 `msi_`／`x570_`」的能力。放進去會讓 MSI 的 8b 設定被**靜默吃掉**
   （回退原始碼預設 `qwen3:14b`、零錯誤訊息）；`TS_IP` 更嚴重，`ports` 會去 bind
@@ -240,29 +242,103 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 
 ## 11. 各機一次性設定
 
-```bash
-# 1. 裝工具（三台都要）
-#    Ubuntu/WSL：下載 age v1.3.2 + sops v3.13.3 到 ~/.local/bin（免 sudo）
-#    macOS：brew install age sops
+### 1. 裝工具
 
-# 2. 生自己的 key（已有則跳過，絕不重建）
+```bash
+# macOS
+brew install age sops
+
+# Ubuntu / WSL（免 sudo，放 ~/.local/bin）
+B=https://github.com/getsops/sops/releases/download/v3.13.3
+curl -fsSL -o /tmp/sops-v3.13.3.linux.amd64 "$B/sops-v3.13.3.linux.amd64"
+curl -fsSL -o /tmp/checksums.txt "$B/sops-v3.13.3.checksums.txt"
+# ↓ 檔名必須跟 checksums.txt 記的一致（否則驗不到），且要在同一個目錄
+(cd /tmp && grep 'linux.amd64' checksums.txt | sha256sum -c -)
+install -m 755 /tmp/sops-v3.13.3.linux.amd64 ~/.local/bin/sops
+rm -f /tmp/sops-v3.13.3.linux.amd64 /tmp/checksums.txt
+
+A=https://github.com/FiloSottile/age/releases/download/v1.3.2
+curl -fsSL -o /tmp/age-v1.3.2-linux-amd64.tar.gz "$A/age-v1.3.2-linux-amd64.tar.gz"
+(cd /tmp && tar xzf age-v1.3.2-linux-amd64.tar.gz \
+  && install -m 755 age/age age/age-keygen ~/.local/bin/ \
+  && rm -rf age age-v1.3.2-linux-amd64.tar.gz)
+```
+
+> **arm64 請把上面三處 `amd64` 換成 `arm64`**（`uname -m` 看）。
+
+**兩條下載路徑的信任強度不對等，說明如下**（2026-09-30 x570 回報）：
+
+| | 有 checksums 檔 | 完整性怎麼驗 |
+|---|---|---|
+| **sops** v3.13.3 | ✅ `sops-v3.13.3.checksums.txt` | `sha256sum -c` 可機械驗證 |
+| **age** v1.3.2 | ❌ 只有 `minisign` 的 `.proof` | 只能靠 TLS + GitHub 帳號；`.proof` 要先有 minisign 公鑰才能驗，而那把公鑰本來也從同樣的管道來 |
+
+**實務結論**：sops 那條可以機械驗，age 那條不行 —— 這是上游的取捨，不是本專案
+的漏洞。兩者都是從 `github.com` 的 release 抓，攻擊者要同時攻破 TLS 與 GitHub
+帳號才能換掉二進位。若要更強，兩者都改用 distro 套件或自己編譯 + 記錄
+`--version` 的輸出。
+
+> **踩過的坑**：`checksums.txt` 裡記的是**原始檔名**
+> （`sops-v3.13.3.linux.amd64`）。若下載後 rename 成 `sops`，
+> `sha256sum -c` 會報 `No such file or directory` —— 那不是下載失敗，
+> 是檔名對不上。要嘛在原始檔名的目錄裡驗，要嘛先改名成它記的名字。
+
+驗版本（README 從這裡開始釘死這兩個版本）：
+
+```bash
+age --version    # age 1.3.2
+sops --version   # sops 3.13.3
+```
+
+### 2. 生自己的 key（已有則跳過，**絕不重建**）
+
+```bash
 mkdir -p ~/.config/sops/age && chmod 700 ~/.config/sops ~/.config/sops/age
 age-keygen -o ~/.config/sops/age/keys.txt
 chmod 600 ~/.config/sops/age/keys.txt
+```
 
-# 3. 在 .env 設 HOST_ID（render 的選擇器）
-#    HOST_ID=msi   # 或 x570 / mbp
+> 重建會讓已加密的檔案解不開（舊私鑰不在名單裡了）。要撤銷只能換新的公鑰，
+> 那等於所有共用憑證都要換值。
 
-# 4. 回報公鑰（age1... 那行；私鑰絕對不要貼）
+### 3. 在 `.env` 設 `HOST_ID`（render 的選擇器）
+
+```bash
+HOST_ID=msi   # 或 x570 / mbp
+```
+
+### 4. 回報公鑰
+
+```bash
+# 只跑這行 —— 公鑰是公開的，可以回報。私鑰絕對不要貼，也不要 cat 整個 keys.txt。
 grep -oE 'age1[0-9a-z]+' ~/.config/sops/age/keys.txt
 ```
 
-公鑰進 `.sops.yaml` 後，有私鑰的人跑一次：
+### 5. 公鑰進 `.sops.yaml` 後，**有私鑰的人**跑一次
 
 ```bash
 sops updatekeys settings/env/secrets.common.enc.env
 git add .sops.yaml settings/env/secrets.common.enc.env
+git commit && git push
 ```
+
+⚠️ **只加 recipient 不 updatekeys 是無效的** —— 檔案裡的資料金鑰仍只加密給原本的
+recipients，新公鑰形同虛設。症狀是該機器 `env-sync.sh pull` 報：
+
+```
+Failed to get the data key required to decrypt the SOPS file.
+  age1...: FAILED
+    - age: no identity matched any of the recipients.
+```
+
+⚠️ **`updatekeys` 會互動式問 y/n**（2026-09-30 msi 實測：直接跑會卡在
+`Is this okay? (y/n):` 然後 EOF 失敗）。非互動環境要 `echo y | sops updatekeys ...`。
+
+⚠️ 執行 `updatekeys` 的機器只需要**任一把**在名單裡的私鑰，不需要三台都有 ——
+它重加密整份檔案，其他機器之後 `pull` 自然就通了。（2026-09-30 實測：msi 手上
+只有自己的私鑰，一次 updatekeys 兩台都解得開。）
+
+**2026-09-30 現況**：三把公鑰都已在名單裡（msi／x570／mbp），`updatekeys` 已跑。
 
 ## 12. 日常操作
 
