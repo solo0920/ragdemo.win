@@ -20,14 +20,18 @@ set -euo pipefail
 FORCE=0
 if [ "${1:-}" = "--force" ]; then FORCE=1; shift; fi
 
-SOURCE="${1:-${LAW_SYNC_SOURCE:-}}"
-[ -n "$SOURCE" ] || {
-  echo "用法: scripts/sync-snapshot.sh [--force] <source_url> [dest_url] [collection]" >&2
-  echo "  source_url 必填：要從哪台機器的 qdrant 拉快照（例 http://<tailscale-ip>:6333）" >&2
-  echo "  也可用環境變數 LAW_SYNC_SOURCE 指定（cron 用這個比較順）。" >&2
-  exit 2
-}
-DEST="${2:-http://${TS_IP:-127.0.0.1}:6333}"
+# ⚠️ SOURCE 的求值在檔尾 `_load_env` **之後**（2026-09-30 修正）。
+#   這裡原本寫在檔頭第 23 行，而 `.env` 是到第 114 行才載入 → **.env 裡的
+#   LAW_SYNC_SOURCE 永遠讀不到**，而用法訊息卻說「也可用環境變數
+#   LAW_SYNC_SOURCE 指定（cron 用這個比較順）」—— 那是假的。
+#   症狀：mbp 的快照同步從沒運作過，而 log 是 0 bytes（連「offline skip」
+#   都沒印，因為它在讀 SOURCE 之前就 exit 2 了）。
+#   為什麼會寫成那樣：檔頭那段是「位置參數優先、env 次之」的常見寫法，
+#   但忘了 .env 這個 env 來源本身還沒被讀進來。
+#
+# 位置參數（$1）仍然優先於 .env —— 那是刻意的（cron 想臨時換來源機時，
+# 命令列比 .env 直觀）。
+DEST="${2:-}"
 COLLECTION="${3:-laws}"
 QDIR="$HOME/qdrant"
 LOG="$QDIR/sync.log"
@@ -112,6 +116,16 @@ _load_env() {
   return 0
 }
 _load_env
+
+# SOURCE / DEST 在此才求值（同上：.env 這時候才載入）。位置參數優先。
+SOURCE="${1:-${LAW_SYNC_SOURCE:-}}"
+[ -n "$SOURCE" ] || {
+  echo "用法: scripts/sync-snapshot.sh [--force] <source_url> [dest_url] [collection]" >&2
+  echo "  source_url 必填：要從哪台機器的 qdrant 拉快照（例 http://<tailscale-ip>:6333）" >&2
+  echo "  也可用環境變數 LAW_SYNC_SOURCE 指定（cron／launchd 用這個比較順）。" >&2
+  exit 2
+}
+DEST="${2:-http://${TS_IP:-127.0.0.1}:6333}"
 
 # PEER_KEY / AUTH_H 在此才求值：_load_env 已把 .env 的值載入環境，
 # 這樣才拿得到「.env 裡那一把」而不是宣告當下的舊值。

@@ -92,6 +92,115 @@ per-clone 的 git 設定，不在版控裡。漏了**不報錯**，只是 pre-pu
 
 ---
 
+## 事項 7：讓法規快照同步真的運作 ★這件會擋住規則題庫★
+
+### 現況
+
+`api-mbp /status` 的 `law_version = {}` —— 因為 `data/laws/` 是空的。
+**查詢不受影響**（payload 都在 qdrant 裡，實測 cos@0.73 正常回法條），
+但規則題庫拿不到後設資料（api log 有 `laws_meta 未找到`），
+`host-doctor` 的 law-version warn 也會一直亮著。
+
+### 缺什麼
+
+**兩件事，缺一不可。**
+
+```
+1. .env 的 LAW_SYNC_SOURCE=<來源機的 qdrant 位址>
+2. launchd 的 com.ragdemo.sync-snapshot（每 10 分鐘）
+```
+
+我實測過：`grep -c LAW_SYNC_SOURCE .env` → 0（空值），
+`launchctl list | grep sync-snapshot` → 沒有。兩件都缺，所以
+`sync.log` 是 0 bytes。
+
+### 來源機填哪台：**只能填 x570**
+
+我查過三台的 qdrant 綁定：
+
+| 主機 | `TS_IP` | 實際綁定 | 別台能連嗎 |
+|---|---|---|---|
+| **msi** | 空 | `127.0.0.1:6333` | **不能**（只在本機） |
+| **x570** | `100.119.83.111` | `100.119.83.111:6333` | 能（你已實測過） |
+
+msi 的 `TS_IP` 是空的（2026-09-29 重灌後清空，IP 不進被追蹤的檔案），
+所以 **msi 的 qdrant 從別台連不到**。你實測過 `100.119.83.111:6333` 通 —— 那
+就是 x570。
+
+```bash
+# LAW_SYNC_SOURCE 是**位址不是機密**，所以直接用 sed 換掉那一行就好
+# （.env 裡這行目前存在但值是空的，sed 的 pattern 要抓整行）
+sed -i.bak 's|^LAW_SYNC_SOURCE=.*|LAW_SYNC_SOURCE=http://100.119.83.111:6333|' .env
+rm -f .env.bak
+grep '^LAW_SYNC_SOURCE=' .env          # 確認有值
+```
+
+**先手動跑一次確認能通，再設排程**（不要先設排程才發現位址錯）：
+
+```bash
+bash scripts/sync-snapshot.sh
+tail -5 ~/qdrant/sync.log          # 應看到拉快照／上傳還原的記錄，不是一行 offline
+cat data/laws/.law_version          # 應出現，且 update_date = 2026/9/18
+```
+
+（`sync-snapshot.sh` 不帶參數時會讀 `LAW_SYNC_SOURCE`，所以 `.env` 填好之後
+直接跑空參數即可 —— 那也正是排程會用的呼叫方式。）
+
+⚠️ **需要 `QDRANT_PEER_API_KEY` 與 x570 的 qdrant 相符。** 三台目前同一把
+（`sha12=fe4b2d4ba82a`），所以照現況會通。`sync-snapshot.sh` 的
+`auth_precheck` 會在訊息裡點名是哪一把的問題。
+
+### 步驟 2：設 launchd（mbp 的 crontab 被 macOS TCC 擋）
+
+```bash
+mkdir -p ~/Library/LaunchAgents ~/projects/ragdemo.win/data/.ops
+REPO="$HOME/projects/ragdemo.win"     # 換成你的實際路徑
+
+cat > ~/Library/LaunchAgents/com.ragdemo.sync-snapshot.plist <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ragdemo.sync-snapshot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>$REPO/scripts/sync-snapshot.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>$REPO</string>
+  <key>StartInterval</key><integer>600</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>$REPO/data/.ops/sync.log</string>
+  <key>StandardErrorPath</key><string>$REPO/data/.ops/sync.log</string>
+</dict>
+</plist>
+PLIST
+
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ragdemo.sync-snapshot.plist
+launchctl list | grep sync-snapshot      # 應出現
+```
+
+`StartInterval` 是 **600 秒（10 分鐘）**，不是 60 —— 快照是整份 laws 集合，
+每分鐘拉太浪費頻寬。`law-update-worker.sh` 才用 60（它只是查有沒有排入請求）。
+
+### 步驟 3：另外確認 law-update worker 有沒有登錄
+
+`HOST-UPGRADE.md` §4 有 `com.ragdemo.law-update` 的 plist。那支是執行前端
+「更新」按鈕的（不同用途）。兩個都要：
+
+```bash
+launchctl list | grep -E "sync-snapshot|law-update"
+```
+
+### 回報
+
+1. `LAW_SYNC_SOURCE` 有沒有值（**只報有無與主機名，不要貼完整位址**）
+2. 手動跑 `sync-snapshot.sh` 之後 `cat data/laws/.law_version` 的內容
+3. `launchctl list | grep -E "sync-snapshot|law-update"` 的輸出
+4. `bash scripts/host-doctor.sh` 的摘要（law-version 那條 warn 應消失）
+
+---
+
 ## 不需要做的事（別去查）
 
 - **裝 cloudflared／動 DNS** —— tunnel 早就通了（`ragdemo-mbp` status=healthy、
