@@ -45,7 +45,7 @@ x570 checklist 走。分辨方式：
 ## 事項 5：報回 age 公鑰（唯一會擋住事的）★先做★
 
 `.sops.yaml` 的 recipients **只有 msi 一把**（x570 與 mbp 都還是 TODO）。
-`env-sync.sh pull` 要 `sops -d` 那 7 把共用憑證，sops 只能用名單裡的公鑰解 ——
+`env-sync.sh pull` 要 `sops -d` 那 6 把共用憑證，sops 只能用名單裡的公鑰解 ——
 **x570 的年齡金鑰不在名單，pull 就會失敗。**
 
 **per-host 的 2 把機密（`QDRANT_API_KEY`／`POSTGRES_PASSWORD`）不在加密檔裡**，
@@ -144,7 +144,7 @@ ollama list
 
 ## 不需要做的事（舊版的事項，已作廢 —— 別去查）
 
-- **輪換 qdrant key 到同一把** —— 2026-09-27 起改為 7 把共用 ＋ 2 把 per-host
+- **輪換 qdrant key 到同一把** —— 2026-09-27 起改為共用（2026-09-30 為 6 把）＋ 2 把 per-host
   機密，per-host 本就該各機不同。舊指示會製造三台共用同一密碼的問題
 - **查 x570 的 pg 密碼／`POSTGRES_PEER_PASSWORD`** —— **沒有任何程式讀它**
   （全 repo 只剩註解、`.example` 說明文字、測試 docstring）。當初要查是因為
