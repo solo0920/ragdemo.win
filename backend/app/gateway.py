@@ -179,12 +179,31 @@ async def _host_probe_log() -> dict[str, str]:
     **本機永遠在 log 裡**（有回應本身就是「活著」的證據，值恆為連線成功）。
     舊版本機之所以會出現，只是因為它剛好被寫死在那三台清單裡 —— 一旦清單變成
     設定值，單機部署的 log 就會變空，前端面板會整個消失。
+
+    ⚠️ **繼承的限制，刻意不修**：self 從未被探測，所以 tunnel 整條斷掉時面板會
+    顯示「自己連線成功、peer 全部連線失敗」—— 而實際上是三台共用的公網路徑
+    全斷，讀法會誤導成「只有對端出事」。要修得把「本機可達」與「公網可達」拆成
+    兩個維度，那是功能不是修 bug。這個行為由
+    tests/test_host_probe.py::test_self_entry_is_hardcoded_success 釘住。
     """
     async def _one(url: str) -> bool:
         try:
             async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
                 r = await c.get(f"{url}/health")
-                return r.status_code < 500
+                # 兩個條件都要，缺任何一個就會在「主機沒掛、但到不了」時說謊。
+                #
+                #   status == 200 —— Cloudflare Access 對非 HTML 請求回 403。
+                #     舊的 `< 500` 對 403 為真 → 回報「連線成功」，而實際上
+                #     每一個真實請求都會被擋。（`dead()` 只認 502/503/504/530/
+                #     1033，所以 403 在 worker 那側也不會觸發 failover。）
+                #   content-type 是 JSON —— 上面的 follow_redirects=True 之下，
+                #     Access 的 302 會被跟隨到登入頁，拿到 **200 + text/html**。
+                #     舊的 `< 500` 對 302 也為真，一樣回報「連線成功」。
+                #
+                # 刻意不用「關掉 follow_redirects」來修：那只是換個方式說謊，
+                # 302 一樣 < 500。要修的是判定式本身，不是遮掉症狀。
+                return (r.status_code == 200
+                        and "application/json" in (r.headers.get("content-type") or ""))
         except Exception:
             return False
     peers = {h: u for h, u in HOST_API.items() if h != HOST_ID}
@@ -194,10 +213,12 @@ async def _host_probe_log() -> dict[str, str]:
         out[HOST_ID] = "連線成功"
     return out
 async def _host_law_versions() -> dict[str, str]:
-    """並行抓 peer（連同本機）的法規版本。回 {host_id: "2026-09-11" or "-"}。
+    """並行抓 peer 的法規版本。回 {host_id: "2026-09-11" or "-"}。
 
-    刻意不比照 _host_probe_log 的 `< 500` 判定：版本要的是 /status 的
-    200 內容，5xx 以外的錯誤回應（反代 4xx 等）不該被當成有版本。
+    **結果**要求與 _host_probe_log 相同（壞掉的回應不能算有版本），但**達成方式
+    不同**：這邊不判 content-type，而是讓 r.json() 去撞 —— Access 擋下的 302 被
+    跟隨到登入頁後拿到 200 HTML，json() 丟例外、被下面的 except 收成 "-"，
+    結果同樣誠實。這就是為什麼這個函式不需要跟 _host_probe_log 一起改判定式。
     """
     async def _one(url: str) -> str:
         try:
@@ -210,10 +231,15 @@ async def _host_law_versions() -> dict[str, str]:
                 return (r.json().get("law_version") or {}).get("update_date") or "-"
         except Exception:
             return "-"
-    peers = list(zip(HOST_API, await asyncio.gather(*(_one(u) for u in HOST_API.values()))))
+    # 跳過自己：HOST_API 是「三台都要有」的對照表，**含本機**。但本機版號在下面
+    # 直接讀磁碟，探自己那次結果會被丟掉 —— 等於每次 /status 都白付一趟經
+    # Cloudflare 的公網往返（出去→tunnel→回來）。跳過後順帶少一個故障域：
+    # 本機版本不再依賴 tunnel 與 Access 的健康狀態。
+    targets = {h: u for h, u in HOST_API.items() if h != HOST_ID}
+    peers = list(zip(targets, await asyncio.gather(*(_one(u) for u in targets.values()))))
     # 本機：HOST_API_URLS 列的是 peer，本機版號直接從磁碟取（免一次自我 HTTP）
     me = _local_law_version().get("update_date") or "-"
-    pairs = {h: v for h, v in peers if h != HOST_ID}  # 別把自己重複列兩次
+    pairs = {h: v for h, v in peers if h != HOST_ID}  # 別把自己重複列兩次（targets 已濾，保留為防呆）
     return {**pairs, HOST_ID: me} if HOST_ID else pairs
 
 
