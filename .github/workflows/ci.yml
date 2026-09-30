@@ -98,11 +98,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # 驗證 compose.yaml 的 YAML 結構與變數插值。image tag 打錯、${VAR:?} 漏填，
       # 在三台機器上都要等到 pull / up 時才爆；這裡先擋。
-      # POSTGRES_PASSWORD / TS_IP 給假值即可 —— 只驗證語法，不會真的啟動容器。
+      # 給的值都只是假值 —— 只驗證語法，不會真的啟動容器。
+      #
+      # ⚠️ HOST_ID 也要給（2026-09-30 補）。它是 compose.yaml 的必填項
+      # `${HOST_ID:?…}`，2026-09-27 的 d02ba7e 把它改成必填之後，這裡沒跟著加
+      # → **CI 從那天起每個 push 都紅**（run 9aafe9c 之後連續 10 次失敗）。
+      # 教訓：改 compose 的必填變數清單時，記得更新這個 job 的 env 列表 ——
+      # CI 是公開的「三機紀律」證據，它一直紅就等於沒有。
       - name: docker compose config
         env:
           TS_IP: 100.119.83.111
           POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
+          HOST_ID: msi
         run: docker compose config -q
 
   guards:

@@ -105,20 +105,66 @@ def test_the_three_layers_parse_into_pairs():
 
 @pytest.fixture
 def sandbox_env(tmp_path):
-    """把真實 repo 的 settings/env 與 .env 複製到 tmp，用 ENV_SYNC_DIR 指過去。
+    """tmp 裡的假 repo：真實 `settings/env` ＋ **自造的 `.env`**。
 
-    為什麼要這樣而不直接改真 .env：`.env` 是執行期唯一真相，測試改它就是在
-    拿真的環境開玩笑（2026-09-30 就發生過「測試污染真實 .env」）。
+    ## 為什麼 `.env` 要自造而不是複製真的
+
+    第一版是 `shutil.copy(ROOT / ".env", dotenv)`，本機 323 passed 全綠，
+    **但 CI 是乾淨 clone、沒有 `.env`（gitignored）→ 4 條測試全變 error**。
+    這是真實發生的 CI 紅燈（2026-09-30 run 36694273009）。
+
+    repo 裡既有的做法是 `pytest.skip("沒有 .env 可複製（乾淨 clone）")`
+    （`test_detect_host_endpoint.py:86-88`）。**但那個做法對這支檔不適用**：
+    這裡要驗的是「`.env` 缺鍵時 `--check` 的判斷」，而缺鍵正是我們要造出來的
+    狀態 —— 靠真實 `.env` 才能造出這個場景，就等於測試要一台「有真實 .env 的機器」
+    才能跑，那不是這條測試想守住的不變量。
+
+    好消息是 `--check` 根本不需要真實憑證值：它只要求
+      * `.env` 有 HOST_ID（render 的選擇器）
+      * 各層宣告的鍵在 `.env` 裡存在（只看鍵名）
+      * 總表 schema 與 per-host 一致
+    所以一份「鍵齊全、值是佔位符」的 `.env` 就夠了 —— 那是**任何機器都能產生**的。
     """
     env_dir = tmp_path / "settings" / "env"
     env_dir.mkdir(parents=True)
     for name in ("common.env", "secrets.common.env.example",
                  "secrets.host.env.example", "hosts.shared.env"):
-        src = ROOT / "settings" / "env" / name
+        src = ENV_DIR / name
         if src.exists():
             shutil.copy(src, env_dir / name)
+
     dotenv = tmp_path / ".env"
-    shutil.copy(ROOT / ".env", dotenv)
+    rows = ["HOST_ID=msi"]
+    # 憑證層的鍵（值是佔位符，--check 只看鍵名不看值）
+    for k in sorted(_keys(SEC_EXAMPLE)[0] | _keys(HOST_EXAMPLE)[0]):
+        rows.append(f"{k}=fixture-placeholder-not-a-real-secret")
+    # 共用非敏感層（豁免的那 7 個也在裡，好測「拿掉之後該過」）
+    for k in sorted(_keys(COMMON)[0]):
+        rows.append(f"{k}=fixture-value")
+    # 總表（hosts.shared.env）裡 msi_ 的每一列 —— 缺了 cmd_render_check 會報
+    # 「與總表不一致的鍵」，那與本檔要驗的鍵覆蓋率是**兩件事**，會互相干擾。
+    # 值從總表原樣搬（連 ${VAR} 展開都不做：py_apply 的 drift 判斷比的是
+    # 「展開後」的值，而這裡總表引用的變數都在 .env 裡了）。
+    table = (env_dir / "hosts.shared.env").read_text(encoding="utf-8")
+    for line in table.splitlines():
+        m = re.match(r"^([a-z0-9]+)_([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
+        if m and m.group(1) == "msi":
+            rows.append(f"{m.group(2)}={m.group(3)}")
+    dotenv.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    # 總表裡的值是**未展開**的（`${POSTGRES_PASSWORD}@…`），而 `cmd_render_check`
+    # 比的是**展開後**的值 —— 所以 .env 必須放展開結果，否則它會報
+    # 「.env 與總表不一致的鍵: POSTGRES_DSN」，那是 drift 檢查、不是本檔要驗的
+    # 鍵覆蓋率，會互相干擾。
+    #
+    # 讓 `render` 自己寫出來，而不是在測試裡展開 `${...}` —— 後者要複製一份
+    # env-sync 的展開規則，兩份真相一定會漂。
+    subprocess.run(
+        ["bash", str(SYNC), "render", "--host", "msi"],
+        capture_output=True, text=True, cwd=str(tmp_path),
+        env={**os.environ, "ENV_SYNC_DIR": str(env_dir),
+             "ENV_SYNC_ENV": str(dotenv)}, check=True,
+    )
     return tmp_path, env_dir, dotenv
 
 
