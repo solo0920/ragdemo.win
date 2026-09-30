@@ -141,3 +141,73 @@ def test_hook_still_reports_each_check_individually():
         f"只找到 {ticks} 個狀態訊息，少於 {len(REQUIRED_CHECKS)} 道檢查 —— "
         f"使用者會看不出是哪一道壞了"
     )
+
+
+# ── 行為測試：守衛真的會擋嗎 ────────────────────────────────────────────
+# 上面那些是**靜態**檢查（確認 hook「有做那些事」）。但它們看不見一类 bug：
+# **檢查存在、卻不管用**。2026-09-30 的 LAN_IP 守衛就是那類 ——
+#   `git grep ... | grep -q .` 在 `pipefail` 下會被 SIGPIPE 弄成 141 而靜默失效。
+# 而任何只放一兩個違規檔的測試**抓不到**它（少量時 git grep 來得及寫完、回 0）。
+# 所以這組必須真的把守衛跑起來，而且違規檔要**夠多**。
+#
+# ⚠️ 為什麼在 tmp 裡跑而不是真的 push：抽出的是守衛那一段，不含 `git push`。
+#    這是執行行為，不是執行整個 hook。
+
+import shutil          # noqa: E402
+import subprocess      # noqa: E402
+
+import pytest          # noqa: E402
+
+# 少於這個數量守衛「恰好會通過」，抓不到 bug。實測：3 檔 → 舊版也擋。
+MANY = 400
+FEW = 3
+
+
+def _guard_block() -> str:
+    """抽出 LAN_IP 守衛那一段（含 shebang 需要的 set -euo pipefail）。"""
+    src = _hook()
+    start = src.index("# 2) IP 準則")
+    end = src.index("✓ 無 LAN_IP= 殘留", start)
+    end = src.index("\n", end)
+    return "set -euo pipefail\n" + src[start:end]
+
+
+def _run_guard(tmp_path: Path, n_files: int) -> int:
+    """在 tmp git repo 裡放 n 個含 LAN_IP= 的追蹤檔，跑守衛，回 exit code。"""
+    repo = tmp_path / f"repo{n_files}"
+    repo.mkdir()
+    run = lambda *a: subprocess.run(a, cwd=repo, capture_output=True, text=True)
+    run("git", "init", "-q", ".")
+    for i in range(n_files):
+        (repo / f"f{i}.env").write_text(f"LAN_IP=10.0.0.{i}\n", encoding="utf-8")
+    run("git", "add", "-A")
+    run("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x")
+    script = tmp_path / f"guard{n_files}.sh"
+    script.write_text(_guard_block(), encoding="utf-8")
+    return subprocess.run(["bash", str(script)], cwd=repo,
+                          capture_output=True, text=True).returncode
+
+
+@pytest.mark.parametrize("n", [MANY, FEW])
+def test_lan_ip_guard_blocks_at_every_scale(tmp_path, n):
+    """守衛在少量與大量違規下都必須擋。
+
+    `MANY` 那個 case 才是有意義的：舊版（`| grep -q .`）在 FEW 會通過、
+    在 MANY 會被繞過，所以只測 FEW 等於測不到 bug。
+    """
+    assert _run_guard(tmp_path, n) != 0, f"{n} 個違規檔居然放行了"
+
+
+def test_lan_ip_guard_allows_a_clean_repo(tmp_path):
+    """沒有違規時必須放行 —— 否則這道守衛會擋掉所有正常 push。"""
+    repo = tmp_path / "clean"
+    repo.mkdir()
+    run = lambda *a: subprocess.run(a, cwd=repo, capture_output=True, text=True)
+    run("git", "init", "-q", ".")
+    (repo / "ok.env").write_text("TS_IP=\n", encoding="utf-8")
+    run("git", "add", "-A")
+    run("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x")
+    script = tmp_path / "clean.sh"
+    script.write_text(_guard_block(), encoding="utf-8")
+    assert subprocess.run(["bash", str(script)], cwd=repo,
+                          capture_output=True, text=True).returncode == 0

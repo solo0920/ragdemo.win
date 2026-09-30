@@ -47,9 +47,27 @@ fi
 echo "✓ shell 語法 OK"
 
 # 2) IP 準則：追蹤檔案不得含 LAN_IP=
-if git grep -nE '^LAN_IP=' -- 2>/dev/null | grep -q .; then
+#
+# ⚠️ 這裡**不能**寫成 `git grep -nE '^LAN_IP=' -- | grep -q .`。
+# `grep -q` 找到第一筆就關管線 → `git grep` 收 SIGPIPE(141) → 在 `pipefail` 下
+# 管線狀態變成 141 ≠ 0 → 走 else → **守衛靜默失效**。
+#
+# 而且失效條件很刁鑽：違規檔**夠多**時 git grep 還沒寫完就被關掉，狀態才是 141；
+# 只有 1～3 檔時它來得及寫完、回 0，守衛照常觸發。所以一個只放一兩個違規檔的
+# 測試**會通過**，看不出這個 bug —— 必須 400 檔以上才抓得到（實測確認）。
+#
+# 2026-09-30 實測（守衛失效的樣子）：
+#   400 個違規檔 → 放行 ❌
+#   3 個違規檔   → 擋下 ✅
+# 症狀是綠的：push 成功、CI 也綠（CI 那份寫法沒有這條管線，所以 CI 一直是對的）。
+#
+# git grep 自己的 exit code 就夠判斷：0 = 有命中、1 = 沒有。
+if LAN_HITS="$(git grep -nE '^LAN_IP=' -- 2>/dev/null)"; [ -n "$LAN_HITS" ]; then
   echo "✗ 追蹤檔案含 LAN_IP= 賦值（違反 IP 準則），移除後再 push" >&2
-  git grep -nE '^LAN_IP=' -- 2>/dev/null | head -5 >&2
+  # `|| true`：pipefail 下 head 讀完就關管線，printf 會收 SIGPIPE(141)，
+  # 那會讓 set -e 在 exit 1 之前就中止，hook 以 141 而非 1 結束。擋下來的效果
+  # 相同，但退出碼會誤導排查。
+  printf '%s\n' "$LAN_HITS" | head -5 >&2 || true
   exit 1
 fi
 echo "✓ 無 LAN_IP= 殘留（IP 準則合規）"
