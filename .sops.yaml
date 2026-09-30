@@ -1,12 +1,23 @@
 # sops 加密規則：settings/env 下的 secrets.*.enc.env 用 age 加密。
 # 公鑰可進版控（本來就是公開的）；私鑰在各機 ~/.config/sops/age/keys.txt，絕不進 repo。
-# 新增機器：把它的 age1... 公鑰加進下面 recipients，然後跑
+#
+# 新增機器：把它的 age1... 公鑰加進下面 recipients，**然後一定要跑**
 #   sops updatekeys settings/env/secrets.common.enc.env
-# 舊 key 外洩時：換值 + sops rotate？本專案直接改值重加密即可（三台 pull 後 env-sync.sh pull）。
+# 只加 recipient 不 updatekeys 是**無效的**：檔案裡的資料金鑰仍只加密給原本的
+# recipients，新機器的公鑰形同虛設（它 pull 會拿到 "no identity matched any
+# of the recipients"）。x570 2026-09-30 實測就是這個症狀。
+#
+# ⚠️ 執行 updatekeys 的機器必須**同時**有 sops 二進位與某一把在名單裡的私鑰。
+#   不需要三台都有 —— 任一把就能重加密，其餘機器之後 pull 自然通。
+#
+# 舊 key 外洩時：**改值再重加密**，不要用 --init-secrets（那是建立加密檔用的，
+# 會覆蓋整份檔案）。流程：sops -d 取值 → 換新的 → sops -e 回去 → commit → 三台 pull。
 creation_rules:
   - path_regex: settings/env/secrets\..*\.enc\.env$
     age:
       # msi（2026-09-27 建；MSI WSL）
       - age19et4d4etz4ptsp2s58838ffmfgzq8sfw3c775xc2gewgh74wtexqgej86q
-      # TODO: x570 公鑰（在 x570 跑 age-keygen，把 age1... 貼進 X570-HANDOFF 回報，不要貼私鑰）
-      # TODO: mbp 公鑰（同上，mbp 回報）
+      # x570（2026-09-30 報；x570 產生，1.2.1 產生／1.3.2 驗證可讀，公鑰未變）
+      - age1sp8tja87waq6zgxmpxjsf3tduvmacanknejg34xhqv0uvmwcyfgshfxu45
+      # mbp（2026-09-30 報；mbp 產生，age 1.3.2 + sops 3.13.3）
+      - age1hxmyltm9xhnxzmsjwqfwvpgduy2ltkvjgjv0t6wpqh0xglaw39sqe0tulm
