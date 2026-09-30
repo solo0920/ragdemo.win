@@ -106,10 +106,40 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 ## IP 準則（2026-09-22 定案，三台嚴格執行）
 **連線與登錄一律只留 tailscale IP（100.64.0.0/10），杜絕位址污染。**
 
-- `TS_IP` 必填；**不使用 LAN_IP**（192.168.x 一律不寫入 .env、不進 registry）。
+- `TS_IP` **選填**，預設 `127.0.0.1`；**不使用 LAN_IP**（192.168.x 一律不寫入 .env、不進 registry）。
+  - ⚠️ 本行原本寫「必填」，那是 2026-09-22 定案時的狀態。之後 compose 改成
+    `${TS_IP:-127.0.0.1}`（`compose.yaml:12`/`:23`），讓單機部署不需要 Tailscale
+    也能跑（見 `compose.yaml:8-10`），而三台實務上都留空。**文件沒跟上程式。**
 - `OLLAMA_URLS`/`QDRANT_URLS`/`POSTGRES_DSN` 全部用 tailscale 位址；
   唯一例外是**本機服務**可寫 `127.0.0.1`。
 - 強制執行點：`registry.py _ips()` 過濾非 100.64.0.0/10 → `/hosts` 只會看到 tailscale。
+
+### ⚠️ 已知缺口：`.env` 裡的 `TS_IP` 值沒有任何規則驗證
+
+填一個非迴圈位址會讓 `compose.yaml:12` 的 qdrant(6333) 與 `:23` 的
+postgres(5432) 綁到該介面，暴露面從「僅 localhost」擴大到「tailnet 可達」
+（tailnet 裡還有 mbp 與 note10）。
+
+**兩者都有認證** —— pg 的 `POSTGRES_PASSWORD` 是 `${...:?}` 強制（沒設就起不來）、
+qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露面變大，
+**不是**無認證暴露。這點常被說錯。
+
+現有規則都蓋不到它：
+- `IDENTITY_RE`（`env-audit.py:277`，含 `\b100\.\d{1,3}\.`）只擋 compose
+  **預設值**內建某台機器的身分
+- `test_detect_host_endpoint.py:134` 的 regex `(?:10|172|192)` 只掃**被追蹤的
+  原始碼**（`scripts/env-sync.sh`、`settings/env/hosts.shared.env`），不看 `.env`
+
+**刻意不做**：「`.env` 的 `TS_IP` 非空就 CI 紅」會擋掉合法情境 ——
+`.env.example:35` 明寫「要讓別台機器連你的 qdrant/pg 才需要」。真要修得設計成
+「非迴圈值必須是明確宣告的例外」，那是功能不是修 bug。
+
+⚠️ 相關的 generator bug：`env-audit.py:691` 對任何出現在 `ports:` 的變數一律說
+「缺了會啟動失敗」。那對「預設值硬編某台身分」成立（`TS_IP:-100.119.83.111`
+會讓未設的機器去 bind x570 的 IP），對**單純留空**是錯的 —— `${TS_IP:-127.0.0.1}`
+不會失敗。這個錯誤敘述產生了 `.env.example:156` 的「TS_IP … 必填 … 沒設會啟動失敗」，
+而該檔是生成的、被 `test_env_audit.py` 的 `tracked == body` 斷言鎖住 ——
+**所以改 `env-audit.py` 之前，`.env.example` 改不掉。**
 
 ## 提交準則（2026-09-22 定案，三台嚴格執行）
 **commit message 首行必須以 tailscale 機器名前綴開頭：`msi:` / `mbp:` / `x570:`。**
