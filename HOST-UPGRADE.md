@@ -282,6 +282,43 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8000/law-update
 | `/health` 的 `ok:true` 但某台其實離線 | 已知監測缺口：`/health` 不檢查 registry。要看各機狀態請用 `/status` 的 `log`。 |
 | `docker compose config` 會印出所有憑證 | 它會把 `.env` 的值展開。**不要把輸出貼到聊天工具。** |
 
+### 三台的 pytest 環境不一致（2026-09-30 實測）
+
+`.venv/bin/python -m pytest -q` 在三台上的 skip 數不同，**不是測試壞掉，是環境長得不一樣**。
+全 repo 測試總數一致（374），差別全在誰能跑：
+
+| | msi | x570 | 原因 |
+|---|---|---|---|
+| 全部 | 367 passed / 7 skipped | 344 passed / **30 skipped** | — |
+| 前端 26 個 | ✅ 跑 | ❌ **skip** | **x570 沒裝 node**（`test_frontend_hosts` 10 + `test_frontend_probe` 5 + `test_frontend_cf_access` 11）。它們用 node 真的跑一次 `+server.ts` 的函式。 |
+| qdrant 認證 3 個 | ✅ 跑 | ❌ **skip** | `test_sync_snapshot_auth.py:103` 硬寫 `curl 127.0.0.1:6333/healthz`，而 **x570 的 `TS_IP` 有值** → qdrant 綁在 `100.119.83.111`、不在迴圈。⚠️ 也就是**唯一真正把 qdrant 暴露到 tailnet 的那台，正好是唯一不再測它的那台**。 |
+| WSL 專用路徑 1 個 | ✅ 跑 | ❌ skip | `test_detect_host_endpoint.py` 的函式內判斷「本機不是 WSL」。x570 是原生 Linux，本來就該 skip。 |
+
+**要看某台能驗證什麼，不要看 skip 數，要看缺的是哪一類。** CI（Ubuntu runner、node
+已裝、TS_IP 空）是唯一三類都跑得到的地方 —— 所以 CI 全綠不等於「三台都能驗證」。
+
+### 各機的 venv 是手動長出來的，不一定等於 `pyproject.toml`
+
+2026-09-30 在 x570 實測到兩件事：
+
+1. **缺 `pytest-asyncio`** → 所有 `@pytest.mark.asyncio` 的測試** failed（不是
+   skipped）**。用 `-p no:asyncio` 模擬確認過：`test_host_probe.py` 7 個全紅。
+   修法是 `uv sync --dev`（`pyproject.toml` 的 dev group 早就宣告了它）。
+2. **plugin 集不合約**：x570 有 `typeguard`、msi 有 `anyio`，**兩邊都有不在
+   `pyproject.toml` 裡的 plugin**。那是手動 `pip install` 的痕跡。
+
+`uv sync --dev` 會把 venv 對齊到宣告的依賴。新機／重灌後**先跑它**，再跑 pytest。
+
+### x570 跑的是 Python 3.14，而 pin 是 3.12
+
+`.python-version` 與 CI 都是 3.12；msi 是 3.12.14；**只有 x570 是 3.14.4**。
+`requires-python = ">=3.12"` 不禁止 3.14，所以不是違規 —— 但等於 x570 上驗證的
+是一個**沒有任何 CI 覆蓋的 Python 版本**。
+
+**刻意不追。** 3.14 目前跑得動（2026-09-30：x570 上 374 個測試全過或按環境
+skip，0 failed），收緊 pin 只會製造摩擦。記在這裡是為了讓下次寫到只在某個
+Python 版本成立的語法時，知道**有兩台測得到、一台測不到**。
+
 ---
 
 ## 8. 已修的 bug —— 這些是**陷阱**，別改回去
