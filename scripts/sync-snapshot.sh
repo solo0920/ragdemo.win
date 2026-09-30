@@ -183,12 +183,30 @@ else:
 }
 
 # 1) source 在線？
+#    ⚠️ /healthz **不驗證 API key** —— 這是 qdrant 的設計，實測過三種情形
+#    （2026-09-30 mbp 回報、msi 複驗）：
+#        /healthz      正確 key → 200   錯的 key → 200   無 header → 200
+#        /collections  正確 key → 200   錯的 key → 401   無 header → 401
+#    所以這一步通過**只能**證明「TCP 連得到、那台 qdrant 活著」，不能證明
+#    「認證沒問題」。真正的把關是下面第 2 步的 `auth_precheck`（它打
+#    /collections 並檢查 401/403），而它確實在這裡之後立刻執行。
+#
+#    為什麼仍然用 /healthz 而不改打 /collections：那一步的用途是「來源機在不在線，
+#    不在就靜默 skip（exit 0，不報錯）」。改成 /collections 會讓「離線」與
+#    「key 不對」兩種情況都變成同一個失敗路徑，丟失「離線不算錯」那個行為 ——
+#    來源機臨時下線時不該讓本機的排程天天報錯。
+#
+#    不要把這一步的結果當成認證的證據（2026-09-30 有人因此誤判「認證沒生效」，
+#    實際上是測了免驗證的 /healthz）。
 if ! curl -sf "${AUTH_H[@]}" -m 5 "$SOURCE/healthz" >/dev/null 2>&1; then
   log "source $SOURCE offline, skip（本機備援資料不受影響）"
   exit 0
 fi
 
-# 2) 點數沒變 → 跳過（但版本仍要更新：資料沒變不代表來源機換了法規版本）
+# 2) 認證 → 點數 → 版本
+#    auth_precheck 才驗認證（打 /collections，401/403 會講清楚是哪一把 key 的問題）。
+#    順序有意義：認證先於點數，因為「key 錯了卻拿到 -1 個點」會被誤判成
+#    「來源機資料變了」而白白重抓一次快照。
 auth_precheck || exit 1
 SRC_PTS="$(pts_of "$SOURCE" "$COLLECTION")"
 PREV_PTS="$(awk '{print $1}' "$STATE" 2>/dev/null || echo "")"
