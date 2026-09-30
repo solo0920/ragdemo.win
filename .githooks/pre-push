@@ -6,8 +6,9 @@
 #   2) IP 準則：被 git 追蹤的檔案不得出現 "LAN_IP=" 賦值（.env 不進版控抓不到，
 #      但 .env.example / 文件若殘留 LAN_IP= 即違規）
 #   3) pytest 單元測試（tests/，純函式不需外部服務；機器未裝 pytest 則跳過）
+#   4) docker compose config -q（插值與 YAML 結構；docker 未裝則跳過）
 # 可選（設 RAGDEMO_SMOKE=1 才跑，需本機 api 在線且 LLM 可用，較慢）：
-#   4) 完整 HTTP smoke：/health + /query（驗證答案非空）
+#   5) 完整 HTTP smoke：/health + /query（驗證答案非空）
 # 本機 api 不在線時：強制檢查照跑，HTTP 部分只警告不擋 push。
 #
 # 各機啟用：git config core.hooksPath .githooks
@@ -63,7 +64,31 @@ else
   echo "⚠ pytest 未安裝（uv sync --dev 後啟用），跳過單元測試"
 fi
 
-# 4) 可選完整 HTTP smoke
+# 4) compose 插值與結構
+#    為什麼要加（2026-09-30）：CI 的 `compose config` 從 09-27 起連續紅了 10 次
+#    push 而沒有人發現 —— 因為那個 job 缺 HOST_ID，而**本機 pre-push 沒有這道
+#    檢查**，所以按 push 的那一側全程看不見。CI 連續紅等於沒有 CI：它的存在
+#    意義是「三機紀律的公開證據」，而大家只看本機 pre-push 綠就把信寄出去。
+#    把同一道檢查搬到本機，那種缺口就在按鈕那一側被擋住。
+#
+#    -q（quiet）只做驗證不印展開後的設定。實測過：失敗訊息裡出現的是變數名
+#    與格式錯誤（`invalid IP address: …`），**不會印出 .env 的值**（2026-09-30
+#    用真正的 32 字元密碼驗過，出現 0 次），所以輸出可以直接轉發。
+#    不是 -q 就會把整份展開後的設定印出來，那包含明文密碼。
+if command -v docker >/dev/null 2>&1; then
+  if out="$(docker compose config -q 2>&1)"; then
+    echo "✓ compose 插值 OK"
+  else
+    echo "✗ docker compose config 失敗，中止 push" >&2
+    printf '%s\n' "$out" | head -10 >&2
+    echo "  （若缺 .env 造成，先 cp .env.example .env 補齊）" >&2
+    exit 1
+  fi
+else
+  echo "⚠ docker 未安裝，跳過 compose 插值檢查"
+fi
+
+# 5) 可選完整 HTTP smoke
 if [ "${RAGDEMO_SMOKE:-0}" = "1" ]; then
   if ! curl -sf -m 5 http://localhost:8000/health >/dev/null 2>&1; then
     echo "✗ RAGDEMO_SMOKE=1 但本機 api(localhost:8000) 不在線，中止 push" >&2
