@@ -447,24 +447,52 @@ cmd_check() {
   # 鍵覆蓋率要把三層都算進去：共用憑證範本、per-host 機密範本、共用非敏感。
   # 漏算 per-host 機密層＝「該機根本沒有這兩個鍵」沒人管，而症狀是本機
   # qdrant/pg 認證失敗（401／心跳失敗），極難回推到是環境變數缺了。
+  #
+  # ⚠️ 範本裡「值為空」的鍵**不比對**，理由是它與 merge 端語意相反會造成死結
+  #   （2026-09-30 x570 回報的 2 個 FAIL 就是這個）：
+  #     merge 端  py_apply: layer = {k: v for k, v in source.items() if v != ""}
+  #              → 來源空值不合併，「空值＝沿用本機現值」是全專案的既定語意
+  #     check 端 若把空值鍵也要求存在 → .env 缺了就報 fail，而 pull 永遠補不上
+  #              （merge 層裡根本沒有那個鍵）→ 兩邊矛盾，該機無論怎麼做都清不掉
+  #   判準是「值為空」而不是「在不在某個檔」：那正是本專案對空值的統一語意
+  #   （hosts.shared.env 的空值＝該機沿用自己的；--init-secrets 的空值放行）。
+  #
+  #   憑證層（sec／host）**不套用**這個豁免：那兩層的值是「有或沒有」而非
+  #   「空＝沿用」，漏了就是 401／心跳失敗，必須報 fail。實測兩把在範本裡都有值。
   python3 - "$DOTENV" "$ENV_DIR/secrets.common.env.example" \
       "$ENV_DIR/secrets.host.env.example" "$ENV_DIR/common.env" <<'PY'
 import os, re, sys
 def keys(p):
-    out = set()
+    out, withval = set(), set()
     if not os.path.exists(p):     # 範本檔缺了就當空集；存在性另有專門檢查
-        return out
+        return out, withval
     for line in open(p, encoding="utf-8").read().splitlines():
         m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
         if m:
             out.add(m.group(1))
-    return out
-env, sec, host, com = (keys(a) for a in sys.argv[1:5])
-missing = sorted((sec | host | com) - env)
+            if m.group(2).strip():
+                withval.add(m.group(1))
+    return out, withval
+env = keys(sys.argv[1])[0]
+sec, secv = keys(sys.argv[2])
+host, hostv = keys(sys.argv[3])
+com, comv = keys(sys.argv[4])
+# 憑證層要全比（漏 = 認證失敗）；共用非敏感只比「來源有值」的鍵。
+missing = sorted((sec | host | (comv & com)) - env)
 if missing:
     print("env-sync --check: .env 缺少鍵: " + " ".join(missing))
     sys.exit(1)
-print(f"env-sync --check: key coverage ok ({len(env)} keys in .env)")
+# 豁免掉的鍵要說清楚有幾個 —— 靜默地少檢查比不檢查更糟，因為下一个人會以為
+# 「--check 綠 = 每個鍵都有人管」。這些鍵靠 compose 的 ${VAR:-預設} 與原始碼
+# 的 fallback 存活（2026-09-30 msi 實測：EMBED_MODEL 與 RERANK_MODEL 在 .env
+# 裡是空的，查詢照跑、confidence=high）。
+skipped = sorted((com - comv) - env)
+if skipped:
+    print(f"env-sync --check: key coverage ok ({len(env)} keys in .env)；"
+          f"跳過 {len(skipped)} 個共用層空值鍵（來源無值＝不要求本機有，"
+          f"靠預設值存活）: {' '.join(skipped)}")
+else:
+    print(f"env-sync --check: key coverage ok ({len(env)} keys in .env)")
 PY
   local fail=$?
   # per-host 總表：schema ＋ 與 .env 的一致性（同時驗證 ${VAR} 都解析得到）。
