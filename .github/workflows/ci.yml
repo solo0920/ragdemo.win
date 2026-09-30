@@ -123,11 +123,25 @@ jobs:
 
       # 直接呼叫 venv 內的 pytest，不用 `uv run`：uv run 會重新 sync，會把上面
       # uv pip install 裝進去的 backend 依賴視為 extraneous 而移除。
-      # 預期結果是 351 passed / 3 skipped。那 3 個是**永久**的、與工具無關：
-      #   tests/test_detect_host_endpoint.py:87/:118  需要 .env（gitignored）
-      #   tests/test_embed_batch.py:69              需要 data/laws/laws_flat.jsonl
-      #                                              （只有跑過 sync_daily 才存在）
-      # 所以驗收條件是「依賴工具的 28 個 skip → 0」，**不是** 0 skipped。
+      #
+      # 實測結果：**347 passed / 7 skipped**。
+      # 驗收條件是「依賴工具的 28 個 skip → 0」，**不是** 0 skipped。
+      # 剩下 7 個是**永久**的，分兩類，都不是缺陷、都不該去「修」：
+      #
+      # 缺 artifact（3）—— 檔案被 gitignore，乾淨 clone 不會有：
+      #   test_detect_host_endpoint.py:87/:118  需要 .env
+      #   test_embed_batch.py:69              需要 data/laws/laws_flat.jsonl
+      #                                        （只有跑過 sync_daily 才存在）
+      #
+      # 缺環境（4）—— 需要 CI runner 沒有的東西：
+      #   test_detect_host_endpoint.py:152     WSL 專用路徑，runner 不是 WSL
+      #   test_sync_snapshot_auth.py:107 ×2   需要本機 qdrant 在跑
+      #   test_sync_snapshot_auth.py:134      同上
+      #
+      # ⚠️ 那 4 個「缺環境」的等於 CI 完全不驗證兩件事：qdrant 的
+      # `/healthz` 免驗證、`/collections` 要驗證這個**安全相關**前提，
+      # 以及 WSL 下的 ollama 位址偵測。它們只在有真實 stack 的機器上跑。
+      # 記在這裡是為了讓「CI 綠」不等於「全都驗過」這件事保持可見。
       - name: pytest
         run: .venv/bin/pytest -q -p no:cacheprovider
 
