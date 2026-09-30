@@ -180,14 +180,33 @@ async function through(method: string, path: string, body: string | undefined, p
   });
 }
 
-async function probe(url: string): Promise<boolean> {
+// 回 {ok, seen} 而不是 boolean：全掛時 `seen` 會被帶進 detail，讓「Access 沒配
+// token」(403)、「後端沒開」(502/1033)、「網路層死」(network error) 分得開。
+// 舊版回 boolean，全掛時一律顯示「所有後端皆無法連線」—— 那句話在 Access
+// 的情況下是假的（token 壞掉時三台都活得好好的）。
+//
+// ⚠️ `seen` 是**診斷用**，不是契約。log 的值域仍是 '連線成功' | '連線失敗'
+// 兩個字串（+page.svelte 用 `=== '連線成功'` 精確比對，gateway._host_probe_log
+// 產同一組字串）—— 這裡刻意不擴充它，那要前後端同時改。
+async function probe(url: string): Promise<{ ok: boolean; seen: string }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 6000);
   try {
     const r = await fetch(`${url}/health`, { signal: ctrl.signal });
-    return r.ok;
-  } catch {
-    return false;
+    // 兩個條件缺一不可，理由與 gateway._host_probe_log 完全相同：
+    //   r.ok          —— 已經擋掉 4xx/5xx。
+    //   content-type  —— Workers 的 fetch() 依 Fetch 規範預設 redirect:"follow"，
+    //     Cloudflare Access 若回 302，runtime 會跟到登入頁、拿到 **200 +
+    //     text/html**，而 r.ok 對那個 200 為真 → 舊版會說這台活著，實際上
+    //     真正的 /query 會被擋。面板說「連線成功」但查詢全 403。
+    const ct = r.headers.get('content-type') || '';
+    if (r.ok && ct.includes('application/json')) return { ok: true, seen: '200' };
+    return {
+      ok: false,
+      seen: r.ok ? `200 但非 JSON（${ct || '無 content-type'}）` : String(r.status),
+    };
+  } catch (e) {
+    return { ok: false, seen: `network error` };
   } finally {
     clearTimeout(timer);
   }
@@ -212,8 +231,8 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
   const log: Record<string, string> = {};
   const okHosts: string[] = [];
   hosts.forEach((h, i) => {
-    log[h.id] = probes[i] ? '連線成功' : '連線失敗';
-    if (probes[i]) okHosts.push(h.id);
+    log[h.id] = probes[i].ok ? '連線成功' : '連線失敗';
+    if (probes[i].ok) okHosts.push(h.id);
   });
 
   let host: string | null = null;
@@ -227,7 +246,10 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
     if (first) base = hosts.find((h) => h.id === first)!.url;
   }
   if (!host || !base) {
-    return json({ ok: false, host: null, log, detail: '所有後端皆無法連線' });
+    // 帶上每台實際看到的回應。舊版這裡恆為「所有後端皆無法連線」，而那句話
+    // 對「Access token 壞掉」是假的 —— 那時三台後端都活著，只是到不了。
+    const seen = hosts.map((h, i) => `${h.id}: ${probes[i].seen}`).join('，');
+    return json({ ok: false, host: null, log, detail: `所有後端皆無法連線（${seen}）` });
   }
 
   const body = await request.text();
