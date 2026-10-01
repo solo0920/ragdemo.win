@@ -8,7 +8,7 @@
 ## 0. 前提
 
 ```bash
-cd ~/projects/ragdemo            # 換成你的實際路徑
+cd ~/projects/ragdemo.win        # 換成你的實際路徑（⚠️ 見下方說明）
 git pull
 ```
 

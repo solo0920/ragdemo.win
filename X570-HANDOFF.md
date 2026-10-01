@@ -1,4 +1,8 @@
-# x570 交接（2026-10-01 修訂，取代 2026-09-30 版）
+# x570 交接（2026-10-02 02:00 全清空；2026-10-01 修訂，取代 2026-09-30 版）
+
+> **下一手請先讀最上面那兩段**（2026-10-02 已完成 ＋ `code-drift` 病灶），
+> 再往下看。**待辦清單目前是空的** —— 若你讀到某處寫「先做這件」，
+> 那是被摺進 `<details>` 的舊指示。
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
@@ -13,7 +17,66 @@
 ⚠️ 指令**只印指紋／長度，不印值**。不要改成 `cat .env`／`env | grep`，
 不要對含憑證的指令加 `bash -x`（2026-09-26 三次憑證外洩都是這樣）。
 
-> **★★ 唯一還沒做的：Access Service Token —— 先做這件。**
+> ## ✅ 2026-10-02 02:00 已完成（x570 端實測回報）—— 待辦清單已清空
+>
+> 保留這份紀錄是因為**病灶比預期嚴重得多**，而我（wsl 端）當初寫「唯一還沒做
+> 的」是**基於推測、沒有在 x570 上查證過**。你照著做才發現的，以下是回報摘要：
+>
+> | 項目 | 結果 |
+> |---|---|
+> | Access Service Token | ✅ 生效。`--fingerprints` `sha12=11cb9bc42f55` / `f00a6bd62ddc` 與預期逐字相符 |
+> | peer 探測 | ✅ x570／mbp／wsl 三台「連線成功」（帶 token 穿過另外兩台的 Access 護欄）|
+> | 三段守衛 | ✅ 不帶 403 ／ 帶假 403 ／ 帶真 200 |
+> | `env-sync --check` | ✅ per-host 值與總表一致（4 鍵，該機 x570）|
+> | `host-doctor` | 0 fail / 2 warn |
+>
+> ### ⚠️⚠️ 真正的病灶不是 token，是**映像比工作區舊 5 天**
+>
+> 容器裡 `CF_ACCESS_CLIENT_ID` / `_SECRET` 的長度都是 **0**，而 `.env` 裡
+> **本來就有正確的值**。真正缺的是 `docker compose up -d --build api` 裡的
+> `--build`。
+>
+> 而且比預期嚴重：映像是 **5 天前 build** 的，容器內 `/app/app` **根本沒有**
+> `gateway.py`／`retrieve.py`／`cn_parse.py`／`law_meta.py`／`common/`，
+> `rag.py` 是 **85KB 的舊單體版**而工作區是 **46KB 拆分版** ——
+> **後端跑的是 2026-09-30 拆分重構之前的架構**。它能回 200 是因為舊版本
+> 自洽，不是因為健康。
+>
+> 為什麼當時**每一道**檢查都是綠的（這才是重點）：
+>
+> | 檢查 | 回報 | 為什麼抓不到 |
+> |---|---|---|
+> | `repo-state` | 乾淨 | 問的是**工作樹**，不是容器 |
+> | `upgrade` | 與上游同步 | 問的是 **git**，不是映像 |
+> | `container:api` | running | 只問「跑著嗎」，不問「跑什麼」 |
+> | `env-check` | 一致 | 問的是 `.env`，不是映像 |
+>
+> **2026-10-02 已補 `code-drift` 檢查**（`host-doctor.sh`）：比對容器內
+> `app/**/*.py` 的 sha256 與工作區，兩種偏移都實測觸發過。`git pull` 後就有。
+>
+> ### ⚠️ `sync-snapshot.sh --force` 在這台**不適用**，不是故障
+>
+> 舊版把它列成驗收步驟，那是**照備援機寫的**。x570 是 **source 機**（有
+> `data/laws/.law_sync.json`；`law-update-worker.sh` 靠那個檔判角色），
+> 版本由 `sync_daily.py` 自己 ingest 產生，**不走 `sync-snapshot.sh`**，
+> 所以 `data/laws/.law_version` **本來就不會存在**。
+>
+> 連帶的：`host-doctor` 的 `law-version` 長期 warn，措辭也是寫給備援機的 ——
+> 同一份文件兩處說法互相矛盾。**2026-10-02 已修**：doctor 現在先分角色，
+> source 機回 ok 並說明「版本由 sync_daily 產生，不需要 `.law_version`」。
+>
+> ### 📋 一件移交中、x570 未自行修改的事（比原回報更嚴重）
+>
+> 每日同步那條 crontab 寫的是 `/home/solo/projects/ragdemo`（**少了 `.win`
+> 後綴**），而 repo 實際在 `/home/solo/projects/ragdemo.win`。
+> 除了 venv（`.venv-ingest`）不存在，**連工作目錄都不對** —— 兩個獨立錯誤。
+> cron 不報錯，只是每天靜靜地失敗、`last_checked` 凍結而無人察覺。
+> 仍屬已移交 ingest／ops 的範圍。
+>
+> ---
+>
+> <details>
+> <summary>🗄 當時的指示（已完成，保留作為查證紀錄）</summary>
 >
 > ### ⭐ 2026-10-02：不用手動貼了，跑 `env-sync.sh pull` 就好
 >
@@ -50,8 +113,11 @@
 > - `sync.log` 出現 `law version: 取不到` → `.law_version` 凍結在舊版
 > - `host-doctor.sh` 的 `law-version` **warn**（「快照已 N 小時沒成功更新」）
 >
-> ---
->
+
+</details>
+
+---
+
 > **以下為 2026-10-01 更新（本機 x570 先前已執行完畢，該部分為「已解決 + 移交」）：**
 >
 > 1. **事項 5（age 公鑰）已完成** —— `.sops.yaml` 三把公鑰都在
@@ -195,9 +261,10 @@ host-doctor law-version 那條 warn 消失（原本 warn 28 小時沒更新）
 
 ---
 
-## ★★ 待辦（x570 端）：把 Access Service Token 加進本機 `.env`
+## ✅ 已完成（x570 端）：把 Access Service Token 加進本機 `.env`
 
-**這是現在唯一還沒做的。** wsl 端已完成並驗證（見上），**x570 與 mbp 尚未**。
+**2026-10-02 02:00 完成。** 保留這節是作為查證紀錄 —— 實際上缺的**不是**
+`.env`（值本來就在且指紋正確），而是映像裡的環境變數，見本文最上面那段。
 
 沒有它的症狀（都很安靜）：
 
@@ -237,11 +304,18 @@ docker compose ps
 bash scripts/env-sync.sh --check          # per-host 值與總表一致
 bash scripts/sync-snapshot.sh --force
 tail -3 ~/qdrant/sync.log        # 應出現 law version updated，不是「取不到」
-bash scripts/host-doctor.sh      # law-version 那條應從 warn 變 ok
+bash scripts/host-doctor.sh
 ```
 
 peer 探測在**前端面板**看（`https://ragdemo.win` → 連線詳細），
 或 `curl -s http://localhost:8000/status | python3 -m json.tool`。
+
+⚠️ **`law-version` 在這台不會「從 warn 變 ok」，因為 x570 是 source 機。**
+舊版這裡寫「應從 warn 變 ok」是照備援機寫的。source 機的版本由
+`sync_daily.py` 自己 ingest，不走 `sync-snapshot.sh`，所以根本沒有
+`.law_version` 這個檔 —— 那條 warn 是措辭問題，不是故障。
+2026-10-02 已修 doctor：source 機會回 ok 並說明原因。
+（`sync-snapshot.sh --force` 同理**不適用**，它要求 `LAW_SYNC_SOURCE`。）
 
 ### ⚠️ 這組值是跨機共用機密（2026-10-02 起已進 sops 層）
 

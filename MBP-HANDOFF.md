@@ -11,10 +11,46 @@ mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`�
 > 事項編號與 `X570-HANDOFF.md` 對齊（5＝age 公鑰、6＝git hooks），
 > 讓 `SCOPE.md` 的「收 age 公鑰｜x570、mbp」一列指向同一件事。
 >
-> **★★ 唯一還沒做的：把 Access Service Token 加進本機 `.env` —— 先做這件。**
-> （2026-10-02 更新：**步驟變簡單了**，見下）
-> 三台的 Access app 都建好了（三台一致 403），但**只有 wsl 端有 token 值**。
-> 你這台還沒有，所以症狀是：
+> **★★★ 照 x570 的教訓：先跑 `host-doctor.sh` 看 `code-drift`，再做任何事。**
+> （2026-10-02 02:20，x570 端回報後追加）
+>
+> **為什麼把這條放第一**：x570 照著「唯一還沒做的 = token」那份指示做，
+> 結果發現 **`.env` 裡的 token 本來就在而且指紋正確** —— 真正缺的是
+> `docker compose up -d --build api` 的 `--build`。更嚴重的是那台的映像
+> **比工作區舊 5 天**，容器裡根本沒有 `gateway.py`／`retrieve.py`／
+> `common/`，`rag.py` 是 85KB 舊單體版而工作區是 46KB 拆分版 ——
+> **後端跑的是 2026-09-30 拆分重構之前的架構**，而當時**每一道檢查都是綠的**
+> （`repo-state` 乾淨、`upgrade` 與上游同步、`container:api` running、
+> `env-check` 一致 —— 沒有一道問過「容器裡跑的是不是這個 repo」）。
+>
+> 它能回 200 是因為舊版本**自洽**，不是因為健康。
+>
+> **mbp 有同樣的風險，而且你 2026-09-30 就回報過「映像落後 4 天」。**
+> 所以：
+>
+> ```bash
+> git pull && bash scripts/host-doctor.sh
+> ```
+>
+> 先看 `code-drift` 那一條。三種結果：
+>
+> | `code-drift` | 意義 | 下一步 |
+> |---|---|---|
+> | `[ ok ]` | 容器裡的程式碼與工作區逐位元相同 | 往下走 token |
+> | `[FAIL]` | **這台在跑舊程式碼** | **先** `docker compose up -d --build api`，跑完再看別的 |
+> | `[skip]` | api 容器沒在跑 | 先 `docker compose up -d`，再重跑 doctor |
+>
+> ⚠️ `[FAIL]` 的情況下，**後面的 token 步驟看起來會成功但實際沒用** ——
+> 環境變數換了、程式碼還是舊的。**先修 code-drift。**
+>
+> ---
+>
+> **★★ 唯一還沒做的：把 Access Service Token 加進本機 `.env`。**
+> （2026-10-02 更新：**步驟變簡單了**，見下；且**`.env` 可能本來就有值** ——
+> 若 `code-drift` 是 `[FAIL]`，那多半是映像問題而不是缺值，用 `--fingerprints`
+> 確認，不要用「.env 裡沒找到」下結論。）
+> 三台的 Access app 都建好了（三台一致 403），但只有 wsl 端確認過。
+> 沒 token 的症狀是：
 >
 > - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（查詢正常，走的是 Pages）
 > - `sync.log` 有 `law version: 取不到` → **法規版本凍結**

@@ -45,6 +45,11 @@ LAW_VERSION_FILE="$ROOT/data/laws/.law_version"
 # 它的 laws 是自己 ingest 進來的）。所以「這台是不是備援」用檔案存在與否判，
 # 不用 HOST_ID 白名單 —— 白名單會在加第 4 台時漏掉，然後對 source 機誤報。
 SYNC_LOG="$HOME/qdrant/sync.log"
+# **角色**判斷（source 還是備援）：law-update-worker.sh 用的是這一個檔
+# （有 → source，沒有 → 備援）。與 SYNC_LOG 分開宣告，因為兩者回答的是
+# 不同的問題，而且各有失效模式：SYNC_LOG 可能在排程還沒跑過時就不存在
+# （那時 ROLE 判斷會說錯話），.law_sync.json 則是 ingest 真的跑過才有。
+LAW_SYNC_FILE="$ROOT/data/laws/.law_sync.json"
 # 快照多久沒成功更新就值得講。sync-snapshot.sh 的 cron 是 */10 分鐘，
 # 所以正常情況 synced_at 應該是「小時級」而不是「天級」；6 小時的門檻代表
 # 「排程跑了但連續 36 次都沒成功」，遠離 10 分鐘這個尺度，不會誤報。
@@ -245,6 +250,74 @@ for s in d:
   done <<<"$summary"
 }
 
+# ── 3b. 執行中的程式碼 vs 工作區（2026-10-02 加，x570 實測踩到才補）────────
+#
+# 為什麼要有這道：x570 的後端**長達數天**跑著 2026-09-30 拆分重構**之前**的
+# 架構 —— 容器裡沒有 `gateway.py`／`retrieve.py`／`cn_parse.py`／`common/`，
+# `rag.py` 是 85KB 的舊單體版而工作區是 46KB 拆分版。
+#
+# 它為什麼一路綠：舊版本**自洽**，所以 /health、/query、peer 探測、registry
+# 心跳全部正常。而當時 `ch_repo` 回「乾淨」、`ch_containers` 回三個 running、
+# `ch_env_check` 回一致 —— **每一道現有的檢查都是綠的**，因為它們全部只看
+# 「repo 乾淨嗎」「容器跑著嗎」「設定對嗎」，沒有一道問「容器裡跑的是不是
+# 這個 repo」。`ch_repo` 的「與上游同步」講的是 git，不是映像。
+#
+# 為什麼會踩到：`docker compose up -d` 只 Recreate 容器（換環境變數），
+# **不重建映像**（`--build` 才重建）。所以 pull 完程式碼、跑 up -d，
+# 會得到「新環境變數 ＋ 舊程式碼」的混合體 —— 而且完全沒有症狀。
+#
+# 判準是**內容**，不是時間戳：比對 backend/app 下每個 .py 的 sha256。
+# 時間戳（image Created vs commit date）會被時區/git 設定搞錯，而且
+# 「從舊 checkout 重建」時間戳會是新的而內容是舊的 —— 正好漏掉最壞的情況。
+ch_code_drift() {
+  local hash_cmd="" ws ctr
+  # 雜湊工具：Linux 是 sha256sum，macOS（mbp）只有 shasum -a 256。
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash_cmd="sha256sum"
+  elif command -v shasum >/dev/null 2>&1; then
+    hash_cmd="shasum -a 256"
+  else
+    bump code-drift skip "這台沒有 sha256sum／shasum，比不了"
+    return 0
+  fi
+  # 容器沒跑就別比（ch_containers 已經報過那件事，這裡不重複報）
+  if ! docker compose -f "$ROOT/compose.yaml" ps --status running --services 2>/dev/null \
+       | grep -qx api; then
+    bump code-drift skip "api 容器沒在跑，沒有可比對的程式碼"
+    return 0
+  fi
+  # Dockerfile 只 COPY app/，所以 app/**/*.py 就是完整的不變量。
+  # 兩邊都相對 app/ 列出，所以路徑形式一致（/app/app → app）。
+  ws="$(cd "$ROOT/backend" && find app -name '*.py' -type f | LC_ALL=C sort \
+       | xargs $hash_cmd 2>/dev/null || true)"
+  ctr="$(docker compose -f "$ROOT/compose.yaml" exec -T api \
+          sh -c 'cd /app && find app -name "*.py" -type f | LC_ALL=C sort \
+                 | xargs sha256sum' 2>/dev/null || true)"
+  if [ -z "$ws" ] || [ -z "$ctr" ]; then
+    bump code-drift warn "比對不了（工作區或容器沒讀到檔案清單）—— 可能是 api 剛啟動"
+    return 0
+  fi
+  if [ "$ws" = "$ctr" ]; then
+    local n; n="$(printf '%s\n' "$ws" | grep -c . || true)"
+    bump code-drift ok "容器內 app/ 的 ${n} 個 .py 與工作區逐位元相同"
+    return 0
+  fi
+  # 不一致：把差異講清楚。只印**檔名**，不印雜湊值以外的任何東西 ——
+  # 這些是 .py 檔名，不是憑證。
+  local only_ws only_ct
+  only_ws="$(comm -23 <(printf '%s\n' "$ws" | cut -c67- | LC_ALL=C sort) \
+                      <(printf '%s\n' "$ctr" | cut -c67- | LC_ALL=C sort) \
+             | tr '\n' ' ' || true)"
+  only_ct="$(comm -13 <(printf '%s\n' "$ws" | cut -c67- | LC_ALL=C sort) \
+                      <(printf '%s\n' "$ctr" | cut -c67- | LC_ALL=C sort) \
+             | tr '\n' ' ' || true)"
+  local detail="容器裡跑的 app/ 與工作區不一致"
+  [ -n "$only_ws" ] && detail="${detail}；只在工作區有: ${only_ws}"
+  [ -n "$only_ct" ] && detail="${detail}；只在容器有: ${only_ct}"
+  detail="${detail}。**這台後端在跑舊程式碼** —— 每個健康檢查都會是綠的，因為舊版本自洽。修法: docker compose up -d --build api"
+  bump code-drift fail "$detail"
+}
+
 # ── 4. env-sync --check ──────────────────────────────────────────────────────
 # 呼叫既有子命令而不是重算：鍵覆蓋率、總表 schema、per-host 漂移三件事
 # 的判斷邏輯都在 env-sync.sh 裡，複製一份必然漂移。
@@ -391,7 +464,22 @@ for r in rows:
 # 所以「有這個檔」不代表「這台版本是最新的」—— 要比的是 update_date 本身。
 ch_law_version() {
   if [ ! -f "$LAW_VERSION_FILE" ]; then
-    bump law-version warn "沒有 data/laws/.law_version（備援機靠 sync-snapshot.sh 帶過來；沒有＝快照同步還沒成功過）"
+    # 2026-10-02：這台是 **source 機**（有 .law_sync.json）還是備援機？
+    #
+    # 為什麼要分：`law-update-worker.sh` 的角色判斷**只看這一個檔在不在**
+    # （`:18` 附近），有 → source，沒有 → 備援。而 `.law_version` 只由
+    # `sync-snapshot.sh` 寫 —— source 機**本來就不走那條路**，所以它永遠
+    # 不會有這個檔。舊訊息對所有機器都說「沒有＝快照同步還沒成功過」，
+    # 對 source 機是**結構性錯誤** —— 一台完全正常的機器被報成故障。
+    # 這是「報告沒有分角色」家族的又一例（前一例是 code-drift：問錯對象）。
+    #
+    # 實測：x570 的 host-doctor 長期回這條 warn，而 x570 是 source 機、
+    # 每日 `sync_daily` 有在跑（.law_sync.json 的 last_checked 是新的）。
+    if [ -f "$LAW_SYNC_FILE" ]; then
+      bump law-version ok "這台是 source 機（law-update-worker.sh 的角色判斷依 .law_sync.json），版本由 sync_daily 直接產生，不需要 .law_version"
+    else
+      bump law-version warn "沒有 data/laws/.law_version（這台是備援機，靠 sync-snapshot.sh 帶過來；沒有＝快照同步還沒成功過）"
+    fi
     return 0
   fi
   # ⚠️ `why` 必須列在這行 local 裡，不能只在 case 分支裡 `why="..."`：
@@ -465,6 +553,7 @@ except Exception: print("")' "$synced" 2>/dev/null || true)"
 ch_repo
 ch_tools
 ch_containers
+ch_code_drift
 ch_env_check
 ch_rotate
 ch_registry

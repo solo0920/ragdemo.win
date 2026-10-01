@@ -174,11 +174,23 @@ scripts/env-sync.sh --fingerprints | grep QDRANT_PEER_API_KEY   # 與另外兩�
 ## 4. mbp 專屬：launchd 要加 law-update worker
 
 新的 `scripts/law-update-worker.sh` 負責執行前端「更新」按鈕排入的請求
-（容器跑不了 ingest 管線，所以實際動作在 host 端）。MSI 用 crontab 每分鐘：
+（容器跑不了 ingest 管線，所以實際動作在 host 端）。跑後端的那台用 crontab
+每分鐘：
 
 ```
-* * * * * /home/solo/projects/ragdemo/scripts/law-update-worker.sh >/dev/null 2>&1
+* * * * * /home/solo/projects/ragdemo.win/scripts/law-update-worker.sh >/dev/null 2>&1
 ```
+
+⚠️ **絕對不要在 crontab 裡寫死 repo 路徑。** 2026-10-02 x570 實測踩到：
+那條每日同步寫的是 `/home/solo/projects/ragdemo`（**少了 `.win` 後綴**），
+而 repo 實際在 `/home/solo/projects/ragdemo.win` —— 而且它是另一個錯誤之外的
+**額外**錯誤（同一條還指向不存在的 `.venv-ingest/bin/python`）。cron 不報錯，
+只是每天靜靜地失敗，`last_checked` 凍結而沒有人察覺。
+
+寫死的路徑在 repo 改名後會**靜默失效**。cron 不會跟你一起搬家。要嘛改用
+`%h/projects/ragdemo.win/...`（仍會隨改名失效），要嘛在改名當天就一起改。
+**檢查方法**：`crontab -l | grep -o '/home/[^ ]*ragdemo[^/]*'` ——
+印出來的路徑必須 `test -d` 得到 exist。
 
 mbp 的 crontab 被 macOS TCC 擋，請用 launchd。複製既有的
 `com.ragdemo.sync-snapshot` 結構（`StartInterval` 60 秒、`RunAtLoad`、
