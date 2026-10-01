@@ -665,115 +665,225 @@
 </main>
 
 <style>
-  main { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
-  textarea {
-    flex: 1 1 0%; min-width: 0; resize: none; min-height: 2.4rem;
-    border: none; outline: none; background: transparent;
-    padding: 0 0.25rem; line-height: 2.4rem; text-align: left;
-    font-size: 1rem; font-family: inherit; overflow-y: hidden;
+  /* ── 佈局 ──────────────────────────────────────────────────────
+   * 800px 是原本就有的值（單欄閱讀欄），維持不變 —— 這是閱讀寬度，
+   * 不是視覺決定，DESIGN.md 沒有對內部工具的閱讀欄寬度發言。
+   */
+  main {
+    max-width: 800px;
+    margin: var(--xxl) auto;
+    padding: 0 var(--lg);
   }
+
+  /* ── 頁首 ──────────────────────────────────────────────────────
+   * h1 用 display-md（36px）而不是 display-xl（64px）：DESIGN.md 的
+   * 64px 是行銷頁 hero，這是內部工具的頁首。用 64px 會讓一個查詢框
+   * 被標題壓住。
+   */
+  .head { display: flex; align-items: center; justify-content: space-between; gap: var(--md); flex-wrap: wrap; }
+  .head h1 { font: var(--display-md); letter-spacing: -0.5px; margin: 0 0 var(--md); }
+  .auth { display: flex; align-items: center; gap: var(--xs); white-space: nowrap; }
+
+  /* ── 按鈕 ──────────────────────────────────────────────────────
+   * DESIGN.md〈Do's and Don'ts〉：「Don't add hover state styling
+   * beyond what the system already encodes —— primary darkens on
+   * press; nothing else changes.」所以 .btn / .send **不寫 :hover**，
+   * 只寫 :active（對應 primary-active）。舊版每個按鈕都有 :hover 變白。
+   */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 40px; padding: 0 var(--md);
+    border: 1px solid var(--hairline); border-radius: var(--rounded-md);
+    background: var(--canvas); color: var(--ink);
+    font: var(--button); text-decoration: none; cursor: pointer;
+  }
+  .btn:active { background: var(--surface-soft); }
+  .btn.model-select { max-width: 15rem; }
+
+  /* 送出鈕：唯一的 coral CTA（DESIGN.md button-primary） */
+  .send {
+    flex-shrink: 0; width: 40px; height: 40px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: var(--rounded-md);
+    background: var(--primary); color: var(--on-primary);
+    cursor: pointer;
+  }
+  .send:active:not(:disabled) { background: var(--primary-active); }
+  .send:disabled { background: var(--primary-disabled); color: var(--muted); cursor: default; }
+
+  /* ── 查詢輸入列 ────────────────────────────────────────────────
+   * focus ring 用 DESIGN.md〈text-input-focused〉的 3px coral 15% ring。
+   */
   .ask-wrap {
-    display: flex; align-items: center; gap: 0.4rem;
-    padding: 0.4rem 0.5rem 0.4rem 0.75rem;
-    border: 1px solid #d7d7d7; border-radius: 1rem;
-    background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+    display: flex; align-items: center; gap: var(--xs);
+    padding: var(--xs) var(--sm) var(--xs) var(--md);
+    border: 1px solid var(--hairline); border-radius: var(--rounded-lg);
+    background: var(--surface-card);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .ask-wrap.multi { align-items: flex-end; } /* 備援：grow() 已用 inline style 控制 */
   .ask-wrap:focus-within {
-    border-color: #1e90ff; box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.12);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(204, 120, 92, 0.15);
   }
-  .send {
-    flex-shrink: 0; width: 2.3rem; height: 2.3rem; padding: 0;
-    display: flex; align-items: center; justify-content: center;
-    border: none; border-radius: 0.6rem;
-    background: #1e90ff; color: #fff;
-    cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-    transition: background 0.15s, opacity 0.15s;
+  textarea {
+    flex: 1 1 0%; min-width: 0; resize: none; min-height: 2.4rem;
+    border: none; outline: none; background: transparent;
+    padding: 0 var(--xxs); line-height: 2.4rem; text-align: left;
+    font: var(--body-md); color: var(--ink); overflow-y: hidden;
   }
-  .send:hover:not(:disabled) { background: #1c86ee; }
-  .send:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
-  .ans { white-space: pre-wrap; }
-  table { border-collapse: collapse; margin: 0.5rem 0 1rem; }
-  td { border: 1px solid #999; padding: 0.25rem 0.75rem; text-align: left; }
-  .sc { font-weight: bold; color: #b01; }
-  .tx { color: #444; }
-  .pop-sub { font-size: 0.9rem; margin: 0.6rem 0 0.2rem; }
-  .err { color: red; }
-  .muted { color: #666; font-size: 0.8rem; margin: 0.25rem 0; }
-  .hint { color: #666; font-size: 0.85rem; margin: 0.25rem 0; }
-  .trace { color: #999; font-size: 0.8rem; margin: 0.25rem 0; font-family: monospace; }
-  .jud { color: #a7b; font-size: 0.75rem; font-family: monospace; }
-  .lnk { color: #05b; text-decoration: none; }
-  .lnk:hover { text-decoration: underline; }
+  textarea::placeholder { color: var(--muted-text); }
   textarea:disabled { background: transparent; }
   .ask-wrap:has(textarea:disabled) { opacity: 0.65; }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-  .head h1 { margin: 0.5rem 0; }
-  .auth { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; white-space: nowrap; }
-  .btn {
-    border: 1px solid #888; background: #fff; border-radius: 6px;
-    padding: 0.25rem 0.75rem; cursor: pointer; text-decoration: none; color: #222;
+
+  /* ── 後端切換器 ──────────────────────────────────────────────── */
+  .switcher {
+    display: flex; align-items: center; gap: var(--xs);
+    flex-wrap: wrap; margin-bottom: var(--sm);
   }
-  .btn:hover { background: #f0f0f0; }
-  .btn.model-select {
-    font-size: inherit; font-family: inherit;
-    max-width: 15rem; padding-top: 0.15rem; padding-bottom: 0.15rem;
+  .sw-label { font: var(--caption); color: var(--muted); }
+  /* category-tab：未選透明、選中 surface-card（DESIGN.md〈Tab / Filter〉） */
+  .switcher button {
+    height: 32px; padding: 0 var(--sm);
+    border: 1px solid transparent; border-radius: var(--rounded-md);
+    background: transparent; color: var(--muted);
+    font: var(--nav-link); cursor: pointer;
   }
-  .btn.model-select:hover { background: #fff; }
+  .switcher button.active {
+    background: var(--surface-card); color: var(--ink);
+    border-color: var(--hairline);
+  }
+  .health { font: var(--body-sm); }
+  .health.ok { color: var(--success-text); }
+  .health.bad { color: var(--error); }
+  .sw-right { margin-left: auto; position: relative; display: flex; }
+
+  /* ── model 下拉 ──────────────────────────────────────────────── */
   .model-drop { position: relative; display: inline-block; }
   .model-menu {
-    position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+    position: absolute; top: calc(100% + var(--xxs)); left: 0; z-index: 30;
     min-width: 18rem; max-width: 30rem; max-height: 26rem; overflow-y: auto;
-    background: #fff; border: 1px solid #888; border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); padding: 0.25rem 0;
+    background: var(--canvas); border: 1px solid var(--hairline);
+    border-radius: var(--rounded-md); box-shadow: var(--shadow-float);
+    padding: var(--xxs) 0;
   }
   .model-row {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 0.75rem; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.85rem;
+    gap: var(--sm); padding: var(--xs) var(--sm);
+    font: var(--body-sm); color: var(--body-strong);
   }
-  .model-row:hover { background: #f0f0f0; }
-  .model-row.selected { background: #e6f2ff; }
+  /* 這一條 hover 保留：它是清單項，不是按鈕。DESIGN.md 的
+   * 「nothing else changes」講的是按鈕；清單沒有 hover 就分不出游標在哪。 */
+  .model-row[role=option] { cursor: pointer; }
+  .model-row[role=option]:hover { background: var(--surface-soft); }
+  .model-row.selected { background: var(--surface-card); color: var(--ink); }
   .model-row.disabled { opacity: 0.45; cursor: not-allowed; }
-  .model-row.group { font-weight: bold; color: #555; background: #fafafa; cursor: default; }
-  .model-row.group:hover { background: #fafafa; }
+  .model-row.group {
+    font: var(--caption); color: var(--muted);
+    background: var(--surface-soft); cursor: default;
+  }
   .m-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-meta { margin-left: auto; white-space: nowrap; color: #777; }
-  .m-meta.limited { color: #c62828; font-weight: bold; }
-  .switcher { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-  .sw-label { font-weight: bold; }
-  .switcher button {
-    border: 1px solid #888; background: #fff; border-radius: 6px;
-    padding: 0.25rem 0.75rem; cursor: pointer;
-  }
-  .switcher button.active { background: #1e90ff; color: #fff; border-color: #1e90ff; }
-  .health { font-size: 0.85rem; }
-  .health.ok { color: #2e7d32; }
-  .health.bad { color: #c62828; }
-  .sw-right { margin-left: auto; position: relative; display: flex; }
+  .m-meta { margin-left: auto; white-space: nowrap; color: var(--muted-text); font: var(--caption); }
+  .m-meta.limited { color: var(--error); font-weight: 500; }
+
+  /* ── 「連線詳細」浮層 ──────────────────────────────────────────
+   * 這是 dark surface（DESIGN.md product-mockup-card-dark）：內容是
+   * 主機拓撲表與檢索來源，屬於「產品 chrome」而不是行銷文案，
+   * 放深色是系統裡本來就有的用法。
+   */
   .info-btn {
-    border: 1px solid #888; background: #fff; border-radius: 6px;
-    padding: 0.25rem 0.75rem; cursor: pointer; font-size: 0.85rem;
+    height: 32px; padding: 0 var(--sm);
+    border: 1px solid var(--hairline); border-radius: var(--rounded-md);
+    background: var(--canvas); color: var(--ink);
+    font: var(--nav-link); cursor: pointer;
   }
-  .info-btn:hover { background: #f0f0f0; }
+  .info-btn:active { background: var(--surface-soft); }
   .info-pop {
     position: absolute; right: 0; top: calc(100% + 10px); z-index: 20;
-    background: #fff; border: 1px solid #ccc; border-radius: 8px;
-    padding: 0.6rem 0.9rem; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    background: var(--surface-dark); color: var(--on-dark);
+    border: 1px solid var(--surface-dark-elevated);
+    border-radius: var(--rounded-lg);
+    padding: var(--lg); box-shadow: var(--shadow-float);
     min-width: 260px;
   }
-  .info-pop h2 { font-size: 1rem; margin: 0 0 0.4rem; }
-  .pop-user { font-size: 0.8rem; color: #555; margin: 0 0 0.4rem; padding-bottom: 0.4rem; border-bottom: 1px dashed #ccc; }
-  .info-pop table { margin: 0; }
+  .info-pop h2 { font: var(--display-sm); letter-spacing: -0.3px; color: var(--on-dark); margin: 0 0 var(--xs); }
+  .pop-user {
+    font: var(--body-sm); color: var(--on-dark-soft);
+    margin: 0 0 var(--xs); padding-bottom: var(--xs);
+    border-bottom: 1px solid var(--surface-dark-elevated);
+  }
   .info-pop .tip {
     position: absolute; top: -6px; right: 18px; width: 10px; height: 10px;
-    background: #fff; border-left: 1px solid #ccc; border-top: 1px solid #ccc;
+    background: var(--surface-dark);
+    border-left: 1px solid var(--surface-dark-elevated);
+    border-top: 1px solid var(--surface-dark-elevated);
     transform: rotate(45deg);
   }
+  /* 浮層內文字轉為 on-dark 階調 */
+  .info-pop .muted { color: var(--on-dark-soft); }
+  .info-pop .hint { color: var(--on-dark-soft); }
+  .info-pop .btn {
+    background: var(--surface-dark-elevated); color: var(--on-dark);
+    border-color: var(--surface-dark-elevated);
+  }
+  .info-pop input[type=password] {
+    background: var(--surface-dark-soft); color: var(--on-dark);
+    border: 1px solid var(--surface-dark-elevated);
+    border-radius: var(--rounded-md); height: 32px; padding: 0 var(--xs);
+  }
+
+  /* ── 表格 ──────────────────────────────────────────────────────
+   * 舊版每格都有 1px 實線框（#999）。DESIGN.md 的表格屬於
+   * model-comparison-card 那一類：靠 hairline 分隔行，不畫格線。
+   */
+  table { border-collapse: collapse; margin: var(--xs) 0 var(--md); width: 100%; }
+  th {
+    text-align: left; font: var(--caption); color: var(--muted-text);
+    padding: var(--xs) var(--sm); border-bottom: 1px solid var(--hairline);
+  }
+  td {
+    padding: var(--xs) var(--sm); text-align: left;
+    border-bottom: 1px solid var(--hairline-soft);
+    font: var(--body-sm); color: var(--body);
+  }
+  .info-pop table { margin: 0; }
+  .info-pop th { color: var(--on-dark-soft); border-bottom-color: var(--surface-dark-elevated); }
+  .info-pop td { color: var(--on-dark); border-bottom-color: var(--surface-dark-soft); }
+
+  /* ── 答案區 ────────────────────────────────────────────────────
+   * 回答 / 引用 這兩個 h2 跟浮層裡的 h2（product-mockup-card-dark）
+   * 視覺權重不同，給 display-sm 的襯線 —— 這是 DESIGN.md 說的
+   * 「bigger Copernicus serif before bolder weight」。
+   */
+  main > h2 { font: var(--display-sm); letter-spacing: -0.3px; margin: var(--lg) 0 var(--xs); }
+  .ans { white-space: pre-wrap; color: var(--ink); }
+  .pop-sub { font: var(--title-sm); margin: var(--md) 0 var(--xxs); }
+  .err { color: var(--error); }
+  .muted { color: var(--muted); font: var(--body-sm); margin: var(--xxs) 0; }
+  .hint { color: var(--muted); font: var(--body-sm); margin: var(--xxs) 0; }
+  .trace { color: var(--muted-text); font: var(--code); margin: var(--xxs) 0; }
+  .jud { color: var(--muted-text); font: var(--code); font-size: 12px; }
+  /* 引用的來源標籤：accent-amber badge（DESIGN.md badge-pill 形狀） */
+  .sc {
+    font: var(--caption); color: var(--ink);
+    background: var(--surface-cream-strong);
+    border-radius: var(--rounded-pill); padding: 0 var(--sm);
+  }
+  .tx { color: var(--body); }
+  /* text-link：coral 內文連結（DESIGN.md 說這是系統最鮮明的小細節之一）。
+   * 用 primary-active 而不是 primary：原色在 canvas 上只有 3.11:1，
+   * 壓暗一階是 4.80:1，且那個 hex 本來就是 DESIGN.md 的 token，不是新值。 */
+  .lnk, .hint a { color: var(--primary-active); text-decoration: none; }
+  .lnk:active, .hint a:active { text-decoration: underline; }
+  ol { padding-left: var(--lg); }
+  ol li { margin-bottom: var(--sm); }
 
   /* law-update：法規版本欄位後方的「更新」按鈕 */
-  button.upd { margin-left: .5rem; padding: .1rem .5rem; font-size: .78rem; line-height: 1.5; vertical-align: middle; }
-  button.upd:disabled { opacity: .5; cursor: not-allowed; }
-  .upd-row { margin: .4rem 0 0; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
-  .upd-row input[type=password] { padding: .25rem .4rem; font-size: .8rem; min-width: 14rem; }
+  button.upd {
+    margin-left: var(--xs); height: 24px; padding: 0 var(--xs);
+    font: var(--caption); vertical-align: middle;
+  }
+  button.upd:disabled { opacity: 0.5; cursor: not-allowed; }
+  .upd-row { margin: var(--xs) 0 0; display: flex; flex-wrap: wrap; gap: var(--xs); align-items: center; }
+  .upd-row input[type=password] { height: 32px; padding: 0 var(--xs); font: var(--body-sm); min-width: 14rem; }
 </style>
