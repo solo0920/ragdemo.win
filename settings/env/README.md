@@ -110,7 +110,7 @@ bash -n scripts/env-sync.sh          # 語法
 pytest -q tests/test_env_audit.py tests/test_env_sync.py
 ```
 
-`--check` 驗的東西：鍵覆蓋率（`.env` 必須有 6 把共用 ＋ 2 把 per-host 機密 ＋
+`--check` 驗的東西：鍵覆蓋率（`.env` 必須有 8 把共用 ＋ 2 把 per-host 機密 ＋
 `common.env` 的鍵）、`secrets.common.env.example` 的鍵 == 腳本 `SHARED_SECRETS`、
 `secrets.host.env.example` 的鍵 == 腳本 `PER_HOST_SECRETS`、
 **per-host 機密的鍵名不得出現在 `secrets.common.enc.env`**（sops 的 dotenv 輸出
@@ -129,7 +129,7 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 
 兩個問題，兩種病：
 
-1. **共用憑證會漂移**：`QDRANT_PEER_API_KEY` 等 6 把有跨機讀寫關係，必須三台一致，
+1. **共用憑證會漂移**：`QDRANT_PEER_API_KEY` 等 8 把有跨機讀寫關係，必須三台一致，
    過去靠人工複製，2026-09-26 已造成兩次不對稱故障（本機 200、遠端 401；registry 心跳失敗）。
 2. **per-host 值會寫錯地方**：`HOST_ID`、`TS_IP`、`LLM_MODEL`（wsl 是 8b）、
    `OLLAMA_URLS`、`POSTGRES_DSN` 每台不同，整份 `.env` 同步會直接寫壞機器。
@@ -140,8 +140,8 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 |---|---|---|
 | `common.env` | 是（明文） | 共用**非敏感**鍵。值空＝用 compose 預設 |
 | `hosts.shared.env` | 是（明文） | **per-host 值的唯一真相**：`<機台>_<鍵>=<值>`，三台同檔 |
-| `secrets.common.env.example` | 是（明文） | **6 把**共用憑證的鍵名，值一律空 |
-| `secrets.common.enc.env` | 是（**加密**） | 6 把共用憑證真值，sops+age 加密 |
+| `secrets.common.env.example` | 是（明文） | **8 把**共用憑證的鍵名，值一律空 |
+| `secrets.common.enc.env` | 是（**加密**） | 8 把共用憑證真值，sops+age 加密 |
 | `secrets.host.env.example` | 是（明文） | **2 把** per-host 機密的鍵名，值一律空 |
 | `secrets.host.env`（若有人手建） | **否**（.gitignore） | 從不建立也不建議存在；真值只留各機 `.env` |
 | `.sops.yaml`（repo 根） | 是 | age recipient 公鑰清單 |
@@ -150,18 +150,46 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 合併順序（低 → 高）：`common.env` → 解密後的 secrets → render 出的 per-host 值。
 本機 `.env` 裡不在任何分層的鍵（例如 `HOST_ID`）永遠保留。
 
-## 7. 共用憑證 vs per-host 機密（2026-09-27 改正：9 把 → 7＋2；2026-09-30：7 → 6）
+## 7. 共用憑證 vs per-host 機密（2026-09-27 改正：9 把 → 7＋2；2026-09-30：7 → 6；2026-10-02：6 → 8）
 
 **判斷標準只有一個：這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
 分類錯了不會立刻壞掉，症狀是「時間全花在 debug key 上」—— 所以標準要寫死成
 可查證的規則，而不是「我覺得它該共用」。
 
-### 共用憑證（6 把，必須三台同值 → sops 分發）
+### 共用憑證（8 把，必須三台同值 → sops 分發）
 
 | 鍵 | 跨機關係 |
 |---|---|
 | `QDRANT_PEER_API_KEY` | 唯一跨機的 qdrant 認證：`scripts/sync-snapshot.sh` 拉 **x570** 的快照 |
 | `ADMIN_TOKEN` / `CF_AIG_TOKEN` / `HF_TOKEN` / `NVIDIA_API_KEY` / `TYPESAFE_API_KEY` | 三台拿**同一個值**去跟**同一個外部服務**認證 |
+| `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | 同上，外部服務是 **Cloudflare Access**。三台各帶同一組 service token 去認證彼此的 peer 探測與快照拉取 |
+
+**2026-10-02 納入：`CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`（6 把 → 8 把）**。
+這是 Access 護三台（2026-10-01）之後**漏掉的分類**，不是新設計：判斷標準就是
+上面那一句，三台同值、對同一個外部服務認證，與 `ADMIN_TOKEN` 完全同類。
+
+⚠️ 它**缺席 sops 層一天**的實際後果（記在這裡因為症狀是隱性的）：
+
+1. `mbp`／`x570` 只能人手貼 39 字元 hex ＋ 54 字元 `cfast_`，而**貼反**的症狀
+   與「Access 沒開」完全一樣（都回 403）
+2. 輪換要動三個 `.env`，中間必然有一段 peer 探測全紅
+3. `--fingerprints` 不涵蓋它 → 兩台值不一致是**無聲**的
+
+**新增一把共用憑證的正確做法**（不要用 `--init-secrets`，它覆蓋整份）：
+
+```bash
+# 1. 三處宣告同步（缺任何一處症狀都不同，所以要一次改齊）
+#    settings/env/secrets.common.env.example 加一行 <KEY>=
+#    scripts/env-sync.sh 的 SHARED_SECRETS 加 <KEY>
+#    tests/test_env_sync.py 的 SHARED_SECRETS 加 <KEY>
+# 2. 把值加進加密檔（走與輪換同一條「重加密→驗三件事→原子取代」的路徑）
+bash scripts/rotate-secret.sh <KEY> --add --from-stdin < 新值
+# 3. 三台 pull ＋ 重建容器，然後 --fingerprints 確認三台一致
+```
+
+⚠️ **Pages worker 那組值不在這條分發鏈** —— `frontend/src/routes/api/[...path]/+server.ts`
+讀的是 **Cloudflare Pages 後台**的環境變數。輪換 Access token 時要記得**兩邊都換**，
+否則後端 peer 正常但前端全 403。
 
 **2026-09-30 移出：`ZEN_API_KEY`（7 把 → 6 把）**。判定依據是可查證的，不是推測：
 

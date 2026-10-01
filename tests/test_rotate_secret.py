@@ -120,8 +120,35 @@ def _decrypt(enc: Path, env: dict) -> dict:
 
 
 def _rot(sb, key, value, *extra):
-    args = [key, *(extra or ("--from-stdin",))]
-    return _run(args, env=dict(sb["env"], **{OVERRIDE: str(sb["root"])}), stdin=value)
+    # 沒指定值來源就補 --from-stdin。**不要**寫成 `extra or ("--from-stdin",)` ——
+    # 那會讓 `--add` 這類「只加旗標」的呼叫把值來源一起吃掉，症狀是腳本印
+    # usage（回傳 1），而錯誤訊息裡完全看不出是測試呼叫寫錯了。
+    if not {"--from-stdin", "--from-file"} & set(extra):
+        extra = (*extra, "--from-stdin")
+    return _run([key, *extra],
+                env=dict(sb["env"], **{OVERRIDE: str(sb["root"])}), stdin=value)
+
+
+def _drop_from_enc(sb, key):
+    """把一把從加密檔拿掉，但**留在 SHARED_SECRETS 與 example 裡**。
+
+    這就是 2026-10-02 CF_ACCESS_CLIENT_* 的實況：鍵名已宣告、程式已在讀，
+    但真值還沒進 sops 層 —— 而那正是「新增」這條路徑存在的理由。
+    刻意不從 SHARED_SECRETS 移除：真正的分類決定由人做，這裡只模擬
+    「宣告完成、真值待補」那個中間狀態。
+    """
+    plain = sb["root"] / "settings" / "env" / ".rebuild"
+    plain.write_text("".join(f"{k}={v}\n" for k, v in sb["vals"].items()
+                             if k != key), encoding="utf-8")
+    r = subprocess.run(
+        ["sops", "-e", "--filename-override", str(sb["enc"]),
+         "--input-type", "dotenv", "--output-type", "dotenv",
+         "--output", str(sb["enc"]), str(plain)],
+        capture_output=True, text=True, env=sb["env"], cwd=sb["root"])
+    assert r.returncode == 0, r.stderr
+    plain.unlink()
+    assert key not in _decrypt(sb["enc"], sb["env"])
+    assert key in sb["shared"], "必須仍在 SHARED_SECRETS 裡，否則就不是 --add 的情境"
 
 
 # ── 不需要私鑰的 CLI 行為 ────────────────────────────────────────────────
@@ -312,3 +339,112 @@ def test_does_not_commit_or_push(sandbox):
     assert "commit" in r.stdout and "push" in r.stdout, "要提醒但不代勞"
     # sandbox 不是 git repo，若腳本真的去 commit/push 會在這裡炸
     assert not (sandbox["root"] / ".git").exists()
+
+
+# ── --add：把新憑證加進加密檔（2026-10-02）────────────────────────────────
+#
+# 為什麼需要：原本這支碰到加密檔裡沒有的鍵會 die，所以「新增一把共用憑證」
+# 只能靠 --init-secrets（毀滅性，會覆蓋整份）或手動 sops -d／改檔／sops -e。
+# 後者太痛 → 拖 → 2026-10-02 CF_ACCESS_CLIENT_ID/SECRET 在 sops 層缺席一天，
+# 而缺席的症狀是「mbp/x570 人手貼值、貼反與沒開 Access 長得一樣、
+# --fingerprints 也看不到那兩把」。所以這條路徑必須不痛。
+
+def test_add_inserts_the_missing_key(sandbox):
+    """--add 把缺的那把加進去，且**其他每把都不動**。"""
+    key = sandbox["shared"][-1]
+    _drop_from_enc(sandbox, key)
+    r = _rot(sandbox, key, "BRAND-NEW-CFACCESS", "--add")
+    assert r.returncode == 0, r.stderr
+    after = _decrypt(sandbox["enc"], sandbox["env"])
+    assert after[key] == "BRAND-NEW-CFACCESS"
+    assert set(after) == set(sandbox["shared"]), "鍵集合要等於 SHARED_SECRETS"
+    for k, v in sandbox["vals"].items():
+        if k != key:
+            assert after[k] == v, f"{k} 不該被動到"
+
+
+def test_add_result_is_decryptable_and_keeps_recipients(sandbox):
+    """加完仍解得開、recipients 數量不變、鍵數 +1。
+
+    鍵數 +1 是 --add 與 --from-stdin 的**唯一**結構差異，而上面那段
+    「key count changed」守衛（原本設計來擋 --init-secrets 式的重建）正是
+    會誤傷這裡的地方 —— 所以這條釘住它對 --add 必須放行。
+    """
+    key = sandbox["shared"][-1]
+    _drop_from_enc(sandbox, key)
+    before = len(re.findall(r"^sops_age__list_\d+__map_recipient=",
+                            sandbox["enc"].read_text(encoding="utf-8"), re.M))
+    assert _rot(sandbox, key, "NEW-CF-6", "--add").returncode == 0
+    after_txt = sandbox["enc"].read_text(encoding="utf-8")
+    assert len(re.findall(r"^sops_age__list_\d+__map_recipient=", after_txt, re.M)) == before
+    assert len(_decrypt(sandbox["enc"], sandbox["env"])) == len(sandbox["shared"])
+
+
+def test_add_refuses_a_key_that_is_already_there(sandbox):
+    """已存在卻又給 --add 必須 die —— 那會是**靜默 no-op**。
+
+    這一條比它看起來重要：換值時忘了拿掉 --add，如果靜默成功，使用者會
+    以為換掉了，舊值繼續在三台流通，而且沒有任何一行輸出說「其實沒換」。
+    """
+    r = _rot(sandbox, "HF_TOKEN", "NEW-CF-7", "--add")
+    assert r.returncode != 0
+    assert "已經在加密檔裡" in r.stderr
+    after = _decrypt(sandbox["enc"], sandbox["env"])
+    assert after["HF_TOKEN"] == sandbox["vals"]["HF_TOKEN"], "值必須沒被動到"
+
+
+def test_missing_key_without_add_points_at_add_not_at_init_secrets(sandbox):
+    """缺鍵又沒給 --add：錯誤訊息要**指向 --add**，並明說別用 --init-secrets。
+
+    Friction 點：這是最容易回頭走 --init-secrets 的時刻（它確實能加進去）。
+    而 --init-secrets 會覆蓋整份加密檔，把另外 7 把已曝露過的憑證全換成未知值。
+    訊息裡不擋這一下，那個按鍵就是近在咫尺。
+    """
+    key = sandbox["shared"][-1]
+    _drop_from_enc(sandbox, key)
+    r = _rot(sandbox, key, "NEW-CF-8")
+    assert r.returncode != 0
+    assert "--add" in r.stderr
+    assert "--init-secrets" in r.stderr, "要明說那條路會覆蓋整份"
+    # 失敗就什麼都不能變：這把仍然缺席（否則會得到「半個加密檔」）
+    assert key not in _decrypt(sandbox["enc"], sandbox["env"])
+
+
+def test_add_failure_leaves_original_untouched(sandbox):
+    """--add 失敗時原檔完全沒動（同「先寫暫存、驗過才 mv」的理由）。"""
+    key = sandbox["shared"][-1]
+    _drop_from_enc(sandbox, key)
+    before = sandbox["enc"].read_bytes()
+    _rot(sandbox, key, "line1\nline2", "--add")
+    assert sandbox["enc"].read_bytes() == before
+
+
+def test_add_never_prints_the_value(sandbox):
+    """--add 的輸出同樣不可含值（新增也是會被貼到聊天記錄裡的操作）。"""
+    key = sandbox["shared"][-1]
+    _drop_from_enc(sandbox, key)
+    secret = "SUPERSECRET-NEVER-PRINT-ON-ADD"
+    r = _rot(sandbox, key, secret, "--add")
+    assert r.returncode == 0
+    for stream in (r.stdout, r.stderr):
+        assert secret not in stream and "SUPERSECRET" not in stream
+    assert "sha12=" in r.stdout, "但要有可跨機比對的指紋"
+
+
+def test_add_tells_you_to_sync_the_key_declaration(sandbox):
+    """加完要提醒**三處宣告也要同步**，否則 --check 會報「該機缺鍵」。
+
+    Friction 點：`SHARED_SECRETS`、`secrets.common.env.example`、
+    `tests/test_env_sync.py` 的鏡像名單是三份。只改其中一份的症狀彼此不通：
+    改了 env-sync.sh 沒改 example → `--init-secrets` 少抽一把；
+    改了前兩份沒改測試 → pytest 紅；沒改前兩份 → 三台 pull 不到值。
+    這個提醒是唯一把它們綁在一起的地方。
+    """
+    key = sandbox["shared"][-1]
+    _drop_from_enc(sandbox, key)
+    r = _rot(sandbox, key, "NEW-CF-9", "--add")
+    assert r.returncode == 0
+    for needle in ("secrets.common.env.example", "SHARED_SECRETS",
+                   "test_env_sync.py", "env-sync.sh pull", "--fingerprints"):
+        assert needle in r.stdout, f"忘了提醒 {needle}"
+

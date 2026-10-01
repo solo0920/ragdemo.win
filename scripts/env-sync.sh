@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # env-sync — 三機共用設定與憑證的分發、合併、稽核（sops + age）。
 #
-# 解決的問題：6 把共用憑證必須三台一致，過去靠人工複製，2026-09-26 已造成
+# 解決的問題：8 把共用憑證必須三台一致，過去靠人工複製，2026-09-26 已造成
 # 兩次不對稱 401／心跳失敗。另有 2 把是 per-host 機密，**刻意不**走這條路。
 #
 # 分層（詳見 settings/env/README.md），合併順序由低到高：
 #   settings/env/common.env              追蹤明文，共用非敏感鍵
-#   settings/env/secrets.common.enc.env  追蹤加密，6 把共用憑證真值
+#   settings/env/secrets.common.enc.env  追蹤加密，8 把共用憑證真值
 #   settings/env/hosts.shared.env        追蹤明文，三台 per-host 值（前綴 <機台>_<鍵>）
 #   .env（repo 根）                      不追蹤、chmod 600，執行期唯一真相
 #
@@ -54,7 +54,25 @@ TABLE="$ENV_DIR/hosts.shared.env"
 # 當初要它，是因為三台 /hosts 指向同一個 pg（x570 的），密碼未知會互相鎖死；
 # 2026-09-30 實測各台 /hosts 已改讀自己的 pg，鎖死不存在，該鍵無用。
 # 所以：**不要加這個幽靈鍵**，未來若真的需要跨機讀 pg 再重新設計。
-SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY"
+#
+# 2026-10-02：納入 CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET（6 把 → 8 把）。
+# 這是 Access 護三台之後**漏掉的分類**，不是新設計。判斷標準（README §7）：
+# 「這個值有沒有跨機的讀寫關係？」—— 有，且與 ADMIN_TOKEN 完全同類：
+# 三台拿**同一組** token 去跟**同一個外部服務**（Cloudflare Access）認證。
+# 四個消費點分屬三台，所以三台少一台有值症狀極安靜：
+#   compose.yaml:143-144         傳進 api 容器
+#   backend/app/gateway.py:133   peer 探測帶 token（Access 護了三台後的必修補，4a0bf52）
+#   scripts/sync-snapshot.sh:171 拉 law version
+#   frontend/…/+server.ts:85     Pages worker（那組值在 Pages 後台，不靠這條分發）
+#
+# ⚠️ 它**不在** sops 層的期間（2026-10-01 → 10-02）造成的實際損害：
+#   1. mbp/x570 只能人手貼 39 字元 hex ＋ 54 字元 `cfast_`，而「貼反」的症狀
+#      與「Access 沒開」完全一樣（都回 403），X570-HANDOFF.md 為此專門記了坑。
+#      納管後 `pull` 直接寫入，那個坑整類消失。
+#   2. 輪換要動三個 .env，中間必然有一段 peer 探測全紅。
+#   3. `--fingerprints` 不涵蓋它 → 兩台值不一致是**無聲**的。這正是
+#      2026-09-26「診斷不出問題」那類缺口，所以納入清單即自動被指紋覆蓋。
+SHARED_SECRETS="QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN NVIDIA_API_KEY TYPESAFE_API_KEY CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET"
 # per-host 機密（與 secrets.host.env.example 同步）：各機自己的值，**不分發**。
 # 這份清單**只用於兩件事**：`--check` 的鍵覆蓋率、`--fingerprints` 的輸出標記。
 # 絕不可把它們寫進 .env、絕不可加進 py_apply 的任何 layer ——
@@ -88,8 +106,8 @@ usage: env-sync.sh <command> [options]
   render [--host ID]       只做 per-host render（不需 sops）
   render --dry-run         只印「會動哪幾個鍵」，不寫檔、不印值
   --check                  鍵覆蓋率、總表 schema、per-host 漂移、版控衛生（不需 sops）
-  --fingerprints [FILE]    6 把共用憑證（跨機比對用）＋2 把 per-host 機密的長度＋sha12
-  --init-secrets [--force] 從本機 .env 抽出 6 把共用憑證建加密檔（只在第一台跑一次）
+  --fingerprints [FILE]    8 把共用憑證（跨機比對用）＋2 把 per-host 機密的長度＋sha12
+  --init-secrets [--force] 從本機 .env 抽出 8 把共用憑證建加密檔（只在第一台跑一次）
 EOF
 }
 
@@ -99,7 +117,7 @@ EOF
 # 而「少印」看起來跟「那台沒設」一樣，正是 2026-09-26 診斷不出問題的那類。
 #
 # 兩段輸出的用途不同，不要混為一談：
-#   共用 6 把 → 三台必須一致，橫向互比（不同就是有人沒 pull）
+#   共用 8 把 → 三台必須一致，橫向互比（不同就是有人沒 pull）
 #   per-host 2 把 → 各機獨立存在，**不跨機比對**；只為「輪換前後在這台各跑一次，
 #                   確認這台真的換掉了」。看到不同不代表故障。
 fingerprints() {

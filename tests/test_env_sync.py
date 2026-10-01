@@ -20,8 +20,12 @@ SYNC = ROOT / "scripts" / "env-sync.sh"
 # 鏡像 env-sync.sh 的 SHARED_SECRETS（改一處必須改另一處，下面有測試鎖）。
 # 2026-09-30：ZEN_API_KEY 移出（7 → 6）。它是共用層裡的空殼：enc 檔裡沒有
 # ENC[...]、沒有任何一台設過、zen_ready 恆 false。見 env-sync.sh 註解。
+# 2026-10-02：納入 CF_ACCESS_CLIENT_ID/SECRET（6 → 8）。Access 護三台之後
+# 漏掉的分類，不是新設計 —— 與 ADMIN_TOKEN 同類（三台同值、對同一個外部服務
+# 認證）。不納管的話「兩台值不一致」是無聲的，因為 --fingerprints 不涵蓋它。
 SHARED_SECRETS = ("QDRANT_PEER_API_KEY ADMIN_TOKEN CF_AIG_TOKEN HF_TOKEN "
-                  "NVIDIA_API_KEY TYPESAFE_API_KEY").split()
+                  "NVIDIA_API_KEY TYPESAFE_API_KEY "
+                  "CF_ACCESS_CLIENT_ID CF_ACCESS_CLIENT_SECRET").split()
 # 2026-09-30 移出共用層的鍵。**刻意留在 .env fixture 裡**（見 fx）：
 # 留著才能證明 --init-secrets 不再抽它（不回歸），也證明它的存在不影響 pull。
 RETIRED_SHARED_SECRETS = ("ZEN_API_KEY",)
@@ -111,6 +115,11 @@ def fx(tmp_path):
         "HF_TOKEN=OLD-HF\n"
         "NVIDIA_API_KEY=OLD-NV\n"
         "TYPESAFE_API_KEY=OLD-TS\n"
+        # 2026-10-02 納入共用層的 Access token。值刻意寫成**長度可分辨**的假值：
+        # 實務上兩把長度不同（39 / 54）正是「貼反」的成因，放進 fixture 才能證明
+        # --init-secrets / pull / --check 三條路徑都不會把它們當成同一把。
+        "CF_ACCESS_CLIENT_ID=OLD-CFA-ID\n"
+        "CF_ACCESS_CLIENT_SECRET=OLD-CFA-SECRET-LONGER-THAN-ID\n"
         # 2026-09-30 移出共用層的鍵，**刻意留在 .env 裡且有值**：
         # 這樣 --init-secrets 就必須主動不抽它（而不是「.env 裡剛好沒這行」而僥倖
         # 通過），pull 也必須原樣保留它。兩個都是靜默退化最容易發生的地方。

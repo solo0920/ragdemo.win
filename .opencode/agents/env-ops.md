@@ -76,7 +76,7 @@ per-host 值的唯一真相是 `settings/env/hosts.shared.env`，格式 `<機台
 
 - 同步：`scripts/env-sync.sh pull` —— 解密 secrets → 合併 common.env → render per-host。
 - 檢查：`--check`（鍵覆蓋率＋總表 schema＋漂移＋版控衛生，不需解密）、
-  `--fingerprints`（6 把共用憑證，三台比對）。
+  `--fingerprints`（8 把共用憑證，三台比對）。
 - 預覽：`render --dry-run`（只印鍵名與變更類型，不寫檔、不印值）。
 - 建加密檔：`--init-secrets`（只在第一台跑過一次；**輪換絕不重跑**，直接 `sops` 解密改值再 commit）。
 - 修改任何設定前：先跑 `python3 scripts/env-audit.py` 確認該鍵屬哪一層。
@@ -87,16 +87,16 @@ per-host 值的唯一真相是 `settings/env/hosts.shared.env`，格式 `<機台
 分類錯了就是「時間全花在 debug key」的根源。判斷標準只有一個：
 **這個值有沒有跨機的讀寫關係？** 沒有就是 per-host。
 
-### 共用憑證（6 把，必須三台同值 → sops 分發）
+### 共用憑證（8 把，必須三台同值 → sops 分發）
 
 `QDRANT_PEER_API_KEY`、`ADMIN_TOKEN`、`CF_AIG_TOKEN`、`HF_TOKEN`、`NVIDIA_API_KEY`、
-`TYPESAFE_API_KEY`
+`TYPESAFE_API_KEY`、`CF_ACCESS_CLIENT_ID`、`CF_ACCESS_CLIENT_SECRET`
 
 - `QDRANT_PEER_API_KEY` 是唯一跨機的 qdrant 認證（`sync-snapshot.sh` 拉 x570 的快照）。
 - `POSTGRES_PEER_PASSWORD` **不納管**（2026-09-30 定案）。它沒有任何程式讀取 ——
   當初要它是因為三台 `/hosts` 指向同一個 pg，現已各讀自己的，鎖死不存在。
-  **不要加進這 6 把**，加了就是沒人讀的幽靈鍵。
-- ⚠️ **`ZEN_API_KEY` 已於 2026-09-30 移出這 6 把**（原 7 把）。它符合共用層的
+  **不要加進這 8 把**，加了就是沒人讀的幽靈鍵。
+- ⚠️ **`ZEN_API_KEY` 已於 2026-09-30 移出共用層**（原 7 把）。它符合共用層的
   形式條件卻沒有內涵：`secrets.common.enc.env` 裡是**空值**（其餘 6 把都有
   `ENC[...]`）＝沒有任何一台設過它，`zen_ready` 實測恆 false。分發空殼的代價是
   `--check` 會要求**每台** `.env` 都有那一行，於是沒用過的機器恆報缺鍵。

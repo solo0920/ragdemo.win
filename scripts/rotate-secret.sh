@@ -13,6 +13,15 @@
 #
 # ⚠️ 絕不用 --init-secrets（那是「建立加密檔」，會覆蓋整份，含沒換的那些）。
 #   那是本專案 2026-09-27 才有的坑，寫在這裡免得下次有人想「乾脆重建」。
+#
+# 2026-10-02 加 `--add`：一把新的共用憑證要進加密檔時用。
+#   為什麼需要：原本這支碰到加密檔裡沒有的鍵會 die（"key not found"），
+#   所以「新增」只能靠 --init-secrets（毀滅性）或手動 sops -d／改檔／sops -e。
+#   實測的後果是 CF_ACCESS_CLIENT_ID/SECRET 在 sops 層**缺席一天**，
+#   mbp／x570 只能人手貼值（貼反的症狀與「Access 沒開」一樣），而且
+#   --fingerprints 看不到那兩把 → 兩台不一致是無聲的。
+#   加了 --add 之後，新增走同一條「重加密 → 驗三件事 → 原子取代」的路徑，
+#   不再需要動 --init-secrets 那把大錘。
 set -euo pipefail
 
 # ROTATE_SECRET_ROOT_OVERRIDE 是**測試專用**（tests/test_rotate_secret.py），
@@ -57,13 +66,15 @@ usage() {
   # 那會把 `set -euo pipefail` 這行程式碼也印出來（2026-09-30 實測）。
   sed -n '2,${/^#/!q;s/^# \{0,1\}//p;}' "$0"
   cat <<'EOF'
-usage: rotate-secret.sh <KEY> --from-stdin | --from-file FILE
+usage: rotate-secret.sh <KEY> --from-stdin | --from-file FILE [--add]
        rotate-secret.sh --list
        rotate-secret.sh --help
 
   --list             列出可輪換的鍵（共用憑證；per-host 兩把不適用，見下）
   --from-stdin       從標準輸入讀新值（建議；不會留在 shell history）
   --from-file FILE   從檔案讀。**不會刪掉那個檔**（只提醒你它是明文）
+  --add              這把在加密檔裡**還沒有**，把它加進去（新增共用憑證用）
+                     已存在時會 die —— 免得「以為加了」其實什麼都沒變
 
 per-host 兩把（QDRANT_API_KEY / POSTGRES_PASSWORD）**不能用這支換** ——
 它們不在加密檔裡（各機自己的值，刻意不進共用層），請直接改該機的 .env。
@@ -87,12 +98,14 @@ esac
 
 KEY="$1"; shift
 SRC=""
+ADD=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --from-stdin)  SRC="stdin" ;;
     --from-file)   [ $# -ge 2 ] || die "--from-file needs a path"
                     SRC="$2"; shift ;;
+    --add)         ADD=1 ;;
     *) die "unknown option: $1" ;;
   esac
   shift
@@ -173,26 +186,47 @@ for l in open(sys.argv[1],encoding='utf-8'):
     m=re.match(r'^'+re.escape(sys.argv[2])+r'=(.*)$', l.rstrip('\n'))
     if m: print(m.group(1)); break
 " "$tmp_work" "$KEY")"
-[ -n "$OLD" ] || die "key not found in decrypted file: $KEY"
 
-echo "rotate-secret: $KEY"
-info "舊值 $(fp "$OLD")"
-info "新值 $(fp "$NEW")"
-[ "$OLD" != "$NEW" ] || die "新舊值相同（指紋一樣）—— 確定要輪換的是這一把嗎？"
+# --add：這把在加密檔裡還沒有。兩種誤用都要在這裡擋下來，而不是靜默成功 ——
+#   該加的沒加（漏了 --add）→ die，症狀是「我明明加了但 pull 不到」
+#   不該加的重複加（其實是換值卻忘了拿掉 --add）→ die，否則會換成靜默 no-op，
+#     使用者以為換掉了，實際上舊值還在流（這比 die 危險得多）
+if [ "$ADD" = "1" ]; then
+  [ -z "$OLD" ] || die "$KEY 已經在加密檔裡了（len=${#OLD}）—— 那是換值，不是新增；拿掉 --add"
+  echo "rotate-secret: $KEY（新增）"
+  info "加密檔裡原本沒有這把；其他鍵不動"
+else
+  [ -n "$OLD" ] || die "key not found in decrypted file: $KEY
+  這把還不在加密檔裡。要新增請加 --add（那是「加進去」，不是「換掉」）：
+      rotate-secret.sh $KEY --add --from-stdin
+  另一條路 --init-secrets 會覆蓋整份，別用（見檔頭）。"
+fi
+
+if [ -n "$OLD" ]; then
+  echo "rotate-secret: $KEY"
+  info "舊值 $(fp "$OLD")"
+  info "新值 $(fp "$NEW")"
+  [ "$OLD" != "$NEW" ] || die "新舊值相同（指紋一樣）—— 確定要輪換的是這一把嗎？"
+else
+  info "新值 $(fp "$NEW")"
+fi
 
 # 只改那一行，其餘原樣。python 而非 sed：值裡可能有 / 與 & 等 sed 特殊字元。
-python3 - "$tmp_work" "$KEY" "$NEW" <<'PY'
+# --add 時該鍵不存在 → append；存在已被上面的 die 擋掉，所以這裡只會是 0 或 1。
+python3 - "$tmp_work" "$KEY" "$NEW" "$ADD" <<'PY'
 import re, sys
-path, key, new = sys.argv[1], sys.argv[2], sys.argv[3]
+path, key, new, add = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 lines = open(path, encoding="utf-8").read().splitlines()
 pat = re.compile(r"^" + re.escape(key) + r"=")
-hit = 0
-for i, l in enumerate(lines):
-    if pat.match(l):
-        lines[i] = f"{key}={new}"
-        hit += 1
-if hit != 1:
-    sys.exit(f"expected exactly 1 line for {key}, found {hit}")
+hit = sum(1 for l in lines if pat.match(l))
+if add == "1":
+    if hit != 0:
+        sys.exit(f"--add but {key} already present ({hit} lines)")
+    lines.append(f"{key}={new}")
+else:
+    if hit != 1:
+        sys.exit(f"expected exactly 1 line for {key}, found {hit}")
+    lines = [f"{key}={new}" if pat.match(l) else l for l in lines]
 open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 PY
 
@@ -233,21 +267,46 @@ SOPS_AGE_KEY_FILE="$KEYFILE" sops --decrypt "${SOPS_ARGS[@]}" \
   --output "$tmp_check" "$tmp_enc" \
   || die "re-encrypted file cannot be decrypted — aborting, original untouched"
 
-python3 - "$tmp_check" "$KEY" "$NEW" "$SHARED_SECRETS" <<'PY'
+python3 - "$tmp_check" "$tmp_work" "$KEY" "$NEW" "$SHARED_SECRETS" "$ADD" <<'PY'
 import hashlib, re, sys
-path, key, new, shared = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4].split()
-vals = {}
-for l in open(path, encoding="utf-8").read().splitlines():
-    m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", l)
-    if m: vals[m.group(1)] = m.group(2)
-missing = [k for k in shared if k not in vals]
-if missing:
-    sys.exit(f"missing keys after rotation: {missing}")
-if vals[key] != new:
+# ⚠️ shared 一定要 .split()。原本寫成 sys.argv[4].split()，改成 unpack 形式時
+#   漏掉，症狀是 `[k for k in shared]` 走成**逐字元** → 報
+#   missing keys: ['Q','D','R','A','N','T',...]（每個字母一個元素）。
+#   那句錯誤訊息看起來像「加密檔壞了」，實際是這裡少一個 .split()。
+path, before_path, key, new = sys.argv[1:5]
+shared = sys.argv[5].split()
+add = sys.argv[6]
+
+
+def parse(p):
+    d = {}
+    for l in open(p, encoding="utf-8").read().splitlines():
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9_]*)=(.*)$", l)
+        if m: d[m.group(1)] = m.group(2)
+    return d
+
+
+vals, before = parse(path), parse(before_path)
+
+# 不變量只有一個，而且對兩種模式都要成立：**沒有任何一把在改動中消失**。
+# 「SHARED_SECRETS 每把都要在場」是換值時額外想要的 lint（宣告了卻沒建檔＝有人
+# 改了清單漏了 run），但對 --add 會誤傷：新增一把時加密檔裡本來就還缺著其他
+# 「已宣告待補」的鍵。實測 2026-10-02 加 CF_ACCESS_CLIENT_ID/SECRET 兩把時，
+# 這條 lint 讓第一把失敗、第二把又因為另一把不在而失敗 —— 兩把都加不進去，
+# 症狀是「不對稱錯誤：說缺的不是我剛加的那把」。那些鍵的缺席由
+# `env-sync.sh --check` 報，不是這支的責任。
+lost = [k for k in before if k not in vals]
+if lost:
+    sys.exit(f"keys lost during operation: {lost}")
+if add != "1":
+    missing = [k for k in shared if k not in vals]
+    if missing:
+        sys.exit(f"missing keys after rotation: {missing}")
+if vals.get(key) != new:
     sys.exit("target key did not take the new value")
 def fp(v): return "len=%d sha12=%s" % (len(v), hashlib.sha256(v.encode()).hexdigest()[:12])
-for k in shared:
-    print(f"  {k:<22} {fp(vals[k])}")
+for k in sorted(vals):
+    print(f"  {k:<24} {fp(vals[k])}")
 PY
 
 # recipients 數量：改前 vs 改後
@@ -258,6 +317,32 @@ r_new=$(grep -c '^sops_age__list_[0-9]*__map_recipient=' "$tmp_enc" || true)
 mv "$tmp_enc" "$ENC"
 shred -u "$tmp_check" 2>/dev/null || rm -f "$tmp_check"
 info "✓ 已寫入 $ENC"
+
+if [ "$ADD" = "1" ]; then
+cat <<EOF
+
+  $KEY 已加入加密檔（三台會拿到同一個值）。剩下四步：
+
+  1. **確認鍵名宣告也同步了**（漏這步的症狀是 --check 報「該機缺鍵」）：
+       settings/env/secrets.common.env.example  加一行 $KEY=
+       scripts/env-sync.sh 的 SHARED_SECRETS     加 $KEY
+       tests/test_env_sync.py 的 SHARED_SECRETS  加 $KEY
+     （前兩份與第三份必須一致，測試會鎖；只改一份就會漂移）
+
+  2. 本機 pull（自己也要拿值，本機 .env 可能有舊值／空值）：
+       bash scripts/env-sync.sh pull
+
+  3. 其他兩台 pull ＋ 重建容器（憑證是啟動參數，不重啟不生效）：
+       git pull && bash scripts/env-sync.sh pull && docker compose up -d
+
+  4. 三台驗證一致（不印值）：
+       bash scripts/env-sync.sh --fingerprints
+     三台的 $KEY 指紋必須相同。不同 = 有人沒 pull。
+
+  提醒：這支沒有 commit，也沒有 push。檢視過 diff 再自己提交。
+EOF
+  exit 0
+fi
 
 cat <<EOF
 

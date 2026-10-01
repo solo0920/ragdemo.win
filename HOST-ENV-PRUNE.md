@@ -154,7 +154,7 @@ git config core.hooksPath .githooks
 - **不要 `cat .env`**、不要 `env | grep KEY`、不要對 `env-sync.sh` 跑 `bash -x`
 - **不要 `docker compose config` 後貼輸出**（會展開所有憑證）。只驗語法用 `config -q`
 - **不要把 `.env` 的備份放 repo 內**（見上）
-- **不要手改 §3 那六把共用憑證**——手改會在下一次 `pull` 被覆蓋
+- **不要手改 §3 那八把共用憑證**——手改會在下一次 `pull` 被覆蓋
 - **不要為了填 `*_TS_IP` 去查 tailscale IP** 填進總表。該在該機自己的 `.env` 設
 - 回報憑證狀態只給「鍵名＋長度＋sha256 前 12 碼」：`scripts/env-sync.sh --fingerprints`
 
