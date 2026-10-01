@@ -79,6 +79,65 @@ def test_shell_local_variables_are_excluded():
         assert name not in REG, f"{name} 是 shell 局部變數，不該被當成 .env 變數"
 
 
+def test_interactive_read_targets_are_not_env_variables():
+    """互動式 `read VAR` 的目標不該進 .env 清單。
+
+    實測依據（2026-10-01）：scripts/access-check.sh 用 `IFS= read -rs CF_ID`
+    讀 Service Token（不回音、不進 shell history）。原本的 SH_READ_ASSIGN 只認
+    `while ...read`，於是 CF_ID／CF_SECRET 被當成「讀環境變數」→ 進 .env.example。
+
+    那不只是多餘兩行：它會**教人把互動輸入的變數設進 .env**，而設了也沒用
+    （`read` 讀 stdin，不看環境變數）。症狀是 CI 與 pre-push 的
+    test_template_has_no_lan_ip_assignment 紅掉（它斷言兩者逐字相同）。
+    """
+    cases = {
+        # 一定要認得的：這些都是賦值
+        "  while IFS= read -r FP; do": ["FP"],
+        "while read -r A B; do": ["A", "B"],
+        "IFS= read -rs CF_ID": ["CF_ID"],
+        "  read -r LINE": ["LINE"],
+        "read -r a b c": ["a", "b", "c"],
+        # 帶參數的旗標：參數要被跳過，抓到的是後面的變數名
+        "read -p 'Enter: ' PW": ["PW"],
+        'read -rs -p "Token: " CID CSEC': ["CID", "CSEC"],
+        "read -t 5 -r X": ["X"],
+        "read -n 1 ch": ["ch"],
+        # -a 的參數就是陣列名本身，所以後面沒有變數可抓
+        "read -a arr": [],
+    }
+    for line, want in cases.items():
+        m = ea.SH_READ_ASSIGN.match(line)
+        assert m, f"{line!r} 應被 SH_READ_ASSIGN 認出是 read"
+        got = ea._read_targets(m.group("rest"))
+        assert got == want, f"{line!r} → {got}，預期 {want}"
+
+    # 反方向更關鍵：不能把這些誤判成 read 賦值。誤判會造成**漏掉真的環境變數**
+    # （比多出幽靈鍵更難發現，因為 .env.example 看起來只是少一行）。
+    for line in ("grep read foo", "  echo 'please read this'",
+                 "already_read=1", "  readout=2", "# read -r COMMENTED"):
+        assert not ea.SH_READ_ASSIGN.match(line), f"{line!r} 不該被當成 read 賦值"
+
+
+def test_read_assign_detection_works_on_whole_file_text():
+    """_sh_assigns_control 掃的是整份檔案（沒有先切段），所以要自己處理分隔符。
+
+    若 tokenizer 讓 `FP;` 變成一個 token，識別字檢查就會失敗 → FP 被漏掉 →
+    FP 進 .env.example。那正是 host-doctor.sh:291 的 FP（2026-09-27 踩過的坑）。
+    """
+    text = (
+        "#!/bin/bash\n"
+        "  while IFS= read -r FP; do\n"
+        '    echo "$FP"\n'
+        "  done\n"
+        "IFS= read -rs SECRET\n"
+        'read -p "Token: " CID\n'
+    )
+    for name in ("FP", "SECRET", "CID"):
+        assert ea._sh_assigns_control(text, name), \
+            f"{name} 是 read 的目標，應視為賦值而非讀環境變數"
+    assert not ea._sh_assigns_control(text, "NOT_A_TARGET")
+
+
 def test_python_os_environ_indexing_does_not_crash():
     """os.environ["X"] 沒有第二個 regex group，不能直接 group(2)。
 

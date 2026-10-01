@@ -494,6 +494,11 @@ def scan_shell() -> dict[str, Ref]:
                 d = SH_DECL.match(seg)
                 if d:
                     local.update(x.group(1) for x in SH_DECL_ASSIGN.finditer(d.group(1)))
+                # `read VAR` 的目標：段首的 read（while 可有可無）。互動式
+                # 讀憑證的腳本全靠這裡擋掉，否則它們會被寫進 .env.example。
+                mr = SH_READ_ASSIGN.match(seg)
+                if mr:
+                    local.update(_read_targets(mr.group("rest")))
         for ln, line in enumerate(text.splitlines(), 1):
             if line.lstrip().startswith("#"):
                 continue
@@ -526,11 +531,68 @@ def scan_shell() -> dict[str, Ref]:
 # shell 控制流裡的賦值位置：這兩種沒有 `=`，SH_ASSIGN 認不出來，但確實是賦值。
 #   while read -r A B C   → 目標變數
 #   for A in ...          → 迴圈變數
+#
+# ⚠️ 2026-10-01：`while` 改成**選用**，因為互動式輸入根本沒有 while：
+#   IFS= read -rs CF_ID        # 讀的是 stdin，不是環境變數
+#   read -r LINE
+# 原本只認 `while ...read`，於是任何互動式 `read VAR` 的 VAR 都被當成
+# 「讀環境變數」→ 進 .env.example。症狀是 scripts/access-check.sh 一加進來，
+# .env.example 就多出 `CF_ID=`／`CF_SECRET=` 兩行，CI 與 pre-push 的
+# `test_template_has_no_lan_ip_assignment` 直接紅（它斷言兩者逐字相同）。
+# 那兩行不只是多餘 —— 它會**教人把互時輸入的變數設進 .env**，而設了也沒用
+# （`read` 讀 stdin，不看環境變數）。
+#
+# `^` 錨定是刻意的：`scan_shell` 會先用 `[;&|]+` 把一行切成指令段，段首就是
+# 指令起點，所以錨定後不會把 `grep read foo` 之類誤判成 read 賦值。
+# （那會造成**反方向的錯**：把真的環境變數誤認為局部而漏掉。）
+# re.M 是給 _sh_assigns_control 的 finditer 用 —— 那邊掃的是整份檔案。
+#
+# ⚠️ `IFS=` 的值是**空的**（`IFS= read -r A` 是清 IFS，不是設 IFS），
+# 所以那格必須用 `[^\s]*` 不能用 `\S+`。寫成 `\S+` 會讓整條正則匹配不到
+# `while IFS= read -r FP`，於是 FP 變成幽靈鍵進 .env.example —— 正是
+# 2026-09-27 踩過的那個坑（host-doctor.sh:291 的註解寫著）。
+# bash `read` 的旗標有兩種：帶參數的（-p PROMPT、-a ARRAY、-d 設定字元、
+# -n/-N/-t 數字、-u FD）與不帶的（-r、-s、-e）。必須區分，否則
+# `read -p 'Enter: ' PW` 會把 'Enter: ' 當成目標變數而漏掉 PW。
+#
+# 這裡刻意**不用一條 regex 硬吞**。試過（2026-10-01），回溯會產生垃圾匹配：
+# `read -a arr` 裡 `-a` 的參數就是變數名，regex 吃完就沒東西可抓，於是回溯到
+# `-\w+` 只吃 `-a`、把 `arr` 的 `r` 當成變數名 —— 抓出一個不存在的變數，
+# 那正是「幽靈鍵」的另一種形態。改用明確的 tokenizer：旗標逐個判斷，帶參數的
+# 就跳過下一個 token。
 SH_READ_ASSIGN = re.compile(
-    r"\bwhile\s+(?:IFS=\s*\S*\s+)?read\s+(?:-\w+\s+)*"
-    r"([A-Za-z_][A-Za-z_0-9]*(?:\s+[A-Za-z_][A-Za-z_0-9]*)*)"
+    r"^\s*(?:while\s+)?(?:IFS=[^\s]*\s+)?read\b(?P<rest>.*)$", re.M
 )
+SH_READ_ARG_FLAGS = set("adnNptu")     # 帶參數的 read 旗標
+# 最後一段刻意用 [^\s;&|]+ 而不是 \S+：否則 \S+ 會從前一個位置就把分號一起
+# 吞掉（`FP;` 變成一個 token），識別字檢查失敗 → **漏掉真正的變數名**。
+_SH_TOKEN = re.compile(r"""'[^']*'|"[^"]*"|&&|\|\||;|[^\s;&|]+""")
+_SH_IDENT = re.compile(r"[A-Za-z_][A-Za-z_0-9]*\Z")
 SH_FOR_ASSIGN = re.compile(r"\bfor\s+([A-Za-z_][A-Za-z_0-9]*(?:\s+[A-Za-z_][A-Za-z_0-9]*)*)\s+in\b")
+
+
+def _read_targets(rest: str) -> list[str]:
+    r"""`read` 後面的變數名（已扣掉旗標與帶參數旗標的參數）。
+
+    分隔符（`;`／`&&`／`||`）必須是獨立 token：否則 `\S+` 會把 `FP;` 整個
+    當一個 token，而它不符合識別字 → **漏掉真正的變數名**。
+    `_sh_assigns_control` 掃的是整份檔案（沒有先切段），所以這裡自己處理。
+    """
+    out: list[str] = []
+    skip = False
+    for tok in _SH_TOKEN.findall(rest):
+        if skip:
+            skip = False
+            continue
+        if tok in (";", "&&", "||", "do", "done", "{"):
+            break
+        if tok.startswith("-") and not tok.startswith("--") and len(tok) > 1:
+            if tok[1] in SH_READ_ARG_FLAGS:
+                skip = True
+            continue
+        if _SH_IDENT.fullmatch(tok):
+            out.append(tok)
+    return out
 
 # `local A="" B="" C=""` 一行宣告多個：SH_ASSIGN 只會抓到**第一個**名字
 # （它的 group(1) 就在開頭），所以 B、C 會被當成讀環境變數。
@@ -540,11 +602,13 @@ SH_DECL_ASSIGN = re.compile(r"(?<![$\{\"'\w])([A-Za-z_][A-Za-z_0-9]*)\s*=")
 
 
 def _sh_assigns_control(text: str, name: str) -> bool:
-    """這個名字是 while read / for 的目標嗎（即：被賦值，不是讀環境變數）。"""
-    for pat in (SH_READ_ASSIGN, SH_FOR_ASSIGN):
-        for m in pat.finditer(text):
-            if name in m.group(1).split():
-                return True
+    """這個名字是 read / for 的目標嗎（即：被賦值，不是讀環境變數）。"""
+    for m in SH_READ_ASSIGN.finditer(text):
+        if name in _read_targets(m.group("rest")):
+            return True
+    for m in SH_FOR_ASSIGN.finditer(text):
+        if name in m.group(1).split():
+            return True
     return False
 
 
