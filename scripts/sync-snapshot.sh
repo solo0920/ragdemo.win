@@ -63,10 +63,10 @@ auth_precheck() {
     200) return 0 ;;
     401|403)
       if [ -z "${QDRANT_PEER_API_KEY:-}" ]; then
-        log "AUTH 失敗（HTTP $code）：只有 QDRANT_API_KEY、沒設 QDRANT_PEER_API_KEY。"
+        log "AUTH 失敗（HTTP ${code}）：只有 QDRANT_API_KEY、沒設 QDRANT_PEER_API_KEY。"
         log "  本機 key 只適用於本機 qdrant；要寫入 $SOURCE 必須另外給對方的 key。"
       else
-        log "AUTH 失敗（HTTP $code）：QDRANT_PEER_API_KEY 與 $SOURCE 的 qdrant 不符。"
+        log "AUTH 失敗（HTTP ${code}）：QDRANT_PEER_API_KEY 與 $SOURCE 的 qdrant 不符。"
       fi
       log "  比對方法（不外洩值）：比較兩邊的 sha256 前 12 碼是否一致。"
       return 1 ;;
@@ -175,7 +175,7 @@ header = \"CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}\""
   ver="$(printf '%s' "$_cf_k" | curl -sf -m 8 -K - "$SRC_API/status?probe=0" 2>/dev/null \
         | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null || true)"
   if [ -z "$ver" ]; then
-    log "law version: 取不到（src_api=$SRC_API；來源機的 sync_daily.py 還沒跑過、該網址不通、或 Cloudflare Access 拒絕——後者要查 CF_ACCESS_CLIENT_ID/SECRET 有沒有設）"
+log "law version: 取不到（src_api=${SRC_API}；來源機的 sync_daily.py 還沒跑過、該網址不通、或 Cloudflare Access 拒絕——後者要查 CF_ACCESS_CLIENT_ID/SECRET 有沒有設）"
     return 0
   fi
   # 版本沒變就不重寫，避免每 10 分鐘動一次 mtime
@@ -201,13 +201,13 @@ else:
     print(s if re.match(r"^\d{4}-\d{2}-\d{2}$", s) else "")
 ')"
   if [ -z "$ver_iso" ]; then
-    log "law version 無法解析成 ISO 日期（raw=$raw），不寫入"
+    log "law version 無法解析成 ISO 日期（raw=${raw}），不寫入"
     return 0
   fi
   printf '{"update_date": "%s", "raw": "%s", "source": "%s", "synced_at": "%s"}\n' \
     "$ver_iso" "$raw" "$SOURCE" "$(date '+%F %T')" >"$VERSION_FILE.tmp" \
     && mv "$VERSION_FILE.tmp" "$VERSION_FILE" \
-    && log "law version updated: $old -> $ver_iso（raw=$raw）"
+    && log "law version updated: $old -> ${ver_iso}（raw=${raw}）"
 }
 
 # 1) source 在線？
@@ -248,7 +248,7 @@ auth_dest_precheck() {
   case "$code" in
     200|404) return 0 ;;          # 404 = 認證通過、只是還沒有這個 collection
     401|403)
-      log "AUTH 失敗（HTTP $code）：PEER_KEY 連**本機** $DEST 都打不開。"
+      log "AUTH 失敗（HTTP ${code}）：PEER_KEY 連**本機** $DEST 都打不開。"
       log "  刪掉本機 collection 之後就上傳不進來 → 資料空窗，所以在此中止。"
       log "  多半是 compose.yaml:30 的 QDRANT__SERVICE__ALT_API_KEY 沒在這台部署"
       log "  （QDRANT_PEER_API_KEY 拆分那把的槽）。修：docker compose up -d（會重建）。"
@@ -265,7 +265,7 @@ if [ "$FORCE" -eq 0 ] && [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; the
   log "unchanged (${SRC_PTS} points), skip"
   exit 0
 fi
-[ "$FORCE" -eq 1 ] && log "FORCE: 略過 unchanged 檢查（src_pts=$SRC_PTS prev=$PREV_PTS）"
+[ "$FORCE" -eq 1 ] && log "FORCE: 略過 unchanged 檢查（src_pts=$SRC_PTS prev=${PREV_PTS}）"
 
 # 3) 建新快照
 SNAP_JSON="$(curl -sf "${AUTH_H[@]}" -m 30 -X POST "$SOURCE/collections/$COLLECTION/snapshots" 2>/dev/null)" \
@@ -324,7 +324,7 @@ if [ "$UPLOAD_OK" != "1" ]; then
   log "✗✗ 本機 $COLLECTION 目前是**空的** —— 舊的已刪、新的上傳不進來。"
   log "  這台現在無法回答查詢；若 x570 同時離線就是三台全空。"
   log "  診斷方向：$DEST 的認證／磁碟空間／qdrant 版本。快照仍在來源機，重跑本腳本即可恢復。"
-  log "  已下載的快照保留在 $TMP（固定路徑，下次執行會覆寫；要現在重試就直接再跑一次）。"
+  log "  已下載的快照保留在 ${TMP}（固定路徑，下次執行會覆寫；要現在重試就直接再跑一次）。"
   exit 1
 fi
 
