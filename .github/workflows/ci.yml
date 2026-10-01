@@ -274,14 +274,28 @@ jobs:
           # 夾雜少數 `mbp:` / `x570:`。所以「最老的合法前綴 commit」落在建國初期，
           # 邊界等於不存在 → 每個舊 `msi:` 都被報（實測 139 筆全紅）。
           #
-          # 找法：`-S'msi'` 追「HOSTS= 那一行的字串變動」，取最新一筆 = 改名點。
+          # 找法：pickaxe 只認 `HOSTS=` **那一行**，取最新一筆 = 改名點。
           # 這是**內容導向**的：它問的是「總表什麼時候不再宣告舊代號」，而不是
           # 「commit 訊息碰巧寫了什麼」，所以改名那天的 commit 訊息怎麼寫都對。
           #
-          # ⚠️ 邊界找不到（沒有改名歷史、或未來又加回舊代號）時 `new_since` 為空
+          # ⚠️ `^` 那個錨點不能拿掉，它是這段唯一的東西。裸 `-S'msi'` 追的是
+          #    **整個檔案**裡 `msi` 這個字的出現次數變化，而 hosts.shared.env 有
+          #    15 處 `msi`、其中 11 處是註解和值（`msi=http://msi.…:11434`）。
+          #    實測：日後任何人**只是加一行註解提到 msi**，邊界就往前飄一格 ——
+          #    飄過哪裡，哪裡的 `msi:` commit 從此不再被報。連做三個 commit 實測
+          #    （純註解 → 違規的 `msi:` → 再一行純註解）後一次 push 那兩個，
+          #    違規 commit 被靜默放行（exit=0）；同樣的 commit 邊界沒漂移時是
+          #    exit=1。護欄的有效性不能取決於「最近有沒有人順手改到那個檔案的註解」。
+          #    拿掉 `^` 也一樣壞：`HOSTS=.*msi` 的 `.*` 會跨行，註解同樣命中。
+          #
+          # 未來把 `msi` 加回 `HOSTS=` 時，這個邊界會指到那一筆 —— 這是對的，
+          # 那時 `msi` 又是合法前綴了。實測過。
+          #
+          # ⚠️ 邊界找不到（全新 repo、沒有總表歷史）時 `new_since` 為空
           #    → 下面 `merge-base --is-ancestor` 失敗 → 舊代號照報。這個方向的
           #    失敗是安全的：寧可多報不可漏報。
-          new_since="$(git log -1 --format='%H' -S'msi' -- settings/env/hosts.shared.env)"
+          new_since="$(git log -1 --format='%H' --pickaxe-regex \
+                         -S'^HOSTS=.*\bmsi\b' -- settings/env/hosts.shared.env)"
           # 規則生效點 = 護檔案案被加入的那個 commit（commit-msg hook，8ca2768）。
           # 用 --diff-filter=A 找「新增」，所以日後若把護欄刪掉又加回來，邊界會
           # 跟著最新那個走。
