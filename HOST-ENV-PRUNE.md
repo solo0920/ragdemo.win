@@ -21,11 +21,11 @@ grep '^HOST_ID=' .env
 | 你看到 | 動作 |
 |---|---|
 | `HOST_ID=x570` 或 `HOST_ID=mbp` | ✅ 不用改，繼續第 1 步 |
-| `HOST_ID=msi` | ⚠️ **先改成你現在的代號再繼續**，否則下面每一個 `render`／`--check` 都會硬失敗（`主機代號不合法: msi`）。`wsl` 那台就是這個情況。 |
+| `HOST_ID=msi` | ⚠️ **先改成你現在的代號再繼續**，否則下面每一個 `render`／`--check` 都會硬失敗（`主機代號不合法: msi`）。`wsl` 那台就是這個情況；照下面那行 sed 改成 `wsl` 即可。 |
 
 ```bash
-# 只有 msi 的情況才需要（後面兩台的代號照抄 HOSTS= 那一行的第一個）
-sed -i 's/^HOST_ID=msi$/HOST_ID=<你的代號>/' .env
+# wsl 那台的實際情況（其他機台把 msi 換成自己的代號）
+sed -i 's/^HOST_ID=msi$/HOST_ID=wsl/' .env
 scripts/env-sync.sh render      # 從總表抓回你該機的 per-host 值
 ```
 
@@ -136,7 +136,7 @@ sleep 40 && curl -s http://127.0.0.1:8000/health
 ## 3. 順帶一提：commit message 前綴
 
 `.githooks/commit-msg` 改成**讀 `settings/env/hosts.shared.env` 的 `HOSTS=` 那一行**，
-不再寫死 `msi|mbp|x570`。所以：
+不再寫死 `wsl|mbp|x570`。所以：
 
 - `x570:` / `mbp:` / `wsl:` 都合法
 - `msi:` **會被拒**——`msi` 現在是 Windows 主機的 tailscale 名，不是後端主機

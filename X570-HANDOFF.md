@@ -20,7 +20,7 @@
 ```
 api-x570.ragdemo.win → HTTP 200  host_id=x570  llm=qwen3:14b
 api-mbp.ragdemo.win  → HTTP 200
-api-msi.ragdemo.win  → HTTP 200
+api-wsl.ragdemo.win  → HTTP 200
 ```
 
 Cloudflare API：`ragdemo-x570  status=healthy  conns=4`，
@@ -37,14 +37,14 @@ x570 checklist 走。分辨方式：
 | **502** | tunnel 連著，但本機後端沒起來（查容器） |
 
 **法規資料是最新的，不用重跑。** 三台 `law_version` 都是 `2026/9/18`，
-而 `.law_sync.json` 的 `last_checked: 2026-09-29T23:39` 顯示 msi 昨天才查過上游 ——
+而 `.law_sync.json` 的 `last_checked: 2026-09-29T23:39` 顯示 wsl 昨天才查過上游 ——
 9/18 就是最新版。一致**不是**「一起過期」。
 
 ---
 
 ## 事項 5：報回 age 公鑰（唯一會擋住事的）★先做★
 
-`.sops.yaml` 的 recipients **只有 msi 一把**（x570 與 mbp 都還是 TODO）。
+`.sops.yaml` 的 recipients **只有 wsl 一把**（x570 與 mbp 都還是 TODO）。
 `env-sync.sh pull` 要 `sops -d` 那 6 把共用憑證，sops 只能用名單裡的公鑰解 ——
 **x570 的年齡金鑰不在名單，pull 就會失敗。**
 
@@ -66,7 +66,7 @@ grep -o 'age1[0-9a-z]*' ~/.config/sops/age/keys.txt 2>/dev/null | head -1
 **回報 `age1...` 那一行就好。絕對不要回報 `keys.txt` 本身或
 `age-secret-key1...` 那一行。**
 
-拿到後 msi 端會加進 `.sops.yaml` → `sops updatekeys` 重加密 → commit。
+拿到後 wsl 端會加進 `.sops.yaml` → `sops updatekeys` 重加密 → commit。
 **x570 端不需要再做其他事**，下次 `git pull` + `env-sync.sh pull` 就通。
 
 若 `keys.txt` 已存在但 pull 仍失敗：回報錯誤訊息**第一行**。那要從 msi 端解決，

@@ -51,33 +51,33 @@ def fx(tmp_path):
     (env_dir / "secrets.host.env.example").write_text(
         "".join(f"{k}=\n" for k in PER_HOST_SECRETS), encoding="utf-8")
     (env_dir / "secrets.common.enc.env").write_text("ENC-PAYLOAD", encoding="utf-8")
-    # per-host 總表：schema 要求每台都有列（值可空）。故意讓 msi 的 TS_IP 與
+    # per-host 總表：schema 要求每台都有列（值可空）。故意讓 wsl 的 TS_IP 與
     # .env 現值不同，這樣「render 到底有沒有跑」才測得出來。
     # HOSTS= 是機台清單的宣告（2026-09-27：原本寫死在 env-sync.sh 裡）——
     # 缺了它 render 會硬失敗，所以每個假總表都得帶這一行。
     (env_dir / "hosts.shared.env").write_text(
-        "HOSTS=x570,mbp,msi\n"
+        "HOSTS=x570,mbp,wsl\n"
         "x570_TS_IP=100.119.83.111\n"
         "mbp_TS_IP=100.64.121.9\n"
-        "msi_TS_IP=100.0.0.3\n"
+        "wsl_TS_IP=100.0.0.3\n"
         "x570_LLM_MODEL=qwen3:14b\n"
         "mbp_LLM_MODEL=qwen3:14b\n"
-        "msi_LLM_MODEL=qwen3:8b\n"
+        "wsl_LLM_MODEL=qwen3:8b\n"
         "x570_HOST_NAME=x570\n"
         "mbp_HOST_NAME=mbp\n"
-        "msi_HOST_NAME=MSI\n"
+        "wsl_HOST_NAME=WSL\n"
         "x570_HOST_MACHINE_ID=\n"
         "mbp_HOST_MACHINE_ID=\n"
-        "msi_HOST_MACHINE_ID=msi-machine-id\n"
+        "wsl_HOST_MACHINE_ID=wsl-machine-id\n"
         "x570_OLLAMA_URLS=http://a:1,http://b:2\n"
         "mbp_OLLAMA_URLS=http://a:1,http://b:2\n"
-        "msi_OLLAMA_URLS=http://a:1,http://b:2\n"
+        "wsl_OLLAMA_URLS=http://a:1,http://b:2\n"
         "x570_OLLAMA_MODELS=\n"          # 空＝該機沿用現值
         "mbp_OLLAMA_MODELS=\n"
-        "msi_OLLAMA_MODELS=qwen3:14b,qwen3:8b\n"
+        "wsl_OLLAMA_MODELS=qwen3:14b,qwen3:8b\n"
         "x570_POSTGRES_DSN=\n"
         "mbp_POSTGRES_DSN=\n"
-        "msi_POSTGRES_DSN=postgresql://rag:${PG_PEER_PASSWORD}@100.0.0.1:5432/ragdemo\n",
+        "wsl_POSTGRES_DSN=postgresql://rag:${PG_PEER_PASSWORD}@100.0.0.1:5432/ragdemo\n",
         encoding="utf-8")
     # stub sops：--decrypt/--encrypt 都只是 cp（由 STUB_SRC/STUB_DST 決定內容）
     bindir = tmp_path / "bin"
@@ -95,8 +95,8 @@ def fx(tmp_path):
     stub.chmod(0o755)
     dotenv = tmp_path / ".env"
     dotenv.write_text(
-        "# msi local\n"
-        "HOST_ID=msi\n"
+        "# wsl local\n"
+        "HOST_ID=wsl\n"
         "TS_IP=100.65.68.106\n"
         "LLM_MODEL=qwen3:8b\n"
         "COLLECTION=laws\n"
@@ -152,14 +152,14 @@ def test_pull_updates_shared_and_renders_this_host(fx, tmp_path, monkeypatch):
     # per-host：本機那一欄套用（TS_IP 從舊值被總表取代）
     assert vals["TS_IP"] == "100.0.0.3"
     assert vals["LLM_MODEL"] == "qwen3:8b"
-    assert vals["HOST_NAME"] == "MSI"             # 原本 .env 沒這鍵，被補上
-    assert vals["HOST_MACHINE_ID"] == "msi-machine-id"
+    assert vals["HOST_NAME"] == "WSL"             # 原本 .env 沒這鍵，被補上
+    assert vals["HOST_MACHINE_ID"] == "wsl-machine-id"
     # 選擇器與別機的值不該被寫進來
-    assert vals["HOST_ID"] == "msi"
+    assert vals["HOST_ID"] == "wsl"
     assert not any(k.startswith(("x570_", "mbp_")) for k in vals)
     assert "100.119.83.111" not in vals.values()
     text = dotenv.read_text(encoding="utf-8")
-    assert text.splitlines()[0] == "# msi local"  # 註解與順序保留
+    assert text.splitlines()[0] == "# wsl local"  # 註解與順序保留
     assert stat.S_IMODE(dotenv.stat().st_mode) == 0o600
 
 
@@ -172,12 +172,12 @@ def test_empty_layer_values_never_wipe(fx, tmp_path, monkeypatch):
     decrypted = tmp_path / "decrypted.env"
     decrypted.write_text("QDRANT_PEER_API_KEY=\n", encoding="utf-8")  # 空的
     monkeypatch.setenv("STUB_SRC", str(decrypted))
-    # 總表 msi 欄刻意留空的鍵（OLLAMA_MODELS 的 x570 欄是空的，這裡改成 msi 空）
+    # 總表 wsl 欄刻意留空的鍵（OLLAMA_MODELS 的 x570 欄是空的，這裡改成 wsl 空）
     table = env_dir / "hosts.shared.env"
     table.write_text(table.read_text(encoding="utf-8").replace(
-        "msi_HOST_MACHINE_ID=msi-machine-id", "msi_HOST_MACHINE_ID="))
+        "wsl_HOST_MACHINE_ID=wsl-machine-id", "wsl_HOST_MACHINE_ID="))
     dotenv.write_text(dotenv.read_text(encoding="utf-8").replace(
-        "HOST_ID=msi", "HOST_ID=msi\nHOST_MACHINE_ID=local-value"))
+        "HOST_ID=wsl", "HOST_ID=wsl\nHOST_MACHINE_ID=local-value"))
     r = run_sync(["pull"], env_dir, dotenv, bindir)
     assert r.returncode == 0, r.stderr
     vals = parse_env(dotenv)
@@ -220,13 +220,13 @@ def test_render_selects_this_host_column(fx):
     assert "100.0.0.3" not in vals.values()
     assert "100.64.121.9" not in vals.values()
     # 輸出檔裡不得殘留任何前綴鍵
-    assert not any(k.startswith(("x570_", "mbp_", "msi_")) for k in vals)
+    assert not any(k.startswith(("x570_", "mbp_", "wsl_")) for k in vals)
 
 
 def test_render_expands_placeholder_from_local_env(fx):
     """${VAR} 由該機 .env 現值展開；這是讓總表能放 DSN 卻不存密碼的機制。"""
     env_dir, dotenv, _ = fx
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 0, r.stderr
     vals = parse_env(dotenv)
     assert vals["POSTGRES_DSN"] == "postgresql://rag:PEER-PW@100.0.0.1:5432/ragdemo"
@@ -242,7 +242,7 @@ def test_render_refuses_unresolvable_placeholder(fx):
     dotenv.write_text(dotenv.read_text(encoding="utf-8").replace(
         "PG_PEER_PASSWORD=PEER-PW", "PG_PEER_PASSWORD="))
     before = dotenv.read_text(encoding="utf-8")
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 1
     assert "PG_PEER_PASSWORD" in r.stderr
     assert "PEER-PW" not in r.stderr          # 不印值
@@ -258,7 +258,7 @@ def test_render_incomplete_schema_fails(fx):
     table.write_text("".join(
         l + "\n" for l in table.read_text(encoding="utf-8").splitlines()
         if not l.startswith("mbp_HOST_NAME=")))
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 1
     assert "HOST_NAME" in r.stderr and "mbp" in r.stderr
 
@@ -268,7 +268,7 @@ def test_render_rejects_unprefixed_row(fx):
     env_dir, dotenv, _ = fx
     table = env_dir / "hosts.shared.env"
     table.write_text(table.read_text(encoding="utf-8") + "TS_IP=1.2.3.4\n")
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 1
     assert "TS_IP" in r.stderr
 
@@ -277,17 +277,17 @@ def test_render_requires_host_id(fx):
     """沒有 HOST_ID（render 的選擇器）就明確失敗，不猜。"""
     env_dir, dotenv, _ = fx
     dotenv.write_text(dotenv.read_text(encoding="utf-8").replace(
-        "HOST_ID=msi\n", ""))
+        "HOST_ID=wsl\n", ""))
     r = run_sync(["render"], env_dir, dotenv)
     assert r.returncode == 1
     assert "HOST_ID" in r.stderr
 
 
 def test_render_rejects_unknown_host_id(fx):
-    """HOST_ID 不在 x570/mbp/msi 內就拒絕（拼錯時不會靜默用錯欄）。"""
+    """HOST_ID 不在 x570/mbp/wsl 內就拒絕（拼錯時不會靜默用錯欄）。"""
     env_dir, dotenv, _ = fx
     dotenv.write_text(dotenv.read_text(encoding="utf-8").replace(
-        "HOST_ID=msi", "HOST_ID=ms1"))
+        "HOST_ID=wsl", "HOST_ID=ms1"))
     r = run_sync(["render"], env_dir, dotenv)
     assert r.returncode == 1
     assert "ms1" in r.stderr
@@ -301,8 +301,8 @@ def test_render_enforces_paired_list_length(fx):
     env_dir, dotenv, _ = fx
     table = env_dir / "hosts.shared.env"
     table.write_text(table.read_text(encoding="utf-8").replace(
-        "msi_OLLAMA_MODELS=qwen3:14b,qwen3:8b", "msi_OLLAMA_MODELS=qwen3:14b"))
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+        "wsl_OLLAMA_MODELS=qwen3:14b,qwen3:8b", "wsl_OLLAMA_MODELS=qwen3:14b"))
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 1
     assert "OLLAMA_MODELS" in r.stderr and "OLLAMA_URLS" in r.stderr
 
@@ -314,9 +314,9 @@ def test_render_paired_length_uses_effective_values(fx):
     env_dir, dotenv, _ = fx
     table = env_dir / "hosts.shared.env"
     table.write_text(table.read_text(encoding="utf-8").replace(
-        "msi_OLLAMA_MODELS=qwen3:14b,qwen3:8b\n", ""))
+        "wsl_OLLAMA_MODELS=qwen3:14b,qwen3:8b\n", ""))
     dotenv.write_text(dotenv.read_text(encoding="utf-8") + "OLLAMA_MODELS=qwen3:14b\n")
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 1
     assert "OLLAMA_MODELS" in r.stderr
 
@@ -325,7 +325,7 @@ def test_dry_run_prints_key_names_only(fx):
     """--dry-run 不寫檔、不印值。"""
     env_dir, dotenv, _ = fx
     before = dotenv.read_text(encoding="utf-8")
-    r = run_sync(["render", "--host", "msi", "--dry-run"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl", "--dry-run"], env_dir, dotenv)
     assert r.returncode == 0, r.stderr
     assert "100.0.0.3" not in r.stdout and "100.0.0.3" not in r.stderr
     assert "OLD-PW" not in r.stdout and "OLD-PW" not in r.stderr
@@ -437,9 +437,9 @@ def test_check_fails_if_per_host_secret_in_shared_table(fx):
     env_dir, dotenv, _ = fx
     table = env_dir / "hosts.shared.env"
     table.write_text(table.read_text(encoding="utf-8") + "x570_QDRANT_API_KEY=x\n"
-                     "mbp_QDRANT_API_KEY=y\nmsi_QDRANT_API_KEY=z\n")
+                     "mbp_QDRANT_API_KEY=y\nwsl_QDRANT_API_KEY=z\n")
     # render（apply）：剔除、不寫入、警告
-    r = run_sync(["render", "--host", "msi"], env_dir, dotenv)
+    r = run_sync(["render", "--host", "wsl"], env_dir, dotenv)
     assert r.returncode == 0, r.stderr
     assert "QDRANT_API_KEY" in r.stderr
     assert parse_env(dotenv)["QDRANT_API_KEY"] == "OLD-KEY"
@@ -530,7 +530,7 @@ def test_check_pass_and_fail(fx):
     assert run_sync(["render"], env_dir, dotenv).returncode == 0
     r = run_sync(["--check"], env_dir, dotenv)
     assert r.returncode == 0, r.stderr
-    dotenv.write_text("HOST_ID=msi\n", encoding="utf-8")
+    dotenv.write_text("HOST_ID=wsl\n", encoding="utf-8")
     r = run_sync(["--check"], env_dir, dotenv)
     assert r.returncode == 1
     assert "QDRANT_API_KEY" in r.stdout  # 只報鍵名
@@ -734,7 +734,7 @@ def test_per_host_secrets_never_in_shared_layers():
             f"per-host 機密 {k} 出現在共用加密檔裡（會被分發到三台）"
     table = (ROOT / "settings/env" / "hosts.shared.env").read_text(encoding="utf-8")
     for k in PER_HOST_SECRETS:
-        assert not re.search(rf"^(?:x570|mbp|msi)_{k}=", table, re.M), \
+        assert not re.search(rf"^(?:x570|mbp|wsl)_{k}=", table, re.M), \
             f"per-host 機密 {k} 出現在被追蹤的總表裡"
 
 
@@ -758,8 +758,8 @@ def test_no_tracked_secret_values():
     assert not bad, f"追蹤檔含憑證明文值: {bad}"
 
 
-def test_sops_config_has_msi_recipient_no_private_key():
-    """.sops.yaml 有 msi 公鑰、無私鑰材料；x570/mbp 為 TODO 佔位。"""
+def test_sops_config_has_wsl_recipient_no_private_key():
+    """.sops.yaml 有 wsl 公鑰、無私鑰材料；x570/mbp 為 TODO 佔位。"""
     text = (ROOT / ".sops.yaml").read_text(encoding="utf-8")
     assert "age19et4d4etz4ptsp2s58838ffmfgzq8sfw3c775xc2gewgh74wtexqgej86q" in text
     assert "AGE-SECRET-KEY" not in text
@@ -798,7 +798,7 @@ def test_shared_table_schema_and_secret_freedom():
     Friction 點：總表是唯一被追蹤的 per-host 真相，schema 缺一列＝某台永遠
     拿不到值；POSTGRES_DSN 內嵌共用密碼，寫死就是新的 401 等級事故。
 
-    機台清單從總表的 `HOSTS=` 那一行讀，**不是**寫死 ("x570","mbp","msi")。
+    機台清單從總表的 `HOSTS=` 那一行讀，**不是**寫死 ("x570","mbp","wsl")。
     2026-09-27 之前這裡寫死三元組，於是「加第 4 台」連測試都要改程式 ——
     而測試是唯一會在加機器時被動到的地方，把它寫死等於把鎖死複製一份到測試裡。
     不變式沒有放鬆：仍然是「每個鍵對**每個宣告的機台**都要有列」。
@@ -853,7 +853,7 @@ def test_shared_table_dsn_password_matches_the_host_it_points_at():
     **指向自己**的 DSN（主機名是 compose 服務名 `postgres`，只在自己那台的容器內
     解析）就**必須**用 `${POSTGRES_PASSWORD}` —— 那不是踩坑，是正確寫法。
     當時的版本寫成「總表一律不准出現 `POSTGRES_PASSWORD`」，把這個合法寫法也擋掉，
-    於是 msi 改指本機 pg 之後測試紅燈，而修法只能退回去忍受離線依賴。
+    於是 wsl 改指本機 pg 之後測試紅燈，而修法只能退回去忍受離線依賴。
 
     所以規則不是「不准用 `POSTGRES_PASSWORD`」，而是**「密碼要跟 DSN 指向的
     那台對得上」**：看 DSN 的主機名是不是本機的 compose 服務名。
@@ -865,7 +865,7 @@ def test_shared_table_dsn_password_matches_the_host_it_points_at():
     own_pw = re.compile(r"\$\{POSTGRES_PASSWORD\}")
     wrong: list[str] = []
     for raw in table.splitlines():
-        m = re.match(r"^(?:x570|mbp|msi)_\w*DSN=(\S+)$", raw.strip())
+        m = re.match(r"^(?:x570|mbp|wsl)_\w*DSN=(\S+)$", raw.strip())
         if not m:
             continue
         dsn = m.group(1)
@@ -885,7 +885,7 @@ def test_shared_table_dsn_password_matches_the_host_it_points_at():
 # 所以一個「該由各機自己設、不該被同步」的鍵放進總表，等於**每次 pull 都會把它抹掉**。
 #
 # 實例（2026-09-30 實測）：`*_TS_IP` 三列空值放在總表裡，而 x570 的 `.env`
-# 有真實值（qdrant/pg 綁在它的 tailscale IP，msi 從 tailnet 連得到 200）。
+# 有真實值（qdrant/pg 綁在它的 tailscale IP，wsl 從 tailnet 連得到 200）。
 # 任何一次 `env-sync.sh pull` 都會把那份值蓋成空 → `${TS_IP:-127.0.0.1}` →
 # qdrant(6333) 與 postgres(5432) 重綁迴圈 → 跨機快照同步靜默失效。
 # 沒有錯誤訊息、沒有測試會紅、CI 全綠。

@@ -57,8 +57,8 @@
   別台，那是別台的）。2026-09-27 MSI 實測兩者指紋不同（`e328bd31728a` vs
   `55cebf3c8276`），用 `${POSTGRES_PASSWORD}` 展開 DSN 會製造「設定都有、心跳就是
   password authentication failed」。
-  **2026-09-30 更新**：各台 `/hosts` 已改讀**自己的** pg（實測 `api-msi /hosts` 只
-  回 msi、`api-x570 /hosts` 只回 x570），沒有跨機讀 pg 的需求，所以
+  **2026-09-30 更新**：各台 `/hosts` 已改讀**自己的** pg（實測 `api-wsl /hosts` 只
+  回 wsl、`api-x570 /hosts` 只回 x570），沒有跨機讀 pg 的需求，所以
   `POSTGRES_PEER_PASSWORD` **不納管** —— 它沒有任何程式讀取（全 repo 只剩註解、
   `.example` 說明文字、測試 docstring）。
   **不要加這個沒人讀的幽靈鍵，也不要為了填它去查別台的 pg 密碼。**
@@ -66,7 +66,7 @@
   `${POSTGRES_PASSWORD}` 展開本機密碼），別台留空表示「沿用該機 `.env` 現值」
   —— 留空是合法的默認狀態，不是待辦，也不是「三列都要空」。
 - **前綴不能放進 `.env`**：`docker compose` 只認 `${VAR}` 插值，沒有「依 `HOST_ID`
-  動態選 `msi_`／`x570_`」的能力。放進去會讓 MSI 的 8b 設定被**靜默吃掉**
+  動態選 `wsl_`／`x570_`」的能力。放進去會讓 WSL 的 8b 設定被**靜默吃掉**
   （回退原始碼預設 `qwen3:14b`、零錯誤訊息）；`TS_IP` 更嚴重，`ports` 會去 bind
   預設值那台的 IP，docker 直接啟動失敗。細節見 §9。
 - **`OLLAMA_MODELS` 與 `OLLAMA_URLS` 長度必須一致**（`rag.py:215` 用 index 取值）。
@@ -122,7 +122,7 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 
 1. **共用憑證會漂移**：`QDRANT_PEER_API_KEY` 等 6 把有跨機讀寫關係，必須三台一致，
    過去靠人工複製，2026-09-26 已造成兩次不對稱故障（本機 200、遠端 401；registry 心跳失敗）。
-2. **per-host 值會寫錯地方**：`HOST_ID`、`TS_IP`、`LLM_MODEL`（msi 是 8b）、
+2. **per-host 值會寫錯地方**：`HOST_ID`、`TS_IP`、`LLM_MODEL`（wsl 是 8b）、
    `OLLAMA_URLS`、`POSTGRES_DSN` 每台不同，整份 `.env` 同步會直接寫壞機器。
 
 ## 6. 分層

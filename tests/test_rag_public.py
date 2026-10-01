@@ -93,26 +93,26 @@ def test_keep_alive_duration_forms_return_str(monkeypatch):
 # ── host_label：URL → 主機 id ───────────────────────────────────────────
 
 def test_host_label_localhost_is_this_host(monkeypatch):
-    monkeypatch.setattr(gateway, "HOST_ID", "msi")
-    assert gateway.host_label("http://127.0.0.1:11434") == "msi"
-    assert gateway.host_label("http://localhost:8000") == "msi"
+    monkeypatch.setattr(gateway, "HOST_ID", "wsl")
+    assert gateway.host_label("http://127.0.0.1:11434") == "wsl"
+    assert gateway.host_label("http://localhost:8000") == "wsl"
 
 
 def test_host_label_compose_service_is_this_host(monkeypatch):
     """`qdrant` 這種 compose service 名沒有點，視為本機。"""
-    monkeypatch.setattr(gateway, "HOST_ID", "msi")
-    assert gateway.host_label("http://qdrant:6333") == "msi"
+    monkeypatch.setattr(gateway, "HOST_ID", "wsl")
+    assert gateway.host_label("http://qdrant:6333") == "wsl"
 
 
 def test_host_label_from_configured_peer(monkeypatch):
     """設計重點：不寫死 IP 對照表，只認 HOST_API_URLS 裡配過的 peer。"""
-    monkeypatch.setattr(gateway, "HOST_ID", "msi")
+    monkeypatch.setattr(gateway, "HOST_ID", "wsl")
     monkeypatch.setattr(gateway, "HOST_API", {"x570": "https://api-x570.ragdemo.win/query"})
     assert gateway.host_label("https://api-x570.ragdemo.win/anything") == "x570"
 
 
 def test_host_label_unknown_fqdn_returns_hostname(monkeypatch):
-    monkeypatch.setattr(gateway, "HOST_ID", "msi")
+    monkeypatch.setattr(gateway, "HOST_ID", "wsl")
     monkeypatch.setattr(gateway, "HOST_API", {})
     monkeypatch.setattr(gateway, "OLLAMA_LABELS", {})
     monkeypatch.setattr(gateway, "QDRANT_LABELS", {})

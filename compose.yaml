@@ -19,7 +19,7 @@ services:
     # 同上：不釘死等於放浮動。pg16 tag 目前解析到 0.8.6，故釘 0.8.6-pg16。
     # ⚠ pgvector 已有 pg18 變體，但 pg16→pg18 是跨大版本（需 dump/restore），不在本專案節奏內。
     image: pgvector/pgvector:0.8.6-pg16
-    # 同上：預設綁 127.0.0.1。要讓 mbp/msi 經 tailscale 共用你的 registry 才設 TS_IP。
+    # 同上：預設綁 127.0.0.1。要讓 mbp/wsl 經 tailscale 共用你的 registry 才設 TS_IP。
     ports: ["${TS_IP:-127.0.0.1}:5432:5432"]
     environment:
       POSTGRES_USER: rag
@@ -64,7 +64,7 @@ services:
       # 機器會冒用 x570 的身分覆寫它的 registry 條目，而且 /query 會自稱 x570
       # （registry.py 的預設卻是空字串，兩者互相矛盾）。改成 :? 是**更硬**的
       # 保護：忘了填就在 `docker compose up` 立刻失敗，而不是靜默頂用別人的名字。
-      HOST_ID: ${HOST_ID:?HOST_ID 必填（這台機器的代號，例如 msi）}
+      HOST_ID: ${HOST_ID:?HOST_ID 必填（這台機器的代號，例如 wsl）}
       # 主機身份。刻意「不」用 /etc/hostname、/etc/machine-id 的單檔 bind mount：
       # Docker Desktop（WSL）掛單一檔案不可靠，實測容器 init 直接 exit=127
       # （error mounting ... not a directory），而目錄型掛載正常 —— 只有這兩個會死。

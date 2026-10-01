@@ -92,7 +92,7 @@ VERSION_FILE="$ROOT/data/laws/.law_version"
 #
 # 用 sed 過濾註解與空行後 source。比逐行解析可靠，也不會被「註解裡有 =」騙到。
 # ⚠️ 不能把過濾結果管給 `source /dev/stdin`：pipe 會讓 source 把 `KEY=value`
-#    當成指令執行（`HOST_ID=msi: invalid variable name`，2026-09-26 實踩），
+#    當成指令執行（`HOST_ID=msi: invalid variable name`（當時代號是 msi），2026-09-26 實踩），
 #    所以先收集成字串、再用 here-string 餵進去。
 _load_env() {
   local f body out line k
@@ -198,7 +198,7 @@ else:
 
 # 1) source 在線？
 #    ⚠️ /healthz **不驗證 API key** —— 這是 qdrant 的設計，實測過三種情形
-#    （2026-09-30 mbp 回報、msi 複驗）：
+#    （2026-09-30 mbp 回報、wsl 複驗）：
 #        /healthz      正確 key → 200   錯的 key → 200   無 header → 200
 #        /collections  正確 key → 200   錯的 key → 401   無 header → 401
 #    所以這一步通過**只能**證明「TCP 連得到、那台 qdrant 活著」，不能證明

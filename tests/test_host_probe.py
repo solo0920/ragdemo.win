@@ -19,11 +19,11 @@ import pytest
 
 from app import gateway
 
-SELF = "msi"
+SELF = "wsl"
 THREE = {
     "x570": "https://api-x570.ragdemo.win",
     "mbp": "https://api-mbp.ragdemo.win",
-    "msi": "https://api-msi.ragdemo.win",
+    "wsl": "https://api-wsl.ragdemo.win",
 }
 X570 = "api-x570.ragdemo.win"
 MBP = "api-mbp.ragdemo.win"
@@ -161,7 +161,7 @@ async def test_self_is_never_probed(seen, three_hosts):
     await gateway._host_probe_log()
 
     assert hits, "應該有對 peer 的請求，否則這個測試沒測到東西"
-    assert not any("api-msi" in u for u in hits), hits
+    assert not any("api-wsl" in u for u in hits), hits
 
 
 @pytest.mark.asyncio
@@ -202,7 +202,7 @@ async def test_law_versions_skips_self(seen, three_hosts, monkeypatch):
 
     out = await gateway._host_law_versions()
 
-    assert not any("api-msi" in u for u in hits), hits
+    assert not any("api-wsl" in u for u in hits), hits
     assert out[SELF] == "2026-09-11", "自己的版數必須來自磁碟（注入點），不是 HTTP"
     assert out["x570"] == "2026-09-01", "peer 的版數仍要真的去探"
 

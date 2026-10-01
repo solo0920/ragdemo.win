@@ -7,7 +7,7 @@
 > 問題（qdrant key 輪換、`POSTGRES_PASSWORD` 三台不一致、2026-09-26 關機異常）
 > 都已解決或失效 —— 6 把共用憑證改走 sops＋age 加密分發、各台 `/hosts` 改讀自己的
 > pg、機器持續運行至今。**唯一還會擋住事的是 age 公鑰**（`.sops.yaml` 的 recipients
-> 只有 msi 一把，另兩台的 `env-sync.sh pull` 會解不開共用憑證）。
+> 只有 wsl 一把，另兩台的 `env-sync.sh pull` 會解不開共用憑證）。
 >
 > ⚠️ **x570 / mbp 升級時請先看 [`HOST-UPGRADE.md`](HOST-UPGRADE.md)** ——
 > 2026-09-26 容器化與檢索修正後，兩台各有一份 per-host 待辦：輪換外洩的 qdrant
@@ -91,15 +91,17 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 最貴的時候是幾天後才發現。**寧可卡住。**
 
 ## 主機命名（2026-09-22 定案，三台嚴格執行）
-**三台一律用硬體代號 `x570` / `mbp` / `msi`；`linux` 是作業系統名，禁止拿來當主機名。**
+**三台一律用硬體代號 `x570` / `mbp` / `wsl`；`linux` 是作業系統名，禁止拿來當主機名。**
+> ⚠️ 2026-10-01：`msi` → `wsl`（後端跑在 WSL）。Windows 主機仍叫 `msi`，只出現在
+> 「ollama 在哪」（`OLLAMA_URLS=msi=http://msi.tailfe3f3d.ts.net:11434`），不是後端主機。
 
 | 代號 | 機器 | OS | tailscale IP |
 |---|---|---|---|
 | `x570` | solo-X570-I-AORUS-PRO-WIFI | Linux | 100.119.83.111 |
 | `mbp` | Lees-MacBook-Pro | macOS | 100.64.121.9 |
-| `msi` | MSI（WSL2 Ubuntu） | Windows | 100.65.68.106 |
+| `wsl` | WSL2 Ubuntu（於 Windows 主機上） | Windows | 100.122.78.7 |
 
-- 適用範圍：`.env` 的 `HOST_ID`、前端切換按鈕 id、commit 前綴（`msi:`/`mbp:`/`x570:`）、
+- 適用範圍：`.env` 的 `HOST_ID`、前端切換按鈕 id、commit 前綴（`wsl:`/`mbp:`/`x570:`）、
   `sync-snapshot.sh` 註解、文件（本檔／ROADMAP）——一律寫 `x570`，不寫 `linux`。
 - 沿革：早期以 OS 名 `linux` 代稱主力機；2026-09-22 定案改用硬體代號。
 
@@ -191,7 +193,7 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
 * **mbp 100.64.121.9**：加速。api/qdrant/pg **全 docker compose（三容器，OrbStack runtime）**，
   `LLM_MODEL=qwen3:14b`（本機 ollama）＋qdrant 本機備援（快照同步來自 x570）；
   容器 api 的 `POSTGRES_DSN` 指 x570 共享 registry（見 ROADMAP §4.1.1）。
-* **msi 100.65.68.106（demo）**：api/qdrant/pg **全 docker compose（三容器，Docker Desktop
+* **wsl 100.122.78.7（demo）**：api/qdrant/pg **全 docker compose（三容器，Docker Desktop
   4.92 + WSL integration，2026-09-26 容器化）**，`LLM_MODEL=qwen3:8b`（2026-09-23 由 4b 換上：
   4b 的 `think:false` 是已知 bug）＋qdrant 本機備援（快照同步來自 x570）。
   容器 api 的 `POSTGRES_DSN` 指 x570 共享 registry。**注意 WSL 內沒有 tailscale 介面**，
@@ -206,17 +208,17 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
 ### Port 綁定（folding 到最小曝露面）
 | 服務 | 綁定 | 理由 |
 |---|---|---|
-| qdrant 6333 | `${TS_IP}:6333`（x570=100.119.83.111） | mbp/msi 備援 snapshot 靠 tailscale 拉取；阻 LAN(192.168)/公網 |
-| postgres 5432 | `${TS_IP}:5432` | mbp/msi 心跳共用 registry（`sync-snapshot`不需 pg）；阻 LAN/公網 |
+| qdrant 6333 | `${TS_IP}:6333`（x570=100.119.83.111） | mbp/wsl 備援 snapshot 靠 tailscale 拉取；阻 LAN(192.168)/公網 |
+| postgres 5432 | `${TS_IP}:5432` | mbp/wsl 心跳共用 registry（`sync-snapshot`不需 pg）；阻 LAN/公網 |
 | api 8000 | `127.0.0.1:8000` | cloudflared / dev proxy 都本機連；公網只經 tunnel |
 
 - `compose.yaml` 用 `${TS_IP}` 變數→各機 .env 帶各自 TS_IP 即自動對應，無需改 yaml。
-- 保留 mbp/msi 用 `http://<TS_IP>:6333/5432` 經 tailscale 存取（registry 心跳、快照備援）。
+- 保留 mbp/wsl 用 `http://<TS_IP>:6333/5432` 經 tailscale 存取（registry 心跳、快照備援）。
 
 ### 認證
 - **qdrant**：`QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}`（`.env`）。無 key 回 401。
   `gateway.py` `_req(kind="qdrant")` 自動帶 `api-key` header；`sync-snapshot.sh` 支援
-  `QDRANT_API_KEY` env（出站認證，mbp/msi 的 crontab/launchd 要帶）。
+  `QDRANT_API_KEY` env（出站認證，mbp/wsl 的 crontab/launchd 要帶）。
 - **postgres**：`POSTGRES_PASSWORD` 採 `:?` 必填語法，**移除了 `changeme` fallback**。
   **坑**：`POSTGRES_PASSWORD` 只對首次容器初始化生效——既有 volume 需 `ALTER USER rag PASSWORD` 手動同步
   （x570 已做，2026-09-26）。127.0.0.1 來源在 pg_hba 是 `trust`，會誤導成「密碼對」，要以 tailscale
@@ -233,11 +235,11 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
   樣板／說明見根 `.env.example`（2026-09-26 改）；`python3 scripts/env-audit.py`
   可列出每個變數的消費者、幽靈變數與副本漂移。
 - **per-host 值的唯一真相＝`settings/env/hosts.shared.env`（2026-09-27）**：三台的
-  `x570_`／`mbp_`／`msi_` 值寫在同一個被追蹤的明文檔裡（不含憑證），
+  `x570_`／`mbp_`／`wsl_` 值寫在同一個被追蹤的明文檔裡（不含憑證），
   `scripts/env-sync.sh render` 依本機 `HOST_ID` 挑列、展開 `${VAR}` 後寫進
   **不帶前綴**的 `.env`；`--check` 驗 schema 完整性與漂移。
   前綴刻意不進執行期 `.env`：compose 只認 `${VAR}`，沒有依 `HOST_ID` 動態選
-  `msi_`／`x570_` 的能力 —— 前綴若寫在 `.env`，值會讀不到而回退原始碼預設
+  `wsl_`／`x570_` 的能力 —— 前綴若寫在 `.env`，值會讀不到而回退原始碼預設
   （`LLM_MODEL` 掉回 14b、`TS_IP` 讓 `ports:` 綁錯而啟動失敗），屬靜默劣化。
   `HOST_ID` 本身是 render 的選擇器，只能各機手動設一次。
 - **`POSTGRES_PASSWORD` ≠ DSN 裡的密碼（2026-09-27 MSI 實測）**：前者是**本機**
@@ -245,8 +247,8 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
   x570 的 pg 密碼。兩者 sha256 前 12 碼不同（`55cebf3c8276` vs `e328bd31728a`，
   皆 32 字元）。用 `${POSTGRES_PASSWORD}` 展開 DSN 會製造「設定都有、
   心跳就是 password authentication failed」。
-  **2026-09-30 更新**：各台 `/hosts` 已改讀自己的 pg（實測 `api-msi /hosts` 只回
-  msi、`api-x570 /hosts` 只回 x570），跨機讀 pg 的需求消失，故
+  **2026-09-30 更新**：各台 `/hosts` 已改讀自己的 pg（實測 `api-wsl /hosts` 只回
+  wsl、`api-x570 /hosts` 只回 x570），跨機讀 pg 的需求消失，故
   `POSTGRES_PEER_PASSWORD` **不納管**（沒有任何程式讀它）。
 - **共用憑證分發（2026-09-27）**：**6 把**必須三台一致的憑證
   （`QDRANT_PEER_API_KEY`／`ADMIN_TOKEN`／`CF_AIG_TOKEN`／`HF_TOKEN`／
@@ -298,7 +300,7 @@ scripts/sync-snapshot.sh（crontab 每 10 分鐘，MSI 已掛；mbp 用 launchd 
 - 快照很小（目前 3 筆≈174KB；500~1000 筆≈10–60MB, zstd），同步成本低。
 - **快照還原（2026-09-24 修正）**：刪本機後直接 `upload?priority=snapshot`（含 sparse 雙向量），
   不再預建 dense-only collection。
-- **QDRANT_API_KEY 出站（2026-09-26）**：x570 開 key 後，mbp/msi 的 sync-snapshot 排程
+- **QDRANT_API_KEY 出站（2026-09-26）**：x570 開 key 後，mbp/wsl 的 sync-snapshot 排程
   （crontab/launchd）環境需帶 `QDRANT_API_KEY`（見資安收斂）。
 
 ### QDRANT_URLS 降級（全 tailscale＋本機）
@@ -311,8 +313,8 @@ QDRANT_URLS=http://100.119.83.111:6333,http://${TS_IP}:6333
 → x570 在線用 x570（最新）；離線自動切本機（快照資料），query 不中斷。
 
 ### 外出 demo 模式（2026-09-23 定案：零改造）
-「x570 斷線」當常態：帶出門 x570 在家離線，**mbp 自動扮演主力**，msi 當備援。
-worker 自動模式依 x570→mbp→msi 探測；出發前 mbp 跑 `bash scripts/sync-snapshot.sh` 補最新快照。
+「x570 斷線」當常態：帶出門 x570 在家離線，**mbp 自動扮演主力**，wsl 當備援。
+worker 自動模式依 x570→mbp→wsl 探測；出發前 mbp 跑 `bash scripts/sync-snapshot.sh` 補最新快照。
 詳見 ROADMAP §4.6。
 
 ### pg / registry 的定位
@@ -349,7 +351,7 @@ provider 地雷。這些是實測踩到的，不在任何程式碼裡 —— 刪
   （選 Inference preset，`hf_...` 開頭）。
 - **Mistral 上游 rate limit**：`mistral-small`/`medium` 家族回 `429 code 1300`。
   實測可用的是 `ministral-8b-latest` 與 `codestral-latest`（即 `MISTRAL_MODELS` 預設）。
-- **msi 為何是 `qwen3:8b` 而非 4b**：4b 的 `think:false` 是已知 bug ——
+- **wsl 為何是 `qwen3:8b` 而非 4b**：4b 的 `think:false` 是已知 bug ——
   連「1+1=?」都會思考 1000+ token。8b 已實測正常（2026-09-23 換上）。
 
 ## 題庫（rules）與 JEV 驗證（2026-09-26）
@@ -366,22 +368,22 @@ provider 地雷。這些是實測踩到的，不在任何程式碼裡 —— 刪
 * MSI：`bge-m3`、`qllama/bge-reranker-v2-m3`、`qwen3:8b`、`qwen2.5-coder:7b`
 
 ## 服務埠（2026-09-26 收斂後）
-* 8000 api：x570 docker compose／mbp／msi，全綁 `127.0.0.1`（公網只經 cloudflared tunnel）
+* 8000 api：x570 docker compose／mbp／wsl，全綁 `127.0.0.1`（公網只經 cloudflared tunnel）
 * 6333 qdrant：三機一律綁 `${TS_IP}:6333`（容器化後無 loopback 例外）
-* 5432 postgres：x570 綁 `${TS_IP}:5432`（mbp/msi 心跳經 tailscale 存取）
+* 5432 postgres：x570 綁 `${TS_IP}:5432`（mbp/wsl 心跳經 tailscale 存取）
 * 5173 前端 dev（本機）／11434 ollama（各機 native，綁 localhost）
 
 ## 公網接手（Cloudflare tunnel keepalive 規範，2026-09-23 定案）
 
-三台各自一條 local tunnel（`ragdemo-x570`/`ragdemo-mbp`/`ragdemo-msi`），
-公網 hostname `api-x570`/`api-mbp`/`api-msi.ragdemo.win` → 各機 `http://localhost:8000`。
+三台各自一條 local tunnel（`ragdemo-x570`/`ragdemo-mbp`/`ragdemo-wsl`），
+公網 hostname `api-x570`/`api-mbp`/`api-wsl.ragdemo.win` → 各機 `http://localhost:8000`。
 **三台統一 `--protocol http2`**（WSL2 的 UDP/QUIC 連 edge 全 timeout，實戰心得）。
 
 ### keepalive 兩層（進程層＋edge 長連線）
-1. **進程層**：cloudflared tunnel 崩潰——x570/msi 用 crontab `restart loop`（每 5s 重拉），
+1. **進程層**：cloudflared tunnel 崩潰——x570/wsl 用 crontab `restart loop`（每 5s 重拉），
    mbp 用 launchd `com.ragdemo.tunnel` `KeepAlive=true`。api/qdrant/pg 三機一律 docker compose
-   `restart: unless-stopped`（mbp＝OrbStack，隨登入啟動；msi＝Docker Desktop，隨 Docker Desktop
-   啟動 —— 2026-09-26 兩台皆完成容器化，msi 的 crontab 冪等檢查與 `~/bin/ragdemo-api.sh` 已移除）。
+   `restart: unless-stopped`（mbp＝OrbStack，隨登入啟動；wsl＝Docker Desktop，隨 Docker Desktop
+   啟動 —— 2026-09-26 兩台皆完成容器化，wsl 的 crontab 冪等檢查與 `~/bin/ragdemo-api.sh` 已移除）。
    cloudflared 一律 `--protocol http2`。
 2. **edge 連線層**：`curl http://127.0.0.1:20241/metrics` 應見 4 條連線、errors=0。
 
@@ -448,8 +450,8 @@ api lifespan 跑 `rag.warmup()` 預載（best-effort，失敗只 log）。驗證
 * `evals/questions.json` 佔位，待擴 50 題（目前 ~14 題，`/eval` 14/14）
 * 判決注意個資去識別化，回答僅供參考非法律意見
 * 精簡包擴到 500~1000 筆（目前 3 筆，同步機制已就位）
-* 需離線 `/hosts` → mbp/msi 另建 pg 副本（低優先）
-* 三機皆已容器化（2026-09-26：x570／mbp OrbStack／msi Docker Desktop）；
+* 需離線 `/hosts` → mbp/wsl 另建 pg 副本（低優先）
+* 三機皆已容器化（2026-09-26：x570／mbp OrbStack／wsl Docker Desktop）；
   殘餘的原生相依是 **ollama（Windows/macOS 主機，三機共用不容器化）與 cloudflared tunnel**
 * OPENROUTER 真餘額顯示需 management key（外部資源暫無）
 
@@ -465,7 +467,7 @@ cd frontend && pnpm install && pnpm run build && pnpm run dev   # pnpm（非 npm
 ```bash
 # 前置：Docker Desktop 已開且 WSL integration 已勾 Ubuntu（否則 distro 內無 docker）
 docker compose up -d --build   # 改 api 碼後加 --build；qdrant/pg 不必動
-curl localhost:8000/health     # 回 host_id=msi, llm=qwen3:8b
+curl localhost:8000/health     # 回 host_id=wsl, llm=qwen3:8b
 # 開機自啟：Docker Desktop AutoStart ＋ Startup 的 wsl-ubuntu-start.vbs（拉起 distro）
 ```
 **mbp（docker compose，OrbStack，2026-09-26 容器化）**：

@@ -44,7 +44,7 @@ def test_real_table_audits_without_crashing(capsys):
     out = capsys.readouterr().out
     assert "Traceback" not in out
     assert "UnboundLocalError" not in out
-    # 3 台（x570/mbp/msi）× 10 個 base 鍵，應該是 0 項問題
+    # 3 台（x570/mbp/wsl）× 10 個 base 鍵，應該是 0 項問題
     assert n == 0, f"真的總表不該有問題，但回報 {n} 項：\\n{out}"
 
 
@@ -55,7 +55,7 @@ def test_missing_table_reports_and_returns_1(table, capsys):
 
 def test_missing_hosts_declaration_is_caught(table, capsys):
     """沒有 `HOSTS=` 宣告 → 明確報錯，不是靜默少算。"""
-    _write(table, "msi_TS_IP=100.65.68.106\n")
+    _write(table, "wsl_TS_IP=100.65.68.106\n")
     assert ea.check_hosts_table(REG, {}) == 1
     assert "缺少" in capsys.readouterr().out
 
@@ -66,7 +66,7 @@ def test_ghost_key_in_table_is_caught(table, capsys):
     這是這支函式存在的理由：render 會照樣把打錯的鍵寫進 .env，
     症狀是「設定看起來都對，但那台的容器綁錯 IP」。
     """
-    _write(table, "HOSTS=msi\nmsi_TS_I=100.65.68.106\n")
+    _write(table, "HOSTS=wsl\nwsl_TS_I=100.65.68.106\n")
     n = ea.check_hosts_table(REG, {})
     out = capsys.readouterr().out
     assert n >= 1
@@ -75,7 +75,7 @@ def test_ghost_key_in_table_is_caught(table, capsys):
 
 def test_incomplete_host_coverage_is_caught(table, capsys):
     """宣告 3 台但只有 1 台有列 → 要報「只有 1/3 台有列」。"""
-    _write(table, "HOSTS=x570,mbp,msi\nmsi_TS_IP=100.65.68.106\n")
+    _write(table, "HOSTS=x570,mbp,wsl\nwsl_TS_IP=100.65.68.106\n")
     n = ea.check_hosts_table(REG, {})
     out = capsys.readouterr().out
     assert n >= 1
@@ -85,7 +85,7 @@ def test_incomplete_host_coverage_is_caught(table, capsys):
 def test_policy_excluded_key_in_table_is_caught(table, capsys, monkeypatch):
     """政策性停用的變數（LAN_IP）不該出現在總表。"""
     monkeypatch.setattr(ea, "POLICY_EXCLUDED", {"LAN_IP": "IP 準則：只用 tailscale"})
-    _write(table, "HOSTS=msi\nmsi_LAN_IP=192.168.1.5\n")
+    _write(table, "HOSTS=wsl\nwsl_LAN_IP=192.168.1.5\n")
     n = ea.check_hosts_table(REG, {})
     out = capsys.readouterr().out
     assert n >= 1
@@ -94,7 +94,7 @@ def test_policy_excluded_key_in_table_is_caught(table, capsys, monkeypatch):
 
 def test_unknown_host_prefix_is_ignored(table, capsys):
     """不在 HOSTS 宣告裡的前綴不該被算進來（那是別人的列）。"""
-    _write(table, "HOSTS=msi\nmsi_TS_IP=100.65.68.106\nmbp_TS_IP=100.64.121.9\n")
+    _write(table, "HOSTS=wsl\nwsl_TS_IP=100.65.68.106\nmbp_TS_IP=100.64.121.9\n")
     n = ea.check_hosts_table(REG, {})
     out = capsys.readouterr().out
-    assert n == 0, f"只宣告 msi 就不該抱怨 mbp 缺列：\\n{out}"
+    assert n == 0, f"只宣告 wsl 就不該抱怨 mbp 缺列：\\n{out}"

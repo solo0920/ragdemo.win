@@ -35,9 +35,13 @@ WORKER = ROOT / "frontend" / "src" / "routes" / "api" / "[...path]" / "+server.t
 # 我們自己的機台代號、網域、內網位址。出現即代表有人又把清單寫回程式裡。
 # ⚠️ 這個清單本身是「我們這個專案」的名單，不是通用規則 —— 它該隨專案搬家而
 # 一起更新（這是刻意的：它守的是「本專案不得再列舉本專案的機器」）。
-OWN_IDS = ("x570", "mbp", "msi")
+OWN_IDS = ("x570", "mbp", "wsl")
 OWN_DOMAINS = ("ragdemo.win",)
-OWN_IPS = ("100.119.83.111", "100.64.121.9", "100.65.68.106")
+# ⚠️ 2026-10-01：後端主機 `msi` → `wsl`（後端跑在 WSL，不在 Windows 主機上）。
+#    這裡的 IP 必須跟著換，否則這道守門守的是一台已經不存在的機器 —— 而且是
+#    **靜默**失效：有人把 wsl 的位址寫回程式裡，測試照樣綠。
+#    wsl 的 tailscale 位址 100.122.78.7（實測 `tailscale status`）。
+OWN_IPS = ("100.119.83.111", "100.64.121.9", "100.122.78.7")
 
 
 def _code_only(path: Path) -> str:
@@ -82,7 +86,7 @@ def test_worker_has_no_fallback_origins() -> None:
     未設變數就必須是空清單（呼叫端回 503 說明缺什麼），不是任何內建值。
     """
     code = _code_only(WORKER)
-    for banned in ("DEFAULT_ORIGINS", "api-x570", "api-mbp", "api-msi"):
+    for banned in ("DEFAULT_ORIGINS", "api-x570", "api-mbp", "api-wsl"):
         assert banned not in code, f"worker 又出現內建後端清單：{banned}"
     # 空清單必須真的導致 503，而不是某處再塞回預設值
     assert "origins.length === 0" in code, \
@@ -146,11 +150,11 @@ def test_worker_parses_id_url_format(tmp_path: Path) -> None:
     """`id=url` 必須能解析 —— 這是與後端 HOST_API_URLS 同一份契約。
 
     ⚠️ 這是本次實作中真實犯過的錯：先檢查 `^https?://` 再切 `id=`，
-    於是 `msi=https://…` 因為開頭不是 http 而被**整段丟掉**。
+    於是 `wsl=https://…` 因為開頭不是 http 而被**整段丟掉**。
     症狀極其安靜：設定明明填了，worker 卻當成沒設定。
     """
-    got = _run_parse_origins("msi=https://api-msi.example.com", tmp_path)
-    assert got == [{"id": "msi", "url": "https://api-msi.example.com"}]
+    got = _run_parse_origins("wsl=https://api-wsl.example.com", tmp_path)
+    assert got == [{"id": "wsl", "url": "https://api-wsl.example.com"}]
 
 
 def test_worker_parses_bare_urls_and_derives_id(tmp_path: Path) -> None:
@@ -363,7 +367,7 @@ def test_page_restore_backend_only_runs_once_known_hosts_arrived() -> None:
 # 而那是 **Cloudflare 自己的錯誤頁**，不是 worker 的回應：上游經 Cloudflare 會
 # 回 `content-encoding: br` 與 `content-length`，Workers runtime 已經解壓過 body，
 # 宣告的編碼/長度與實際內容對不上，Cloudflare 就送不出去。
-# 後端本身完全正常（從第三方主機代打 `api-msi…/health` 得到 200）。
+# 後端本身完全正常（從第三方主機代打 `api-wsl…/health` 得到 200）。
 #
 # 這組測試是**真的把 relay() 抽出來用 node 跑**（它只需要 Response/Headers，
 # 沒有 Cloudflare 專屬依賴），因為這個 bug 的後果在「原始碼長什麼樣」上

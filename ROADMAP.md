@@ -43,7 +43,7 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 **本輪觀察（留給各機 opencode 處理）**：
 1. ~~MSI 8000 外網不通~~ **已處置（2026-09-23）**：棄用 portproxy 方案。uvicorn 在 WSL 內綁 0.0.0.0
    只對 WSL VM 內有效，改由 **cloudflared（WSL 內）tunnel 直連 localhost:8000** 對外，
-   `netsh portproxy`＋防火牆規則已刪（公網 api-msi.ragdemo.win 實測直達）。
+   `netsh portproxy`＋防火牆規則已刪（公網 api-wsl.ragdemo.win 實測直達）。
    （心跳出站不受影響，registry 仍 ok。）
 2. ~~msi 的 models 清單與 mbp 相同~~＋~~mbp 的 ips 內混入 192.168.0.2~~ **已處置**
    （2026-09-22）：ip 污染根因＝IP 準則沿革，已定「只留 tailscale IP」準則（見
@@ -71,7 +71,7 @@ qwen3 家族請保留 `"think": false`（root level），否則思考 token 吃�
 關鍵變數（完整三台 profile 見 `ARCHITECTURE.md`「三機分工」，逐項說明見根 `.env.example`）：
 
 ```
-HOST_ID        # registry 主鍵＋前端切換鍵：x570 / mbp / msi
+HOST_ID        # registry 主鍵＋前端切換鍵：x570 / mbp / wsl
 TS_IP          # 唯一身分 IP（tailscale，100.64.0.0/10）；LAN_IP 已停用，勿再寫
 OLLAMA_URLS    # 逗號分隔候選，例 http://127.0.0.1:11434,http://100.119.83.111:11434
 QDRANT_URLS    # 同上，例 http://qdrant:6333（容器內）/ http://localhost:6333（native）
@@ -124,7 +124,7 @@ git config core.hooksPath   # 應回 .githooks
 > IP 準則（2026-09-22 定案）：一律只寫 tailscale IP，不用 LAN_IP（見 ARCHITECTURE「IP 準則」）。
 
 ```bash
-HOST_ID=msi
+HOST_ID=wsl
 TS_IP=100.65.68.106
 POSTGRES_PASSWORD=changeme
 # WSL 的 127.0.0.1 是 WSL 自己，不是 Windows！
@@ -150,7 +150,7 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --env-file .env   # 一�
 
 ```bash
 # 驗證（另開終端，可在 Mac/別台測）：
-curl http://100.65.68.106:8000/health          # 回 ok+host_id=msi，llm=qwen3:8b
+curl http://100.122.78.7:8000/health          # 回 ok+host_id=wsl，llm=qwen3:8b
 curl http://100.65.68.106:8000/query -H 'content-type: application/json' \
      -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # LLM 吃本機 ollama，資料吃 x570
 # 重點：等 30s 心跳後，回 x570 查：
@@ -165,7 +165,7 @@ New-NetFirewallRule -DisplayName "ragdemo-api-8000" -Direction Inbound -Protocol
 ### 2.4 讓前端能連 MSI
 
 - 本機 tailnet 內：瀏覽器直連 `http://100.65.68.106:8000`（前端 msi 按鈕已是直連 tailscale URL）。
-- 公網/外出：需 Cloudflare Tunnel 路由 `api-msi.ragdemo.win` → `http://100.65.68.106:8000`（見 §4.3）。
+- 公網/外出：需 Cloudflare Tunnel 路由 `api-wsl.ragdemo.win` → `http://100.65.68.106:8000`（見 §4.3）。
 
 ### 2.6 在 msi 本機跑前端 dev（2026-09-24 定案，勿在 x570 SSH 上開 dev）
 
@@ -472,13 +472,13 @@ qdrant 沒跑。連帶影響：
 - `+page.svelte` 改由 `GET /hosts` 動態產生切換按鈕（label=hostname + 模型清單），
   不再寫死 x570/mbp/msi；localStorage key `ragdemo-backend` 保留。
 - **自動模式後端 failover（2026-09-23）**：`自動` 走 Pages worker（`api/[...path]/+server.ts`），
-  worker 依 `API_ORIGINS`（或內建 `api-x570→api-mbp→api-msi`）依序嘗試，
+  worker 依 `API_ORIGINS`（或內建 `api-x570→api-mbp→api-wsl`）依序嘗試，
   x570 離線（502/503/504/530/1033 或網路失敗）自動切下一台；成功回應帶
   `x-ragdemo-origin` header，health 顯示實際 `host_id`。API_ORIGIN 若命中國內三台
   也展開成完整三台（x570 優先）。前端手動按鈕（x570/mbp/msi）仍直連各台。
 
 ### 4.3 公網接手（Cloudflare）
-- 一台 tunnel（放 x570）指三個 hostname：api-x570/api-mbp/api-msi.ragdemo.win → 各機 8000。
+- 一台 tunnel（放 x570）指三個 hostname：api-x570/api-mbp/api-wsl.ragdemo.win → 各機 8000。
 - Worker `+server.ts` 加 `?backend=` 白名單路由，Pages 設 `API_ORIGIN`＋`nodejs_compat`。
 - **已完成（2026-09-22~23，x570）**：
   - 本地型 tunnel `ragdemo-x570`（id 6539736a-...）＋DNS `api-x570.ragdemo.win` → `http://localhost:8000`；
@@ -541,10 +541,10 @@ curl -s https://ragdemo.win/api/health                         # 回 x570 health
 # 7) 更新本段 ROADMAP：把「待辦 1-2」標記完成，commit 前綴用 x570:
 ```
 > **分工註記（2026-09-23）**：tunnel 各機管各機——x570 管 `api-x570`、mbp 管 `api-mbp`、
-> msi 管 `api-msi`（名稱已定，實體待建）。Dashboard 層（建 tunnel/DNS）只有使用者能操作；
+> wsl 管 `api-wsl`（已建，2026-10-01 實測 HTTP 200）。Dashboard 層（建 tunnel/DNS）只有使用者能操作；
 > opencode 負責各自機器上的 cloudflared 安裝、config、自動啟動與驗證。
 
-#### mbp / msi 各自建 tunnel checklist（在該機執行，host=mbp|msi 替換）
+#### mbp / wsl 各自建 tunnel checklist（在該機執行，host=mbp|wsl 替換）
 > 前置：該機已有 git repo、tailscale 在線、8000 後端可跑（mbp launchd／msi ragdemo-api.sh）。
 > credentials json 必須存在該機自己（本地型 create 就是在該機產生），所以由各機執行，勿搬移。
 
@@ -566,7 +566,7 @@ chmod +x /tmp/cloudflared && mv /tmp/cloudflared ~/.local/bin/cloudflared
 
 # 5) config：service 指本機後端。
 #    mbp：hostname api-mbp.ragdemo.win → http://localhost:8000
-#    msi：hostname api-msi.ragdemo.win  → http://localhost:8000（WSL 內，cloudflared 也放 WSL 內）
+#    wsl：hostname api-wsl.ragdemo.win  → http://localhost:8000（WSL 內，cloudflared 也放 WSL 內）
 cat > ~/.cloudflared/config.yml <<EOF
 tunnel: <建立的 id>
 credentials-file: $HOME/.cloudflared/<id>.json
@@ -589,11 +589,11 @@ curl -s https://api-<host>.ragdemo.win/health   # 應回 host_id=<host>
 ```
 
 **已完成（msi，2026-09-23，commit 前綴 msi:）**：
-- cloudflared 2026.9.1 放 WSL 內 `~/.local/bin/cloudflared`；tunnel `ragdemo-msi`
-  （id `c2280387-c2b7-484f-ab8e-691534516db4`）＋ DNS `api-msi.ragdemo.win` → `http://localhost:8000`。
-- `~/.cloudflared/config.yml`：ingress `api-msi.ragdemo.win` → `http://localhost:8000` + 404 fallback。
+- cloudflared 2026.9.1 放 WSL 內 `~/.local/bin/cloudflared`；tunnel `ragdemo-wsl`（2026-10-01 由 `ragdemo-msi` 改名）
+  （id `c2280387-c2b7-484f-ab8e-691534516db4`）＋ DNS `api-wsl.ragdemo.win` → `http://localhost:8000`。
+- `~/.cloudflared/config.yml`：ingress `api-wsl.ragdemo.win` → `http://localhost:8000` + 404 fallback。
 - 開機自啟：crontab `@reboot` 已掛（**用絕對路徑＋`--protocol http2`**，見下方心得）。
-- 驗證：`curl https://api-msi.ragdemo.win/health` → 回 `host_id=msi`；dashboard Connections 2x。
+- 驗證：`curl https://api-wsl.ragdemo.win/health` → 回 `host_id=wsl`；dashboard Connections 2x。
 
 **實戰心得（2026-09-23，msi）**：
 - WSL2 的 UDP/QUIC 連 edge 會 timeout（所有 edge 失敗、1033）→ **必須加 `--protocol http2`**
@@ -654,7 +654,7 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   目的是做「前後對照」的除錯利器（可立刻看出資料/模型被誰供給）。
 - 資料流：worker `?backend=` 先探三台 → 挑台 → 該後端 `rag.py::answer()` 回傳 `src`
   （`{qdrant:{host,url}, llm:{host,url,model}}`，URL 依 `_KNOWN_IPS`（100.119.83.111=x570、
-  100.64.121.9=mbp、100.65.68.106=msi）映射成主機 id；**裸主機名/127.0.0.1/localhost 一律標本機**）
+  100.64.121.9=mbp、100.122.78.7=wsl）映射成主機 id；**裸主機名/127.0.0.1/localhost 一律標本機**）
   → worker 原封轉傳 → 前端 `+page.svelte` 的 `statusRows()` 組 **HTML `<table>`** 顯示
   （不用純文字 md，瀏覽器才不會整排錯位）。
 - **mbp / msi 交接：比照 x570 設計**，pull＋重啟後端後即自動生效：
@@ -757,7 +757,7 @@ curl -s 127.0.0.1:6333/collections/laws | python3 -c "import sys,json;d=json.loa
   ```bash
   ps aux | grep [u]vicorn                      # 空 = uvicorn 掛了
   curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health   # 000 = 沒在聽
-  curl -s -o /dev/null -w '%{http_code}' https://api-msi.ragdemo.win/health  # 502 = tunnel 通但 origin 死
+  curl -s -o /dev/null -w '%{http_code}' https://api-wsl.ragdemo.win/health  # 502 = tunnel 通但 origin 死
   tail -5 backend/uvicorn.log                  # 末行 Shutting down = WSL 重啟收掉，非崩潰
   ```
 - 修復（2026-09-23 已做）：msi crontab 新增 `restart loop` 包 `~/bin/ragdemo-api.sh`

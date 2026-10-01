@@ -22,7 +22,7 @@ git config core.hooksPath .githooks
 `core.hooksPath` 是 **per-clone 的 git 設定**，不在版控裡、也不是環境變數 ——
 所以 `host-sync.sh` 管不到（它只碰檔案與容器），新機 clone 完預設就是**沒設**。
 
-沒設的後果不是報錯，是**檢查靜默消失**：commit message 少了 `msi:` 前綴也過、
+沒設的後果不是報錯，是**檢查靜默消失**：commit message 少了 `wsl:` 前綴也過、
 `LAN_IP=` 違規也過、pytest 掛掉也照 push。症狀要等到「某台機器 push 出違規
 commit、或壞掉的 commit 上線」才會浮現，而那時已經難回溯是誰按的。
 
@@ -76,12 +76,12 @@ docker 群組沒加、cloudflared 沒裝、api 沒跑）。
 某一台獨有的變數加前綴，避免三台互相覆蓋：
 
 ```
-msi_<變數名>=<值>      # 只有 MSI 用
+wsl_<變數名>=<值>      # 只有 WSL 用
 mbp_<變數名>=<值>      # 只有 mbp 用
 x570_<變數名>=<值>     # 只有 x570 用
 ```
 
-例如只有 MSI 要放雲端金鑰：`msi_NVIDIA_API_KEY=...`。
+例如只有 WSL 要放雲端金鑰：`wsl_NVIDIA_API_KEY=...`。
 **進版控前請跑 `scripts/env-audit.py --template`** 取得最新骨架，
 它會列出每個變數的必填/選填、消費者與用途。
 

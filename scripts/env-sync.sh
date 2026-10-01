@@ -14,7 +14,7 @@
 #   它們是各機自己容器的認證，沒有跨機讀寫關係。真值只留該機 .env。
 #
 # 為什麼前綴不直接放進 .env：compose 只認 ${VAR}，沒有「依 HOST_ID 動態選
-# msi_/x570_」的能力。前綴若寫在執行期 .env，compose 會拿到空值而回退原始碼
+# wsl_/x570_」的能力。前綴若寫在執行期 .env，compose 會拿到空值而回退原始碼
 # 預設（LLM_MODEL 掉回 14b、TS_IP 讓 ports: 綁錯而啟動失敗）—— 靜默劣化。
 # 所以前綴活在被追蹤的總表，render 才挑列寫成不帶前綴的鍵。
 #
@@ -44,7 +44,7 @@ TABLE="$ENV_DIR/hosts.shared.env"
 # 2026-09-30：移出 ZEN_API_KEY（7 把 → 6 把）。它不符合「共用」的定義之外的任何
 # 理由 —— 實測 `secrets.common.enc.env` 裡它是**空值**（其餘 6 把都有 ENC[...]），
 # 而 --init-secrets 是從第一台機器的 .env 抽值建檔的，空值代表**沒有任何一台設過它**；
-# msi/mbp 實測 `zen_ready: false`、usage snapshot 無 zen 記錄。分發一個沒人設的
+# wsl/mbp 實測 `zen_ready: false`、usage snapshot 無 zen 記錄。分發一個沒人設的
 # 空值只會讓每台 .env 都被塞一行永遠不會變的 `ZEN_API_KEY=`。
 # ⚠️ 移出本清單**不等於** backend 不能讀它：`rag.py` 仍讀 `os.getenv("ZEN_API_KEY")`，
 #   值留空就讓 `_zen_complete` 回 false（前端已優雅降級）。真要復活就重新申請 key
@@ -75,7 +75,7 @@ PER_HOST_SECRETS="QDRANT_API_KEY POSTGRES_PASSWORD"
 #   settings/env/common.env 檔本身。
 MANAGED_MARK="# --- managed by env-sync.sh (shared layers; do not edit below) ---"
 # 機台清單刻意**不在這裡**：它住在 settings/env/hosts.shared.env 的 `HOSTS=` 那一行。
-# 舊版這裡有一份 HOSTS="x570 mbp msi" 但整支 bash 從沒讀過它（死碼），
+# 舊版這裡有一份 HOSTS="x570 mbp msi"（2026-10-01 改名前）但整支 bash 從沒讀過它（死碼），
 # 真正生效的是下面 py_apply 裡的 Python tuple。留著只會讓人以為改這裡有用。
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "env-sync: missing tool: $1" >&2; exit 1; }; }
@@ -150,8 +150,8 @@ import os, re, sys
 env_path, mode, action, source, host, expand, mark, perhost = sys.argv[1:9]
 expand = expand == "1"
 FORBIDDEN = set(perhost.split())
-# 機台清單來自總表裡的 `HOSTS=x570,mbp,msi` 那一行，不是寫死在程式裡。
-# 舊版這裡是 `HOSTS = ("x570", "mbp", "msi")` 加上 `PREFIXED = ^(x570|mbp|msi)_(.+)$`：
+# 機台清單來自總表裡的 `HOSTS=x570,mbp,wsl` 那一行，不是寫死在程式裡。
+# 舊版這裡是 `HOSTS = ("x570", "mbp", "msi")`（改名前）加上 `PREFIXED = ^(x570|mbp|msi)_(.+)$`：
 # 第 4 台要加程式才能進來，等於「三台」是程式的前提。改成資料宣告後，
 # 加機器＝改總表一行（會被 code review 看到），而嚴格性反而沒打折 ——
 # 沒列在 HOSTS 裡的前綴照樣被 PREFIXED 擋掉（`mssi_OLLAMA_URL` 仍會報錯）。
@@ -430,7 +430,7 @@ if missing:
     sys.exit(1)
 # 豁免掉的鍵要說清楚有幾個 —— 靜默地少檢查比不檢查更糟，因為下一个人會以為
 # 「--check 綠 = 每個鍵都有人管」。這些鍵靠 compose 的 ${VAR:-預設} 與原始碼
-# 的 fallback 存活（2026-09-30 msi 實測：EMBED_MODEL 與 RERANK_MODEL 在 .env
+# 的 fallback 存活（2026-09-30 wsl 實測：EMBED_MODEL 與 RERANK_MODEL 在 .env
 # 裡是空的，查詢照跑、confidence=high）。
 skipped = sorted((com - comv) - env)
 if skipped:

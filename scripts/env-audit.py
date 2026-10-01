@@ -20,7 +20,7 @@
 前綴」—— **沒有實作**，全 repo 找不到任何前綴處理程式碼。實際做法是把
 per-host 的值放進 `settings/env/hosts.shared.env` 那張總表，由
 `env-sync.sh render` 依本機 HOST_ID 挑列；同一台機器「同時」要有多組設定
-（多個 peer 位址）時才把 id 燒進**值**裡 —— `HOST_API_URLS=x570=…,msi=…`。
+（多個 peer 位址）時才把 id 燒進**值**裡 —— `HOST_API_URLS=x570=…,wsl=…`。
 2026-09-27 之前是燒進變數**名**（`HOST_API_X570`／`HOST_API_MBP`／
 `HOST_API_MSI`），那等於把機台清單寫進程式，第 4 台要改程式才能加；已改成單一
 `HOST_API_URLS`。
@@ -56,9 +56,9 @@ per-host 的值放進 `settings/env/hosts.shared.env` 那張總表，由
 
 舊 `KNOWN` 表手動標 `TS_IP`／`HOST_ID` 為 `required: True`。改寫後改由
 `HOST_ID` 在 compose 的預設值當「這份 compose 為哪台烤的」基準：
-`HOST_ID:-x570` → 預設是 x570 的。若 `.env` 的 `HOST_ID` 是 `mbp` 或 `msi`，
+`HOST_ID:-x570` → 預設是 x570 的。若 `.env` 的 `HOST_ID` 是 `mbp` 或 `wsl`，
 凡預設值內含 tailscale IP 或機台 id 的變數、以及出現在 `ports:` 裡的變數，
-都從「選填」升級為「必填」。不用人工維護清單，且 mbp/msi 少設 `TS_IP`
+都從「選填」升級為「必填」。不用人工維護清單，且 mbp/wsl 少設 `TS_IP`
 會被抓到（docker 會試圖 bind x570 的 IP 而啟動失敗）。
 
 ## 用法
@@ -263,7 +263,7 @@ class Ref:
           - ${TS_IP:-100.119.83.111}      → tailscale IP
           - ${HOST_ID:-x570}              → 字面機台 id
         舊版 KNOWN 表用人工標 required=True 來擋，改寫後必須補回，否則
-        mbp/msi 少設 TS_IP 就會去 bind x570 的 IP，docker 啟動即失敗。
+        mbp/wsl 少設 TS_IP 就會去 bind x570 的 IP，docker 啟動即失敗。
 
         但「身份寫在**鍵**裡」的變數要排除（見 NAME_SCOPED_HOST）。"""
         if NAME_SCOPED_HOST.search(self.name):
@@ -305,10 +305,14 @@ NAME_SCOPED_HOST = re.compile(r"_(x570|mbp|wsl|msi)$", re.I)
 # 已被移除的鍵 → 遷移指引。刪掉一個變數名時要同時在這裡加一筆，否則升級後
 # .env 裡的舊鍵只會被當成一般「幽靈」報出，使用者看不出該改成什麼。
 # 2026-09-27：HOST_API_X570/MBP/MSI 三個合成 HOST_API_URLS（解除三台鎖死）。
+    # 鍵名沿用當年的 MSI —— 那是 .env 裡既存的鍵名，不是機台清單。
 REMOVED_KEYS = {
     "HOST_API_X570": "HOST_API_URLS=x570=<該機公網 api 網址>",
     "HOST_API_MBP": "HOST_API_URLS=mbp=<該機公網 api 網址>",
-    "HOST_API_MSI": "HOST_API_URLS=msi=<該機公網 api 網址>",
+    # 2026-10-01：後端主機 msi → wsl，所以遷移目標的 id 也跟著換。
+      # 舊鍵名 `HOST_API_MSI` 保持不變 —— 那是 .env 裡既存的鍵名，改了
+      # 這條指引就指不到使用者真正要刪的那個鍵。
+      "HOST_API_MSI": "HOST_API_URLS=wsl=<該機公網 api 網址>",
 }
 
 
@@ -597,7 +601,7 @@ def declared_hosts() -> list[str]:
 
 
 def _is_machine_scoped(key: str) -> bool:
-    """這個鍵名是否帶了機台前綴（`msi_OLLAMA_URLS` 這種）。
+    """這個鍵名是否帶了機台前綴（`wsl_OLLAMA_URLS` 這種）。
 
     機台清單來自總表宣告，不寫死。找不到宣告時**不**回報（此時報「每個鍵都
     帶前綴」會是滿屏假警告）；`check_hosts_table` 會另外報缺宣告。
@@ -632,7 +636,7 @@ def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
         if m:
             rows[m.group(1)] = m.group(2)
     # 機台清單讀總表裡的 `HOSTS=` 那一行。2026-09-27 之前這裡寫死
-    # `("x570", "mbp", "msi")`，第 4 台就查不到自己的列（而且是**靜默**漏查：
+    # `("x570", "mbp", "wsl")`，第 4 台就查不到自己的列（而且是**靜默**漏查：
     # 不報錯、只是少算，輸出的「N 個鍵 × 3 台」看起來完全正常）。
     #
     # ⚠️ 2026-09-29 修掉一個讓整支腳本必定崩潰的 bug：原本這裡是
@@ -812,17 +816,17 @@ def print_template(reg: dict[str, Ref]) -> None:
     print("#   寫死       compose 用字面值覆蓋 → 這裡設了對容器無效")
     print("#")
     print("# 關於機台差異：per-host 的值**不在這個檔**填。")
-    print("# 它們在 settings/env/hosts.shared.env（每台一組 x570_/mbp_/msi_ 的值，")
+    print("# 它們在 settings/env/hosts.shared.env（每台一組 x570_/mbp_/wsl_ 的值，")
     print("# 追蹤、明文、無憑證），由 scripts/env-sync.sh render 依本機 HOST_ID")
     print("# 挑列、展開 ${VAR} 後寫進 .env。機台清單是那個檔裡的 `HOSTS=` 一行 ——")
     print("# 加機器＝加一行資料，不必改程式（2026-09-27 之前寫死在 env-sync.sh 裡）。")
     print("#")
     print("# 為什麼前綴不放進 .env：compose 只認 ${VAR}，沒有依 HOST_ID 動態選")
-    print("# msi_/x570_ 的能力；前綴若寫在 .env，值會被 compose 讀不到而回退原始碼")
+    print("# wsl_/x570_ 的能力；前綴若寫在 .env，值會被 compose 讀不到而回退原始碼")
     print("# 預設 —— 靜默劣化。")
     print("#")
     print("# 同一台機器「同時」要有多組設定時（例：多個 peer 的位址），id 燒進**值**：")
-    print("#   HOST_API_URLS=x570=https://…,msi=https://…  逗號分隔；未設＝單機無 peer")
+    print("#   HOST_API_URLS=x570=https://…,wsl=https://…  逗號分隔；未設＝單機無 peer")
     print("#")
     print("# 各機怎麼認出自己的身份：HOST_ID、HOST_NAME、HOST_MACHINE_ID —— 這三個每台")
     print("# 不同。HOST_ID 是 render 的選擇器，只能在 .env 手動設一次")

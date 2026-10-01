@@ -20,15 +20,15 @@ mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`�
 ```
 api-mbp.ragdemo.win  → HTTP 200
 api-x570.ragdemo.win → HTTP 200
-api-msi.ragdemo.win  → HTTP 200
+api-wsl.ragdemo.win  → HTTP 200
 ```
 
 ⚠️ **200 不等於沒問題。** 這段只是背景，不能當驗收 —— 你 2026-09-30 回報過
 `api-mbp` 明明 200，但容器是空的、映像落後 4 天、DSN 指向離線的 x570 讓查詢
 多 60s。理由見下方〈外部症狀不足以判斷〉。
 
-`ragdemo.win` 前端 `x-ragdemo-origin: https://api-msi.ragdemo.win`，
-worker 依序嘗試（**msi 第一**），任一台掛掉會自動輪到下一台。
+`ragdemo.win` 前端 `x-ragdemo-origin: https://api-wsl.ragdemo.win`，
+worker 依序嘗試（**wsl 第一**），任一台掛掉會自動輪到下一台。
 
 2026-09-29 下午 `api-mbp` 曾是 **502**（tunnel 連著但本機後端沒起來），
 現在已恢復。**分辨方式**（日後再遇到時用）：
@@ -42,7 +42,7 @@ worker 依序嘗試（**msi 第一**），任一台掛掉會自動輪到下一�
 
 ## 事項 5：報回 age 公鑰（唯一會擋住事的）★先做★
 
-`.sops.yaml` 的 recipients **只有 msi 一把**（x570 與 mbp 都還是 TODO）。
+`.sops.yaml` 的 recipients **只有 wsl 一把**（x570 與 mbp 都還是 TODO）。
 `env-sync.sh pull` 要 `sops -d` 那 6 把共用憑證，sops 只能用名單裡的公鑰解 ——
 **mbp 的年齡金鑰不在名單，pull 就會失敗**（`ADMIN_TOKEN`／
 `QDRANT_PEER_API_KEY`／`CF_AIG_TOKEN`／`HF_TOKEN`／`NVIDIA_API_KEY`／
@@ -66,7 +66,7 @@ grep -o 'age1[0-9a-z]*' ~/.config/sops/age/keys.txt 2>/dev/null | head -1
 **回報 `age1...` 那一行就好。絕對不要回報 `keys.txt` 本身或
 `age-secret-key1...` 那一行。**
 
-拿到後 msi 端會加進 `.sops.yaml` → `sops updatekeys` 重加密 → commit。
+拿到後 wsl 端會加進 `.sops.yaml` → `sops updatekeys` 重加密 → commit。
 **mbp 端不需要再做其他事**，下次 `git pull` + `env-sync.sh pull` 就通。
 
 若 `keys.txt` 已存在但 pull 仍失敗：回報錯誤訊息**第一行**。那要從 msi 端解決，

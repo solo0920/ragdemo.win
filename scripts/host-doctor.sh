@@ -168,7 +168,7 @@ ch_containers() {
   fi
   local out
   # ⚠ 一定要 --all：`docker compose ps` 預設**只看 running**，而「建立過但已停止」
-  #   與「從沒建立過」是完全不同的診斷。msi 這三個容器就是 Exited (21h)，
+  #   與「從沒建立過」是完全不同的診斷。wsl 這三個容器就是 Exited (21h)，
   #   只查 running 會得到空清單，然後被誤讀成「這台從沒部署過」。少了 --all
   #   這一支 doctor 就會在最需要它的情況下說錯話。
   out="$(cd "$ROOT" && docker compose ps --all --format json 2>/dev/null || true)"
@@ -237,7 +237,7 @@ for s in d:
         bump "container:$SVC" ok "$ST $HUMAN"
       fi ;;
       # Exited ≠ 壞掉。刻意不判成 fail：「這台刻意不啟動」是本專案合法的狀態
-      # （msi 就是），把它報成 fail 只會讓 doctor 天天紅燈，紅燈久了等於沒燈。
+      # （wsl 就是），把它報成 fail 只會讓 doctor 天天紅燈，紅燈久了等於沒燈。
       # 要判斷是刻意還是意外，看 fail/warn 摘要裡的其他項目（容器 fail 一定是意外）。
       exited*|dead*) bump "container:$SVC" warn "$ST $HUMAN" ;;
       *)             bump "container:$SVC" warn "$ST $HUMAN" ;;
@@ -413,7 +413,7 @@ except Exception: print("")' "$LAW_VERSION_FILE" 2>/dev/null || true)"
   # 而 source 機此刻離線，無法實測，所以寧可漏判也不亂報。
   if [ -f "$SYNC_LOG" ] && [ -n "$synced" ]; then
     # ⚠️ synced_at 由 sync-snapshot.sh 的 `date '+%F %T'` 產生：**無時區標記的
-    #    本機時間**（2026-09-27 實測：msi 是 CST +0800，寫出 "00:40:05" 其實是
+    #    本機時間**（2026-09-27 實測：wsl 是 CST +0800，寫出 "00:40:05" 其實是
     #    16:40 UTC）。所以不能把 naive 當 UTC —— 那會**少算 8 小時**，
     #    6 小時的門檻實際變成 14 小時（第一版就這樣寫錯過，實測報 13h 而非 21.9h）。
     #    正確做法是**兩邊都用本機時間**，同框相減，不去猜時區。

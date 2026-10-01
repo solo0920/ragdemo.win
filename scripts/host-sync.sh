@@ -58,7 +58,7 @@ VERIFY_WAIT=5
 #   4  步驟失敗（fetch／ref／env-sync／compose）
 #   5  部署完成，但**驗收未通過**
 #   6  部署完成，**驗收被略過**（--skip-verify）
-# 5 與 6 分開是刻意的：msi 目前沒有容器在跑，呼叫者會需要略過驗收；
+# 5 與 6 分開是刻意的：wsl 目前沒有容器在跑，呼叫者會需要略過驗收；
 # 把「略過」回成 0 就等於把沒驗裝成驗過，那是本專案最恨的靜默劣化。
 EXIT_OK=0; EXIT_XTRACE=1; EXIT_USAGE=2; EXIT_PREFLIGHT=3
 EXIT_STEP=4; EXIT_VERIFY=5; EXIT_SKIPPED=6
@@ -145,8 +145,11 @@ preflight() {
   # 與其在那裡炸出一句難懂的信息，不如在這裡擋下來並說清楚。
   local hid; hid="$(host_id_of)"
   case "$hid" in
-    x570|mbp|msi) ;;
-    *) warn "preflight: .env 的 HOST_ID 是 '${hid:-（空）}'，須為 x570/mbp/msi"
+    # ⚠️ 2026-10-01：`msi` → `wsl`。這是**會擋下流程的**白名單，不是註解 ——
+    #    留著 `msi` 不換，`HOST_ID=wsl` 會被判成非法機台，preflight 直接擋住。
+    #    機台清單的真相是 settings/env/hosts.shared.env 的 `HOSTS=`。
+    x570|mbp|wsl) ;;
+    *) warn "preflight: .env 的 HOST_ID 是 '${hid:-（空）}'，須為 x570/mbp/wsl"
        warn "preflight: .env 不存在或沒有 HOST_ID → 先備好 .env（不要 commit 它）"
        PREFLIGHT_BLOCKERS="${PREFLIGHT_BLOCKERS}host-id " ;;
   esac
@@ -372,7 +375,7 @@ if [ "$PREFLIGHT_RC" -eq 0 ] || [ "$DRY" -eq 1 ]; then
   hdr "6/6 verify"
   if [ "$SKIP_VERIFY" -eq 1 ]; then
     say "  --skip-verify：略過。"
-    say "  這**不是**驗收通過。本機沒有容器在跑時用這個（例如 msi 目前的狀態）。"
+    say "  這**不是**驗收通過。本機沒有容器在跑時用這個（例如 wsl 目前的狀態）。"
     say "  要真的驗：容器起來後跑 scripts/host-doctor.sh"
     VERIFY_RC=2
   elif [ "$DRY" -eq 1 ]; then

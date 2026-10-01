@@ -319,10 +319,10 @@
           "runner": "OrbStack"
         },
         {
-          "id": "msi",
-          "name": "MSI (WSL2 Ubuntu)",
+          "id": "wsl",
+          "name": "WSL2 Ubuntu (on Windows MSI)",
           "os": "Windows",
-          "tailscale_ip": "100.65.68.106",
+          "tailscale_ip": "100.122.78.7",
           "role": "demo（快照備援）",
           "llm": "qwen3:8b",
           "containerized": true,
@@ -330,9 +330,9 @@
         }
       ],
       "invariants": [
-        "Commit message 必須帶 msi:/mbp:/x570: 前綴（.githooks/commit-msg 強制）",
+        "Commit message 必須帶 wsl:/mbp:/x570: 前綴（.githooks/commit-msg 強制）",
         "Port 綁定規則嚴格：qdrant/pg 綁 tailscale IP，api 綁 127.0.0.1",
-        "快照同步是唯一真相（x570 離線時靠快照讓 mbp/msi 獨立作業）",
+        "快照同步是唯一真相（x570 離線時靠快照讓 mbp/wsl 獨立作業）",
         "QDRANT_URLS 在容器內實際用不到（compose 只傳 QDRANT_URL）"
       ],
       "pitfalls": [
@@ -421,7 +421,7 @@
   "commit_rules": {
     "message_format": "<host_id>: <module> <description>",
     "examples": [
-      "msi: backend rag.py 修復 gemini 2.5 key 判斷",
+      "wsl: backend rag.py 修復 gemini 2.5 key 判斷",
       "mbp: env-ops 補齊 POSTGRES_PEER_PASSWORD",
       "x570: ingest sync_daily.py 版本取值修正"
     ],
@@ -487,7 +487,7 @@
     "low_priority": [
       {
         "module": "M6",
-        "task": "mbp/msi 離線 /hosts → 另建 pg 副本（目前依賴 x570 registry）",
+        "task": "mbp/wsl 離線 /hosts → 另建 pg 副本（目前依賴 x570 registry）",
         "impact": "功能擴展"
       },
       {

@@ -114,7 +114,7 @@ fi
 
 # 私鑰：updatekeys / re-encrypt 都要有。缺了就在這裡講清楚，不要讓 sops 報
 # 「no identity matched any of the recipients」—— 那個訊息同時涵蓋
-# 「名單裡沒我」和「我沒私鑰」，2026-09-30 msi 就是後者（重灌沒還原私鑰）。
+# 「名單裡沒我」和「我沒私鑰」，2026-09-30 wsl 就是後者（重灌沒還原私鑰）。
 KEYFILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
 if [ ! -f "$KEYFILE" ]; then
   die "no age private key at $KEYFILE
