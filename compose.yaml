@@ -134,6 +134,14 @@ services:
       PROBE_TIMEOUT: ${PROBE_TIMEOUT:-2.5}
       OPENROUTER_GATEWAY_URL: ${OPENROUTER_GATEWAY_URL:-}
       CF_AIG_TOKEN: ${CF_AIG_TOKEN:-}
+      # Cloudflare Access 的 Service Token（peer 探測用，2026-10-01 補）。
+      # ⚠️ 這裡**必須**列出來，否則值只在 .env、到不了容器 —— 而症狀是
+      #    peer 探測被 Access 擋成 403、log 只寫「連線失敗」，不會報錯。
+      #    與 CF_AIG_TOKEN 那行同一個道理（那個 2026-09-27 也踩過一次）。
+      #    與 Pages 那組同名同值：peer 與 Pages 都要過同一道 Access。
+      #    未設就是空字串 → gateway._access_headers() 回 {}，單機部署行為不變。
+      CF_ACCESS_CLIENT_ID: ${CF_ACCESS_CLIENT_ID:-}
+      CF_ACCESS_CLIENT_SECRET: ${CF_ACCESS_CLIENT_SECRET:-}
       # CF AI Gateway 的 gateway id —— 原本讀得到但容器拿不到，2026-09-27 補上
       # （rag.py:87，預設值 cloudflaregateway 逐字照抄）。
       CF_AIG_GATEWAY_ID: ${CF_AIG_GATEWAY_ID:-cloudflaregateway}

@@ -158,10 +158,24 @@ sync_law_version() {
   # ⚠️ 一定要帶 ?probe=0：/status 預設會再去探測「它的」三台主機，實測要 2.7s，
   # 逼近 -m 8 的上限，cron 常常剛好超時而抓不到（2026-09-26 實測：來源機明明有
   # 版本，log 卻一直記「取不到」）。probe=0 只回本機資訊，0.02s。
-  ver="$(curl -sf -m 8 "$SRC_API/status?probe=0" 2>/dev/null \
+  #
+  # ⚠️ 2026-10-01：三台全開了 Cloudflare Access（Service Auth），SRC_API_URL
+  #    是**公網**網址 → 不帶 Service Token 會被擋成 403，症狀極其安靜：
+  #    快照照樣 SYNC OK、只有這裡 log「取不到」，於是 .law_version 凍結在舊版。
+  #    （實測：21:59 還寫得進，Access 生效後 22:53 就取不到了。）
+  #    與 gateway.py 的 _access_headers() 是同一組值、同一個道理。
+  # ⚠️ 用 curl 的 -K（config）而不是 "${arr[@]}" 展開陣列：`set -u` 下展開**空**
+  #    陣列在 bash 3.2（macOS 內建，mbp 就是）會直接中斷整支腳本，而這支腳本
+  #    在 mbp 上有 launchd 排程。-K 讀 stdin，空字串時 curl 當作沒有額外設定。
+  _cf_k=""
+  if [ -n "${CF_ACCESS_CLIENT_ID:-}" ] && [ -n "${CF_ACCESS_CLIENT_SECRET:-}" ]; then
+    _cf_k="header = \"CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}\"
+header = \"CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}\""
+  fi
+  ver="$(printf '%s' "$_cf_k" | curl -sf -m 8 -K - "$SRC_API/status?probe=0" 2>/dev/null \
         | python3 -c 'import sys,json; print((json.load(sys.stdin).get("law_version") or {}).get("update_date") or "")' 2>/dev/null || true)"
   if [ -z "$ver" ]; then
-    log "law version: 取不到（src_api=$SRC_API；來源機的 sync_daily.py 還沒跑過，或該網址不通）"
+    log "law version: 取不到（src_api=$SRC_API；來源機的 sync_daily.py 還沒跑過、該網址不通、或 Cloudflare Access 拒絕——後者要查 CF_ACCESS_CLIENT_ID/SECRET 有沒有設）"
     return 0
   fi
   # 版本沒變就不重寫，避免每 10 分鐘動一次 mtime

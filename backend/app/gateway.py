@@ -112,6 +112,31 @@ def _parse_id_urls(raw: str) -> dict[str, str]:
     return out
 HOST_API = _parse_id_urls(os.getenv("HOST_API_URLS", ""))
 PROBE_TIMEOUT = float(os.getenv("PROBE_TIMEOUT") or "2.5")
+
+# Cloudflare Access 的 Service Token（peer 之間的認證）。
+#
+# 2026-10-01：`api-*.ragdemo.win` 三台全部開了 Access（Service Auth 政策）。
+# Access 的登入是「瀏覽器導向 302」，後端這邊沒有 cookie、跟不到登入頁 ——
+# 必須用 header 認證，這跟 Pages worker 走的是同一組值、同一個道理。
+#
+# ⚠️ **只有 peer 探測用得到，而且只有設了才帶。** 三個理由：
+#   1. ollama / qdrant **不該**帶這組憑證 —— 它們不在 Access 後面，帶了只是
+#      把一組跨機的通行證送到不必要的去處（最小的憑證散布面）。
+#   2. 未設（單機部署、或還沒接 Access 的環境）時回 {} —— 那時 peer 網址通常
+#      也還沒有 Access，回空跟不帶是同一件事，不該讓程式因為缺設定而失敗。
+#   3. 帶了但 peer 沒開 Access 時是多餘的 header，無害；不帶而 peer 開了
+#      Access 才是真的 403。所以「帶」永遠是安全的那一邊。
+#
+# ⚠️ 這組值是**跨機共用機密**（三台的 peer 探測都用同一組）。要輪換就三台
+#    一起換，中間會有一段时间 peer 探測全紅。
+def _access_headers() -> dict[str, str]:
+    cid = (os.getenv("CF_ACCESS_CLIENT_ID") or "").strip()
+    sec = (os.getenv("CF_ACCESS_CLIENT_SECRET") or "").strip()
+    if not cid or not sec:
+        return {}
+    return {"CF-Access-Client-Id": cid, "CF-Access-Client-Secret": sec}
+
+
 def keep_alive_value():
     """ollama 的 keep_alive：純數字（含 -1）要傳 number，其餘（如 "30m"）傳字串。"""
     s = str(KEEP_ALIVE).strip()
@@ -189,7 +214,7 @@ async def _host_probe_log() -> dict[str, str]:
     async def _one(url: str) -> bool:
         try:
             async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
-                r = await c.get(f"{url}/health")
+                r = await c.get(f"{url}/health", headers=_access_headers())
                 # 兩個條件都要，缺任何一個就會在「主機沒掛、但到不了」時說謊。
                 #
                 #   status == 200 —— Cloudflare Access 對非 HTML 請求回 403。
@@ -225,7 +250,8 @@ async def _host_law_versions() -> dict[str, str]:
             # probe=0 一定要帶：遠端的 /status 預設會再去探測「它的」三台主機。
             # 不加這個參數就是 A→B→C→A 的遞迴，請求數會指數成長。
             async with httpx.AsyncClient(timeout=PROBE_TIMEOUT, follow_redirects=True) as c:
-                r = await c.get(f"{url}/status", params={"probe": 0})
+                r = await c.get(f"{url}/status", params={"probe": 0},
+                                headers=_access_headers())
                 if r.status_code != 200:
                     return "-"
                 return (r.json().get("law_version") or {}).get("update_date") or "-"
