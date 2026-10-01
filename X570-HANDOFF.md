@@ -119,6 +119,40 @@ https://ragdemo.win/api/health      200  host_id=wsl
 peer 探測  x570 ✅  mbp ✅  wsl ✅
 ```
 
+### ✅ wsl 端驗證 Access Service Token 全鏈路通（2026-10-01 23:21）
+
+`4a0bf52` 加的 peer 探測帶 token 已在 wsl 實測生效。**三段守衛全過**：
+
+```
+不帶 token      → 403   （Access 護著）
+帶假 token      → 403   （驗簽：假 token 也被擋，這才是真的開著）
+帶真 token      → 200   （值正確）
+```
+
+⚠️ **踩到一個坑，值得記：`docker compose up -d` 不會重建映像。**
+第一次驗證時容器有拿到 token、但 peer 探測仍全紅 —— 因為
+`ragdemo-api` 映像是三小時前 build 的，裡面的 `gateway.py` 根本沒有
+`_access_headers`。`up -d` 只 Recreate 容器（換環境變數），**程式碼要
+`up -d --build api`**。症狀會是「設定都對了但行為是舊的」。
+
+另外：Service Token 的正確組合是 **Client ID 39 字元（hex）／Client Secret
+54 字元（`cfast_` 開頭）**。貼反的話症狀是帶 token 也 403 —— 與
+「Access 沒開」長得一模一樣，要靠 `scripts/access-check.sh` 第 3 段分辨。
+
+驗證結果（wsl）：
+
+```
+peer 探測   x570 連線成功 / mbp 連線成功 / wsl 連線成功
+sync        law version updated: 2026-09-18 -> 2026-09-18
+.law_version synced_at = 2026-10-01 23:21:36
+host-doctor law-version 那條 warn 消失（原本 warn 28 小時沒更新）
+```
+
+**x570 與 mbp 也要各自把兩個 key 加進 `.env`**（值與 Pages 相同），
+否則那兩台的 peer 探測與版本同步會是同一個症狀。
+
+---
+
 ### ✅ Access 三台已建好（2026-10-01 22:35 之後）
 
 ⚠️ **本段記的是 21:59 的量測，不是現況。** 那時 `api-mbp` 與 `api-x570`
