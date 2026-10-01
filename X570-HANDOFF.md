@@ -7,7 +7,23 @@
 ⚠️ 指令**只印指紋／長度，不印值**。不要改成 `cat .env`／`env | grep`，
 不要對含憑證的指令加 `bash -x`（2026-09-26 三次憑證外洩都是這樣）。
 
-> **★ 2026-10-01 更新（本機 x570 已執行完畢，本文件改為「已解決 + 移交」狀態）：**
+> **★★ 唯一還沒做的：Access Service Token —— 先做這件。**（2026-10-01 23:30）
+> 三台的 Access app 都建好了（22:35 複驗全 403），但**只有 wsl 端把 Service
+> Token 加進了 `.env`**。你這台還沒有，所以症狀是：
+>
+> - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（查詢正常，因為走 Pages）
+> - `sync.log` 有 `law version: 取不到` → **法規版本凍結**
+> - `host-doctor.sh` 的 `law-version` **warn**
+>
+> **四個步驟 ＋ 兩個必讀的坑都在〈★★ 待辦（x570 端）〉。** 坑一：token 的
+> Client ID 39 字元／Secret 54 字元**貼反會一直 403**，與「Access 沒開」
+> 長得一樣，所以先跑 `access-check.sh` 第 3 段。坑二：`up -d --build api`
+> 的 **`--build` 不能省** —— 只 `up -d` 會拿到舊映像，症狀是「設定都對了
+> 但行為是舊的」。
+>
+> ---
+>
+> **以下為 2026-10-01 更新（本機 x570 先前已執行完畢，該部分為「已解決 + 移交」）：**
 >
 > 1. **事項 5（age 公鑰）已完成** —— `.sops.yaml` 三把公鑰都在
 >    （wsl／x570／mbp），`secrets.common.enc.env` 內也有對應的三筆 recipients，
@@ -148,8 +164,74 @@ sync        law version updated: 2026-09-18 -> 2026-09-18
 host-doctor law-version 那條 warn 消失（原本 warn 28 小時沒更新）
 ```
 
-**x570 與 mbp 也要各自把兩個 key 加進 `.env`**（值與 Pages 相同），
-否則那兩台的 peer 探測與版本同步會是同一個症狀。
+---
+
+## ★★ 待辦（x570 端）：把 Access Service Token 加進本機 `.env`
+
+**這是現在唯一還沒做的。** wsl 端已完成並驗證（見上），**x570 與 mbp 尚未**。
+
+沒有它的症狀（兩個都很安靜）：
+
+- 前端「連線與來源」顯示 x570／mbp **連線失敗**（但查詢正常）
+- `sync.log` 出現 `law version: 取不到` → `.law_version` 凍結在舊版
+- `host-doctor.sh` 的 `law-version` **warn**（「快照已 N 小時沒成功更新」）
+
+### 步驟 1：先確認 token 本身是對的
+
+**不要跳過這步。** 貼錯的症狀與「Access 沒開」完全一樣（都回 403）：
+
+```bash
+git pull
+bash scripts/access-check.sh      # 互動式，token 用 read -rs 不落地
+```
+
+三段都要過，**第 3 段（帶真 token → 200）才算數**。
+第 2 段（帶假 token → 403）只證明 Access 開著，不能證明你的 token 對。
+
+⚠️ **正確組合：Client ID 39 字元（hex）／Client Secret 54 字元（`cfast_` 開頭）。**
+貼反就會一直 403。
+
+### 步驟 2：加進 `.env`
+
+```bash
+printf 'CF_ACCESS_CLIENT_ID=<39字元hex>\nCF_ACCESS_CLIENT_SECRET=<54字元cfast_>\n' >> .env
+grep -E '^CF_ACCESS_CLIENT_(ID|SECRET)=' .env | cut -c1-30    # 只確認有值
+```
+
+⚠️ **絕對不要複製 wsl 的整份 `.env`。** `HOST_ID` 與 per-host 值
+（`TS_IP`／`LLM_MODEL`／`OLLAMA_*`）各機不同，整份覆蓋會讓你綁到錯的
+IP —— `host-doctor` 立刻亮，docker 也會綁錯。只加這兩個 key。
+
+### 步驟 3：重建（`--build` 不能省）
+
+```bash
+docker compose up -d --build api
+```
+
+⚠️⚠️ **`--build` 是必要的。** `up -d` 只 Recreate 容器（換環境變數），
+**不會重建映像** —— wsl 端第一次驗證時就踩到：容器裡有 token、但映像是
+三小時前 build 的，`gateway.py` 根本沒有 `_access_headers`（實測容器內
+`grep -c` = 0、工作區 = 3）。症狀是「設定都對了但行為是舊的」。
+
+### 步驟 4：驗收（三項都要看）
+
+```bash
+docker compose ps
+bash scripts/sync-snapshot.sh --force
+tail -3 ~/qdrant/sync.log        # 應出現 law version updated，不是「取不到」
+bash scripts/host-doctor.sh      # law-version 那條應從 warn 變 ok
+```
+
+peer 探測在**前端面板**看（`https://ragdemo.win` → 連線詳細），
+或 `curl -s http://localhost:8000/status | python3 -m json.tool`。
+
+### ⚠️ 這組值是跨機共用機密
+
+三台的 `.env` 用**同一組**。輪換要三台一起，中間會有一段 peer 探測全紅。
+`ARCHITECTURE.md` / `settings/env/README.md` §7 有輪換順序。
+
+**回報**：三段守衛的結果（不要回報 token 值）、`sync.log` 最後 3 行、
+`host-doctor` 的 `law-version` 那條。
 
 ---
 

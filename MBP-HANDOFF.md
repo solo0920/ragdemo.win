@@ -11,10 +11,22 @@ mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`�
 > 事項編號與 `X570-HANDOFF.md` 對齊（5＝age 公鑰、6＝git hooks），
 > 讓 `SCOPE.md` 的「收 age 公鑰｜x570、mbp」一列指向同一件事。
 >
+> **★★ 唯一還沒做的：Access Service Token —— 先做這件。**（2026-10-01 23:30）
+> 三台的 Access app 都建好了（22:35 複驗全 403），但**只有 wsl 端把 Service
+> Token 加進了 `.env`**。你這台還沒有，所以症狀是：
+>
+> - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（查詢正常，走的是 Pages）
+> - `sync.log` 有 `law version: 取不到` → **法規版本凍結**
+> - `host-doctor.sh` 的 `law-version` **warn**
+>
+> 完整步驟在 `X570-HANDOFF.md`〈★★ 待辦（x570 端）〉，那邊有**兩個坑**的
+> 詳細說明：token 的 Client ID／Secret 貼反會一直 403；`up -d --build api`
+> 的 `--build` 不能省。**mbp 照同一份做**（`sync-snapshot.sh` 你那台是
+> launchd 排程，記得 `--force` 手動跑一次驗）。
+>
 > **★ 2026-10-01 更新：事項 5（age 公鑰）已完成，不需要你回報。**
 > `.sops.yaml` 三把公鑰都在（wsl／x570／mbp），`secrets.common.enc.env` 內
 > 也有三筆 recipients —— `sops updatekeys` 確實跑過。
-> **現在的阻塞是「本機後端沒起來」（502），見〈現況〉。**
 
 ---
 
