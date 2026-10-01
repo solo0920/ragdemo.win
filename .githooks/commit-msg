@@ -29,7 +29,11 @@ if [[ -z "$HOSTS" ]]; then
   exit 1
 fi
 
-if ! grep -Eq "^($HOSTS)[:：][[:space:]]" <<<"$FIRST_LINE"; then
+# ⚠️ 冒號用明確 alternation `(:|：)`，不要寫成 `[:：]`。那個字元類別在 gawk 裡
+#    是壞的：全角冒號（EF BC 9A）被當成字面字元，於是 `wsl：說明` 這種
+#    「全角冒號直接接文字」不 match，而 `wsl： 說明`（後面有空格）卻 match ——
+#    部分匹配，最壞的一種：它會擋掉合法提交。
+if ! grep -Eq "^($HOSTS)(:|：)[[:space:]]" <<<"$FIRST_LINE"; then
   echo "✗ commit message 首行必須以主機前綴開頭：$(sed 's/|/ \/ /g' <<<"$HOSTS"):" >&2
   echo "  例：  wsl: 修正 registry 過濾邏輯" >&2
   echo "  例：  x570: 同步快照壓力測試結果" >&2

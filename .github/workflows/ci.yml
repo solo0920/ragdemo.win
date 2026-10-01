@@ -4,8 +4,10 @@
 # .githooks/，任何一台沒設 core.hooksPath（或有人用 --no-verify），檢查就不發生。
 # 公開 repo 讓 CI 成為可被外部驗證的證據，而不是各機自述。
 #
-# commit message 前綴（msi: / mbp: / x570:）不在這裡檢查 —— 那由 GitHub ruleset 的
-# commit_message_pattern 在 server 端強制，見 ARCHITECTURE.md〈三機紀律〉。
+# commit message 前綴在下面 guards job 檢查 —— **那份清單從
+# settings/env/hosts.shared.env 的 HOSTS= 讀，不寫死在這裡**（2026-10-01）。
+# 註解上方說「由 GitHub ruleset 強制」是過時的：個人帳號的公開 repo 拿不到那條
+# rule（實測 API 回 422），所以實際上是這份 workflow 在檢，見 guards job 內的說明。
 #
 # action 以 SHA 釘死（後面註解標版本），與 compose.yaml 釘 image tag 同一個理由：
 # 公開 repo 加上游供應鏈被動過時，不該自動套用。Dependabot 會自動追 SHA 更新。
@@ -124,29 +126,32 @@ jobs:
       # 直接呼叫 venv 內的 pytest，不用 `uv run`：uv run 會重新 sync，會把上面
       # uv pip install 裝進去的 backend 依賴視為 extraneous 而移除。
       #
-      # 實測結果：**347 passed / 7 skipped**。
-      # 驗收條件是「依賴工具的 28 個 skip → 0」，**不是** 0 skipped。
-      # 剩下 7 個是**永久**的，分兩類，都不是缺陷、都不該去「修」：
+      # 實測結果（2026-10-01，刪掉 test_detect_host_endpoint.py 之後）：
+      # **367 passed / 2 skipped**（本機有 .env 與 node，所以比 CI 多幾個）。
       #
-      # 缺 artifact（3）—— 檔案被 gitignore，乾淨 clone 不會有：
-      #   test_detect_host_endpoint.py:87/:118  需要 .env
+      # 驗收條件是「依賴工具的 skip → 0」，**不是** 0 skipped。
+      #
+      # ⚠️ 2026-10-01：這段原本列 7 個永久 skip，其中 3 個來自
+      #   test_detect_host_endpoint.py（WSL NAT 端點偵測）。那個機制連同它的
+      #   測試檔已刪（改走 MagicDNS FQDN，見 settings/env/hosts.shared.env），
+      #   所以這三筆必須跟著移除 —— **留著會讓這份註解開始說謊**，而這份註解
+      #   的唯一用途就是不要讓「CI 綠」被誤讀成「全都驗過」。
+      #   同時刪掉「WSL 下的 ollama 位址偵測不在 CI 驗證」那條警告：那個行為
+      #   已經不存在，沒有東西需要被驗證。
+      #
+      # 剩下的 skip 是**永久**的，分兩類，都不是缺陷、都不該去「修」：
+      #
+      # 缺 artifact（1）—— 檔案被 gitignore，乾淨 clone 不會有：
       #   test_embed_batch.py:69              需要 data/laws/laws_flat.jsonl
       #                                        （只有跑過 sync_daily 才存在）
       #
-      # 缺環境（4）—— 需要 CI runner 沒有的東西：
-      #   test_detect_host_endpoint.py:157     本機不是 WSL → detect_host_endpoint()
-      #                                        回空 → 函式自己 pytest.skip。
-      #                                        ⚠️ 別搞混：:152 那個
-      #                                        `skipif(sys.platform != "linux")`
-      #                                        在 CI **不觸發**（runner 是 linux），
-      #                                        它擋的是 macOS（mbp）。刪掉會讓
-      #                                        mbp 那台直接跑這條而失敗。
-      #   test_sync_snapshot_auth.py:107 ×2   需要本機 qdrant 在跑
-      #   test_sync_snapshot_auth.py:134      同上
+      # 缺環境（3）—— 需要 CI runner 沒有的東西（本機 qdrant）：
+      #   test_sync_snapshot_auth.py:107 ×2
+      #   test_sync_snapshot_auth.py:134
       #
-      # ⚠️ 那 4 個「缺環境」的等於 CI 完全不驗證兩件事：qdrant 的
-      # `/healthz` 免驗證、`/collections` 要驗證這個**安全相關**前提，
-      # 以及 WSL 下的 ollama 位址偵測。它們只在有真實 stack 的機器上跑。
+      # ⚠️ 那 3 個「缺環境」的等於 CI 完全不驗證兩件事：qdrant 的
+      # `/healthz` 免驗證、`/collections` 要驗證這個**安全相關**前提。
+      # 它們只在有真實 stack 的機器上跑。
       # 記在這裡是為了讓「CI 綠」不等於「全都驗過」這件事保持可見。
       - name: pytest
         run: .venv/bin/pytest -q -p no:cacheprovider
@@ -188,7 +193,11 @@ jobs:
         env:
           TS_IP: 100.119.83.111
           POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
-          HOST_ID: msi
+          # 2026-10-01：msi → wsl（後端跑在 WSL，WSL 自己有 tailscale 且
+          # hostname 是 wsl；msi 是同一台實體機器的 Windows 主機，不是後端主機）。
+          # ⚠️ 這裡只驗**語法**，HOST_ID 給哪個合法值都不影響結果，所以改動
+          #    無風險 —— 但留著舊值會讓讀者以為 msi 仍是後端主機。跟著改名。
+          HOST_ID: wsl
         run: docker compose config -q
 
   guards:
@@ -207,23 +216,119 @@ jobs:
       # 所以退到 CI：**能看見但不能阻擋** —— 檢查跑起來時 commit 已經在 main 上了。
       # 真正的第一道仍是各機的 .githooks/commit-msg（見 ARCHITECTURE.md〈三機紀律〉）。
 
-      - name: "commit 訊息前綴須為 msi: / mbp: / x570:"
+      # ⚠️ 2026-10-01：前綴清單**從 settings/env/hosts.shared.env 的 HOSTS= 讀**，
+      # 不再寫死在這裡。原寫死 `^(msi|mbp|x570)` 的後果已經發生過一次：
+      # `.githooks/commit-msg` 改成讀 HOSTS=（為了讓 `msi:` 不再能冒充後端主機），
+      # 這個 CI 副本沒跟著改 → 用正確的 `wsl:` 提交，CI 判「缺少主機前綴」而紅。
+      #
+      # 兩份規則並存本身就是這次事故的根因，所以這裡**不抄一份新的常數**：
+      #   * HOSTS= 是機台清單的單一真相（env-sync.sh / env-audit.py / commit-msg
+      #     hook 都讀它）。第 4 台只要在那一行加一個前綴。
+      #   * 讀不到就**放行並警告**，不擋。這是刻意的取捨：這一步在 CI 裡本來就
+      #     「看得見但擋不住」（commit 已經在 main 上了，見上方 ruleset 註解），
+      #     所以寧可失去一道會擋的檢查，也不要留一個會因為檔案路徑／權限／分支
+      #     checkout 深度而**擋掉合法提交**的關卡 —— 假紅會讓人開始用 --no-verify，
+      #     那時連看得見的證據都沒了。真正的第一道仍是各機的 commit-msg hook。
+      #
+      # ⚠️ 這個 job 用 `fetch-depth: 0` + 完整 clone，所以讀得到 settings/ 下的檔。
+      #    若日後換成 sparse checkout，這段會靜默讀不到 —— 那時要改成明確失敗。
+      - name: "commit 訊息前綴須為 HOSTS= 宣告的機台代號"
         if: github.event_name == 'push'
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
         run: |
+          hosts_raw="$(grep -m1 -E '^HOSTS=' settings/env/hosts.shared.env 2>/dev/null \
+                        | cut -d= -f2- | tr ',' '|' | sed 's/[[:space:]]//g')" || true
+          if [ -z "$hosts_raw" ]; then
+            echo "::warning title=無法讀取 HOSTS=,略過前綴檢查::讀不到 settings/env/hosts.shared.env 的 HOSTS= 那一行。放行，但這道檢查這一輪沒有生效。"
+            exit 0
+          fi
+          echo "合法主機前綴（來自 HOSTS=）：$(sed 's/|/ \/ /g' <<<"$hosts_raw")"
+
           if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
              || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             range="$AFTER"          # 新分支，或 before 已不可得（force-push）
           else
             range="$BEFORE..$AFTER"
           fi
+
+          # 改名邊界：從**第一個使用當前合法前綴的 commit**往回看，它前面的都算
+          # 歷史（那時 `msi:` 還是合法的後端主機代號）。
+          #
+          # ⚠️ 找法必須是「往前掃、遇到合法前綴就停」，不能只掃這次 range ——
+          #    force-push 時 range 會退化成整條分支，而當時**所有** commit 的
+          #    前綴都是 `msi:`，往前掃會走到底、永遠找不到第一個合法前綴，
+          #    邊界就會是「未知」→ 139 筆誤報（實測）。
+          #
+          # 所以這裡掃 `new_since^`（range 之前的那個 commit）的祖先鏈。
+          # 找不到（沒有前綴歷史、或全新 repo）就讓邊界不存在 → 下面那個
+          # `git merge-base --is-ancestor` 會失敗 → 不視為歷史 → 照報。
+          # 那個方向的失敗是安全的（寧可多報不可漏報）。
+          # 改名邊界 = **把舊代號從總表移掉的那個 commit**（`HOSTS=` 那一行不再含舊代號）。
+          #
+          #   它之前的 commit 都還在建國初期那個命名，那些舊前綴是歷史、不是違規。
+          #
+          # 為什麼是這個定義、而不是「最老的合法前綴 commit」：這個 repo 的前綴
+          # 從來就**不統一** —— 最早的 commit 根本沒有前綴，之後 `msi:` 為主，
+          # 夾雜少數 `mbp:` / `x570:`。所以「最老的合法前綴 commit」落在建國初期，
+          # 邊界等於不存在 → 每個舊 `msi:` 都被報（實測 139 筆全紅）。
+          #
+          # 找法：`-S'msi'` 追「HOSTS= 那一行的字串變動」，取最新一筆 = 改名點。
+          # 這是**內容導向**的：它問的是「總表什麼時候不再宣告舊代號」，而不是
+          # 「commit 訊息碰巧寫了什麼」，所以改名那天的 commit 訊息怎麼寫都對。
+          #
+          # ⚠️ 邊界找不到（沒有改名歷史、或未來又加回舊代號）時 `new_since` 為空
+          #    → 下面 `merge-base --is-ancestor` 失敗 → 舊代號照報。這個方向的
+          #    失敗是安全的：寧可多報不可漏報。
+          new_since="$(git log -1 --format='%H' -S'msi' -- settings/env/hosts.shared.env)"
+          # 規則生效點 = 護檔案案被加入的那個 commit（commit-msg hook，8ca2768）。
+          # 用 --diff-filter=A 找「新增」，所以日後若把護欄刪掉又加回來，邊界會
+          # 跟著最新那個走。
+          rules_since="$(git log --diff-filter=A -1 --format='%H' -- .githooks/commit-msg)"
+          for label in new_since rules_since; do
+            v="${!label:-}"
+            if [ -n "$v" ]; then
+              echo "$label = $(git rev-parse --short "$v")"
+            else
+              echo "$label = （找不到 → 該類舊 commit 一律視為違規）"
+            fi
+          done
+          # ⚠️ 冒號用明確 alternation `(:|：)`，**不要寫成 `[:：]`**。
+          #    那個字元類別在 gawk 裡是壞的：位元組 EF BC 9A 的全角冒號會被當成
+          #    字面字元比對，於是 `mbp：全角`（全角冒號直接接文字）不 match，
+          #    但 `mbp： 全角`（後面剛好有空格）卻 match —— 部分匹配，最壞的一種。
+          #    實測（gawk 5.3.2 / Ubuntu 24.04 就是這個版本）：
+          #      mbp:x   → NO      mbp：x   → NO
+          #      mbp: x  → MATCH   mbp： x  → MATCH
+          #    commit-msg hook 裡那條 `[:：]` 也有同樣的問題，一起修。
           bad=0
           for sha in $(git rev-list "$range"); do
             subj="$(git log -1 --format=%s "$sha")"
-            if printf '%s' "$subj" | grep -Eq '^(msi|mbp|x570)[:：][[:space:]]' \
+            if printf '%s' "$subj" | grep -Eq "^($hosts_raw)(:|：)[[:space:]]" \
                || printf '%s' "$subj" | grep -Eq '^(Merge|Revert)'; then
+              continue
+            fi
+            # ── 歷史相容：兩種「現在才變嚴」的舊 commit ──
+            #
+            # (a) 2026-09-22 護欄建立**之前**的 commit：那時根本沒這條規則，
+            #     所以 20 筆完全沒有前綴（`feat: Complete initial setup…`、
+            #     `test2`、`update test`…）。它們不是違規，是規則還不存在。
+            #
+            # (b) 2026-10-01 改名**之前**的 `msi:` commit：那時 `msi:` 是合法
+            #     前綴（後端跑在掛在 Windows 主機下的 WSL，git 身份記主機名）。
+            #     改名後它不再出現在 HOSTS= —— 掃整段歷史時（force-push 會讓
+            #     before 不可得、range 退化成整條分支）每個舊 commit 都會被報。
+            #
+            # 邊界取兩者中**較早**的：規則存在之前的，一律不算違規。
+            #
+            # ⚠️ 這**不是**放水。兩個邊界都是「規則／命名改變的那個 commit」，
+            #    而且都是內容導向（`--diff-filter=A` 找護欄落地、`-S` 找改名），
+            #    所以繞不過去：`msi:` 與無前綴的 commit 一旦出現在邊界**之後**，
+            #    照樣被擋。實測舊寫死 regex 全掃會產出 139 筆誤報 —— 那等於
+            #    這道護欄從此沒有信譽，而沒有信譽的護欄會讓人開始用 --no-verify。
+            if git merge-base --is-ancestor "$sha" "$rules_since" 2>/dev/null \
+               || git merge-base --is-ancestor "$sha" "$new_since" 2>/dev/null; then
               continue
             fi
             echo "::error title=缺少主機前綴::${sha:0:8}  ${subj}"
