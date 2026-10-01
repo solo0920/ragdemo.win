@@ -74,6 +74,30 @@ echo "✓ 無 LAN_IP= 殘留（IP 準則合規）"
 
 # 3) pytest 單元測試（純函式，不需 api/docker；機器未裝 pytest 則跳過）
 if [ -x .venv/bin/pytest ]; then
+  # 2026-10-02：把「跑不起來」的原因講清楚，不要只說「pytest 失敗」。
+  # 實測踩到的最常見一種：repo 目錄改名／搬移後，.venv 裡每個 script 的
+  # shebang 還是舊絕對路徑 → `bad interpreter`。而 uv sync --dev 修不好它
+  # （pyvenv.cfg 的 home 是可攜的，uv 判定 venv 已是最新），所以要重建。
+  # 症狀與「沒裝 pytest」不同，誤判成後者會得到「我明明 sync 過了」。
+  if ! out="$(.venv/bin/pytest --version 2>&1)"; then
+    echo "✗ .venv/bin/pytest 跑不起來（不是測試失敗，是環境壞掉）：" >&2
+    printf '%s\n' "$out" | head -3 >&2
+    case "$out" in
+      *"bad interpreter"*)
+        echo "  診斷：repo 目錄改名／搬移過，.venv 內的絕對路徑過期。" >&2
+        echo "  ** uv sync --dev 修不好這個 **（它認為 venv 已是最新）。修法：" >&2
+        echo "      rm -rf .venv && uv sync --dev" >&2
+        echo "  細節見 HOST-UPGRADE.md〈repo 目錄改名／搬移後〉。" >&2
+        ;;
+      *"No module named pytest"*)
+        echo "  診斷：venv 裡沒有 pytest。修法：uv sync --dev" >&2
+        ;;
+      *)
+        echo "  診斷：見上面那行訊息。" >&2
+        ;;
+    esac
+    exit 1
+  fi
   .venv/bin/pytest -q -p no:cacheprovider >/dev/null 2>&1 \
     || { echo "✗ pytest 失敗，檢查 tests/ 後再 push" >&2; exit 1; }
   n=$(.venv/bin/pytest -q -p no:cacheprovider 2>/dev/null | tail -1 | grep -oE '^[0-9]+ passed' | grep -oE '[0-9]+')

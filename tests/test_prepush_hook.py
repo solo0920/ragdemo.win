@@ -211,3 +211,79 @@ def test_lan_ip_guard_allows_a_clean_repo(tmp_path):
     script.write_text(_guard_block(), encoding="utf-8")
     assert subprocess.run(["bash", str(script)], cwd=repo,
                           capture_output=True, text=True).returncode == 0
+
+
+# ── pytest 環境壞掉時的診斷（2026-10-02）──────────────────────────────
+#
+# 為什麼要測這個：2026-10-02 repo 從 `ragdemo` 改名成 `ragdemo.win` 之後，
+# `.venv/bin/*` 的 shebang 全部指向舊絕對路徑 → `bad interpreter`。
+# 症狀與「沒裝 pytest」**完全不同**，但第一版 hook 只印「pytest 失敗」，
+# 診斷方向指向「測試壞了」，實際上是環境壞了 —— 走錯方向會去改 tests/。
+#
+# 這裡**執行**那一段（靜態比對抓不到分支寫錯，而分支寫錯的症狀是
+# 「正確的診斷訊息從來沒出現過」）。抽出 hook 裡那一段、指向一個假的
+# 壞掉的 pytest，不碰真實 .venv。
+
+def _pytest_block() -> str:
+    """抽出 hook 裡「跑 pytest」那一段，含 `if [ -x ... ]; then` 到對應的 fi。"""
+    text = _hook()
+    start = text.index("if [ -x .venv/bin/pytest ]; then")
+    # 這段的 fi 是第一個「行首就是 fi」的行（內層 case 的 fi 有縮排）
+    end = text.index("\nfi\n", start) + len("\nfi\n")
+    return text[start:end]
+
+
+def _run_pytest_block(tmp_path, stderr_text, exit_code=127):
+    fake = tmp_path / ".venv" / "bin"
+    fake.mkdir(parents=True)
+    p = fake / "pytest"
+    p.write_text(f"#!/bin/sh\necho {stderr_text!r} >&2\nexit {exit_code}\n",
+                 encoding="utf-8")
+    p.chmod(0o755)
+    script = tmp_path / "seg.sh"
+    script.write_text("#!/usr/bin/env bash\nset -euo pipefail\n"
+                      + _pytest_block(), encoding="utf-8")
+    return subprocess.run(["bash", str(script)], cwd=tmp_path,
+                          capture_output=True, text=True)
+
+
+def test_broken_venv_is_diagnosed_as_environment_not_tests(tmp_path):
+    """`bad interpreter` 要診斷成「venv 壞掉」並給出**有效的**修法。
+
+    關鍵在於「無效的修法」：只印 `uv sync --dev` 是錯的 —— 實測它回
+    `Checked 19 packages` 而什麼都沒修（pyvenv.cfg 的 home 是可攜的，
+    uv 判定 venv 已是最新）。所以訊息必須明說要 `rm -rf .venv` 重建。
+    """
+    r = _run_pytest_block(tmp_path, "bad interpreter: /old/path/.venv/bin/python: no such file")
+    assert r.returncode != 0, "venv 壞掉必須擋下 push，不該靜默放行"
+    assert "rm -rf .venv" in r.stderr, "沒給重建 venv 的修法（uv sync --dev 對這個無效）"
+    assert "uv sync --dev" in r.stderr
+    assert "環境" in r.stderr, "要說明是環境壞掉，不是測試失敗"
+
+
+def test_broken_venv_message_says_uv_sync_alone_will_not_fix_it(tmp_path):
+    """訊息要主動否決 `uv sync --dev`，否則人會照著跑一次、得到同樣的壞 venv。
+
+    這是本條最容易被「簡化掉」的地方：訊息裡同時出現 `uv sync --dev`
+    和 `rm -rf .venv` 是自相矛盾的，只看第一個的人會跑錯的那個。
+    """
+    r = _run_pytest_block(tmp_path, "bad interpreter: /old/.venv/bin/python: no such file")
+    joined = r.stderr.replace(" ", "")
+    assert "修不好" in joined or "無效" in joined, (
+        "要明說 uv sync --dev 對這個情況修不好"
+    )
+
+
+def test_missing_pytest_is_distinguished_from_broken_venv(tmp_path):
+    """`No module named pytest` 是「沒裝」，修法不同，不可混為一談。
+
+    沒裝 → `uv sync --dev` 就好（venv 本身是好的）。
+    路徑過期 → 要重建。
+    兩者共用同一句「環境壞掉，請跑 X」會讓其中一個人照著跑錯的修法。
+    """
+    r = _run_pytest_block(tmp_path, "No module named pytest")
+    assert r.returncode != 0
+    assert "uv sync --dev" in r.stderr
+    assert "rm -rf .venv" not in r.stderr, (
+        "沒裝 pytest 時叫人去刪 venv 是錯的 —— venv 本身是好的"
+    )

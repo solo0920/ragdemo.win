@@ -309,6 +309,38 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8000/law-update
 
 `uv sync --dev` 會把 venv 對齊到宣告的依賴。新機／重灌後**先跑它**，再跑 pytest。
 
+### ⚠️ repo 目錄改名／搬移後：`uv sync --dev` **修不好**，必須重建 venv
+
+2026-10-02 在 wsl 實測。repo 從 `~/projects/ragdemo` 改名成 `~/projects/ragdemo.win`
+之後，`.venv` 裡**每個 script 的 shebang 與 symlink 都還指向舊絕對路徑**：
+
+```
+.venv/bin/pytest → bad interpreter: /home/solo/projects/ragdemo/.venv/bin/python:
+                   no such file or directory
+```
+
+`pyvenv.cfg` 的 `home` 指向的是 uv 的 Python（可攜），所以 **uv 認為 venv 是
+最新的**，`uv sync --dev` 只會回 `Checked 19 packages` 而**什麼都沒修**。
+真正壞掉的是 `bin/` 底下那些檔案的絕對路徑，`uv sync` 不碰它們。
+
+修法（venv 裡沒有自訂安裝，`uv.lock` 可完整重建，直接刪是安全的）：
+
+```bash
+rm -rf .venv && uv sync --dev
+.venv/bin/pytest --version        # 應該印出版本，不是 bad interpreter
+```
+
+**怎麼認出這是這個問題**（而不是「沒裝 pytest」）：
+
+| 症狀 | 判讀 |
+|---|---|
+| `bad interpreter: …/.venv/bin/python: no such file` | 舊絕對路徑 → 重建 |
+| `.venv/bin/pytest: command not found` | 真的沒裝 → `uv sync --dev` |
+| `uv sync --dev` 回 `Checked N packages` 但仍壞著 | 就是本節這種情況，再跑一次沒用 |
+
+⚠️ `pre-push` 會擋下來（`[ -x .venv/bin/pytest ]` 為真 → 跑 → 失敗），
+這是設計正確。別因為「它擋我」就去 `.githooks/pre-push` 加跳過條件。
+
 ### x570 跑的是 Python 3.14，而 pin 是 3.12
 
 `.python-version` 與 CI 都是 3.12；msi 是 3.12.14；**只有 x570 是 3.14.4**。
