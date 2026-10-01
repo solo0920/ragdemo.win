@@ -2,24 +2,53 @@
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
+> **代號對照（2026-10-01 改的，看得懂的話跳過）**：跑後端的那台的代號已從
+> `msi` 改成 **`wsl`** —— 後端跑在 WSL 上，WSL 自己有 tailscale、hostname 是
+> `wsl`。`msi` 現在指的是同一台實體機器的 **Windows 主機**（ollama 跑在那裡，
+> `wsl_OLLAMA_URLS=msi=http://msi.…:11434` 是**活的值**，別動它）。
+> 本文件裡講到「後端那台」的地方，都是 `wsl`。
+
 前置：`git pull`。想先確認環境用 `bash scripts/host-doctor.sh`，**先跑它再決定要不要動手**。
 
 ⚠️ 指令**只印指紋／長度，不印值**。不要改成 `cat .env`／`env | grep`，
 不要對含憑證的指令加 `bash -x`（2026-09-26 三次憑證外洩都是這樣）。
 
-> **★★ 唯一還沒做的：Access Service Token —— 先做這件。**（2026-10-01 23:30）
-> 三台的 Access app 都建好了（22:35 複驗全 403），但**只有 wsl 端把 Service
-> Token 加進了 `.env`**。你這台還沒有，所以症狀是：
+> **★★ 唯一還沒做的：Access Service Token —— 先做這件。**
 >
-> - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（查詢正常，因為走 Pages）
-> - `sync.log` 有 `law version: 取不到` → **法規版本凍結**
-> - `host-doctor.sh` 的 `law-version` **warn**
+> ### ⭐ 2026-10-02：不用手動貼了，跑 `env-sync.sh pull` 就好
 >
-> **四個步驟 ＋ 兩個必讀的坑都在〈★★ 待辦（x570 端）〉。** 坑一：token 的
-> Client ID 39 字元／Secret 54 字元**貼反會一直 403**，與「Access 沒開」
-> 長得一樣，所以先跑 `access-check.sh` 第 3 段。坑二：`up -d --build api`
-> 的 **`--build` 不能省** —— 只 `up -d` 會拿到舊映像，症狀是「設定都對了
-> 但行為是舊的」。
+> `CF_ACCESS_CLIENT_ID`／`CF_ACCESS_CLIENT_SECRET` 已納入**共用憑證層**
+> （sops 加密，8 把之一），wsl 端已把值寫進加密檔。所以你那台只要：
+>
+> ```bash
+> git pull && bash scripts/env-sync.sh pull
+> ```
+>
+> 舊指示（步驟 2 的 `printf 'CF_ACCESS_CLIENT_ID=<39字元hex>...' >> .env`）
+> **作廢**。本節保留它，是為了讓你知道為什麼不要照做：
+> ① 值要經過聊天／剪貼簿；② **貼反的症狀與「Access 沒開」完全一樣**
+> （都回 403，所以要靠 `access-check.sh` 第 3 段才分辨得出）；
+> ③ `--fingerprints` 不涵蓋它 → 兩台不一致是**無聲**的。
+> 走 `pull` 這三個問題整類消失。
+>
+> 驗證（不印值）：
+> ```bash
+> bash scripts/env-sync.sh --fingerprints | grep CF_ACCESS
+> # CF_ACCESS_CLIENT_ID      len=39   sha12=11cb9bc42f55
+> # CF_ACCESS_CLIENT_SECRET  len=54   sha12=f00a6bd62ddc
+> ```
+> **這兩組指紋三台必須相同**。不同 = `pull` 沒成功。
+>
+> 然後 **`docker compose up -d --build api`** —— `--build` 不能省，見下方
+> 步驟 3 與〈坑二〉。
+>
+> ---
+>
+> 三台的 Access app 都建好了（三台一致 403）。沒 token 的症狀（都很安靜）：
+>
+> - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（但查詢正常）
+> - `sync.log` 出現 `law version: 取不到` → `.law_version` 凍結在舊版
+> - `host-doctor.sh` 的 `law-version` **warn**（「快照已 N 小時沒成功更新」）
 >
 > ---
 >
@@ -170,39 +199,27 @@ host-doctor law-version 那條 warn 消失（原本 warn 28 小時沒更新）
 
 **這是現在唯一還沒做的。** wsl 端已完成並驗證（見上），**x570 與 mbp 尚未**。
 
-沒有它的症狀（兩個都很安靜）：
+沒有它的症狀（都很安靜）：
 
 - 前端「連線與來源」顯示 x570／mbp **連線失敗**（但查詢正常）
 - `sync.log` 出現 `law version: 取不到` → `.law_version` 凍結在舊版
 - `host-doctor.sh` 的 `law-version` **warn**（「快照已 N 小時沒成功更新」）
 
-### 步驟 1：先確認 token 本身是對的
-
-**不要跳過這步。** 貼錯的症狀與「Access 沒開」完全一樣（都回 403）：
+### ⭐ 步驟 1（2026-10-02 取代舊版）：pull，不要手動貼
 
 ```bash
-git pull
-bash scripts/access-check.sh      # 互動式，token 用 read -rs 不落地
+git pull && bash scripts/env-sync.sh pull
+bash scripts/env-sync.sh --fingerprints | grep CF_ACCESS
+# 期望：
+# CF_ACCESS_CLIENT_ID      len=39   sha12=11cb9bc42f55
+# CF_ACCESS_CLIENT_SECRET  len=54   sha12=f00a6bd62ddc
 ```
 
-三段都要過，**第 3 段（帶真 token → 200）才算數**。
-第 2 段（帶假 token → 403）只證明 Access 開著，不能證明你的 token 對。
+⚠️ `pull` **不會覆蓋你的 `HOST_ID` 與 per-host 值**（`TS_IP`／`LLM_MODEL`／
+`OLLAMA_*`）—— 那三類各機不同，總表對應欄空值＝沿用本機現值。實測
+`render --dry-run` 只列 `HOST_API_URLS`，其餘鍵不動。
 
-⚠️ **正確組合：Client ID 39 字元（hex）／Client Secret 54 字元（`cfast_` 開頭）。**
-貼反就會一直 403。
-
-### 步驟 2：加進 `.env`
-
-```bash
-printf 'CF_ACCESS_CLIENT_ID=<39字元hex>\nCF_ACCESS_CLIENT_SECRET=<54字元cfast_>\n' >> .env
-grep -E '^CF_ACCESS_CLIENT_(ID|SECRET)=' .env | cut -c1-30    # 只確認有值
-```
-
-⚠️ **絕對不要複製 wsl 的整份 `.env`。** `HOST_ID` 與 per-host 值
-（`TS_IP`／`LLM_MODEL`／`OLLAMA_*`）各機不同，整份覆蓋會讓你綁到錯的
-IP —— `host-doctor` 立刻亮，docker 也會綁錯。只加這兩個 key。
-
-### 步驟 3：重建（`--build` 不能省）
+### 步驟 2：重建（`--build` 不能省）
 
 ```bash
 docker compose up -d --build api
@@ -213,10 +230,11 @@ docker compose up -d --build api
 三小時前 build 的，`gateway.py` 根本沒有 `_access_headers`（實測容器內
 `grep -c` = 0、工作區 = 3）。症狀是「設定都對了但行為是舊的」。
 
-### 步驟 4：驗收（三項都要看）
+### 步驟 3：驗收（四項都要看）
 
 ```bash
 docker compose ps
+bash scripts/env-sync.sh --check          # per-host 值與總表一致
 bash scripts/sync-snapshot.sh --force
 tail -3 ~/qdrant/sync.log        # 應出現 law version updated，不是「取不到」
 bash scripts/host-doctor.sh      # law-version 那條應從 warn 變 ok
@@ -225,13 +243,46 @@ bash scripts/host-doctor.sh      # law-version 那條應從 warn 變 ok
 peer 探測在**前端面板**看（`https://ragdemo.win` → 連線詳細），
 或 `curl -s http://localhost:8000/status | python3 -m json.tool`。
 
-### ⚠️ 這組值是跨機共用機密
+### ⚠️ 這組值是跨機共用機密（2026-10-02 起已進 sops 層）
 
-三台的 `.env` 用**同一組**。輪換要三台一起，中間會有一段 peer 探測全紅。
-`ARCHITECTURE.md` / `settings/env/README.md` §7 有輪換順序。
+三台的 `.env` 用**同一組**，值只活在 `settings/env/secrets.common.enc.env`
+（sops+age 加密）。`env-sync.sh pull` 分發，**不要**手動貼進 `.env`。
+輪換用 `bash scripts/rotate-secret.sh CF_ACCESS_CLIENT_SECRET --from-stdin`，
+三台一起 pull，中間會有一段 peer 探測全紅。順序見 `settings/env/README.md` §7。
 
-**回報**：三段守衛的結果（不要回報 token 值）、`sync.log` 最後 3 行、
-`host-doctor` 的 `law-version` 那條。
+**回報**：`--fingerprints | grep CF_ACCESS` 的兩行（不要回報 token 值）、
+`sync.log` 最後 3 行、`host-doctor` 的 `law-version` 那條。
+
+### 🗄 作廢的舊步驟（2026-10-02 之前，留著當反面紀錄）
+
+<details>
+<summary>舊步驟 1–2：手動貼 token</summary>
+
+```bash
+bash scripts/access-check.sh      # 互動式，token 用 read -rs 不落地
+printf 'CF_ACCESS_CLIENT_ID=<39字元hex>\nCF_ACCESS_CLIENT_SECRET=<54字元cfast_>\n' >> .env
+```
+
+⚠️ **正確組合：Client ID 39 字元（hex）／Client Secret 54 字元（`cfast_` 開頭）。**
+貼反的症狀與「Access 沒開」完全一樣（都回 403），只能靠 `access-check.sh`
+第 3 段分辨。**這就是不要手動貼的理由** —— `pull` 不可能貼反。
+
+</details>
+
+<details>
+<summary>舊步驟 4：三段守衛（現在由 --fingerprints ＋ peer 探測取代）</summary>
+
+```bash
+bash scripts/access-check.sh
+# 不帶 token → 403（Access 護著）
+# 帶假 token → 403（驗簽：假 token 也被擋，這才是真的開著）
+# 帶真 token → 200（值正確）
+```
+
+仍可用於**診斷**（例如 peer 探測全紅時，分辨「Access 沒開」與「token 不對」），
+但**取得** token 不再需要它。
+
+</details>
 
 ---
 
@@ -256,17 +307,25 @@ peer 探測在**前端面板**看（`https://ragdemo.win` → 連線詳細），
 「只是沒有登入頁」。
 
 ---
-## 現況：✅ 本機後端已恢復（2026-10-01 x570 端實測並修復）
+## 現況：三台全綠，Access 已護三台（2026-10-02 wsl 端實測）
+
+**2026-10-02 複驗，三台一致 403 —— 這就是健康的樣子**：
 
 ```
-api-x570.ragdemo.win → HTTP 200   ← 原本 502，現已修復
-api-mbp.ragdemo.win  → HTTP 200   ← 2026-10-01 22:00 wsl 端實測：mbp 也回來了
-api-wsl.ragdemo.win  → HTTP 403   ← Access 擋著，正常（見下）
+api-wsl.ragdemo.win    → HTTP 403   ← Access 擋著，正常
+api-x570.ragdemo.win   → HTTP 403   ← 同上
+api-mbp.ragdemo.win    → HTTP 403   ← 同上
+ragdemo.win/api/health → HTTP 200   host_id=wsl
 ```
 
-✅ **三台都有 Access 保護**（2026-10-01 22:35 複驗，全 403）。上面那組
-`api-mbp 200`／`api-x570 200` 是 22:00 的量測，Access app 當時還沒建好。
-詳見〈✅ Access 三台已建好〉。
+peer 探測（wsl 端，帶 Service Token）：`x570 連線成功 / mbp 連線成功 /
+wsl 連線成功`。
+
+> ⚠️ 本節上一版寫的是「`api-x570 200`、`api-mbp 200`、`api-wsl 403`」。
+> 那組數字是 **2026-10-01 22:00 的量測**，Access app 當時還沒建好。
+> 22:0x–22:2x 三台建好後，22:35 複驗就是**三台全 403**。
+> **兩個數字都是真的**，是狀態變了不是有人量錯。以本段為準。
+> 詳見〈✅ Access 三台已建好〉。
 
 Cloudflare API：三條 tunnel **全部 healthy、conns=4**
 （`ragdemo-x570`／`ragdemo-mbp`／`ragdemo-wsl`）。
@@ -279,20 +338,21 @@ Cloudflare API：三條 tunnel **全部 healthy、conns=4**
 | **200** | 通了 —— **但不代表沒問題**，見下 |
 
 ⚠️ **200 也不等於健康。** 真正的驗收是 `host-doctor.sh`，不是 HTTP 狀態碼
-（`MBP-HANDOFF.md:228-237` 記錄過：那次 `api-mbp` 回 200，但容器是空的、
-映像落後 4 天、DSN 指向離線的別台讓查詢多 60s）。
+（`MBP-HANDOFF.md`〈外部症狀不足以判斷〉記錄過：那次 `api-mbp` 回 200，
+但容器是空的、映像落後 4 天、DSN 指向離線的別台讓查詢多 60s）。
 
-### 為什麼 wsl 那台是 403 不是 200
+### 為什麼三台現在都是 403
 
-2026-10-01 補上了 Cloudflare Access。`fbb9325` 那個 commit 從 2026-09-30
-就假設 Access 存在（它的註解寫「後端只綁 127.0.0.1，唯一入口是 tunnel，所以
-邊緣驗證就是完整防護」），但那個前提**從來不成立** —— Access 直到 2026-10-01
-才真的啟用。那段期間 `api-wsl.ragdemo.win` 是全網可達的。
+2026-10-01 補上了 Cloudflare Access（三台的 Access app 都在 22:0x–22:2x 建好）。
+`fbb9325` 那個 commit 從 2026-09-30 就假設 Access 存在（它的註解寫「後端只綁
+127.0.0.1，唯一入口是 tunnel，所以邊緣驗證就是完整防護」），但那個前提
+**從來不成立** —— Access 直到 2026-10-01 才真的啟用。那段期間三個 API
+hostname 都是全網可達的。
 
-現在 `api-wsl` 是 **Service Auth 保護**：不帶 `CF-Access-Client-Id` /
+現在三台都是 **Service Auth 保護**：不帶 `CF-Access-Client-Id` /
 `CF-Access-Client-Secret` 一律 403。
 
-**若你看到 `api-wsl` 是 403，那是正常的，不是故障。** 本機測試請用
+**若你看到 `api-x570` 是 403，那是正常的，不是故障。** 本機測試請用
 `http://localhost:8000`，不要從公網打那個 host。
 
 ### 法規版本：✅ 已直接查上游確認，9/18 確實仍是最新（2026-10-01）
@@ -469,7 +529,7 @@ if [ -f "$ROOT/data/laws/.law_sync.json" ]; then
 ```
 
 你的 `/status` 回報 `law_version 來源 = law_sync.json` → **系統判定你是 `source`**。
-（與 2026-09-26 版的前提不同：當時「x570 是唯一來源機」，現在 msi 也跑完
+（與 2026-09-26 版的前提不同：當時「x570 是唯一來源機」，現在 wsl 也跑完
 `sync_daily` 了，**兩台都是 source**，彼此不依賴。這是好事。）
 
 ```bash
@@ -496,7 +556,7 @@ ls -la --time-style=long-iso data/laws/.law_sync.json
 **判讀**：有排程 ＋ `.worker.lock` mtime 在 1 分鐘內 → 排程正常；
 有排程但 `.law_sync.json` 的 `last_checked` 很久以前 → 那**不是排程沒跑**，
 是排程跑了但**跑失敗**（見下方 x570 實測的兩個實例）。
-**沒有排程也先不要自己加** —— 回報後由 msi 端決定（前端「更新」按鈕是走這條路，
+**沒有排程也先不要自己加** —— 回報後由 wsl 端決定（前端「更新」按鈕是走這條路，
 加錯了會跟別的排程打架）。
 
 #### ⚠️ x570 實測：兩條 cron 各自靜默失敗過（2026-10-01，請交 ingest／ops 處理）
@@ -605,7 +665,7 @@ ollama list
 ```
 
 你的 LLM 是 `qwen3:14b`（總表 `x570_LLM_MODEL=qwen3:14b` 已填好），
-**不要**改成 msi 的 `qwen2.5-coder:latest`。
+**不要**改成 wsl 的 `qwen2.5-coder:latest`（那是另一台的設定）。
 
 ---
 
