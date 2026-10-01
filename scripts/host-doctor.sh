@@ -275,6 +275,14 @@ ch_rotate() {
   #   MISSING／EMPTY  → 該鍵這台沒有，症狀是 401／心跳失敗，且極難回推是環境變數缺了
   #   peer == self     → 兩把同值即三台鎖步，而 QDRANT_PEER_API_KEY 的值已知外洩
   #                      （ARCHITECTURE.md〈密鑰管理〉／SCOPE.md〈待套用〉）→ 建議輪換
+  # ⚠️ 2026-10-01：這條 warn 的建議**不完整，照字面做會讓兩台備援機永久 401**。
+  #    這裡只比對指紋、看不到那把 key 的語意：`QDRANT_PEER_API_KEY` 的定義就是
+  #    「能認證到來源機（x570）qdrant 的 key」，而 x570 只認 compose.yaml:12 的
+  #    QDRANT__SERVICE__API_KEY —— 同值是結構性必然。要拆開必須先有
+  #    QDRANT__SERVICE__ALT_API_KEY（M2 範圍，qdrant v1.19.1 的第二個讀寫槽）。
+  #    完整分析見 settings/env/README.md §7〈peer 那把的語意〉。
+  #    另一件事：那個外洩值同時是來源機自己的 api_key，只輪換 peer **不會吊銷它**，
+  #    這條 warn 轉綠只代表指紋不同。
   local MISS="" EMPTY="" SAME=""
   # 迴圈變數刻意叫 FP（fingerprint line）而不是 LINE：`$LINE` 這種全大寫單字
   # 會被 env-audit 的 `$UPPER` 反查誤認（它同時被 while read 賦值、又在本迴圈讀，
@@ -315,8 +323,10 @@ ch_rotate() {
     bump rotate-empty warn "這些鍵是空值（未設定）:${EMPTY}；共用層空值不合併，各機沿用自己現值"
   fi
   if [ "$SAME" = "yes" ]; then
-    bump rotate-hint warn "QDRANT_PEER_API_KEY 與 QDRANT_API_KEY 同值 → 三台鎖步，建議輪換 peer 那把
-   （該值已知外洩；拆開的理由見 env-sync.sh PER_HOST_SECRETS 註解與 ARCHITECTURE〈密鑰管理〉）"
+    bump rotate-hint warn "QDRANT_PEER_API_KEY 與 QDRANT_API_KEY 同值 → 三台鎖步，該值已知外洩
+   ⚠️ 但不要直接輪換 peer 那把：同值是結構性必然，拆開需要 compose.yaml 先有
+      QDRANT__SERVICE__ALT_API_KEY（M2 範圍），否則兩台備援機永久 401。
+      順序與驗證見 settings/env/README.md §7〈peer 那把的語意〉。"
   else
     bump rotate-hint ok "peer 與本機 qdrant key 不同值（已拆分，正確）"
   fi

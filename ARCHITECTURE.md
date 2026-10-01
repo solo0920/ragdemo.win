@@ -281,7 +281,23 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
   真正的根因是 `backend/.env` 與根 `.env` **兩份副本**（已刪）。根因修掉後舊分類
   被留著當保險，副作用是造出「mbp 的 qdrant key 還是第三把舊的」這個
   **不存在的故障** —— mbp 的 key 只對 mbp 自己的 qdrant 有意義。
+- ⚠️ **`QDRANT_PEER_API_KEY` 與來源機的 `QDRANT_API_KEY` 同值是結構性必然**
+  （2026-10-01 查證，`settings/env/README.md` §7〈peer 那把的語意〉有完整版）：
+  這把的定義就是「能認證到來源機 qdrant 的 key」，而來源機只認
+  `compose.yaml:12` 的 `QDRANT__SERVICE__API_KEY`。
+  `host-doctor.sh` 的 `rotate-hint` 只比對指紋、看不到這層語意，會建議
+  「輪換 peer 那把」—— **照做會讓 mbp／wsl 永久 401**（`pull` 後再 pull 也救不回來）。
+  qdrant v1.19.1 沒有 key 清單，但有第二個讀寫槽 `alt_api_key`
+  （上游註解明寫 "can be used for rolling key rotation"）；正解是
+  `QDRANT__SERVICE__ALT_API_KEY: ${QDRANT_PEER_API_KEY:-}`（**M2 的範圍**）。
+  順序：M2 先在三台部署 alt → 才輪換 peer。反過來就是永久 401。
+  另一個後果：外洩值同時是來源機自己的 `api_key`（2026-10-01 實測兩者
+  `sha12` 皆 `fe4b2d4ba82a`），**只輪換 peer 不會吊銷它** —— doctor 轉綠
+  只代表指紋不同，不代表外洩值失效。
 - 掃描確認 git 無真實 token（git ls-files、.env 追蹤數 0、歷史/前端建置產物皆無）。
+- ⚠️ **找變數的消費點要用 `git grep`，不要 `grep -rn --include='*.env'`**：
+  後者會匹配到 repo 根**未追蹤的 `.env`** 並把值印進終端機紀錄。
+  2026-10-01 x570 實踩一次（`QDRANT_PEER_API_KEY`）。
 
 ## 備援機制（x570 離線時各機獨立作業）
 

@@ -90,6 +90,15 @@
 - **明文檔絕不進版控**：`secrets.common.env`（明文）、`secrets.host.env`（明文）、
   `.decrypted.*` 暫存檔（`--check` 與 CI 會擋）。
 - **回報只給「鍵名＋長度＋sha256 前 12 碼」**，格式見 `--fingerprints`。
+- ⚠️ **不要用 `grep -rn` 帶 `--include='*.env'` 掃全 repo 找消費點**：
+  它會匹配到 repo 根那份**未追蹤的 `.env`**，把值印進終端機紀錄。
+  2026-10-01 x570 實踩（`QDRANT_PEER_API_KEY` 的值被印出來一次）。
+  **用 `git grep`** —— 只掃被追蹤的檔，`.env` 天然不在其中。
+  要看未追蹤檔的鍵名請用 `scripts/env-prune.py --dry-run`。
+- ⚠️ **`host-doctor.sh` 的 `rotate-hint` 會建議「輪換 peer 那把」讓它與
+  `QDRANT_API_KEY` 不同值。照做會讓兩台備援機永久 401。**
+  那個 warn 只比對指紋、不知道 peer key 的語意。輪換之前先讀
+  §7〈peer 那把的語意〉。
 
 ## 5. 驗收
 
@@ -183,9 +192,47 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 | `POSTGRES_PASSWORD` | `compose.yaml:24` | 自己那台的 pg 容器 |
 | | `compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`） | 自己那台的 pg |
 
-⚠️ 唯一的跨機 fallback：`sync-snapshot.sh:108` 的
+⚠️ 唯一的跨機 fallback：`sync-snapshot.sh:132` 的
 `PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"`。那是**舊單機設定的相容路徑**
-（第 32 行註解如此寫），三台都有 `QDRANT_PEER_API_KEY` 時不會觸發。
+（第 46 行註解如此寫），三台都有 `QDRANT_PEER_API_KEY` 時不會觸發。
+
+### peer 那把的語意：為什麼它天生等於來源機的 `QDRANT_API_KEY`
+
+**2026-10-01 查證，這是個差點就永久故障的耦合，寫在這裡免得下次有人照
+`host-doctor.sh` 的 `rotate-hint` 去「輪換 peer 那把」。**
+
+`QDRANT_PEER_API_KEY` 的定義就是「**能認證到來源機（x570）qdrant 的那把 key**」。
+而 x570 的 qdrant 只認一個值 —— `compose.yaml:12` 的
+`QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}`。所以 peer 那把與 x570 自己的
+`QDRANT_API_KEY` **同值是結構性必然**，不是忘了輪換。
+
+qdrant v1.19.1 沒有「多把 key 的清單」，但有**第二個讀寫槽**
+（上游 `src/settings.rs`：`api_key` / `alt_api_key`（註解明寫 "can be used for
+rolling key rotation"）／ `read_only_api_key`；`src/common/auth/mod.rs` 的
+`can_write = read_write || alt_read_write`）。**正解是走 `alt_api_key`**：
+
+```yaml
+QDRANT__SERVICE__API_KEY:     ${QDRANT_API_KEY:-}         # 自己那台
+QDRANT__SERVICE__ALT_API_KEY: ${QDRANT_PEER_API_KEY:-}    # 跨機（sync-snapshot）
+```
+
+⚠️ **`read_only_api_key` 不能用**：peer 對來源機要 `POST` 建快照（`:235`）與
+`DELETE` 清舊快照（`:256`），唯讀會擋掉。
+
+⚠️ **只輪換 peer 那把（沒有 alt_api_key）會怎樣**：mbp／wsl `pull` 到新值後拿去
+打 x570 → 401，**而且再 pull 幾次都不會好**（值一致了，只是 x570 不認）。
+`auth_precheck`（`:59-71`）會在建立快照與刪本機 collection **之前** exit 1，
+所以**不會損資料**，症狀是「備援資料悄悄停更」（只有 log，cron/launchd 只看得到
+非零 exit）。
+
+⚠️ **另一個後果：那個外洩值會繼續有效**。它同時是 x570 自己的 `api_key`
+（2026-10-01 實測兩者 `sha12` 都是 `fe4b2d4ba82a`）。只輪換 peer 那把換不掉它 ——
+`host-doctor.sh` 的 `rotate-hint` 會轉成 `[ ok ]`，但那是**指紋不同了，不是
+外洩值失效了**。真正要吊銷它得另外輪換各機自己的 `QDRANT_API_KEY`（per-host）。
+
+⚠️ **`compose.yaml` 是 M2 的範圍，本模組不動它。** 順序是
+M2 先加 `alt_api_key` 並在三台部署 → 才輪換 peer 那把。反過來做就是上面那個
+永久 401。
 
 **沿革（為什麼舊的 9 把分類是錯的）**：2026-09-26 的「本機 200／遠端 401」根因是
 `backend/.env` 與根 `.env` **兩份副本**（已刪），不是「key 需要三台同值」。根因修掉後
@@ -361,9 +408,26 @@ scripts/env-prune.py --dry-run      # 檢查 .env 裡的空值賦值（見 §4 �
 scripts/env-prune.py                # 清理：刪掉有預設的空值、註解掉設定了也不生效的
 ```
 
-輪換**共用**憑證：任一台 `sops settings/env/secrets.common.enc.env` 改值存檔，
-commit＋push；另兩台 `pull`＋重建容器（key 是啟動參數，不重啟不生效）。
+輪換**共用**憑證：用 `scripts/rotate-secret.sh <KEY> --from-stdin`
+（它會解密→換那一行→重加密，並驗「鍵數沒變、recipients 沒變、換完仍解得開、
+其他鍵的指紋不變」）。**不要手動 `sops -d`／改檔／`sops -e`** ——
+`--filename-override` 與 `--config` 兩個坑都在那支腳本裡註解著。
 **不要重跑 `--init-secrets`** —— 它是「第一台建立加密檔」用的，會覆蓋整份。
+
+⚠️ 輪換 `QDRANT_PEER_API_KEY` **有前置條件**，見 §7〈peer 那把的語意〉：
+`compose.yaml` 必須先有 `QDRANT__SERVICE__ALT_API_KEY`（M2 的範圍）並在三台部署好。
+在那之前輪換 = 兩台備援機永久 401。
+
+換完之後各機（**順序有意義**，見下）：
+
+```bash
+git pull && bash scripts/env-sync.sh pull && docker compose up -d
+```
+
+備援機（mbp／wsl）**必須先 `env-sync.sh pull` 再 `docker compose up -d`**：
+反過來的話 `.env` 已是新 peer key 而容器裡的 `alt` 還是舊的，那一輪同步會
+對本機 qdrant 401（`:263` 容忍、`:265` 中止 → 只是白跑一輪，log 有誤導性，
+不會損資料）。想完全避開就**先暫停同步排程**再照上面做。
 
 輪換**per-host 機密**（`QDRANT_API_KEY`／`POSTGRES_PASSWORD`）：**只改該機 `.env`**，
 重建該機容器。不進 sops、不 commit、另外兩台**不需要做任何事**。要確認這台真的換掉了，
