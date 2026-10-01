@@ -25,13 +25,131 @@
 
 ---
 
+## ✅ wsl 端 M2 部署完成（2026-10-01 22:00 wsl 端實測）
+
+x570 的 6 個 commit（`a950313`…`8d59bde`）已 pull 並部署。**這是往下走的前提**，
+所以記錄在這裡 —— 輪換 peer key 之前這件事必須先成立。
+
+### 部署
+
+```bash
+git pull --ff-only          # → 8d59bde
+docker compose up -d        # 三個容器全 Recreate
+```
+
+`compose.yaml` 改了 healthcheck 與 `depends_on`，所以**必須 recreate**，
+不是 `restart`。實測日誌看得到新的門控真的作用：
+
+```
+Container ragdemo-postgres-1  Recreated
+Container ragdemo-qdrant-1   Recreated
+Container ragdemo-api-1      Recreated
+Container ragdemo-qdrant-1   Waiting
+Container ragdemo-postgres-1 Waiting
+Container ragdemo-postgres-1  Healthy
+Container ragdemo-qdrant-1   Healthy
+Container ragdemo-api-1      Starting     ← 底層 healthy 才起來
+```
+
+### healthcheck 現況
+
+```
+postgres  healthy
+qdrant    healthy
+api       （無 healthcheck，僅 running）
+```
+
+### ALT slot 實測：兩個槽都活著
+
+wsl 這台 `QDRANT_PEER_API_KEY` 有值（43 字元），所以
+`QDRANT__SERVICE__ALT_API_KEY: ${QDRANT_PEER_API_KEY:-}` 拿到真值。
+
+```
+本機 qdrant  self key → /collections  200
+本機 qdrant  peer key → /collections  200   ← ALT slot 生效
+本機 qdrant  亂數 key → /collections  401   ← 亂數仍被擋
+```
+
+**別把 peer key 當成「弱一點的 self key」** —— 同事實測確認它是讀寫槽
+（`GET` 200 / `PUT` 200 / `DELETE` 200），而 `read_only_api_key` 不可用
+（peer 需要 `POST :235` ＋ `DELETE :256/:263`）。
+
+### 快照同步實測
+
+```bash
+bash scripts/sync-snapshot.sh     # exit 0，無輸出
+cat data/laws/.law_version
+```
+
+```
+{"update_date": "2026-09-18", "source": "http://100.119.83.111:6333",
+ "synced_at": "2026-10-01 21:59:16"}
+```
+
+**資料面無損**（這是重點 —— 同事關掉的正是那個資料空窗）：
+
+```
+本機 laws  39,879 筆
+x570 laws  39,879 筆   ← 兩邊一致
+```
+
+### host-doctor：0 fail / 2 warn（與 x570 同基準）
+
+```
+[ ok ] container:api / postgres / qdrant
+[ ok ] env-check    per-host 值與總表一致（9 鍵，該機 wsl）
+[ ok ] rotate-fp    8 把憑證的長度＋sha12 已取得
+[warn] rotate-hint  同值是結構性必然，不要直接輪換 peer 那把
+[warn] law-version  快照已 28 小時沒成功更新
+```
+
+**兩個 warn 都是預期的**：
+
+- `rotate-hint`：同事已把那條文字改成明確警告（見 `settings/env/README.md §7`）
+- `law-version`：`LAW_SYNC_SOURCE` 指向 x570（`100.119.83.111`，實測 laws
+  可讀），但 x570 那台的 `law-update` 排程狀態仍待確認。**這個 warn 會在
+  x570 恢復每日同步後消失**，現在亮著是誠實的。
+
+### 端對端
+
+```
+localhost:8000/health              200
+https://api-wsl.ragdemo.win/health  403   ← Access 正常
+https://ragdemo.win/api/health      200  host_id=wsl
+peer 探測  x570 ✅  mbp ✅  wsl ✅
+```
+
+⚠️ **peer 探測三台都成功，但只有 wsl 有 Access 保護。** 實測：
+
+```
+api-wsl  → 403   Access 護著 ✅
+api-mbp  → 200   沒有 Access ⚠️
+api-x570 → 200   沒有 Access ⚠️
+```
+
+`API_ORIGINS` 現在只有 wsl 所以還沒踩到。**那兩台要加回 `API_ORIGINS` 之前，
+必須先建好它們的 Access app** —— 見 `MBP-HANDOFF.md`〈★新的待辦：建 Access app〉。
+順序反過來會有一段裸奔期。
+
+---
 ## 現況：✅ 本機後端已恢復（2026-10-01 x570 端實測並修復）
 
 ```
 api-x570.ragdemo.win → HTTP 200   ← 原本 502，現已修復
-api-mbp.ragdemo.win  → HTTP 502   ← 那是 mbp 的後端沒起來，不是這台的事
+api-mbp.ragdemo.win  → HTTP 200   ← 2026-10-01 22:00 wsl 端實測：mbp 也回來了
 api-wsl.ragdemo.win  → HTTP 403   ← Access 擋著，正常（見下）
 ```
+
+⚠️ **只有 `api-wsl` 有 Access 保護。** 2026-10-01 22:00 wsl 端實測：
+
+```
+api-wsl  → 403   Access 護著 ✅
+api-mbp  → 200   沒有 Access ⚠️
+api-x570 → 200   沒有 Access ⚠️
+```
+
+那兩台要加回 `API_ORIGINS` 之前**必須先建 Access app**，理由見
+`MBP-HANDOFF.md`〈★新的待辦：建 Access app〉。
 
 Cloudflare API：三條 tunnel **全部 healthy、conns=4**
 （`ragdemo-x570`／`ragdemo-mbp`／`ragdemo-wsl`）。

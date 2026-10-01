@@ -18,24 +18,36 @@ mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`�
 
 ---
 
-## 現況：⚠️ 本機後端沒起來（2026-10-01 wsl 端實測）
+## 現況：✅ 本機後端已恢復（2026-10-01 22:00 wsl 端實測）
 
 ```
-api-mbp.ragdemo.win  → HTTP 502
-api-x570.ragdemo.win → HTTP 502
+api-mbp.ragdemo.win  → HTTP 200   ← 原本 502，現已恢復
+api-x570.ragdemo.win → HTTP 200
 api-wsl.ragdemo.win  → HTTP 403   ← Access 擋著，正常（見下）
 ```
 
-Cloudflare API：三條 tunnel **全部 healthy、conns=4**。
+三台 peer 探測在 wsl 端都回「連線成功」。
 
-**tunnel 是好的，壞的是本機後端。** 502 = 容器沒跑。**不要去動 cloudflared、
-不要動 DNS** —— 見〈不需要做的事〉，那條仍然成立。
+⚠️ **但只有 `api-wsl` 有 Access 保護** —— 那是**你這台最該注意的事**：
+
+```
+api-wsl  → 403   Access 護著 ✅
+api-mbp  → 200   沒有 Access ⚠️
+api-x570 → 200   沒有 Access ⚠️
+```
+
+**你的後端目前是全網可達的。** 任何人知道 `api-mbp.ragdemo.win` 就能打
+`/health`、`/status`；`/query` 與 `/rules` 要 Google 登入，但後端本身沒有
+邊緣防護。見〈★新的待辦：建 Access app〉—— **那是 wsl 端做的事，不是你的**，
+但你要知道它還沒做，以及為什麼不能先加 `API_ORIGINS`。
 
 | 狀態 | 意義 | 處置 |
 |---|---|---|
 | **530** | tunnel 沒連線（`cloudflared` 沒跑）| 拉起 tunnel |
-| **502** | **tunnel 連著，但本機後端沒起來** | **查 `docker compose ps`** ← 你現在是這個 |
-| **403** | Cloudflare Access 擋住了 | **正常**，見下 |
+| **502** | tunnel 連著，但本機後端沒起來 | 查 `docker compose ps` |
+| **403** | Cloudflare Access 擋住了 | **正常** |
+| **200** | 通了 —— **但不代表沒問題**，見下 |
+
 
 ⚠️ **200 不等於沒問題。** 這段只是背景，不能當驗收 —— 你 2026-09-30 回報過
 `api-mbp` 明明 200，但容器是空的、映像落後 4 天、DSN 指向離線的 x570 讓查詢
