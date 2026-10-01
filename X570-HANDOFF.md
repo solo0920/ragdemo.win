@@ -119,17 +119,25 @@ https://ragdemo.win/api/health      200  host_id=wsl
 peer 探測  x570 ✅  mbp ✅  wsl ✅
 ```
 
-⚠️ **peer 探測三台都成功，但只有 wsl 有 Access 保護。** 實測：
+### ✅ Access 三台已建好（2026-10-01 22:35 之後）
 
-```
-api-wsl  → 403   Access 護著 ✅
-api-mbp  → 200   沒有 Access ⚠️
-api-x570 → 200   沒有 Access ⚠️
-```
+⚠️ **本段記的是 21:59 的量測，不是現況。** 那時 `api-mbp` 與 `api-x570`
+**還沒有** Access app，所以回 200。三台的 Access app 已在 22:0x–22:2x 建好，
+22:35 之後複驗是**三台全 403**（x570 端與 wsl 端各自量到一致）。
 
-`API_ORIGINS` 現在只有 wsl 所以還沒踩到。**那兩台要加回 `API_ORIGINS` 之前，
-必須先建好它們的 Access app** —— 見 `MBP-HANDOFF.md`〈★新的待辦：建 Access app〉。
-順序反過來會有一段裸奔期。
+| 時間 | api-x570 | api-wsl | api-mbp |
+|---|---|---|---|
+| 21:59（本段原始量測）| 200 | 403 | 200 |
+| 22:35（x570 端複驗）| **403** | 403 | **403** |
+
+**兩個數字都是真的**，是狀態變了不是有人量錯。讀這份文件時請以 22:35 那列為準。
+
+`API_ORIGINS` 已改成三台。Access 三台都有，所以 failover 用的每一台都受保護
+—— 這是當初「先建 Access 再加回 `API_ORIGINS`」那個順序的目的。
+
+驗證用 `scripts/access-check.sh`（x570 端提供）：第 2 段「帶假 token 也 403」
+才是驗簽的證據，只看「不帶 token 是 403」無法區分「Access 開著」與
+「只是沒有登入頁」。
 
 ---
 ## 現況：✅ 本機後端已恢復（2026-10-01 x570 端實測並修復）
@@ -140,16 +148,9 @@ api-mbp.ragdemo.win  → HTTP 200   ← 2026-10-01 22:00 wsl 端實測：mbp 也
 api-wsl.ragdemo.win  → HTTP 403   ← Access 擋著，正常（見下）
 ```
 
-⚠️ **只有 `api-wsl` 有 Access 保護。** 2026-10-01 22:00 wsl 端實測：
-
-```
-api-wsl  → 403   Access 護著 ✅
-api-mbp  → 200   沒有 Access ⚠️
-api-x570 → 200   沒有 Access ⚠️
-```
-
-那兩台要加回 `API_ORIGINS` 之前**必須先建 Access app**，理由見
-`MBP-HANDOFF.md`〈★新的待辦：建 Access app〉。
+✅ **三台都有 Access 保護**（2026-10-01 22:35 複驗，全 403）。上面那組
+`api-mbp 200`／`api-x570 200` 是 22:00 的量測，Access app 當時還沒建好。
+詳見〈✅ Access 三台已建好〉。
 
 Cloudflare API：三條 tunnel **全部 healthy、conns=4**
 （`ragdemo-x570`／`ragdemo-mbp`／`ragdemo-wsl`）。

@@ -28,18 +28,12 @@ api-wsl.ragdemo.win  → HTTP 403   ← Access 擋著，正常（見下）
 
 三台 peer 探測在 wsl 端都回「連線成功」。
 
-⚠️ **但只有 `api-wsl` 有 Access 保護** —— 那是**你這台最該注意的事**：
+✅ **三台都有 Access 保護**（2026-10-01 22:35 複驗，全 403）。上面那組
+`api-mbp 200` 是 22:00 的量測，你的 Access app 當時還沒建好。
 
-```
-api-wsl  → 403   Access 護著 ✅
-api-mbp  → 200   沒有 Access ⚠️
-api-x570 → 200   沒有 Access ⚠️
-```
-
-**你的後端目前是全網可達的。** 任何人知道 `api-mbp.ragdemo.win` 就能打
-`/health`、`/status`；`/query` 與 `/rules` 要 Google 登入，但後端本身沒有
-邊緣防護。見〈★新的待辦：建 Access app〉—— **那是 wsl 端做的事，不是你的**，
-但你要知道它還沒做，以及為什麼不能先加 `API_ORIGINS`。
+**你這台不再是全網可達的** —— 沒有 `CF-Access-Client-Id`／`-Secret` 的人
+打 `api-mbp.ragdemo.win` 會拿到 403，Access 的登入頁只對瀏覽器有意義
+（後端與 Pages 都用 Service Token 進來）。
 
 | 狀態 | 意義 | 處置 |
 |---|---|---|
@@ -84,23 +78,32 @@ bash scripts/env-sync.sh pull 2>&1 | head -1
 
 ---
 
-## ★新的待辦：建 Access app（wsl 之外那兩台）
+## ✅ 建 Access app —— 已於 2026-10-01 完成
 
-**2026-10-01 wsl 端實測：`api-mbp` 與 `api-x570` 回 502 而不是 403，
-代表它們沒有 Access 保護。** 只有 `api-wsl` 建了。
+**原待辦（wsl 端 22:00 記錄）：** `api-mbp` 與 `api-x570` 回 200 不是 403，
+代表沒有 Access 保護，而 `API_ORIGINS` 逐漸要把它們加回去。只護一台時
+failover 會送到未護住的那台，驗證等於不存在。
 
-**為什麼這件事重要**：worker 的 Service Token 會送給 `API_ORIGINS` 裡的
-**每一台**。只護一台時，failover 會把請求送到未護住的那台 —— 驗證等於不存在，
-而且**平常看不出來**（正常時候不會 failover）。
+**22:0x–22:2x 三台的 Access app 都建好了**，22:35 複驗三台一致 403。
+你不需要做任何事 —— 這是 Cloudflare 後台的操作，本機改不了。
 
-現在 `API_ORIGINS` 只有 wsl，所以還沒踩到。**但你這台修好、把它加回
-`API_ORIGINS` 之前，wsl 端必須先建好 `api-mbp` 與 `api-x570` 的 Access app。**
+**驗證方式**：`scripts/access-check.sh`（x570 端提供）。第 2 段「帶假 token
+也 403」才是驗簽的證據；只看「不帶 token 是 403」無法區分「Access 開著」與
+「只是沒有登入頁」。
 
-**wsl 端會做（不是你做）**：建 app 需要 Cloudflare 後台操作。wsl 端已建好
-`ragdemo-api-wsl`，剩下兩台等 wsl 端處理。
+### 帶了 Access 之後，後端也要有 Service Token（2026-10-01 已補）
 
-**你不要動 Access** —— 它不在你的機器上，你改不了也驗不了。
-你的順序是：容器起來 → 回報 → wsl 端建好 Access → 才會加你進 `API_ORIGINS`。
+Access 護了三台之後，**peer 之間的探測也被擋**。症狀極其安靜：
+
+- 前端「連線與來源」顯示 x570／mbp 連線失敗
+- `sync-snapshot.sh` 的 `law version: 取不到` → `.law_version` 凍結在舊版
+  （快照本身 OK，因為走 `LAW_SYNC_SOURCE` 的 tailscale 位址，不經過 Access）
+
+`gateway.py` 的 `_access_headers()` 與 `sync-snapshot.sh` 讀同一組
+`CF_ACCESS_CLIENT_ID`／`CF_ACCESS_CLIENT_SECRET`。**值與 Pages 那組相同。**
+
+⚠️ 這組值是**跨機共用機密**，`.env` 兩台都要有。要輪換就三台一起換，
+中間會有一段 peer 探測全紅。
 
 ---
 ## 事項 6：git hooks（`git pull` 不會帶過來）
