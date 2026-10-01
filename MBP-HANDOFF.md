@@ -10,70 +10,87 @@ mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`�
 
 > 事項編號與 `X570-HANDOFF.md` 對齊（5＝age 公鑰、6＝git hooks），
 > 讓 `SCOPE.md` 的「收 age 公鑰｜x570、mbp」一列指向同一件事。
+>
+> **★ 2026-10-01 更新：事項 5（age 公鑰）已完成，不需要你回報。**
+> `.sops.yaml` 三把公鑰都在（wsl／x570／mbp），`secrets.common.enc.env` 內
+> 也有三筆 recipients —— `sops updatekeys` 確實跑過。
+> **現在的阻塞是「本機後端沒起來」（502），見〈現況〉。**
 
 ---
 
-## 現況：已上線
-
-2026-09-30 01:39–01:45 msi 端實測，連抽 8 輪穩定：
+## 現況：⚠️ 本機後端沒起來（2026-10-01 wsl 端實測）
 
 ```
-api-mbp.ragdemo.win  → HTTP 200
-api-x570.ragdemo.win → HTTP 200
-api-wsl.ragdemo.win  → HTTP 200
+api-mbp.ragdemo.win  → HTTP 502
+api-x570.ragdemo.win → HTTP 502
+api-wsl.ragdemo.win  → HTTP 403   ← Access 擋著，正常（見下）
 ```
+
+Cloudflare API：三條 tunnel **全部 healthy、conns=4**。
+
+**tunnel 是好的，壞的是本機後端。** 502 = 容器沒跑。**不要去動 cloudflared、
+不要動 DNS** —— 見〈不需要做的事〉，那條仍然成立。
+
+| 狀態 | 意義 | 處置 |
+|---|---|---|
+| **530** | tunnel 沒連線（`cloudflared` 沒跑）| 拉起 tunnel |
+| **502** | **tunnel 連著，但本機後端沒起來** | **查 `docker compose ps`** ← 你現在是這個 |
+| **403** | Cloudflare Access 擋住了 | **正常**，見下 |
 
 ⚠️ **200 不等於沒問題。** 這段只是背景，不能當驗收 —— 你 2026-09-30 回報過
 `api-mbp` 明明 200，但容器是空的、映像落後 4 天、DSN 指向離線的 x570 讓查詢
 多 60s。理由見下方〈外部症狀不足以判斷〉。
 
-`ragdemo.win` 前端 `x-ragdemo-origin: https://api-wsl.ragdemo.win`，
-worker 依序嘗試（**wsl 第一**），任一台掛掉會自動輪到下一台。
+### 為什麼 wsl 那台是 403 不是 200
 
-2026-09-29 下午 `api-mbp` 曾是 **502**（tunnel 連著但本機後端沒起來），
-現在已恢復。**分辨方式**（日後再遇到時用）：
+2026-10-01 補上了 Cloudflare Access。`fbb9325` 那個 commit 從 2026-09-30
+就假設 Access 存在，但**那個前提從來不成立** —— Access 直到 2026-10-01 才啟用。
+那段期間 `api-wsl.ragdemo.win` 是全網可達的。
 
-| 狀態 | 意義 | 處置 |
-|---|---|---|
-| **530** | tunnel 沒連線（`cloudflared` 沒跑） | 拉起 tunnel |
-| **502** | tunnel 連著，但本機後端沒起來 | 查 `docker compose ps` |
+現在 `api-wsl` 是 **Service Auth 保護**（不帶 `CF-Access-Client-Id` /
+`-Secret` 一律 403）。**`api-mbp` 與 `api-x570` 還沒建 Access app**，
+見〈★新的待辦：建 Access app〉。
+
+`ragdemo.win` 前端目前只送 `wsl=https://api-wsl.ragdemo.win` 一台
+（`API_ORIGINS`），所以 403/502 的差異現在不影響查詢。
+**但那兩台修好、你要加回 `API_ORIGINS` 之前，必須先建好它們的 Access app。**
 
 ---
 
-## 事項 5：報回 age 公鑰（唯一會擋住事的）★先做★
+## 事項 5：~~報回 age 公鑰~~ —— ✅ 2026-10-01 確認已完成，不要再回報
 
-`.sops.yaml` 的 recipients **只有 wsl 一把**（x570 與 mbp 都還是 TODO）。
-`env-sync.sh pull` 要 `sops -d` 那 6 把共用憑證，sops 只能用名單裡的公鑰解 ——
-**mbp 的年齡金鑰不在名單，pull 就會失敗**（`ADMIN_TOKEN`／
-`QDRANT_PEER_API_KEY`／`CF_AIG_TOKEN`／`HF_TOKEN`／`NVIDIA_API_KEY`／
-`TYPESAFE_API_KEY`）。
+**2026-10-01 wsl 端查證：`.sops.yaml` 三把公鑰都在，加密檔內三筆 recipients。**
+兩邊一致代表 `sops updatekeys` 真的跑過（只加公鑰不 updatekeys 是無效的）。
 
-**per-host 的 2 把機密（`QDRANT_API_KEY`／`POSTGRES_PASSWORD`）不在加密檔裡**，
-用你原本的值就對 —— 不要因為 pull 失敗去動它們。
-
-在 mbp 上執行（完整背景見 `X570-HANDOFF.md` 事項 5）：
+若你的 pull 仍失敗，那不是公鑰問題 —— 回報錯誤訊息**第一行**：
 
 ```bash
-# 已有就跳過，絕對不要重建（重建會讓已加密的檔案解不開）
-ls ~/.config/sops/age/keys.txt 2>/dev/null && grep -c . ~/.config/sops/age/keys.txt
-command -v age-keygen || echo "需先裝 age：brew install age"
-command -v sops     || echo "需先裝 sops：brew install sops"
-
-# 只印 age1... 那一行（公鑰，可回報）
-grep -o 'age1[0-9a-z]*' ~/.config/sops/age/keys.txt 2>/dev/null | head -1
+bash scripts/env-sync.sh pull 2>&1 | head -1
 ```
 
-**回報 `age1...` 那一行就好。絕對不要回報 `keys.txt` 本身或
-`age-secret-key1...` 那一行。**
-
-拿到後 wsl 端會加進 `.sops.yaml` → `sops updatekeys` 重加密 → commit。
-**mbp 端不需要再做其他事**，下次 `git pull` + `env-sync.sh pull` 就通。
-
-若 `keys.txt` 已存在但 pull 仍失敗：回報錯誤訊息**第一行**。那要從 msi 端解決，
-不要在 mbp 端反覆重試。
+⚠️ **絕對不要重建 `keys.txt`**。per-host 的 2 把機密不在加密檔裡，用原本的值。
 
 ---
 
+## ★新的待辦：建 Access app（wsl 之外那兩台）
+
+**2026-10-01 wsl 端實測：`api-mbp` 與 `api-x570` 回 502 而不是 403，
+代表它們沒有 Access 保護。** 只有 `api-wsl` 建了。
+
+**為什麼這件事重要**：worker 的 Service Token 會送給 `API_ORIGINS` 裡的
+**每一台**。只護一台時，failover 會把請求送到未護住的那台 —— 驗證等於不存在，
+而且**平常看不出來**（正常時候不會 failover）。
+
+現在 `API_ORIGINS` 只有 wsl，所以還沒踩到。**但你這台修好、把它加回
+`API_ORIGINS` 之前，wsl 端必須先建好 `api-mbp` 與 `api-x570` 的 Access app。**
+
+**wsl 端會做（不是你做）**：建 app 需要 Cloudflare 後台操作。wsl 端已建好
+`ragdemo-api-wsl`，剩下兩台等 wsl 端處理。
+
+**你不要動 Access** —— 它不在你的機器上，你改不了也驗不了。
+你的順序是：容器起來 → 回報 → wsl 端建好 Access → 才會加你進 `API_ORIGINS`。
+
+---
 ## 事項 6：git hooks（`git pull` 不會帶過來）
 
 ```bash
@@ -140,7 +157,10 @@ grep '^LAW_SYNC_SOURCE=' .env          # 確認有值
 ```bash
 bash scripts/sync-snapshot.sh
 tail -5 ~/qdrant/sync.log          # 應看到拉快照／上傳還原的記錄，不是一行 offline
-cat data/laws/.law_version          # 應出現，且 update_date = 2026/9/18
+cat data/laws/.law_version          # 應出現。
+                                     # ⚠️ 2026-10-01：舊版寫「應為 2026/9/18」
+                                     # 是當時的觀察值，不是驗收條件 —— 上游可能
+                                     # 已有新版。回報你實際看到的值即可。
 ```
 
 （`sync-snapshot.sh` 不帶參數時會讀 `LAW_SYNC_SOURCE`，所以 `.env` 填好之後
@@ -242,14 +262,25 @@ launchctl list | grep -E "sync-snapshot|law-update"
 
 ## 回報格式
 
-三項，每項都要有實測輸出：
+**2026-10-01 起改兩項**（事項 5 已完成，不用再報公鑰）：
 
-1. **事項 5**：`grep -o 'age1[0-9a-z]*' ~/.config/sops/age/keys.txt | head -1` 的結果
+1. **本機後端**：`docker compose ps` 的輸出 ＋ `bash scripts/host-doctor.sh`
+   的摘要 —— 這是現在的主要待辦
 2. **事項 6**：`git config --get core.hooksPath` 的結果
-3. **自檢**：`bash scripts/host-doctor.sh` 的摘要（不用貼全文）
+
+事項 7（快照同步）仍有效，但**排在後面**：它要 `LAW_SYNC_SOURCE` 指向一個
+可連的 qdrant，而 `api-x570` 還 502。**x570 修好之前先不要設那個變數** ——
+現在設等於指向一個連不上的位址，而症狀會是「同步靜默失敗」。
 
 **不要回報任何憑證值。** 要證明某鍵有值，打印長度或前 3 個字元就夠
 （`${#v}` 或 `echo "${v:0:3}…"`）。**age 私鑰（`age-secret-key1...`）絕對不能回報。**
 
 若 `api-mbp.ragdemo.win` 當下不是 200，一併回報 HTTP 狀態碼與
 `curl -sS -D-` 的**前 10 行**（response header，不是 body）。
+
+⚠️ **502 與 403 的意思不同，不要一起當故障回報**：
+
+| 你看到 | 回報時寫 |
+|---|---|
+| `api-mbp` **502** | 本機後端沒起來（要修）|
+| `api-wsl` **403** | 正常，Access 擋著，不用修 |
