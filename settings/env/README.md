@@ -187,10 +187,11 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 
 | 鍵 | 消費點 | 指向 |
 |---|---|---|
-| `QDRANT_API_KEY` | `compose.yaml:12` `QDRANT__SERVICE__API_KEY` | 自己那台的 qdrant 容器 |
-| | `compose.yaml:34` ＋ `rag.py:331`（api 打的是 `compose.yaml:33` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 自己那台的 qdrant |
-| `POSTGRES_PASSWORD` | `compose.yaml:24` | 自己那台的 pg 容器 |
-| | `compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`） | 自己那台的 pg |
+| `QDRANT_API_KEY` | `compose.yaml:15` `QDRANT__SERVICE__API_KEY` | 自己那台的 qdrant 容器 |
+| | `compose.yaml:71` ＋ `rag.py:331`（api 打的是 `compose.yaml:70` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 自己那台的 qdrant |
+| `QDRANT_PEER_API_KEY` | `compose.yaml:30` `QDRANT__SERVICE__ALT_API_KEY` | **每台都要有** —— `sync-snapshot.sh` 用它打來源機（`:235`/`:256`）**與本機**（`:263`/`:265`），見 §7 |
+| `POSTGRES_PASSWORD` | `compose.yaml:51` | 自己那台的 pg 容器 |
+| | `compose.yaml:74`（DSN 預設值裡的 `@postgres:5432`） | 自己那台的 pg |
 
 ⚠️ 唯一的跨機 fallback：`sync-snapshot.sh:132` 的
 `PEER_KEY="${QDRANT_PEER_API_KEY:-$QDRANT_API_KEY}"`。那是**舊單機設定的相容路徑**
@@ -202,7 +203,7 @@ CI 沒有 age 私鑰也跑得到）、`secrets.host.env`（明文）不得被追
 `host-doctor.sh` 的 `rotate-hint` 去「輪換 peer 那把」。**
 
 `QDRANT_PEER_API_KEY` 的定義就是「**能認證到來源機（x570）qdrant 的那把 key**」。
-而 x570 的 qdrant 只認一個值 —— `compose.yaml:12` 的
+而 x570 的 qdrant 只認一個值 —— `compose.yaml:15` 的
 `QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}`。所以 peer 那把與 x570 自己的
 `QDRANT_API_KEY` **同值是結構性必然**，不是忘了輪換。
 

@@ -121,11 +121,12 @@ per-host 值的唯一真相是 `settings/env/hosts.shared.env`，格式 `<機台
 2026-09-27 查證依據（這兩把曾被錯歸為「必須三台一致」，代價是每次輪換都要三台鎖步＋重啟）：
 
 - `QDRANT_API_KEY` 只有兩個消費點，**都指向自己那台**：
-  `compose.yaml:12`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、
-  `compose.yaml:34` ＋ `rag.py:331`（api 容器打寫死的 `QDRANT_URL: http://qdrant:6333`）。
-  跨機認證走的是 `QDRANT_PEER_API_KEY`。
+  `compose.yaml:15`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、
+  `compose.yaml:71` ＋ `rag.py:331`（api 容器打寫死的 `QDRANT_URL: http://qdrant:6333`）。
+  跨機認證走的是 `QDRANT_PEER_API_KEY`（由 `compose.yaml:30` 的
+  `QDRANT__SERVICE__ALT_API_KEY` 認，2026-10-01 新增，見 `settings/env/README.md` §7）。
 - `POSTGRES_PASSWORD` 只有兩個消費點，也是自己那台：
-  `compose.yaml:24`（自己的 pg 容器）、`compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`）。
+  `compose.yaml:51`（自己的 pg 容器）、`compose.yaml:74`（DSN 預設值裡的 `@postgres:5432`）。
   連 x570 的 pg 密碼應該是 `POSTGRES_PEER_PASSWORD`。
 - 沿革：2026-09-26 的「本機 200／遠端 401」根因是 `backend/.env` 與根 `.env`
   **兩份副本**（已刪），不是 key 需要三台同值。根因修掉後這個分類被留著當保險，

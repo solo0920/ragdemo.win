@@ -222,6 +222,28 @@ fi
 #    順序有意義：認證先於點數，因為「key 錯了卻拿到 -1 個點」會被誤判成
 #    「來源機資料變了」而白白重抓一次快照。
 auth_precheck || exit 1
+# 5 步會「先刪掉本機 collection 再上傳」，所以刪之前必須先確認**本機**那把
+# key 打得開 —— 否則刪完才發現上傳會 401，本機就空到下次同步成功為止。
+#
+# 這不是假想：QDRANT_PEER_API_KEY 與本機 QDRANT_API_KEY 是兩把，而 PEER_KEY
+# 對本機（$DEST）也被拿來用（下面 :263 DELETE / :265 upload）。拆分那把
+# （compose.yaml:30 的 QDRANT__SERVICE__ALT_API_KEY）若沒在這台部署好，
+# 症狀正是「刪得掉、上傳不進來」。
+auth_dest_precheck() {
+  code="$(curl -s -m 15 -o /dev/null -w '%{http_code}' "${AUTH_H[@]}" "$DEST/collections/$COLLECTION" 2>/dev/null)"
+  case "$code" in
+    200|404) return 0 ;;          # 404 = 認證通過、只是還沒有這個 collection
+    401|403)
+      log "AUTH 失敗（HTTP $code）：PEER_KEY 連**本機** $DEST 都打不開。"
+      log "  刪掉本機 collection 之後就上傳不進來 → 資料空窗，所以在此中止。"
+      log "  多半是 compose.yaml:30 的 QDRANT__SERVICE__ALT_API_KEY 沒在這台部署"
+      log "  （QDRANT_PEER_API_KEY 拆分那把的槽）。修：docker compose up -d（會重建）。"
+      return 1 ;;
+    000) log "本機 qdrant ($DEST) 連不上，放棄"; return 1 ;;
+    *) return 0 ;;
+  esac
+}
+auth_dest_precheck || exit 1
 SRC_PTS="$(pts_of "$SOURCE" "$COLLECTION")"
 PREV_PTS="$(awk '{print $1}' "$STATE" 2>/dev/null || echo "")"
 if [ "$FORCE" -eq 0 ] && [ "$SRC_PTS" = "$PREV_PTS" ] && [ -n "$PREV_PTS" ]; then
@@ -260,11 +282,37 @@ fi
 # 5) 本機：刪舊 → 直接上傳還原（不預建 collection！快照含 dense+sparse 雙向量，
 #    priority=snapshot 會以快照內建設定重建 collection；2026-09-24 前預建的
 #    dense-only config 反而 400 config mismatch → 本機 0 點）
+#
+# ⚠️ 這一步之後本機是「要嘛有完整資料、要嘛空」，**沒有中間狀態也沒有回滾**。
+#    原本上傳失敗只印一行 "restore upload failed" 就 exit，而這台機器的存在
+#    意義就是「x570 掛了還能答」—— 那種狀態讓它變成空殼，而且 cron／launchd
+#    只看得到非零 exit，不會有人去讀 log。
+#    兩道處理（2026-10-01）：
+#      a) 刪之前先 auth_dest_precheck（見上）——已知最可能的失敗原因提前擋掉，
+#         尤其「PEER_KEY 拆了但這台還沒部署 alt_api_key」那個只在刪完才會發現的坑
+#      b) 上傳重試一次（逾時／連線中斷這類暫時性失敗），失敗時明確說明本機已空
+#    刻意**不**做「先把本機 collection 快照一份再刪」：laws 39,879 筆的快照是
+#    數百 MB，每 10 分鐘多下一次不划算，而真正會讓上傳失敗的原因已在 (a) 擋掉。
 curl -sf "${AUTH_H[@]}" -m 30 -X DELETE "$DEST/collections/$COLLECTION" >/dev/null 2>&1 \
   && log "deleted local $COLLECTION" || log "delete local: (原本不存在或失敗)"
-curl -sf "${AUTH_H[@]}" -m 180 -X POST -F "snapshot=@$TMP" \
-  "$DEST/collections/$COLLECTION/snapshots/upload?priority=snapshot" >/dev/null \
-  || { log "restore upload failed"; rm -f "$TMP"; exit 1; }
+
+UPLOAD_OK=0
+for attempt in 1 2; do
+  if curl -sf "${AUTH_H[@]}" -m 180 -X POST -F "snapshot=@$TMP" \
+      "$DEST/collections/$COLLECTION/snapshots/upload?priority=snapshot" >/dev/null 2>&1; then
+    UPLOAD_OK=1
+    [ "$attempt" = "2" ] && log "restore upload 成功（第 2 次嘗試）"
+    break
+  fi
+  log "restore upload failed（嘗試 $attempt/2）"
+done
+if [ "$UPLOAD_OK" != "1" ]; then
+  log "✗✗ 本機 $COLLECTION 目前是**空的** —— 舊的已刪、新的上傳不進來。"
+  log "  這台現在無法回答查詢；若 x570 同時離線就是三台全空。"
+  log "  診斷方向：$DEST 的認證／磁碟空間／qdrant 版本。快照仍在來源機，重跑本腳本即可恢復。"
+  log "  已下載的快照保留在 $TMP（固定路徑，下次執行會覆寫；要現在重試就直接再跑一次）。"
+  exit 1
+fi
 
 # 6) 驗證
 DST_PTS="$(pts_of "$DEST" "$COLLECTION")"

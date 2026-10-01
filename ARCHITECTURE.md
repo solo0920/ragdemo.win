@@ -110,7 +110,7 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 
 - `TS_IP` **選填**，預設 `127.0.0.1`；**不使用 LAN_IP**（192.168.x 一律不寫入 .env、不進 registry）。
   - ⚠️ 本行原本寫「必填」，那是 2026-09-22 定案時的狀態。之後 compose 改成
-    `${TS_IP:-127.0.0.1}`（`compose.yaml:12`/`:23`），讓單機部署不需要 Tailscale
+    `${TS_IP:-127.0.0.1}`（`compose.yaml:12`/`:48`），讓單機部署不需要 Tailscale
     也能跑（見 `compose.yaml:8-10`），而三台實務上都留空。**文件沒跟上程式。**
 - `OLLAMA_URLS`/`QDRANT_URLS`/`POSTGRES_DSN` 全部用 tailscale 位址；
   唯一例外是**本機服務**可寫 `127.0.0.1`。
@@ -118,7 +118,7 @@ HOST-UPGRADE.md    # x570 / mbp 升級 runbook（per-host 待辦，見上方提�
 
 ### ⚠️ 已知缺口：`.env` 裡的 `TS_IP` 值沒有任何規則驗證
 
-填一個非迴圈位址會讓 `compose.yaml:12` 的 qdrant(6333) 與 `:23` 的
+填一個非迴圈位址會讓 `compose.yaml:12` 的 qdrant(6333) 與 `:48` 的
 postgres(5432) 綁到該介面，暴露面從「僅 localhost」擴大到「tailnet 可達」
 （tailnet 裡還有 mbp 與 note10）。
 
@@ -266,8 +266,8 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
 
   | 鍵 | 消費點 | 為什麼是 per-host |
   |---|---|---|
-  | `QDRANT_API_KEY` | `compose.yaml:12`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、`compose.yaml:34` ＋ `gateway.py`（`QDRANT_API_KEY`，api 打 `compose.yaml:33` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 跨機認證走的是 `QDRANT_PEER_API_KEY` |
-  | `POSTGRES_PASSWORD` | `compose.yaml:24`（自己的 pg 容器）、`compose.yaml:36`（DSN 預設值裡的 `@postgres:5432`，也是自己的） | 連 x570 的 pg 密碼應另設 `POSTGRES_PEER_PASSWORD` |
+  | `QDRANT_API_KEY` | `compose.yaml:15`（自己 qdrant 容器的 `QDRANT__SERVICE__API_KEY`）、`compose.yaml:71` ＋ `gateway.py`（`QDRANT_API_KEY`，api 打 `compose.yaml:70` 寫死的 `QDRANT_URL: http://qdrant:6333`） | 跨機認證走的是 `QDRANT_PEER_API_KEY`（由 `compose.yaml:30` 的 `QDRANT__SERVICE__ALT_API_KEY` 認） |
+  | `POSTGRES_PASSWORD` | `compose.yaml:51`（自己的 pg 容器）、`compose.yaml:74`（DSN 預設值裡的 `@postgres:5432`，也是自己的） | 連 x570 的 pg 密碼應另設 `POSTGRES_PEER_PASSWORD` |
 
   兩把改為 **per-host 機密**：鍵名宣告在 `settings/env/secrets.host.env.example`
   （值空、追蹤）讓 `--check` 驗「每台都有這兩個鍵」，真值只留該機 `.env`（600），
@@ -284,7 +284,7 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
 - ⚠️ **`QDRANT_PEER_API_KEY` 與來源機的 `QDRANT_API_KEY` 同值是結構性必然**
   （2026-10-01 查證，`settings/env/README.md` §7〈peer 那把的語意〉有完整版）：
   這把的定義就是「能認證到來源機 qdrant 的 key」，而來源機只認
-  `compose.yaml:12` 的 `QDRANT__SERVICE__API_KEY`。
+  `compose.yaml:15` 的 `QDRANT__SERVICE__API_KEY`。
   `host-doctor.sh` 的 `rotate-hint` 只比對指紋、看不到這層語意，會建議
   「輪換 peer 那把」—— **照做會讓 mbp／wsl 永久 401**（`pull` 後再 pull 也救不回來）。
   qdrant v1.19.1 沒有 key 清單，但有第二個讀寫槽 `alt_api_key`

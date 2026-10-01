@@ -13,6 +13,21 @@ services:
     environment:
       # qdrant 原生 API key（防未授權讀寫向量庫）；值由 .env 帶入
       QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
+      # 第二個讀寫槽，給「別台機器」認證用（scripts/sync-snapshot.sh 拉快照）。
+      #
+      # 為什麼需要：QDRANT_PEER_API_KEY 的定義就是「能認證到來源機 qdrant 的 key」，
+      # 而本機只認上面那把 —— 所以它與 QDRANT_API_KEY 同值是**結構性必然**。
+      # 沒有這個槽就沒有辦法把兩把拆開，而拆不開就無法輪換已外洩的那把
+      # （照 host-doctor 的 rotate-hint 直接輪換 peer → mbp/wsl 永久 401）。
+      #
+      # 必須是**讀寫**槽，不能用 read_only_api_key：peer 對本機要 POST 上傳
+      # 快照（sync-snapshot.sh:265）並 DELETE 舊 collection（:263）。
+      # 完整分析見 settings/env/README.md §7〈peer 那把的語意〉。
+      #
+      # ⚠️ 拆分順序不可反：先在三台部署這行，才輪換 QDRANT_PEER_API_KEY。
+      # `${...:-}` 空值時 qdrant 走無認證，所以未設 QDRANT_PEER_API_KEY 的
+      # 單機部署行為不變 —— 這行對現有環境是 no-op。
+      QDRANT__SERVICE__ALT_API_KEY: ${QDRANT_PEER_API_KEY:-}
     volumes: [qdrant_data:/qdrant/storage]
     # always 而非 unless-stopped：Docker 已知 bug（docker/for-linux#652，2019 至今未修）
     # ——systemd 關機時容器被標記為 stopped，unless-stopped 記住該狀態故開機不重生。
