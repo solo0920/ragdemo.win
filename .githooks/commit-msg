@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# commit-msg hook：強制 commit message 首行以主機前綴開頭（msi / mbp / x570）
+# commit-msg hook：強制 commit message 首行以主機前綴開頭（x570 / mbp / wsl）
 #
 # 目的（IP/提交準則 2026-09-22 定案）：三台 git 身份相同，單看 git log
-# 無法分辨是哪台主機提交；改以 tailscale 機器名前綴標記（msi/mbp/x570）。
+# 無法分辨是哪台主機提交；改以 tailscale 機器名前綴標記（x570/mbp/wsl）。
 # 各機啟用：git config core.hooksPath .githooks
+#
+# 2026-10-01：`msi` → `wsl`。這份清單刻意**不寫死**，改讀
+# `settings/env/hosts.shared.env` 的 `HOSTS=` 那一行 —— 那是機台清單的單一真相，
+# 與 env-sync.sh／env-audit.py 同一套。寫死在這裡會在改名的隔天開始說謊：
+# 用正確的 `wsl:` 提交會被擋下，只能謊報 `msi:`，而 `msi` 現在是 Windows 主機、
+# 不是後端主機（見 hosts.shared.env 的 2026-10-01 條）。
 set -euo pipefail
 
 MSG_FILE="$1"
@@ -14,11 +20,20 @@ if [[ "$FIRST_LINE" == Merge* || "$FIRST_LINE" == Revert* || -z "$FIRST_LINE" ]]
   exit 0
 fi
 
-if ! grep -Eq '^(msi|mbp|x570)[:：][[:space:]]' <<<"$FIRST_LINE"; then
-  echo "✗ commit message 首行必須以主機前綴開頭：msi: / mbp: / x570:" >&2
-  echo "  例：  msi: 修正 registry 過濾邏輯" >&2
+# 機台清單來自總表（repo 相對於 hook 的位置：.githooks/ → ../settings/env/）
+HOSTS_LINE="$(grep -m1 -E '^HOSTS=' "$(dirname "$0")/../settings/env/hosts.shared.env" 2>/dev/null || true)"
+HOSTS="$(cut -d= -f2- <<<"$HOSTS_LINE" | tr ',' '|' | sed 's/[[:space:]]//g')"
+if [[ -z "$HOSTS" ]]; then
+  echo "✗ commit-msg：讀不到 settings/env/hosts.shared.env 的 HOSTS= 那一行，" >&2
+  echo "  無法判斷合法的主機前綴。請修復該檔（或先手動放行），不要直接跳過檢查。" >&2
+  exit 1
+fi
+
+if ! grep -Eq "^($HOSTS)[:：][[:space:]]" <<<"$FIRST_LINE"; then
+  echo "✗ commit message 首行必須以主機前綴開頭：$(sed 's/|/ \/ /g' <<<"$HOSTS"):" >&2
+  echo "  例：  wsl: 修正 registry 過濾邏輯" >&2
   echo "  例：  x570: 同步快照壓力測試結果" >&2
-  echo "  （對應 tailscale 機器名：msi=MSI, mbp=Lees-MacBook-Pro, x570=solo-X570-…）" >&2
+  echo "  （合法清單來自 settings/env/hosts.shared.env 的 HOSTS=；該檔是機台清單的單一真相）" >&2
   exit 1
 fi
 

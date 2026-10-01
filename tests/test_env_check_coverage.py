@@ -53,6 +53,22 @@ def _keys(p: Path):
     return out, withval
 
 
+def _first_host() -> str:
+    """從**真實總表**的 `HOSTS=` 那一行取第一個機台代號。
+
+    為什麼不寫死 `msi`：2026-10-01 `msi` → `wsl` 之後，寫死的值會讓這個 sandbox
+    的 `render --host` 被總表 schema 直接擋下 —— 症狀是 `CalledProcessError`，
+    讀起來像本檔的鍵覆蓋率邏輯壞了，其實是 fixture 的機台名過期。
+    機台清單是**資料宣告**（`hosts.shared.env` 的 `HOSTS=` 那一行），測試不該複本
+    一份：複本會在每次改名那天開始說謊。
+    """
+    for line in (ENV_DIR / "hosts.shared.env").read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^HOSTS=(.*)$", line.strip())
+        if m and m.group(1).strip():
+            return m.group(1).split(",")[0].strip()
+    raise AssertionError("hosts.shared.env 沒有可用的 HOSTS= 那一行")
+
+
 # ── 判斷邏輯本身（不需要執行腳本）─────────────────────────────────────────
 
 def test_common_env_currently_is_all_empty():
@@ -134,21 +150,22 @@ def sandbox_env(tmp_path):
             shutil.copy(src, env_dir / name)
 
     dotenv = tmp_path / ".env"
-    rows = ["HOST_ID=msi"]
+    host = _first_host()
+    rows = [f"HOST_ID={host}"]
     # 憑證層的鍵（值是佔位符，--check 只看鍵名不看值）
     for k in sorted(_keys(SEC_EXAMPLE)[0] | _keys(HOST_EXAMPLE)[0]):
         rows.append(f"{k}=fixture-placeholder-not-a-real-secret")
     # 共用非敏感層（豁免的那 7 個也在裡，好測「拿掉之後該過」）
     for k in sorted(_keys(COMMON)[0]):
         rows.append(f"{k}=fixture-value")
-    # 總表（hosts.shared.env）裡 msi_ 的每一列 —— 缺了 cmd_render_check 會報
+    # 總表（hosts.shared.env）裡該機的每一列 —— 缺了 cmd_render_check 會報
     # 「與總表不一致的鍵」，那與本檔要驗的鍵覆蓋率是**兩件事**，會互相干擾。
     # 值從總表原樣搬（連 ${VAR} 展開都不做：py_apply 的 drift 判斷比的是
     # 「展開後」的值，而這裡總表引用的變數都在 .env 裡了）。
     table = (env_dir / "hosts.shared.env").read_text(encoding="utf-8")
     for line in table.splitlines():
         m = re.match(r"^([a-z0-9]+)_([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
-        if m and m.group(1) == "msi":
+        if m and m.group(1) == host:
             rows.append(f"{m.group(2)}={m.group(3)}")
     dotenv.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
@@ -160,7 +177,7 @@ def sandbox_env(tmp_path):
     # 讓 `render` 自己寫出來，而不是在測試裡展開 `${...}` —— 後者要複製一份
     # env-sync 的展開規則，兩份真相一定會漂。
     subprocess.run(
-        ["bash", str(SYNC), "render", "--host", "msi"],
+        ["bash", str(SYNC), "render", "--host", host],
         capture_output=True, text=True, cwd=str(tmp_path),
         env={**os.environ, "ENV_SYNC_DIR": str(env_dir),
              "ENV_SYNC_ENV": str(dotenv)}, check=True,
@@ -242,7 +259,7 @@ def test_render_does_not_rescue_the_exempted_keys_from_common_env(sandbox_env):
     這就是 x570 回報的「無解死結」：merge 層裡根本沒有那些鍵。
 
     注意 `render` **會**寫入 `COLLECTION`（等於 laws）—— 但那是總表
-    `msi_COLLECTION` 來的，不是 `common.env`。所以這條只斷言「不是被
+    `<機台>_COLLECTION` 來的，不是 `common.env`。所以這條只斷言「不是被
     `common.env` 這層補的」，方法是把 `common.env` 從 sandbox 移走再跑：
     若那時 `COLLECTION` 仍然被寫入，就證明來源是總表而非 `common.env`。
     """
@@ -251,7 +268,7 @@ def test_render_does_not_rescue_the_exempted_keys_from_common_env(sandbox_env):
     _drop_keys(dotenv, sorted(_keys(COMMON)[0]))
 
     subprocess.run(
-        ["bash", str(SYNC), "render", "--host", "msi"],
+        ["bash", str(SYNC), "render", "--host", _first_host()],
         capture_output=True, text=True, cwd=str(root),
         env={**os.environ, "ENV_SYNC_DIR": str(env_dir),
              "ENV_SYNC_ENV": str(dotenv)},

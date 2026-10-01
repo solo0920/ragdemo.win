@@ -350,7 +350,7 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | `QDRANT_API_KEY`（per-host 機密） | ❌ 不在 repo、不加密、不同步 | **可重選**。只有 msi 自己的 api 讀它，本機 qdrant 是全新的 |
 | `POSTGRES_PASSWORD`（per-host 機密） | ❌ 同上 | **可重選**。msi 的 `POSTGRES_DSN` 指向 x570，本機 pg 容器**沒有任何程式在用** |
 | 法規快照（`data/laws/*`、`.law_version`） | ❌ gitignored | **會自己回來**，`sync-snapshot.sh` 從 x570 拉（10 分鐘內） |
-| opencode 設定 | ✅ `settings/opencode/{global,project}/msi/` | **已備份**，含 `{file:...}` token 參照的路徑 |
+| opencode 設定 | ✅ `settings/opencode/{global,project}/wsl/`（2026-10-01 由 `msi/` 改名） | **已備份**，含 `{file:...}` token 參照的路徑 |
 | 憑證（6 把共用） | ✅ `secrets.common.enc.env`（sops+age） | `env-sync.sh pull` 會解密合併 |
 
 **結論：沒有會永久遺失的東西。** 但重灌後要走完這條路徑（**目前沒有腳本自動化**，

@@ -13,11 +13,11 @@ settings/opencode/
 ├── README.md              ← 本文件（先讀這個）
 ├── CF-AIG-TOKEN-ENV.md    ← token 環境變數設定方法＋疑難排解（三台共用）
 ├── global/               ← global config（openrouter → CF gateway），按機器分
-│   ├── msi/opencode.json        # MSI（✅ 已完成）
+│   ├── wsl/opencode.json        # wsl（✅ 已完成；2026-10-01 由 msi 改名）
 │   ├── mbp/opencode.json        # MBP（✅ 已完成）
 │   └── x570/opencode.jsonc      # x570（✅ 已完成，實際檔名 .jsonc）
 └── project/              ← 專案 config（ollama → x570），按機器分
-    ├── msi/opencode.json        # MSI（✅ 已完成）
+    ├── wsl/opencode.json        # wsl（✅ 已完成；2026-10-01 由 msi 改名）
     ├── mbp/opencode.json        # MBP（✅ 已完成）
     └── x570/opencode.json       # x570（✅ 已完成）
 ```
@@ -83,9 +83,14 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 
 | 機器 | Tailscale hostname | 角色 | 備份狀態 |
 |---|---|---|---|
-| **MSI** | `msi` | opencode 主要開發機（Windows + WSL） | ✅ 已完成（`global/msi/` + `project/msi/`） |
+| **wsl** | `wsl` | 跑後端的開發機（WSL；ollama 在 Windows 主機 `msi` 上） | ✅ 已完成（`global/wsl/` + `project/wsl/`） |
 | **MBP** | `mbp` | macOS 開發機 | ✅ 已完成（`global/mbp/` + `project/mbp/`） |
 | **x570** | `x570.tailfe3f3d.ts.net` | Ollama 模型伺服器（qwen3-coder 等）+ 開發機 | ✅ 已完成（`global/x570/` + `project/x570/`） |
+
+> ⚠️ **2026-10-01 改名**：跑後端的那台代號 `msi` → `wsl`（WSL 裝了自己的 tailscale，
+> hostname 是 `wsl`）。`msi` 現在是**同一台實體機器的 Windows 主機**，它不是後端
+> 主機，只出現在「ollama 在哪」的位置。所以目錄名跟著改成 `wsl/`，`msi/` 不再存在 ——
+> 見 `settings/env/hosts.shared.env` 的 2026-10-01 條。
 
 > x570 同時是 Ollama server（`http://x570:11434/v1`，跑 `qwen3-coder:latest`、
 > `qwen2.5-coder:14b`、`qwen3:14b`、embedding/reranker models），各機器的專案 config
@@ -107,12 +112,13 @@ git commit -m "<機器前綴>: 備份 opencode global/專案設定"
 
 ---
 
-## 🖥️ MSI、MBP、x570 比照辦理（2026-09-25 定案）
+## 🖥️ wsl、MBP、x570 比照辦理（2026-09-25 定案）
 
 三台統一採 **override 內建 `openrouter`** 的寫法（全球設定走 CF gateway）＋ `{file:}` token：
 
-> ✅ **MSI 已完成**（2026-09-25）：實際 config、`global/msi` 備份、方法文件皆已修正為
-> `provider` 單數＋`options.headers`，service restart 後端到端驗證通過。
+> ✅ **wsl 已完成**（2026-09-25 記為 MSI、2026-10-01 改名為 wsl）：實際 config、
+> `global/wsl` 備份、方法文件皆已修正為 `provider` 單數＋`options.headers`，
+> service restart 後端到端驗證通過。
 > **MBP、x570 請檢查各自實際 config，確認已比照下列寫法（不可殘留 `providers` 複數）**。
 
 ### global config（每台各自的 `~/.config/opencode/opencode.json`）

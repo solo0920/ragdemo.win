@@ -98,7 +98,7 @@ curl -s https://gateway.ai.cloudflare.com/v1/e91bd59a03f8647cc73d2fb87e07014d/cl
 
 ### 方法 B：opencode 端到端測試（在專案目錄內執行！）
 ```bash
-cd /home/solo/projects/ragdemo.win
+cd /home/solo/projects/ragdemo
 opencode run "回覆:OK" --model openrouter/nvidia/nemotron-3-super-120b-a12b:free
 ```
 > ⚠️ 一定要在 git repo（專案）目錄下執行，否則讀不到專案/全域完整設定。

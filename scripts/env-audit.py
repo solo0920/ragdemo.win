@@ -273,8 +273,14 @@ class Ref:
         return bool(IDENTITY_RE.search(self.compose_default))
 
 
-# 預設值中的機台身份：tailscale 的 100.x.x.x 網段，或三台的 id 字面量
-IDENTITY_RE = re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b(x570|mbp|msi)\b")
+# 預設值中的機台身份：tailscale 的 100.x.x.x 網段，或 tailnet 上的機台 id。
+#
+# ⚠️ 這裡**同時**含 `msi` 與 `wsl`，而且是刻意的：2026-10-01 之後 `wsl` 是跑
+# 後端的那台（WSL，Linux），`msi` 是同一台實體機器的 Windows 主機 —— 它不是
+# 後端主機，但**仍是 tailnet 上真實存在、且提供 ollama 的機器**。所以判「這個
+# 預設值是不是燒進了某台的身分」時兩個都要算。別因為 `msi` 不在 HOSTS 清單裡
+# 就把它從 regex 拿掉。
+IDENTITY_RE = re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b(x570|mbp|wsl|msi)\b")
 
 # 機台代號寫在**變數名**裡的（FOO_MSI、HOST_API_X570…這類）。
 # 這類變數的「身份在鍵不在值」：它描述的是**指定那一台**的位址，不是本機身份，
@@ -294,7 +300,7 @@ IDENTITY_RE = re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b(x570|mbp|msi)\b
 # 這個例外不放寬真正會炸的保護：`ports:` 的綁定是獨立判準
 # （`r.in_ports or r.has_identity_default()`），TS_IP 在 ports: 裡，
 # 少設仍然會被報出來（`test_identity_laden_defaults_are_recognised` 鎖住）。
-NAME_SCOPED_HOST = re.compile(r"_(x570|mbp|msi)$", re.I)
+NAME_SCOPED_HOST = re.compile(r"_(x570|mbp|wsl|msi)$", re.I)
 
 # 已被移除的鍵 → 遷移指引。刪掉一個變數名時要同時在這裡加一筆，否則升級後
 # .env 裡的舊鍵只會被當成一般「幽靈」報出，使用者看不出該改成什麼。

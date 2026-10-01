@@ -42,6 +42,15 @@
 
 - **不要 `cat .env`、不要 `env | grep KEY`、不要對 `env-sync.sh` 跑 `bash -x`**
   （腳本偵測到 xtrace 直接拒絕執行；2026-09-26 的三次外洩都是這類）。
+  ⚠️ **要檢視 `.env` 結構就用 `scripts/env-prune.py --dry-run`** —— 它只印鍵名與
+  處置方式，不印值。想看憑證狀態用 `--fingerprints`（只給長度 + sha12）。
+  2026-10-01 實測教訓：用 `grep -E '^(A|B|C)='` 這種「挑幾個鍵印出來」的做法會把
+  密碼印進終端機紀錄——`POSTGRES_DSN` 的值裡就內嵌了密碼。
+- ⚠️ **`.env` 裡的 `KEY=`（空值賦值）不等於「沒設」**（2026-10-01）：
+  `os.getenv(K, default)` 對 `KEY=` 回傳 `""` 而不是 default。所以那些空值是**主動
+  把鍵設成空字串**，踩過最嚴重的一例是 `CF_AIG_TOKEN_FILE=`（`gateway.py` 沒有
+  `or` 保護 → `Path("")` → 例外 → 回 `""`，token 檔 fallback 整個被弄壞）。
+  **要停用一個鍵是刪掉整行，不是寫空值。** `scripts/env-prune.py` 就是為此存在。
 - **不要 `docker compose config` 後貼輸出** —— 它會展開所有憑證。
   只驗語法請用 `config -q`。
 - **`POSTGRES_PASSWORD`（本機 pg 密碼）≠ `POSTGRES_DSN` 裡的密碼**（若 DSN 指向
@@ -348,6 +357,8 @@ scripts/env-sync.sh render          # 只做 per-host（不需 sops）
 scripts/env-sync.sh render --dry-run  # 只印「會動哪幾個鍵」，不寫檔、不印值
 scripts/env-sync.sh --check         # 鍵覆蓋率＋總表 schema＋漂移＋版控衛生
 scripts/env-sync.sh --fingerprints  # 6 把共用（跨機比對）＋2 把 per-host（不跨機比對）
+scripts/env-prune.py --dry-run      # 檢查 .env 裡的空值賦值（見 §4 追加條）
+scripts/env-prune.py                # 清理：刪掉有預設的空值、註解掉設定了也不生效的
 ```
 
 輪換**共用**憑證：任一台 `sops settings/env/secrets.common.enc.env` 改值存檔，

@@ -177,7 +177,7 @@ scripts/env-sync.sh --fingerprints | grep QDRANT_PEER_API_KEY   # 與另外兩�
 （容器跑不了 ingest 管線，所以實際動作在 host 端）。MSI 用 crontab 每分鐘：
 
 ```
-* * * * * /home/solo/projects/ragdemo.win/scripts/law-update-worker.sh >/dev/null 2>&1
+* * * * * /home/solo/projects/ragdemo/scripts/law-update-worker.sh >/dev/null 2>&1
 ```
 
 mbp 的 crontab 被 macOS TCC 擋，請用 launchd。複製既有的

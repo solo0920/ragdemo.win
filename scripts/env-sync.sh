@@ -144,13 +144,10 @@ PY
 # 規則必須由機器執行。否則誰把 QDRANT_API_KEY 手動加回加密檔，pull 就會
 # 照樣分發到三台，而症狀要等下次輪換才浮現（別台的 key 被別台換掉）。
 py_apply() {
-  # 第 6 個參數＝本機 ollama 端點（WSL 自動偵測的結果）。刻意走**位置參數**
-  # 而不是環境變數：`VAR=x func` 不會把 VAR export 給 python3 子行程，
-  # 讀 os.environ 會拿到空字串（第一版就這樣，debug 才發現）。
-  python3 - "$DOTENV" "$1" "$2" "$3" "$4" "$5" "$MANAGED_MARK" "$PER_HOST_SECRETS" "$6" <<'PY'
+  python3 - "$DOTENV" "$1" "$2" "$3" "$4" "$5" "$MANAGED_MARK" "$PER_HOST_SECRETS" <<'PY'
 import os, re, sys
 
-env_path, mode, action, source, host, expand, mark, perhost, detected = sys.argv[1:10]
+env_path, mode, action, source, host, expand, mark, perhost = sys.argv[1:9]
 expand = expand == "1"
 FORBIDDEN = set(perhost.split())
 # 機台清單來自總表裡的 `HOSTS=x570,mbp,msi` 那一行，不是寫死在程式裡。
@@ -255,41 +252,12 @@ if expand:
                 die(f"{k} 引用的 {ref} 在 .env 不存在或為空，拒絕 render")
         layer[k] = REF.sub(lambda m: cur.get(m.group(1), ""), v)
 
-# 自動偵測本機 ollama 位址（僅 WSL；其他平台回空＝不注入）。
-#
-# 為什麼要有這一步：OLLAMA_URLS 在 WSL 上必須是 Windows 主機的閘道 IP，而那個
-# IP 由 Windows 分配、重啟會變。總表刻意留空（因為「IP 不進被追蹤的表」——
-# 見 hosts.shared.env 的說明），改由 render 依當下實際路由填入，WSL 換網段
-# 後重跑一次 render 就跟上。
-#
-# 兩個變數都注入，值相同：
-#   OLLAMA_URLS — 容器內 gateway.py 讀（容器經 WSL 轉發到同一個 IP）
-#   OLLAMA      — host 端 ingest/laws/qdrant_load.py 讀
-# 兩者視角不同但位址相同時最省事；真正需要分開設定的是 Docker Desktop 那種
-# 容器直連 Windows 的情況（屆時 OLLAMA_URLS 該用 host.docker.internal）。
-_inject = detected or ""
-# 只在**真實 repo** 上注入。判斷依據與 cmd_check 的「版控衛生」檢查同一個：
-# ENV_SYNC_DIR 被覆寫 = 測試 fixture（tests/test_env_sync.py 用 tmp 目錄），
-# 那裡的總表是假的，注入只會干擾它斷言的行為。
-_real_repo = not os.environ.get("ENV_SYNC_DIR")
-if _inject and _real_repo and mode == "table":
-    # 有多台候選時（總表已列其他 peer），注入的本機要**附加**在前面而不是取代
-    # 整個清單 —— 否則長度會變，底下的 PAIRED 檢查（OLLAMA_MODELS 位置對應）
-    # 會誤報。把本機放第一位也是刻意的：開發機不該被別台的可用性綁住。
-    #
-    # 刻意**不**動 OLLAMA_MODELS：本機 ollama 有哪些模型是該機的事（要知道主機
-    # 上真的裝了什麼），env-sync 推導不出來。總表若列了 N 台對應 N 個模型，
-    # 注入本機後 URL 變 N+1、模型仍是 N —— 這時 PAIRED 檢查會擋下來，那正是
-    # 想要的：它在提醒「新增了一台 ollama 候選，請把模型清單也補一項」。
-    # 想自動對齊就在該機 .env 手動補，別讓工具猜 —— 猜錯的症狀是
-    # 「8b 機器被餵 14b 而 OOM」，比報錯更難查。
-    parts = [p.strip() for p in layer.get("OLLAMA_URLS", "").split(",") if p.strip()]
-    # 先移除同一個位址的舊項，重跑 render 不該疊加。
-    parts = [p for p in parts
-             if p.split("=", 1)[-1].rstrip("/") != _inject.rstrip("/")]
-    parts.insert(0, f"msi={_inject}")
-    layer["OLLAMA_URLS"] = ",".join(parts)
-    layer["OLLAMA"] = _inject
+# 2026-10-01：這裡原本有一段「WSL 上自動偵測 Windows 主機 ollama 位址」的注入，
+# 連帶 detect_host_endpoint() 函式與 tests/test_detect_host_endpoint.py。
+# 整組刪除的理由：WSL 現在自己就有 tailscale（hostname `wsl`），Windows 主機的
+# ollama 直接走 MagicDNS 就能連，不必再繞「WSL NAT 預設閘道」那個會變的位址。
+# 死掉的機制比沒有機制更糟 —— 它會讓人以為 OLLAMA_URLS 有人負責。
+# 對應的真相搬到 hosts.shared.env 的 OLLAMA_URLS 與 OLLAMA 兩列（三台同一套規則）。
 
 if not layer:
     print("env-sync: 沒有要合併的鍵（總表該機的列皆為空＝沿用現值）"
@@ -352,38 +320,27 @@ local_host() {
   printf '%s' "$v"
 }
 
-# 偵測「本機 ollama 的可達位址」，回空字串代表不該注入。
-#
-# 為什麼需要（2026-09-29 實測）：WSL NAT 模式下，Windows 主機的 ollama 從 WSL
-# 看到的位址是**預設閘道**（`ip route` 的 default gw，NAT 網段，形如 172.24.x.1），而那個
-# IP 由 Windows 分配，每次 WSL 重啟可能變。寫進被追蹤的總表就會變成陷阱
-# （過期值 → 查詢全掛，症狀是 httpx.ConnectError: ollama unreachable）。
-# 所以這裡刻意不放常數 —— tests/test_detect_host_endpoint.py 會擋下任何
-# 硬寫的 IP。
-#
-# 為什麼不用 host.docker.internal：那是 Docker Desktop 的慣用名。WSL **原生**
-# docker 把它解析到 WSL 自己在 docker0 上的位址（不是 Windows），而 ollama 跑在
-# Windows、在 WSL 網段外 → 容器連不到。實測踩過：logs 顯示
-# `httpx.ConnectError: ollama unreachable`。
-#
-# 三種情況：
-#   ① WSL 且有閘道 → 注入閘道位址（實測 WSL 直連與容器→host.docker.internal
-#      之外的路徑都通；容器共用同一個 IP 亦可，因為它經 WSL 轉發）
-#   ② 非 WSL（x570 原生 Linux / mbp macOS）→ 不注入，「本機」＝localhost，
-#      總表空值＝沿用現值即可
-#   ③ 偵測不到 → 不注入。寧可留空，也不要猜一個錯的位址。
-detect_host_endpoint() {
-  if [ -z "${WSL_DISTRO_NAME:-}" ] && ! grep -qiE '(microsoft|wsl)' /proc/version 2>/dev/null; then
-    printf '%s' ""
-    return 0
-  fi
-  local gw=""
-  gw="$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
-  case "$gw" in
-    ''|*[!0-9.]*|127.*) printf '%s' ""; return 0 ;;
-  esac
-  printf 'http://%s:11434' "$gw"
+# 從總表的 `HOSTS=` 那一行讀機台清單，供錯誤訊息使用。
+# 為什麼不寫死：2026-09-27 已經把「機台清單」從程式搬進資料（那是 py_apply 裡
+# HOSTS / PREFIXED 的改動）。這裡若留一份寫死的複本，就等於把鎖死複製一份到
+# 訊息字串裡 —— 2026-10-01 `msi` 改名的時候，寫死的那份會開始說謊。
+# 讀不到就回空字串：訊息少給建議，但**不會把錯誤的主機名寫進去**。
+table_hosts() {
+  [ -f "$TABLE" ] || { printf '%s' ""; return 0; }
+  grep -m1 -E '^HOSTS=' "$TABLE" 2>/dev/null | cut -d= -f2- | tr ',' '/' || true
 }
+
+# ⚠️ 2026-10-01：這裡原本有 detect_host_endpoint() —— 抓 WSL NAT 的預設閘道
+# （`ip route` 的 default gw，形如 172.24.x.1）當作 Windows 主機 ollama 的位址。
+# 已刪除，因為 WSL 現在自己裝了 tailscale，ollama 走 MagicDNS（`msi.` 的 FQDN）
+# 就通，不必依賴那個 Windows 分配、重啟會變的位址。三台因此是同一套規則。
+#
+# ⚠️ 順帶記一個坑，不要以為「短名在容器裡通、就一定在 host 端通」：
+#   WSL 自動產生 /etc/hosts 帶一行 `127.0.1.1 msi.localdomain msi`，而
+#   glibc 是 `hosts: files dns`（檔案先贏）→ MagicDNS 的 `msi` 被蓋成 127.0.1.1。
+#   實測（2026-10-01）：容器 curl http://msi:11434 → 200，
+#   WSL host curl http://msi:11434 → connection refused（127.0.1.1）。
+#   所以 hosts.shared.env 用的是 FQDN。
 
 cmd_render() {
   local host="" action=apply
@@ -398,22 +355,11 @@ cmd_render() {
   [ -n "$host" ] || host="$(local_host)"
   if [ -z "$host" ]; then
     echo "env-sync render: .env 沒有 HOST_ID，無法知道要挑哪一列。" >&2
-    echo "                請先在 .env 設 HOST_ID（x570/mbp/msi），或用 --host 指定。" >&2
+    echo "                請先在 .env 設 HOST_ID（$(table_hosts)），或用 --host 指定。" >&2
     exit 1
   fi
   # expand=1：總表裡 ${POSTGRES_PASSWORD} 這類佔位要在 render 時注入真值。
-  #
-  # RAGDEMO_DETECT_ENDPOINT：WSL 上自動偵測 Windows 主機的 ollama 位址。
-  # 總表刻意留空（IP 會變，不進被追蹤的表），改由 render 依當下路由填。
-  #
-  # **傳入值優先於偵測值**：這個變數同時是「注入通道」與「偵測結果的輸出」，
-  # 外部傳進來就代表「我要用這個位址」（測試靠它餵假位址驗證注入路徑，
-  # 真的話也能手動指定跳過偵測）。只有沒傳時才用偵測結果。
-  # 傳入值優先於偵測值：這個變數同時是「注入通道」與「偵測結果的輸出」，
-  # 外部傳進來就代表「我要用這個位址」。只有沒傳時才用偵測結果。
-  local ep="${RAGDEMO_DETECT_ENDPOINT:-}"
-  [ -n "$ep" ] || ep="$(detect_host_endpoint)"
-  py_apply table "$action" "$TABLE" "$host" 1 "$ep"
+  py_apply table "$action" "$TABLE" "$host" 1
   [ "$action" = apply ] && chmod 600 "$DOTENV"
   return 0
 }
@@ -433,8 +379,8 @@ cmd_pull() {
   chmod 600 "$tmp"
   # 憑證層 expand=0：密碼裡若真的含 ${...} 字面，展開會把它改掉。
   # 這裡的 ${VAR} 只在「值是我們寫的設定」時才該展開。
-  py_apply file apply "$tmp" "" 0 ""   # pull 不注入本機端點（那是 render 的事）
-  py_apply file apply "$ENV_DIR/common.env" "" 1 ""
+  py_apply file apply "$tmp" "" 0
+  py_apply file apply "$ENV_DIR/common.env" "" 1
   trap - EXIT
   shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
   cmd_render
@@ -556,7 +502,7 @@ cmd_render_check() {
     echo "env-sync --check: .env 沒有 HOST_ID（render 的選擇器）" >&2
     return 1
   fi
-  py_apply table check "$TABLE" "$host" 1 ""   # check 不注入（--check 不可改 .env）
+  py_apply table check "$TABLE" "$host" 1
 }
 
 cmd_init_secrets() {

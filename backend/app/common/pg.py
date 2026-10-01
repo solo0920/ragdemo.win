@@ -45,11 +45,20 @@ async def pool_get():
     if _pool is None:
         if asyncpg is None:
             raise RuntimeError("asyncpg 未安裝")
-        # connect_kwargs 是 asyncpg 轉給 connect() 的 kwargs；`timeout` 才是
-        # connect 的逾時參數（create_pool 自己**沒有** timeout 參數，容易看漏）。
+        # ⚠️ 逾時要**直給** `timeout=`，不要包成 `connect_kwargs={"timeout": …}`。
+        # `create_pool` 沒有「名叫 timeout」的參數，但它的 `**connect_kwargs` 會
+        # **整包轉給 `connect()`** —— 所以 `connect_kwargs={"timeout": 3}` 會被轉成
+        # `connect(..., connect_kwargs={"timeout": 3})`，而 `connect` 沒有這個參數 →
+        # TypeError: connect() got an unexpected keyword argument 'connect_kwargs'。
+        #
+        # 症狀不是報錯而是**靜默失效**：pool 永遠建不起來，於是 registry 心跳、
+        # /hosts、usage 記錄全部沒資料（`/hosts` 永遠回 `{"hosts":[]}`）。
+        # 2026-09-30 b1df6d0 引入、2026-10-01 才在這台 wsl 上抓到（`/hosts` 空 +
+        # log 寫 heartbeat skipped）。tests/test_common_pg.py 那條測試當時拿 fake
+        # 斷言「kwargs 裡有 connect_kwargs」—— **形狀對、API 錯**，所以它一路綠。
         _pool = await asyncpg.create_pool(
             POSTGRES_DSN, min_size=1, max_size=3,
-            connect_kwargs={"timeout": PG_CONNECT_TIMEOUT},
+            timeout=PG_CONNECT_TIMEOUT,
         )
     return _pool
 

@@ -182,11 +182,19 @@ def test_squash_tolerates_none():
 # --- 連線逾時（2026-09-30 mbp 實測）-----------------------------------
 
 @pytest.mark.asyncio
-async def test_pool_passes_connect_timeout_via_connect_kwargs():
-    """逾時必須走 connect_kwargs —— create_pool 本身沒有 timeout 參數。
+async def test_pool_passes_connect_timeout_directly():
+    """逾時必須**直給** `timeout=`，不能包成 `connect_kwargs={"timeout": …}`。
 
-    用既有的 `_FakeAsyncpg`（它的 `created` 現在會記 kwargs），不用另做一個
-    fake：少一個 fake 就少一處「這個 fake 沒模擬到真實行為」的風險。
+    為什麼要這樣斷言（2026-10-01 實測踩到）：
+    `create_pool` 沒有「名叫 timeout」的參數，但它有 `**connect_kwargs`，會**整包
+    轉給 `connect()`**。所以舊寫法 `connect_kwargs={"timeout": 3}` 會被轉成
+    `connect(..., connect_kwargs={"timeout": 3})` → TypeError，pool 永遠建不起來，
+    症狀是 `/hosts` 永遠空、log 寫 `heartbeat skipped`。舊測試只斷言「kwargs 裡有
+    connect_kwargs」，用 fake 檢查**形狀**而不是 **API**，於是一路綠。
+
+    底下那條 `test_pool_kwargs_are_accepted_by_real_asyncpg` 才是能擋住這類 bug 的；
+    這條保留是為了把「逾時值有送出、且不是 60s」講清楚（60 就是 2026-09-30
+    mbp 掛 60s 的那個值）。
     """
     fake = _FakeAsyncpg()
     pg._pool = None
@@ -197,12 +205,53 @@ async def test_pool_passes_connect_timeout_via_connect_kwargs():
         pg.asyncpg = orig
         pg._pool = None
     _dsn, _ms, _mx, _p, kw = fake.created[0]
-    assert "connect_kwargs" in kw, (
-        "create_pool 沒有 connect_kwargs → 逾時會退回 asyncpg 預設 60s"
+    assert kw.get("timeout") == pg.PG_CONNECT_TIMEOUT, (
+        f"逾時沒直給 timeout，而是 {kw} —— asyncpg 會把 connect_kwargs 整包轉給 connect()"
     )
-    assert kw["connect_kwargs"]["timeout"] == pg.PG_CONNECT_TIMEOUT
     # 釘住「不是 60」：60 就是 2026-09-30 mbp 掛 60s 的那個值
-    assert kw["connect_kwargs"]["timeout"] < 60
+    assert kw["timeout"] < 60
+    assert "connect_kwargs" not in kw, (
+        "connect_kwargs 會被原樣轉給 connect()，而 connect() 沒有這個參數 → TypeError"
+    )
+
+
+@pytest.mark.asyncio
+async def test_pool_kwargs_are_accepted_by_real_asyncpg():
+    """**用真的 asyncpg 簽名**驗我們送出去的每個 kwarg，不靠 fake。
+
+    為什麼不能用 `inspect.signature(create_pool).bind(...)` 就好：create_pool 的
+    VAR_KEYWORD 叫 `connect_kwargs`，它**接受任何字串**當關鍵字參數名 ——
+    `connect_kwargs={"timeout":3}` 在 bind 時完全通過，落到 `connect()` 才炸。
+    真正該問的對象是 `asyncpg.connect`（它沒有 VAR_KEYWORD，多的名字會直接 TypeError）。
+    """
+    import inspect
+
+    import asyncpg as real_asyncpg
+
+    fake = _FakeAsyncpg()
+    pg._pool = None
+    orig, pg.asyncpg = pg.asyncpg, fake
+    try:
+        await pg.pool_get()
+    finally:
+        pg.asyncpg = orig
+        pg._pool = None
+
+    connect_params = inspect.signature(real_asyncpg.connect).parameters
+    pool_own = {"min_size", "max_size", "loop", "connection_class",
+                "record_class", "setup", "init", "reset", "max_inactive_connection_lifetime",
+                "max_queries", "max_cached_statement_lifetime", "max_cacheable_statement_lifetime",
+                "server_settings", "command_timeout", "statement_cache_size",
+                "max_inactive_transaction_lifetime", "ssl", "connection_timeout"}
+    _dsn, _ms, _mx, _p, kw = fake.created[0]
+    forwarded = {k: v for k, v in kw.items() if k not in pool_own}
+    assert forwarded, "這條測試需要至少一個會被轉給 connect() 的 kwarg 才有意義"
+    unknown = set(forwarded) - set(connect_params)
+    assert not unknown, (
+        f"{sorted(unknown)} 不是 asyncpg.connect 的參數 → create_pool 會把它們"
+        f"原樣轉給 connect()，而 connect() 沒有 VAR_KEYWORD，執行期直接 TypeError。"
+        f"（送出的是 {kw}）"
+    )
 
 
 def _reload_pg(monkeypatch):

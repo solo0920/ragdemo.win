@@ -7,6 +7,15 @@ __pycache__/
 .venv/
 *.egg-info/
 .env
+# ⚠️ 2026-10-01 加：上一行是**精確比對**，只擋 `.env` 本身。所以任何 `.env` 的
+# 備份／暫存（.env.bak、.env.old、.env.orig…）都**不被擋**，而它們是全明文憑證 ——
+# 實測 `git status` 會把 .env.bak 列成 `??`，`git add -A` 就會把它 commit 進去。
+# 為什麼不用 `.env*`：那會連 `.env.example` 一起擋掉，而那個檔是骨架、必須追蹤
+# （env-audit 的 --template 產物，有測試鎖定）。
+.env.bak
+.env.old
+.env.orig
+.env.*.bak
 # env-sync 分層（settings/env/README.md）：解密暫存與明文 staging 絕不進版控。
 # 注意：settings/env/secrets.*.enc.env 是「加密後」要追蹤的，故不在此列；
 # settings/env/hosts.shared.env 是 per-host 值的唯一真相（追蹤、明文、無憑證）。

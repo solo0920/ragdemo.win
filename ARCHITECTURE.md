@@ -127,8 +127,10 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
 現有規則都蓋不到它：
 - `IDENTITY_RE`（`env-audit.py:277`，含 `\b100\.\d{1,3}\.`）只擋 compose
   **預設值**內建某台機器的身分
-- `test_detect_host_endpoint.py:134` 的 regex `(?:10|172|192)` 只掃**被追蹤的
-  原始碼**（`scripts/env-sync.sh`、`settings/env/hosts.shared.env`），不看 `.env`
+- ⚠️ 2026-10-01：原本這裡還列了 `test_detect_host_endpoint.py:134` 的 regex
+  `(?:10|172|192)`（掃被追蹤原始碼裡的私網位址）。那條規則隨 WSL NAT 端點
+  偵測機制一起刪除了（該檔已刪），**所以現在只剩上面一條**。若日後要重新禁止
+  「把 10/172/192 寫進被追蹤檔」，得重新加一個測試 —— 不要假設還有。
 
 **刻意不做**：「`.env` 的 `TS_IP` 非空就 CI 紅」會擋掉合法情境 ——
 `.env.example:35` 明寫「要讓別台機器連你的 qdrant/pg 才需要」。真要修得設計成
@@ -142,7 +144,9 @@ qdrant 的 `QDRANT__SERVICE__API_KEY` 由 `.env` 帶入。所以後果是暴露�
 **所以改 `env-audit.py` 之前，`.env.example` 改不掉。**
 
 ## 提交準則（2026-09-22 定案，三台嚴格執行）
-**commit message 首行必須以 tailscale 機器名前綴開頭：`msi:` / `mbp:` / `x570:`。**
+**commit message 首行必須以 tailscale 機器名前綴開頭：`x570:` / `mbp:` / `wsl:`。**
+（2026-10-01 `msi:` → `wsl:` —— 合法清單由 `.githooks/commit-msg` 讀
+`settings/env/hosts.shared.env` 的 `HOSTS=` 那一行，不寫死在 hook 裡。）
 
 - `git log --oneline` 一眼可讀；`.githooks/commit-msg` 強制（Merge/Revert 自動放行）。
 - 各機啟用一次：`git config core.hooksPath .githooks`。
