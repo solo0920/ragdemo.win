@@ -309,3 +309,130 @@ def test_source_sync_parsed_paths_are_trimmed():
                re.search(r"tr -d '[:space:]'", line) or \
                "awk" in line, \
             f"{var} 沒有 trim —— 尾隨空白會讓 [ -d ] / [ -x ] 為假（2026-10-02 實測假失敗）"
+
+
+# ── 時區與 log 判據（2026-10-02）────────────────────────────────────────────
+
+def _bash_snippet(fn_name: str) -> str:
+    """抽出函式本體（去掉 `local` 之外的相依呼叫不管），給 bash 執行。"""
+    return re.search(rf"^{fn_name}\(\) \{{\n(?:.*\n)*?\}}\n", SRC, re.M).group(0)
+
+
+def test_age_h_local_treats_naive_as_local_not_utc(tmp_path):
+    """**naive 時間戳必須當本機時間，不能當 UTC。**
+
+    ⚠️ 2026-10-02 實測：今天新寫的 `ch_source_sync` 把 naive 當 UTC
+    （`t.replace(tzinfo=utc)`），那是 `ch_law_version` 註解裡**已經記錄過**的
+    同一個錯誤 —— 少算整個 UTC offset。
+
+    實測同一個 `last_checked=2026-09-29T23:39:23`（wsl 是 CST +0800）：
+
+        正確（naive ↔ 本機）: 71.7 小時
+        當成 UTC          : 63.7 小時      ← 差 8.0，就是 CST 的 offset
+
+    門檻 26h 因此實際變成 34h —— **檢查晚 8 小時才響**。而一個「晚 8 小時才響」
+    的門檻，看起來完全正常，因為它還是會響。
+
+    這條測試**真的執行** `age_h_local()`，並且在一個人為設成非零 offset 的
+    `TZ` 下跑 —— 那正是兩種算法會分歧的條件。
+    """
+    import datetime as _dt
+    import subprocess
+
+    fn = _bash_snippet("age_h_local")
+    assert fn, "抽不到 age_h_local()"
+
+    # ⚠️ **不要用 TZ= 環境變數來製造分歧** —— 那是錯的前提。`date '+%F %T'` 產生
+    #   的 naive 字串與「檢查執行的機器」是同一個時區，兩邊同框相減才是正確的。
+    #   改了 TZ 就變成「拿 CST 的字串去減 UTC 的 now」，兩種算法都會對不上，
+    #   測試會因為錯誤的理由失敗。
+    #
+    #   正確的判準：結果要**等於 local-naive 算法**，而**不等於** UTC 算法。
+    #   本機是 CST（+0800）時兩者差 8 小時，是乾淨的判別距離。
+    naive = (_dt.datetime.now() - _dt.timedelta(hours=3)).replace(
+        tzinfo=None).isoformat(timespec="seconds")
+    # 兩種算法（**全部用 naive 相減**，混 aware/naive 會 TypeError）：
+    #   正確 naive↔本機 : now_local - naive              = 3.0
+    #   錯誤 當成 UTC   : now_utc_naive - naive          = 3.0 - offset
+    now_local_naive = _dt.datetime.now()
+    now_utc_naive = _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+    offset_h = (now_local_naive - now_utc_naive).total_seconds() / 3600
+    want_local = 3.0
+    want_utc = want_local - offset_h
+
+    r = subprocess.run(["bash", "-c", f'{fn}\nage_h_local "{naive}"'],
+                       capture_output=True, text=True, timeout=30)
+    got = r.stdout.strip()
+    assert got, f"沒有輸出：{r.stderr[:200]}"
+    age = float(got)
+    assert abs(age - want_local) <= 0.2, (
+        f"算得 {age} 小時，應約 {want_local} —— naive 被當成 UTC 的話會是 "
+        f"{want_utc:.1f}（本機 UTC offset 的差）")
+    assert abs(age - want_utc) > 0.5 or abs(want_utc - want_local) < 0.5, (
+        "這個測試在 UTC 機器上沒有判別力（兩種算法相同）—— 換一個非零 offset 的"
+        "機器跑，或把斷言改成相對比較")
+
+
+def test_law_log_last_attempt_reads_the_log_not_the_json(tmp_path):
+    """**「排程有沒有在跑」只能看 log，不能看檔案裡的欄位。**
+
+    ⚠️ `sync-snapshot.sh:185` 是：
+        if [ "$old" = "$ver" ]; then log "law version unchanged"; return 0; fi
+    —— 版本沒變就**不寫 `synced_at`**。所以 `synced_at` 是「上次**版本變了**」
+    的時間戳，**不是**「上次**跑了**」。拿它當健康信號會**結構性誤報**：
+    上游沒發新版時它永遠不動，而那是正常狀態。
+
+    實測（mbp 2026-10-02 回報）：log 最後一行是
+    `[2026-10-02 23:17:29] unchanged (39879 points), skip` —— 排程**有在跑而且成功**
+    —— 而 doctor 說「快照已 25 小時沒成功更新」。**方向講反了。**
+    """
+    # ⚠️ `law_log_last_attempt_h` 會呼叫 `age_h_local`，所以**兩個都要帶進去** ——
+    #   第一版只抽一個，結果是 `age_h_local: command not found`，
+    #   而那種失敗看起來像「log 讀不到」，會讓人以為是實作的問題。
+    fn = _bash_snippet("age_h_local") + _bash_snippet("law_log_last_attempt_h")
+    assert fn, "抽不到 law_log_last_attempt_h()"
+
+    log = tmp_path / "sync.log"
+    # 三種時間戳形狀都要認：方括號、ISO T 分隔、帶秒
+    log.write_text(
+        "[2026-10-01 10:00:00] old line\n"
+        "garbage without timestamp\n"
+        "[2026-09-01 09:00:00] SYNC OK\n"
+        "[2026-10-02T23:17:29] unchanged (39879 points), skip\n",
+        encoding="utf-8")
+    r = subprocess.run(["bash", "-c", f'SYNC_LOG="{log}"\n{fn}\nlaw_log_last_attempt_h'],
+                       capture_output=True, text=True, timeout=30)
+    got = r.stdout.strip()
+    assert got, f"讀不到 log 時間：{r.stderr[:200]}"
+    age = float(got)
+    # 2026-10-02T23:17:29 —— 應該是很近（< 48h），而不是被最後一行以外的东西帶走
+    assert age < 48, (
+        f"算出 {age} 小時 —— 它抓錯行了。應取**時間最新的那一筆**，"
+        f"不是檔案最後一個『像時間戳』的字串。")
+
+    # 沒有時間戳時必須回空字串，讓呼叫端知道「無法判斷」而不是回 0
+    empty = tmp_path / "empty.log"
+    empty.write_text("no timestamps at all\n", encoding="utf-8")
+    r2 = subprocess.run(["bash", "-c", f'SYNC_LOG="{empty}"\n{fn}\nlaw_log_last_attempt_h'],
+                        capture_output=True, text=True, timeout=30)
+    assert r2.stdout.strip() == "", (
+        f"沒有時間戳時回傳了 {r2.stdout.strip()!r} —— 必須是空字串。"
+        "回 0 會被當成「剛剛才跑過」，那是**最危險**的方向")
+
+
+def test_law_version_checks_the_log_before_blaming_synced_at():
+    """**`law-version` 必須先看 log，再談 `synced_at`。**
+
+    順序有意義：先講 `synced_at` 會讓人去查上游，而真正可行動的事實往往是
+    「這台根本沒有那條排程」。wsl 實測就是這樣 —— 訊息說 24.1 小時沒更新，
+    但 `synced_at` 講的是「上游多久沒發新版」；而 wsl 的 crontab **沒有**
+    `sync-snapshot.sh` 的條目（那兩條 `*/10` 是給 `ensure-stack.sh` 的）。
+    """
+    body = _fns()["ch_law_version"]
+    log_chk = body.find("law_log_last_attempt_h")
+    synced_msg = body.find("快照已 ${age_h} 小時沒成功更新")
+    assert log_chk != -1, "ch_law_version 沒有查同步 log —— 那就只剩 synced_at 可看"
+    assert synced_msg != -1, "原本那條訊息不見了（寫法變了？）"
+    assert log_chk < synced_msg, (
+        "先回報 synced_at 才查 log —— **先講錯的那個**，會讓人去查上游而不是排程")
+    assert "排程" in body, "必須把「排程」與「版本」分開講"

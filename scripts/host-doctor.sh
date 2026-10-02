@@ -50,10 +50,70 @@ SYNC_LOG="$HOME/qdrant/sync.log"
 # 不同的問題，而且各有失效模式：SYNC_LOG 可能在排程還沒跑過時就不存在
 # （那時 ROLE 判斷會說錯話），.law_sync.json 則是 ingest 真的跑過才有。
 LAW_SYNC_FILE="$ROOT/data/laws/.law_sync.json"
-# 快照多久沒成功更新就值得講。sync-snapshot.sh 的 cron 是 */10 分鐘，
-# 所以正常情況 synced_at 應該是「小時級」而不是「天級」；6 小時的門檻代表
-# 「排程跑了但連續 36 次都沒成功」，遠離 10 分鐘這個尺度，不會誤報。
+# ⚠️⚠️ 2026-10-02 修正原本的理由 —— **那個前提是錯的**。
+#
+# 原本寫：「sync-snapshot.sh 的 cron 是 */10 分鐘，所以正常情況 synced_at 應該是
+# 『小時級』而不是『天級』；6 小時的門檻代表『排程跑了但連續 36 次都沒成功』」。
+#
+# 但 `sync-snapshot.sh:185` 是：
+#     if [ "$old" = "$ver" ]; then log "law version unchanged ($ver)"; return 0; fi
+# —— **版本沒變就直接 return，不寫 synced_at**（註解明說是為了「避免每 10 分鐘動
+# 一次 mtime」）。
+#
+# 所以 **`synced_at` 是「上次法規版本變了」的時間戳，不是「上次跑了」的時間戳**。
+# 上游只要沒發新版，它就永遠不動 —— 而那正是**正常狀態**。
+# 拿它的年齡當健康信號，結果是**結構性的假警報**：mbp 2026-10-02 回報的
+# 「快照已 25 小時沒成功更新」就是這個，**不是 mbp 的問題**。
+#
+# 真正的健康信號是「排程有沒有在跑」，那要看 **log 的最後時間戳**，不是檔案裡的
+# 欄位。判斷已改（見 ch_law_version）。這裡保留門檻，意義變成「log 靜默多久」：
+# cron 是 */10 分鐘，靜默 6 小時（= 36 個週期）才值得講，這個尺度是對的。
 LAW_SYNC_STALE_H=6
+
+# ── 共用：naive 時間戳的年齡（小時）─────────────────────────────────────────
+# ⚠️ 抽成共用函式，因為今天有**兩個地方各寫一次，其中一份寫錯了** ——
+#    而寫錯的那份正是**今天新寫的**。同一件事只能有一個實作。
+#
+# `sync-snapshot.sh` 用 `date '+%F %T'`、`sync_daily.py` 寫 ISO 而無 offset，
+# **兩者都是本機時間的 naive 字串**（2026-09-27 實測：wsl 是 CST +0800，寫出
+# "00:40:05" 其實是 16:40 UTC）。
+#
+# 把 naive 當 UTC 會**少算整個 UTC offset**（本機 8 小時）。實測同一個值：
+#     正確（naive ↔ 本機）: 71.7 小時
+#     當成 UTC          : 63.7 小時      ← 差 8.0，就是 CST 的 offset
+# 門檻 6 小時時，6h 實際變成 14h —— **檢查會晚 8 小時才響**。ch_law_version 的
+# 註解裡記著「第一版就這樣寫錯過」；而 ch_source_sync 又犯了一次。
+#
+# 規則：**兩邊用同一個時區相減，不要猜**。naive ↔ 本機；aware ↔ UTC。
+# 若日後改成帶 offset 的 ISO，fromisoformat 會回 aware，兩條路都處理 ——
+# 不要讓 TypeError 被吞掉變成「靜默跳過檢查」，那比報錯更糟。
+age_h_local() {
+  python3 -c 'import sys,datetime as d
+try:
+    t=d.datetime.fromisoformat(sys.argv[1].strip())
+    if t.tzinfo is None:
+        age=(d.datetime.now()-t).total_seconds()          # naive ↔ 本機
+    else:
+        age=(d.datetime.now(d.timezone.utc)-t).total_seconds()
+    print(f"{age/3600:.1f}")
+except Exception:
+    print("")' "$1" 2>/dev/null || true
+}
+
+# ── 共用：同步 log 最後一筆距今幾小時；讀不到就印空字串 ────────────────────
+# 這是「排程有沒有在跑」唯一的可靠證據 —— 檔案裡的 synced_at 只在版本變化時更新。
+law_log_last_attempt_h() {
+  local lg f="" t=""
+  for lg in "$SYNC_LOG" "$ROOT/data/laws/sync.log"; do
+    if [ -f "$lg" ]; then f="$lg"; break; fi
+  done
+  [ -n "$f" ] || return 0
+  t="$(tail -60 "$f" 2>/dev/null \
+       | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9]{2}:[0-9]{2}(:[0-9]{2})?' \
+       | tail -1)"
+  [ -n "$t" ] || return 0
+  age_h_local "$t"
+}
 EXIT_OK=0; EXIT_FAIL=1; EXIT_USAGE=2
 
 usage() {
@@ -706,42 +766,34 @@ try: print(json.load(open(sys.argv[1])).get("applied_at") or "")
 except Exception: print("")' "$LAW_SYNC_FILE" 2>/dev/null)"
   # 門檻 26 小時：每日 06:30 跑，26h 給「昨天跑了但今天還沒到 06:30」與
   # 「真的跳過了至少一次」之間留一個身分的餘裕。太短會在每天下午誤報。
+  #
+  # ⚠️⚠️ 2026-10-02：**這一版原本把 naive 當 UTC**（`t.replace(tzinfo=utc)`），
+  #   那是 ch_law_version 註解裡記錄過的同一個錯誤 —— **少算整個 UTC offset**
+  #   （本機 8 小時）。實測同一個 `last_checked=2026-09-29T23:39:23`：
+  #   正確 71.7 小時、這裡算 63.7 小時。**26h 的門檻實際變成 34h**。
+  #   現在改用共用的 `age_h_local()`（見檔頭），naive ↔ 本機相減。
   local age_h="?"
   if [ -n "$lc" ]; then
-    age_h="$(python3 -c 'import sys,datetime as d
-try:
-    t=d.datetime.fromisoformat(sys.argv[1].replace("Z","+00:00"))
-    if t.tzinfo is None: t=t.replace(tzinfo=d.timezone.utc)
-    print(round((d.datetime.now(d.timezone.utc)-t).total_seconds()/3600,1))
-except Exception: print("?")' "$lc" 2>/dev/null)"
+    age_h="$(age_h_local "$lc")"
+    [ -z "$age_h" ] && age_h="?"
   fi
   # ⚠️ 2026-10-02 修正訊息：第一版寫「沒在跑，或 crontab 有錯」——
   #   而 wsl 實測是**有在跑、但失敗**（上游 law.moj.gov.tw 回 HTTP 500）。
   #   那兩件事的處置完全不同：前者看 crontab，後者看上游。把它們混成一句
   #   會讓人去查錯方向 —— 這個專案反覆在修的正是這一類。
   #
-  #   所以：先看 log 最後一行的時間戳。**有近期嘗試 → 跑了但失敗**；
-  #   **沒有 → 真的沒跑**。log 的路徑在 `sync_daily.py` 裡，這裡不重寫一份
-  #   路徑常數，而是去問它（見下方 SLOGS 取得）。
+  #   所以：先看 log 最後一筆的時間戳（共用 `law_log_last_attempt_h()`）。
+  #   **有近期嘗試 → 跑了但失敗**；**沒有 → 真的沒跑**。
   local logline=""
-  for lg in "$ROOT/data/laws/sync.log" "$HOME/qdrant/sync.log"; do
+  for lg in "$ROOT/data/laws/sync.log" "$SYNC_LOG"; do
     [ -f "$lg" ] && { logline="$(tail -3 "$lg" 2>/dev/null | tr '\n' ' ' | tail -c 220)"; break; }
   done
-  local recent="no"
-  if [ -n "$logline" ]; then
-    recent="$(printf '%s' "$logline" | python3 -c '
-import sys, re, datetime as d
-txt = sys.stdin.read()
-best = None
-for m in re.finditer(r"(20\d\d-\d\d-\d\d)[ T](\d\d:\d\d)", txt):
-    try:
-        t = d.datetime.fromisoformat(m.group(1) + "T" + m.group(2))
-    except Exception:
-        continue
-    h = (d.datetime.now() - t).total_seconds() / 3600
-    if best is None or h < best:
-        best = h
-print("yes" if best is not None and best < 26 else "no")' 2>/dev/null || echo no)"
+  local recent="no" log_age=""
+  log_age="$(law_log_last_attempt_h)"
+  if [ -n "$log_age" ]; then
+    if python3 -c "import sys; sys.exit(0 if float('$log_age') < 26 else 1)" 2>/dev/null; then
+      recent="yes"
+    fi
   fi
   case "$age_h" in
     '?')  bump source-sync-last fail "讀不到 last_checked（$LAW_SYNC_FILE 的格式變了？）" ;;
@@ -894,19 +946,44 @@ except Exception: print("")' "$LAW_VERSION_FILE" 2>/dev/null || true)"
     #    本機時間**（2026-09-27 實測：wsl 是 CST +0800，寫出 "00:40:05" 其實是
     #    16:40 UTC）。所以不能把 naive 當 UTC —— 那會**少算 8 小時**，
     #    6 小時的門檻實際變成 14 小時（第一版就這樣寫錯過，實測報 13h 而非 21.9h）。
-    #    正確做法是**兩邊都用本機時間**，同框相減，不去猜時區。
-    #    若日後有人改成帶 offset 的 ISO 字串，fromisoformat 會回 aware，
-    #    這裡分兩條路處理，不要讓 TypeError 被吞掉變成「靜默跳過檢查」。
-    age_h="$(python3 -c 'import sys,datetime
-try:
-    t=datetime.datetime.fromisoformat(sys.argv[1])
-    if t.tzinfo is None:
-        age=(datetime.datetime.now()-t).total_seconds()      # naive ↔ 本機
-    else:
-        age=(datetime.datetime.now(datetime.timezone.utc)-t).total_seconds()
-    print(int(age//3600))
-except Exception: print("")' "$synced" 2>/dev/null || true)"
-    if [ -n "$age_h" ] && [ "$age_h" -ge "$LAW_SYNC_STALE_H" ]; then
+    #    現在走共用的 `age_h_local()`，規則只有一份，**不會再各寫一次各錯一次**。
+    age_h="$(age_h_local "$synced")"
+    # ⚠️⚠️ 2026-10-02 **修正判準本身**（不只是修訊息）。原本是
+    #     `if age_h >= 6 → warn「快照已 N 小時沒成功更新」`，
+    # 那個判準**結構性地會誤報**：`sync-snapshot.sh:185` 在版本沒變時直接
+    # `return 0`，**不寫 synced_at**。所以 synced_at 是「上次**版本變了**」的時間戳，
+    # 不是「上次**跑了**」。上游沒發新版時它永遠不動 —— 而那是正常狀態。
+    #
+    # 實測（2026-10-02 mbp 回報）：log 最後一行
+    #     [2026-10-02 23:17:29] unchanged (39879 points), skip
+    # —— **排程有在跑而且成功**，只是內容沒變。doctor 卻說「快照已 25 小時沒成功
+    # 更新」。**那句話把「版本沒變」講成了「沒成功更新」，方向完全相反。**
+    #
+    # 健康信號是「排程有沒有在跑」，證據在 log 最後時間戳：
+    #   · log 有近期嘗試 → 排程正常；synced_at 老 = 上游沒發新版 → **資訊，不是問題**
+    #   · log 沒近期嘗試 → 排程真的沒跑 → **warn**
+    log_age="$(law_log_last_attempt_h)"
+    if [ -n "$log_age" ] && [ -n "$age_h" ] \
+       && python3 -c "import sys; sys.exit(0 if float('$log_age') < $LAW_SYNC_STALE_H else 1)" 2>/dev/null; then
+      bump law-version ok "法規版本 ${v}（快照於 ${synced} 最後更新）；排程正常：同步 log ${log_age} 小時前有跑 —— 上游沒發新版所以內容沒變（正常）"
+      return 0
+    fi
+    # ⚠️ 2026-10-02 **把 log 放在 synced_at 前面**。原本這句以
+    #   「快照已 N 小時沒成功更新（synced_at=…）」開頭 —— 而 synced_at **只在版本
+    #   變化時才寫**，所以「N 小時」講的是「上游多久沒發新版」，**不是**排程狀態。
+    #   實測 wsl：訊息說 24.1 小時，但**真正可行動的事实**是「同步 log 靜默
+    #   13.5 小時，而這台根本沒有 sync-snapshot.sh 的 crontab 條目」。
+    #   先講錯的那個，會讓人去查上游而不是查排程。
+    if [ -n "$log_age" ] && python3 -c "import sys; sys.exit(0 if float('$log_age') >= $LAW_SYNC_STALE_H else 1)" 2>/dev/null; then
+      lastline="$(tail -1 "$SYNC_LOG" 2>/dev/null || true)"
+      case "$lastline" in
+        *offline*) why="；log 最後一行說來源離線（${lastline##*] }）" ;;
+        *) why="；log 最後一行：${lastline:-（讀不到）}" ;;
+      esac
+      bump law-version warn "同步排程已 ${log_age} 小時沒動（門檻 ${LAW_SYNC_STALE_H} 小時）—— **先確認這台有沒有 sync-snapshot.sh 的排程**（crontab／launchd），再談版本${why}；快照最後更新於 ${synced}，法規版本 ${v}"
+      return 0
+    fi
+    if [ -n "$age_h" ] && python3 -c "import sys; sys.exit(0 if float('$age_h') >= $LAW_SYNC_STALE_H else 1)" 2>/dev/null; then
       lastline="$(tail -1 "$SYNC_LOG" 2>/dev/null || true)"
       case "$lastline" in
         *offline*) why="；同步 log 最後一行說來源離線（${lastline##*] }）" ;;
