@@ -54,7 +54,7 @@ import logging
 import re
 import time
 
-from . import gateway, host_settings, rag, registry, retrieve
+from . import cloud_probe, gateway, host_settings, rag, registry, retrieve
 from .common import pg
 
 logger = logging.getLogger("ragdemo")
@@ -188,38 +188,65 @@ async def _check_ollama() -> dict:
 
 
 def _cloud_state() -> dict[str, bool]:
-    """與 `/models` 的 `*_ready` 旗標同一組判準 —— 不另立一套，否則兩邊會漂移。"""
-    tok = rag._gateway_token()
+    """每個雲端 provider「設定了沒有」—— 轉發到 `cloud_probe`，**不另立一套**。
 
-    def via_cf_ai_gateway(url: str) -> bool:
-        # CF AI Gateway 那一組：URL 與 token 缺一就算未設定（"-" 是 sentinel）。
-        return bool(url and url != "-" and tok)
-
-    return {
-        "openrouter": bool(rag.OPENROUTER_GATEWAY_URL and tok),
-        "zen": bool(rag.ZEN_API_KEY),
-        "nvidia": bool(rag.NVIDIA_API_KEY),
-        "gemini": via_cf_ai_gateway(rag.GEMINI_GATEWAY_URL),
-        "groq": via_cf_ai_gateway(rag.GROQ_GATEWAY_URL),
-        "cohere": via_cf_ai_gateway(rag.COHERE_GATEWAY_URL),
-        "hf": bool(rag.HF_BASE_URL and rag.HF_TOKEN),
-        "mistral": via_cf_ai_gateway(rag.MISTRAL_GATEWAY_URL),
-    }
+    ⚠️ 這裡**刻意**只剩一個真身。`_check_cloud()` 與 `/models` 的 `*_ready` 判準、
+    以及 probe 的「這個 provider 要不要探」必須是同一件事 —— 三處各寫一份判準時，
+    漂移的表現是「面板說某 provider 沒開，但它明明在清單裡」。
+    """
+    return cloud_probe.configured_providers()
 
 
 async def _check_cloud() -> dict:
-    """雲端 provider：**只報設定狀態，不發請求**。
+    """雲端 provider：**兩個面向分開報**。
 
-    為什麼不探：`/ready` 會被每 10–30 秒輪詢一次，而每個 provider 的「探測」都是
-    一個會燒額度的真實 API 呼叫（free 額度是共享池，50/天）。
-    未設定也**不是故障** —— 那是「這台沒開雲端選項」，報錯會把正常狀況講成故障。
-    雲端真的壞了會由 `/query` 個別回報，那才是它該出現的地方。
+    - **設定面**（`configured`）＝ 有幾個 provider 設了 key／URL。判準直接讀
+      `cloud_probe.configured_providers()`，**不另立一套** —— 那是 `/models` 下拉選單
+      的 `*_ready` 判準，兩邊共用一份才不會漂移。
+    - **驗證面**（`probe`）＝ 最近一次 `POST /settings/probe-clouds` 的結果，含
+      探測時間與 `stale` 旗標。**沒有結果時 `verdict: unknown`，不是 down** ——
+      「還沒探過」與「探了發現壞了」是兩件事。
+
+    ⚠️ **這裡不發請求。** `/ready` 會被每 10–30 秒輪詢，而雲端 probe 是每 provider
+    一個真實 API 呼叫（free 額度共享池，openrouter 50/天）。所以驗證面是**登入時**
+    由前端觸發（`POST /settings/probe-clouds`），`/ready` 只讀結果。
+
+    未設定雲端 provider **不是故障** —— 那是「這台沒開雲端選項」，報錯會把正常
+    狀況講成故障。雲端真的壞了由 `/query` 個別回報，那才是它該出現的地方。
     """
-    on = [k for k, v in _cloud_state().items() if v]
-    if not on:
-        return {"detail": "未設定任何雲端 provider（不是故障）", "configured": []}
-    return {"detail": f"已設定 {len(on)} 個雲端 provider（不探：輪詢會燒額度）",
-            "configured": on}
+    on = [k for k, v in cloud_probe.configured_providers().items() if v]
+    out = {
+        "configured": on,
+        "configured_count": len(on),
+        "detail": (f"已設定 {len(on)} 個雲端 provider" if on
+                   else "未設定任何雲端 provider（不是故障）"),
+    }
+    snap = cloud_probe.peek()
+    if snap is None:
+        out["probe"] = {"verdict": UNKNOWN, "probed_at": None, "stale": True,
+                        "detail": "尚未 probe（登入時會自動觸發）"}
+        return out
+    verdicts = {k: p["verdict"] for k, p in snap["providers"].items()
+                if k in on}
+    # 驗證面的總 verdict：任一 down 就是 down；只有 unknown 則 unknown。
+    if any(v == DOWN for v in verdicts.values()):
+        v = DOWN
+    elif any(v == UNKNOWN for v in verdicts.values()):
+        v = UNKNOWN
+    else:
+        v = UP
+    out["probe"] = {
+        "verdict": v,
+        "probed_at": snap["probed_at"],
+        "age": snap["age"],
+        "stale": snap["age"] >= cloud_probe.TTL,
+        "summary": snap["summary"],
+        "providers": {k: {"verdict": p["verdict"], "detail": p["detail"],
+                          "count": p["count"],
+                          "available": len(p["available"]), "missing": len(p["missing"])}
+                      for k, p in snap["providers"].items() if k in on},
+    }
+    return out
 
 
 _CHECKS = {"postgres": _check_postgres, "qdrant": _check_qdrant,

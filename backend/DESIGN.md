@@ -182,7 +182,7 @@ unreachable`，掛在 **`/api/embed`**）。`EMBED_MODEL` 也是 ollama 模型�
 | postgres | 共用池跑 `SELECT 1`（不開新連線） | ✅ |
 | qdrant | `gateway._req` GET `/collections/{COLLECTION}` —— **要確認 collection 存在**，只探 `/` 會回 200 卻沒有 collection | ✅ |
 | ollama | `gateway._ollama_probe()`（TCP ＋ `/api/tags` ＋ 該機聊天模型與 `EMBED_MODEL` 齊備）**＋ `default_model` 存在性** | ✅ |
-| cloud | 只報**設定狀態**（沿用 `/models` 的 `*_ready` 判準），**不發請求** | ❌ |
+| cloud | 設定面＋驗證面，**不發請求**（讀登入時 probe 的結果，見下節） | ❌ |
 
 ### `default_model` 的檢查放在哪一層
 
@@ -199,7 +199,59 @@ gateway 是最底層，不能讀 pg、不知道 `default_model` 存在；把它�
 - probe **失敗**也要查 —— 該台可能沒有 `_llm_model_for` 卻有 `default_model`，那時
   查詢是成功的；直接沿用 probe 會**誤報 not ready**（症狀：明明查得了卻說不行）。
 
-### 「探不到」與「壞了」是兩件事
+### 雲端的驗證面：`POST /settings/probe-clouds`（2026-10-02）
+
+`/ready` 的 cloud 項現在分**兩個面向**：
+
+| 面向 | 欄位 | 來源 |
+|---|---|---|
+| **設定面**（配置） | `configured` / `configured_count` | `cloud_probe.configured_providers()` —— 與 `/models` 的 `*_ready` 判準**同一份**（`readiness._cloud_state()` 轉發到它，不另立一套） |
+| **驗證面**（探過能用） | `probe.verdict` / `probe.probed_at` / `probe.age` / `probe.stale` / `probe.providers` | 最近一次 probe 的結果 |
+
+⚠️ **`cloud` 維持 `required: false`，且「沒有 probe 結果」時 `verdict: unknown` 而非 down。**
+還沒 probe 過與 probe 了發現壞了是兩件事；而且雲端掛掉不該讓這台「不能服務查詢」
+（ollama 才是預設路徑）。
+
+⚠️ **`/ready` 絕不發雲端請求** —— 它每 10–30 秒被輪詢，而 probe 是每 provider 一個
+真實 API 呼叫。驗證面由**登入時**前端觸發（`POST /settings/probe-clouds`，冪等、
+不改任何狀態），`/ready` 只讀記憶體裡的結果（`cloud_probe.peek()`）。
+`tests/test_cloud_probe.py::test_ready_peek_does_not_trigger_a_probe` 釘住這條。
+
+**四態，不是三態**（`cloud_probe.py`）：`up`（catalog 200 且清單解析得出）／
+`down`（**明確失敗**：401／403／404／其他 4xx、5xx）／`unknown`（**探不到**：逾時、
+DNS、TLS、連線被拒、回應形狀看不懂）／**`off`（未設定 —— 不是故障）**。
+
+⚠️ `off` 是獨立狀態而不是塞進 `down`：實測 wsl 沒設 `ZEN_API_KEY`，
+若算成故障，`/ready` 會為沒開的 provider 回 503。
+
+⚠️ **未設定／探不到時 `missing` 必須是空的** —— 那個欄位的語意是「設定了但 catalog
+上沒有」。沒有 catalog 就把它填滿等於**斷言**那些模型不存在，那是假陰性。
+
+**比對規則**（不用 `in` 硬碰）：先整串比對，再比對「最後一段 `/` 之後的葉子名」
+（忽略大小寫）。`"glm-5" in "some/other/glm-5-turbo"` 會**誤判成可用** —— 那是假
+陽性，比假陰性更危險（面板說能選、選了才 404）。葉子名比對會放寬成「不同 owner 但
+同名葉子」，這是刻意的：假陰性會讓人去查憑證與網路，而問題其實只是 catalog 少寫
+了 owner 前綴（gemini 原生回 `models/gemini-3.8-flash`，設定清單是
+`gemini-3.8-flash`）。命中時記下 `exact` 或 `leaf`，讓人看得出判定有多確定。
+
+⚠️ **必須複用生成路徑的 httpx client 與同一組 headers** —— 同一條 gateway 路徑，
+用 `urllib` 打回 **403 error code: 1010**（Cloudflare 瀏覽器完整性檢查）、
+用 `httpx` 回 200（2026-10-02 實測）。自己刻一個 client 會**對正常的 provider 報
+「不可用」**。同理 gateway 的路徑是 `{OPENROUTER_GATEWAY_URL}/models`，**不是**
+`/api/v1/models`（實測 404）。
+
+`extract_ids()` 裡 `name` 只在沒有 `id` 時才取：openrouter 每筆同時有 `id`
+（`apodex/apodex-1.1-mini:free`）與 `name`（**顯示名**
+`Apodex: Apodex 1.1 Mini (free)`）。兩個都收會讓 count 從 464 膨脹到 1156（實測），
+而且顯示名進比對集等於往**假陽性**放寬。
+
+⚠️ **`/settings/probe-clouds` 必須同時列進 frontend `+server.ts` 的 `SENSITIVE`**：
+`guard()` 對不在清單裡的路徑直接 `return null`、**完全不驗 session**
+（2026-10-02 修過一次同型漏洞）。後端不動 frontend，所以這個要求記錄在
+`main.py` 的模組 docstring 與該端點的 docstring，並由
+`tests/test_cloud_probe.py::test_sensitive_requirement_is_recorded_in_the_backend` 釘住。
+
+### 「探不到」與「壞了」是兩件事（/ready 的四個依賴）
 
 每項回三態，`ok` 與 `verdict` 分開：
 
@@ -227,6 +279,8 @@ docker compose config -q              # 只驗語法，不會印出憑證
 curl -s localhost:8000/health         # liveness：必須 200（依賴壞時也一樣）
 curl -s localhost:8000/ready          # readiness：壞時 503，且逐項指名
 curl -s localhost:8000/settings/default-model
+curl -s -X POST localhost:8000/settings/probe-clouds   # 雲端 catalog（不打推理端點）
+curl -s -X POST 'localhost:8000/settings/probe-clouds?force=1'   # 跳過 5 分鐘快取
 curl -s localhost:8000/query -H 'content-type: application/json' \
   -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # 確認 RAG 真的通
 ```
@@ -238,7 +292,7 @@ curl -s localhost:8000/query -H 'content-type: application/json' \
 
 ## 待補（owner）
 
-- 路由一覽（每個 endpoint 的用途、認證要求）—— `/ready` 見 §6、`/settings/*` 見 §5
+- 路由一覽（每個 endpoint 的用途、認證要求）—— `/ready` 與 `/settings/*` 見 §6／§5
 - rules（題庫）在 pg 與 `data/rules` 的分工
 - 降級鏈的完整決策流程圖（ollama / qdrant / pg 三條鏈各自的候選與快取）——
   §6 只覆蓋 ollama 那一條的「主機可服務」判準

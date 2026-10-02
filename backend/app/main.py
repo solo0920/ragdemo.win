@@ -1,10 +1,14 @@
-"""FastAPI：/health /ready /ingest /query /eval /hosts /settings/default-model，模型與服務全走環境變數。
+"""FastAPI：/health /ready /ingest /query /eval /hosts /settings/*，模型與服務全走環境變數。
 
 `/health` 是 liveness（永遠 200、零探測）；`/ready` 是 readiness（真的探依賴鏈，
 不 ready 回 503）。分工理由見 app/readiness.py。
 
 唯一的例外是 `/settings/default-model` 的 `default_model`：那是**本機的使用者設定**
 （存本機 pg，見 host_settings.py），會取代該機的 `LLM_MODEL` 成為查詢時的實際預設。
+
+⚠️ `/settings/*` 底下兩個端點（`default-model`、`probe-clouds`）**必須**同時列進
+frontend `+server.ts` 的 `SENSITIVE`，否則 `guard()` 對不在清單裡的路徑直接
+`return null`、完全不驗 session（2026-10-02 修過一次同型漏洞）。
 """
 import asyncio
 import json
@@ -20,7 +24,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import host_settings, rag, readiness, registry, rules_store as rules
+from . import cloud_probe, host_settings, rag, readiness, registry, rules_store as rules
 from . import usage
 
 logger = logging.getLogger("ragdemo")
@@ -102,6 +106,25 @@ async def ready(force: int = 0):
     if not body["ok"]:
         return JSONResponse(status_code=503, content=body)
     return body
+
+
+@app.post("/settings/probe-clouds")
+async def probe_clouds(force: int = 0):
+    """探各雲端 provider 的 catalog：**每個 provider 一次** `/models` 呼叫。
+
+    冪等、可重複呼叫、**不改任何狀態**。回應不含任何憑證值。
+
+    ⚠️ **只打 catalog 端點，不打任何推理端點** —— 推理會燒額度（free 額度是共享池）。
+
+    ⚠️ **這個路徑必須進 frontend 的 `SENSITIVE` 清單**（`+server.ts`）。
+       `guard()` 對不在清單裡的路徑直接 `return null`、**完全不驗 session**，
+       2026-10-02 剛修過一次同型漏洞（要加的字串：`settings/probe-clouds`）。
+       連同 `settings/default-model`，兩個設定寫入／探測端點都要登入。
+
+    `?force=1` 跳過 TTL 快取（5 分鐘）—— 「我剛換了 key，現在就探」。
+    """
+    body = await cloud_probe.probe(force=bool(force))
+    return {"ok": True, **body}
 
 
 @app.get("/models")
