@@ -126,7 +126,19 @@ def test_check_output_is_clean_when_piped_to_head():
     前幾條都是靜態檢查；這條實際跑一次，證明守衛真的有效。
     ⚠️ 必須**照 mbp 的原樣**跑（`| head -1`，不 merge stderr）—— 之前我測成
     `2>&1 | head -1` 就沒重現。
+
+    ⚠️ **沒有 `.env` 時要跳過**（2026-10-02 CI 紅）。`cmd_check` 第一件事就是
+    `[ -f "$DOTENV" ] || { echo "MISSING .env" >&2; exit 1; }` → CI 的乾淨
+    clone 沒有 `.env` → 整個指令提早退出 → **stdout 是空的**，而斷言要求
+    stdout 有指紋。
+
+    這是本專案記錄在案的 CI 坑：**測試依賴真實 `.env` 時，本機全綠、CI 紅。**
+    修法是判斷前提，不是放寬斷言 —— 「無從驗證」與「驗證失敗」是兩件事，
+    用後者的訊息報前者會讓人查錯方向。
     """
+    import pytest
+    if not (ROOT / ".env").is_file():
+        pytest.skip("無 .env：`--check` 會提早退出，指紋無從驗證")
     r = subprocess.run(
         f"bash {ENV_SYNC} --check | head -1",
         shell=True, capture_output=True, text=True, cwd=ROOT)
