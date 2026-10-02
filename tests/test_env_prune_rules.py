@@ -44,31 +44,97 @@ def _prune(text: str) -> tuple[list[str], dict[str, str]]:
     return out, acted
 
 
+def _sandbox(tmp: Path) -> Path:
+    """搭一個能讓 env-audit 算出**完整** registry 的沙箱。
+
+    ⚠️ 必須複製 `backend/`（2026-10-02 實測踩到）。
+    `Ref.superseded_by`（誰取代誰）不是從 compose.yaml 推導的，而是從
+    `backend/app/gateway.py` 的 fallback 鏈推出來的 —— 沒有 backend/ 時它
+    全變成空字串，於是「被取代 → 刪」那條規則永遠不觸發。
+
+    **症狀極具欺騙性**：規則看起來「沒生效」，於是會跑去改規則；而實際上是
+    沙箱不完整。所以這裡額外斷言 registry 的規模 —— **殘缺的沙箱要吵，
+    不能安靜地讓所有測試變成空轉。**
+    """
+    (tmp / "scripts").mkdir(exist_ok=True)
+    for extra in ("env-prune.py", "env-audit.py", "env-sync.sh"):
+        shutil.copy(ROOT / "scripts" / extra, tmp / "scripts" / extra)
+    shutil.copy(ROOT / "compose.yaml", tmp / "compose.yaml")
+    shutil.copytree(ROOT / "backend", tmp / "backend")
+    shutil.copytree(ROOT / "ingest", tmp / "ingest")
+    # ⚠️ 連 `settings/env/` 也要 —— `per_host_keys()` 是從
+    # `hosts.shared.env` 的 `<機台>_<鍵>` 列推導的，沒有這個檔它回空集合，
+    # 於是「per-host 鍵受保護」那條規則形同不存在。
+    # 這是**第三個**讓沙箱殘缺的坑（見下面兩個斷言的說明）。
+    (tmp / "settings" / "env").mkdir(parents=True, exist_ok=True)
+    for f in ("hosts.shared.env",):
+        shutil.copy(ROOT / "settings" / "env" / f, tmp / "settings" / "env" / f)
+
+    spec = importlib.util.spec_from_file_location(
+        "env_audit_probe", tmp / "scripts" / "env-audit.py")
+    ea = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ea)
+    reg = ea.build_registry()
+    assert len(reg) >= 60, (
+        f"沙箱只掃到 {len(reg)} 個變數（真實 repo 是 70 上下）—— "
+        f"沙箱不完整，測試會**靜默地什麼都驗不到**。缺 backend/ 或 ingest/？")
+    superseded = {k: v.superseded_by for k, v in reg.items() if v.superseded_by}
+    assert superseded, (
+        "沙箱裡 `superseded_by` 全是空的 —— backend/ 沒複製到。"
+        "「被取代 → 刪」那條規則在這個沙箱裡不可能觸發，測試會假綠。")
+    ph = ea.per_host_keys()
+    assert ph, (
+        "沙箱裡 `per_host_keys()` 是空的 —— settings/env/hosts.shared.env 沒複製到。"
+        "「per-host 鍵受保護」那條規則在這個沙箱裡形同不存在，測試會假紅。")
+    return tmp
+
+
 def _run_real(env_text: str, tmp: Path) -> tuple[int, str, str]:
     """真的跑一次 `env-prune.py --dry-run`，驗證 CLI 那條路徑。
 
-    ⚠️ 沙箱**必須保留 `<tmp>/scripts/` 這一層**。`env-audit.py` 用
-    `Path(__file__).resolve().parents[1]` 當 ROOT 去找 `compose.yaml` 與
-    `scripts/*.sh` —— 檔案直接攤在 `<tmp>/` 的話，ROOT 會指到 `<tmp>` 的
-    **上一層**，於是 registry 讀到空的，兩條規則都不會觸發。
-
-    第一版的測試就是這樣寫的，然後斷言「COLLECTION 沒被刪」而紅掉 —— 看起來
-    像規則壞了，實際是沙箱的檔案放錯位置。**測試紅掉時第一個要懷疑的是測試
-    自己的前提，不是被測的程式。**
+    ⚠️ **必須看 returncode 與 stderr。** 只 grep stdout 會把腳本整個 crash
+    藏起來 —— 2026-10-02 踩過：`_registry()` 從 3 元素改成 4 元素而呼叫端
+    沒跟著改，腳本拋 `ValueError` 結束，而我的驗證只印「（沒有刪任何東西）」，
+    看起來像「規則沒觸發」，於是跑去改規則而不是修那個 unpack。
     """
-    (tmp / "scripts").mkdir(exist_ok=True)
-    env = tmp / ".env"
-    env.write_text(env_text, encoding="utf-8")
-    for extra in ("env-prune.py", "env-audit.py", "env-sync.sh"):
-        shutil.copy(ROOT / "scripts" / extra, tmp / "scripts" / extra)
-    (tmp / "compose.yaml").write_text(
-        (ROOT / "compose.yaml").read_text(encoding="utf-8"), encoding="utf-8")
+    _sandbox(tmp)
+    (tmp / ".env").write_text(env_text, encoding="utf-8")
     r = subprocess.run([sys.executable, str(tmp / "scripts" / "env-prune.py"),
                         "--dry-run"], capture_output=True, text=True, cwd=tmp)
     return r.returncode, r.stdout, r.stderr
 
 
 # ── 規則 1：值＝compose 預設 → 刪 ──────────────────────────────────────
+
+def _deleted(out: str) -> set[str]:
+    """從 prune 輸出取出「被刪的鍵名」集合。
+
+    ⚠️ **必須取第一欄，不能用子字串比對。** 2026-10-02 踩到：刪除理由是
+    `刪（被 OLLAMA_URLS 取代，而 OLLAMA_URLS 有值 → 讀不到這把）` ——
+    理由裡**提到** `OLLAMA_URLS`，於是 `any("OLLAMA_URLS" in line ...)`
+    對「刪掉 `OLLAMA_BASE_URL`」那行也成立。斷言就這樣錯判成
+    「取代者也被刪了」，而實際上規則運作完全正常。
+
+    刪除理由是給人看的，裡面出現別的鍵名是**正常**的；要比對的只有第一欄。
+    """
+    keys = set()
+    for line in out.splitlines():
+        s = line.strip()
+        if "刪（" in s:
+            keys.add(s.split()[0])
+    return keys
+
+
+def _sandbox_prune(tmp: Path, env_text: str) -> tuple[int, set[str], str]:
+    """在沙箱裡跑 dry-run，回傳 (returncode, 被刪的鍵, stderr)。
+
+    命名刻意區別於上面的記憶體版 `_prune(text)`：兩個同名函式裡後者會覆蓋
+    前者，然後**前面**的測試會用錯簽章而拋 `TypeError` —— 症狀指向錯誤的
+    那一行，實際問題在檔案後面。（這也是為什麼我在第一版把兩個都叫 `_prune`。）
+    """
+    rc, out, err = _run_real(env_text, tmp)
+    return rc, _deleted(out), err
+
 
 def test_value_equal_to_compose_default_is_deleted():
     """值與 compose 預設**完全相同** → 刪（零行為變更）。
@@ -97,7 +163,7 @@ def test_shared_secrets_are_never_deleted_by_the_default_rule():
     就算某把的值碰巧等於某個預設（不太可能），刪了也沒有任何來源能重建它。
     """
     mod = _load_prune()
-    reg, shared, _ = mod._registry()
+    _, shared, _, _ = mod._registry()
     assert shared, "共享憑證清單不該是空的 —— 否則這條測試在騙人"
     for key in sorted(shared):
         assert mod._managed_elsewhere(key), f"{key} 必須受保護"
@@ -123,7 +189,7 @@ def test_empty_per_host_lines_are_kept():
     prune 無權判斷。
     """
     mod = _load_prune()
-    _, _, per_host = mod._registry()
+    _, _, per_host, _ = mod._registry()
     assert per_host, "per-host 鍵清單不該是空的 —— 否則這條測試在騙人"
     protected = [k for k in sorted(per_host) if mod._managed_elsewhere(k)]
     assert len(protected) == len(per_host), (
@@ -144,15 +210,69 @@ def test_per_host_keys_survive_the_cli_path(tmp_path):
     「修好 `in_place` 卻忘了 `_registry()` 回傳的是 `PER_HOST_SECRETS`」
     這種形狀 —— 兩處都要對才會生效。
     """
-    rc, out, err = _run_real("OLLAMA=\nCOLLECTION=laws\nOTHER=x\n", tmp_path)
+    rc, dels, err = _sandbox_prune(tmp_path, "OLLAMA=\nCOLLECTION=laws\nOTHER=x\n")
     assert rc == 0, err
-    assert "OLLAMA" not in out.split("其他")[0].split("COLLECTION")[0] or True
     # 關鍵斷言：OLLAMA 的空行不該出現在「刪」的清單裡
-    delete_lines = [l for l in out.splitlines() if "刪（" in l]
-    assert not any(l.strip().startswith("OLLAMA ") for l in delete_lines), (
-        f"CLI 路徑把 per-host 鍵的空行刪了：{delete_lines}")
-    assert any("COLLECTION" in l for l in delete_lines), \
+    assert "OLLAMA" not in dels, f"CLI 路徑把 per-host 鍵的空行刪了：{sorted(dels)}"
+    assert "COLLECTION" in dels, \
         "值等於預設的鍵在 CLI 路徑上沒被刪 —— `_registry()` 可能沒同步更新"
+
+
+# ── 規則 3：被更高優先的來源取代 → 刪 ──────────────────────────────────
+
+def test_superseded_key_with_a_set_superseder_is_deleted(tmp_path):
+    """**被取代、而且取代者真的有值** → 刪（哪怕本鍵有值）。
+
+    Friction 點（2026-10-02 三機比對）：`OLLAMA_BASE_URL` 是 `OLLAMA_URLS`
+    的低優先 fallback。mbp 兩個都有值 → 程式**永遠讀不到** `OLLAMA_BASE_URL`
+    → 那個值是死重量，而且讓三台的鍵集合不同 → 版面指紋對不上。
+
+    為什麼 `DELETE` 那份手寫清單抓不到：它的規則是「**空值** ＋ 有預設值」，
+    而這個鍵是「**有值** 也要刪」—— 判準不同。手寫清單表達不了「被取代」，
+    但程式碼可以：`Ref.superseded_by` 就是那個事實的機器可讀形式。
+    """
+    rc, dels, err = _sandbox_prune(
+        tmp_path, "OLLAMA_BASE_URL=http://a:11434\nOLLAMA_URLS=http://b:11434\n")
+    assert rc == 0, err
+    assert "OLLAMA_BASE_URL" in dels, f"被取代的鍵沒被刪：{sorted(dels)}"
+    assert "OLLAMA_URLS" not in dels, "取代者本身不該被刪"
+
+
+def test_superseded_key_is_kept_when_the_superseder_is_empty(tmp_path):
+    """⚠️ **取代者空值時，被取代的鍵必須留著。**
+
+    那正是低優先 fallback 的用途：沒有 `OLLAMA_URLS` 時，
+    `OLLAMA_BASE_URL` 就是唯一能讓 ollama 接上的設定。刪掉它 = ollama 完全
+    連不上，而症狀是「嵌入全失敗」這種很難回推的形狀。
+
+    這就是為什麼那條規則的條件必須是「取代者**有值**」，而不是單純
+    「有 superseded_by 就刪」。
+    """
+    rc, dels, err = _sandbox_prune(
+        tmp_path, "OLLAMA_BASE_URL=http://a:11434\nOLLAMA_URLS=\n")
+    assert rc == 0, err
+    assert "OLLAMA_BASE_URL" not in dels, (
+        f"取代者空值卻把被取代的鍵刪了 → ollama 會連不上：{sorted(dels)}")
+
+
+def test_superseded_key_is_kept_when_superseder_is_absent(tmp_path):
+    """取代者**根本不存在** → 被取代的鍵必須留著。"""
+    rc, dels, err = _sandbox_prune(tmp_path, "OLLAMA_BASE_URL=http://a:11434\n")
+    assert rc == 0, err
+    assert "OLLAMA_BASE_URL" not in dels, (
+        f"取代者不存在卻刪了被取代的鍵：{sorted(dels)}")
+
+
+def test_superseded_data_comes_from_code_not_a_handwritten_list():
+    """取代關係必須來自 `env-audit` 的 `superseded_by`，不是人手維護的表。
+
+    手寫表就是「會漂移」的東西：`gateway.py` 改了 fallback 順序，那份表不會
+    跟著動，而症狀是「規則默默不生效」—— 不報錯，只是從來沒生效過。
+    """
+    src = PRUNE.read_text(encoding="utf-8")
+    assert "superseded_by" in src, "規則沒讀 env-audit 的 superseded_by"
+    assert not re.search(r"^SUPERSEDED\s*=", src, re.M), \
+        "不要自己維護一份取代關係的清單 —— 用 env-audit 的"
 
 
 # ── 條目自證 ──────────────────────────────────────────────────────────

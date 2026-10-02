@@ -157,10 +157,13 @@ def _registry():
             m = re.search(rf'^{var}="([^"]+)"', sync, re.M)
             return set(m.group(1).split()) if m else set()
 
-        reg = {k: v.compose_default for k, v in ea.build_registry().items()}
+        all_refs = ea.build_registry()
+        reg = {k: v.compose_default for k, v in all_refs.items()}
+        superseded = {k: v.superseded_by for k, v in all_refs.items()
+                      if v.superseded_by}
         # 第三個元素是**全部** per-host 鍵，不是只有機密 —— 理由見
         # _managed_elsewhere() 的說明（規格決定 per-host 鍵該不該存在）。
-        _REGISTRY = (reg, names("SHARED_SECRETS"), ea.per_host_keys())
+        _REGISTRY = (reg, names("SHARED_SECRETS"), ea.per_host_keys(), superseded)
     return _REGISTRY
 
 
@@ -187,8 +190,30 @@ def _managed_elsewhere(key: str) -> bool:
       判準是「誰決定這行該不該在」：per-host 鍵的存在是**規格**決定的
       （總表有列就三台都有），prune 無權判斷。
     """
-    _, shared, per_host = _registry()
+    _, shared, per_host, _ = _registry()
     return key in shared or key in per_host
+
+
+def _env_has_value(key: str) -> bool:
+    """`.env` 裡這個鍵**有非空值**嗎。"""
+    env = Path(__file__).resolve().parents[1] / ".env"
+    try:
+        for line in env.read_text(encoding="utf-8").splitlines():
+            m = KV.match(line.strip())
+            if m and m.group(1) == key:
+                return m.group(2).strip() != ""
+    except OSError:
+        pass
+    return False
+
+
+def _superseded_by(key: str) -> str | None:
+    """這個鍵被哪個更高優先的來源取代（沒有回 None）。
+
+    真相來源是 env-audit 的 `Ref.superseded_by` —— 那是從 compose.yaml 與
+    backend 的讀取順序推導出來的，不是人手列的。
+    """
+    return _registry()[3].get(key)
 
 
 def in_place(lines: list[str]) -> tuple[list[str], dict[str, str]]:
@@ -220,6 +245,25 @@ def in_place(lines: list[str]) -> tuple[list[str], dict[str, str]]:
             acted[key] = f"刪（值與 compose 預設相同 len={len(dflt)}）"
             i += 1
             continue
+
+        # ── 新規則：被更高優先的來源取代，且**那個來源在 .env 有值** → 刪 ──
+        # 2026-10-02 三機比對發現的指紋分歧來源之一：mbp 的
+        # `OLLAMA_BASE_URL` **有值**，而 `OLLAMA_URLS` 也有值 → 程式永遠讀不到
+        # 前者（`gateway.py` 的低優先 fallback）。所以那個值是死重量。
+        #
+        # 為什麼 DELETE 那份手寫清單抓不到：`DELETE` 的規則是「**空值** +
+        # 有預設值」，而這個鍵是**有值**也要刪 —— 兩種情況的判準不同。
+        # 手寫清單表達不了「被取代」，但程式碼可以：`Ref.superseded_by`
+        # 就是那個事實的機器可讀形式（env-audit 從 compose 推導出來的）。
+        #
+        # ⚠️ 必須「取代者真的有值」才刪：取代者空值時這個鍵**就是**有效的
+        # （那正是低優先 fallback 的用途），刪掉會讓 ollama 完全連不上。
+        sup = _superseded_by(key)
+        if sup and val.strip() and not _managed_elsewhere(key):
+            if _env_has_value(sup):
+                acted[key] = f"刪（被 {sup} 取代，而 {sup} 有值 → 讀不到這把）"
+                i += 1
+                continue
 
         # 這個鍵的說明＝它上方**連續**的註解行（碰到空行／章節標題／另一個鍵就停）
         start = len(out)
