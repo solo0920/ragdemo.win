@@ -74,6 +74,8 @@
 - **`${VAR}` 引用為空要硬失敗**：寫出空密碼的 DSN 比不寫更糟。
 - **共享憑證是啟動參數**：換值不重啟容器等於沒換。
 - **不要重跑 `--init-secrets`** —— 它是「第一台建立加密檔」用的，會覆蓋整份。
+  **唯一例外**：三把 age 私鑰同時遺失的災難復原（§12b）—— 那時值已從 `.env`
+  Recover 出來，「覆蓋整份」正是要做的。判準是**值有沒有來源**。
 - ⚠️ **共用憑證清單裡可能混著「沒有任何一台設過」的空殼**（2026-09-30 實測：
   `ZEN_API_KEY` 在共用層待了兩年，enc 檔裡是空值、沒有機台設過、`zen_ready` 永遠
   false）。**判斷一把共用憑證該不該留著，看 `secrets.common.enc.env` 裡那行有沒有
@@ -454,7 +456,8 @@ scripts/env-prune.py                # 清理：刪掉有預設的空值、註解
 （它會解密→換那一行→重加密，並驗「鍵數沒變、recipients 沒變、換完仍解得開、
 其他鍵的指紋不變」）。**不要手動 `sops -d`／改檔／`sops -e`** ——
 `--filename-override` 與 `--config` 兩個坑都在那支腳本裡註解著。
-**不要重跑 `--init-secrets`** —— 它是「第一台建立加密檔」用的，會覆蓋整份。
+**不要重跑 `--init-secrets`** —— 它是「第一台建立加密檔」用的，會覆蓋整份
+（災難復原 §12b 是唯一例外）。
 
 ⚠️ 輪換 `QDRANT_PEER_API_KEY` **有前置條件**，見 §7〈peer 那把的語意〉：
 `compose.yaml` 必須先有 `QDRANT__SERVICE__ALT_API_KEY`（M2 的範圍）並在三台部署好。
@@ -479,7 +482,125 @@ git pull && bash scripts/env-sync.sh pull && docker compose up -d
 per-host 值要改：改 `hosts.shared.env` 那一列 → commit → 各機 `render`。
 `--check` 會在 `.env` 與總表不同時失敗並列出鍵名（不印值）。
 
+## 12b. 災難復原：三把 age 私鑰同時遺失
+
+**這是整個機制唯一的真正資料遺失情境。** 先講清楚嚴重性，因為它決定該慌不慌：
+
+| 情境 | 結果 |
+|---|---|
+| 遺失**一把**私鑰 | 另外兩台照常 pull；找一台有存檔的機器裝回去即可 |
+| **三把全失**，但**任一台的 `.env` 還在** | ✅ **可完整復原** —— 下面這套程序 |
+| **三把全失**，且三台的 `.env` 都沒了 | ❌ **不可復原**。8 把憑證永久消失 |
+
+關鍵在於 **`pull` 會把 8 把值寫成明文留在各機 `.env`**（`.env` 不進版控但
+在磁碟上）。所以只要有一台活著，值就還在 —— **不需要年鑰**。
+
+> 這也是為什麼「三把私鑰分散三台、沒有任何一台有全部三把」是刻意的取捨：
+> 它降低了單點洩漏的爆炸半徑，代價是「全滅」時必須靠 `.env` 而不是年鑰。
+
+### 復原程序（2026-10-02 全程實測過，不是推理）
+
+⚠️ **順序不能反，而且「先驗證」那步有個會給你假通過的陷阱。**
+
+#### 步驟 1：在**一台還活著的機器**上確認 8 把值都在
+
+```bash
+bash scripts/env-sync.sh --fingerprints | head -8
+# 8 行都要有 len= 與 sha12=，任何一行顯示 MISSING 就先別往下走
+```
+
+`.env` 缺值 → 那台的 `pull` 曾經沒跑成功。先解決那個，否則你會用不完整的
+值重建加密檔，而且**看不出來**（步驟 3 只驗「能不能解」，不驗「值對不對」）。
+
+#### 步驟 2：產生新的年鑰，並**先**改 `.sops.yaml`
+
+```bash
+age-keygen -o ~/.config/sops/age/keys.txt        # 覆蓋舊的（舊的反正已無用）
+chmod 600 ~/.config/sops/age/keys.txt
+grep -oE 'age1[0-9a-z]+' ~/.config/sops/age/keys.txt   # 公鑰是公開的，可以回報
+```
+
+然後把 `.sops.yaml` 的 recipients **換成這把新公鑰**（三把舊的全部移除）。
+
+> ⚠️⚠️ **這一步必須在 `--init-secrets` 之前，而且不能跳過。**
+> `--init-secrets` 的 recipients 是從 `.sops.yaml` 讀的（它 `cd "$ROOT"` 讓
+> sops 從 repo 根往上找 config）。**若 `.sops.yaml` 還留著三把已失的公鑰，
+> 它會把值重新加密給那三把** —— 產出一個**沒有任何人打得開**的檔案，
+> 而且訊息是 `extracted 8 keys` / `wrote ...`，**看起來完全成功**。
+>
+> 實測：第一次就是這樣，指令回報成功，但用新私鑰（乾淨環境）解不開。
+
+#### 步驟 3：`--init-secrets --force`（這是它**唯一**該被用的情境）
+
+```bash
+bash scripts/env-sync.sh --init-secrets --force
+```
+
+它從 `.env` 抽值重新加密，**不需要先解密既有加密檔** —— 所以即使那個檔
+已經沒有任何一把私鑰解得開，這條指令照樣能跑（實測確認）。
+
+> 本專案在其他所有地方都禁止 `--init-secrets`（會覆蓋整份）。**這裡是例外**，
+> 而且是它唯一合理的用途：值已經從 `.env` Recover 出來了，「覆蓋」正是要的。
+
+#### 步驟 4：⚠️ 驗證 —— **必須清掉 `HOME`，否則會假通過**
+
+```bash
+env -u SOPS_AGE_KEY HOME=$(mktemp -d) \
+    SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt" \
+    sops -d --filename-override settings/env/secrets.common.enc.env \
+         --input-type dotenv settings/env/secrets.common.enc.env
+```
+
+**為什麼要 `-u SOPS_AGE_KEY HOME=$(mktemp -d)`** —— 這是實測踩到的：
+
+| 驗證方式 | 結果 |
+|---|---|
+| `SOPS_AGE_KEY_FILE=<新key> sops -d ...`（**不動 HOME**）| 「成功」← **假通過** |
+| 加 `env -u SOPS_AGE_KEY HOME=$(mktemp -d)` | 失敗 ← 這才是真實情況 |
+
+sops 會在 `SOPS_AGE_KEY_FILE` 之外**另外**去讀 `~/.config/sops/age/keys.txt`。
+所以若加密檔還留著別台（你有私鑰的）那些 recipient，驗證會用**那把**私鑰
+解開，於是回報成功 —— 而你以為自己驗的是新 key。**那個「成功」與新 key 無關。**
+
+#### 步驟 5：確認 recipients 只剩新 key，然後 commit
+
+```bash
+grep -c '^sops_age__list_[0-9]*__map_recipient=' settings/env/secrets.common.enc.env   # 應為 1
+pytest tests/test_sops_age_invariants.py -q          # recipients 與 .sops.yaml 必須一致
+git add .sops.yaml settings/env/secrets.common.enc.env && git commit && git push
+```
+
+`test_sops_age_invariants.py` 會擋住「.sops.yaml 與加密檔不一致」——
+那正是步驟 2 順序做錯的樣子。
+
+#### 步驟 6：其他機器
+
+```bash
+# 用安全管道把新私鑰裝過去（不要貼進聊天）
+ssh mbp 'umask 077; mkdir -p ~/.config/sops/age' 
+ssh mbp 'cat > ~/.config/sops/age/keys.txt' < ~/.config/sops/age/keys.txt
+# 然後各自 pull
+bash scripts/env-sync.sh pull
+bash scripts/env-sync.sh --fingerprints    # 三台的 8 把 sha12 必須一致
+```
+
+### 如果三台的 `.env` 也都沒了
+
+值只存在於加密檔裡，而加密檔沒有任何私鑰解得開 → **不可復原**。不要花時間
+try：唯一還能走的是回頭看有沒有任何一份 `.env` 備份（本專案的 Windows 側
+備份 `…/env/root.env` 是**其中一台**的 `.env` 明文，見 `HOST-UPGRADE.md`）。
+
+**降低風險的兩件事**（都不難，但都還沒做）：
+- 三台的 `.env` 各自加密備份一份（**分開**放，不要集中在同一台）
+- 記下三把私鑰**指紋**（`age-keygen -y` 的輸出前 12 字元即可），
+  這樣「手上這把是哪台用的」不必靠記憶
+
 ## 13. 絕對不要做的事
+
+> ⚠️ `--init-secrets` 在這裡列為「絕對不要」，但**有一個例外**：
+> 〈12b 災難復原〉。那個情境下值已從 `.env` Recover 出來，「覆蓋整份」正是
+> 要做的事，而且它是唯一能走的路。判準是**值有沒有來源**：
+> `.env` 裡 8 把齊 → 可以覆蓋；沒有 → 絕對不要（那會把 8 把值清成未知）。
 
 **權威版在 §4〈陷阱〉** —— 避免第二真相，這裡只放最要命的摘要，
 完整清單（含每條的理由）請讀 §4。
