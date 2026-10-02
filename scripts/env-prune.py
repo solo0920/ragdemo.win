@@ -70,13 +70,23 @@ DELETE = {
 }
 
 # ── 註解掉：設定了也不生效 / 是幽靈鍵 ──────────────────────────────────
+#
+# ⚠️ 理由文字裡**不要寫 `compose.yaml:NN` 的行號**（2026-10-02 修正）。
+# 這裡的五個行號全部過期 —— 宣稱 87/88/27/25/39，實際是 124/125/52/50/70，
+# 因為 compose.yaml 這半年被改過很多次。症狀很特別：讀的人照著行號去看，
+# 看到不相干的東西，於是**懷疑整個理由**，而理由本身是對的。
+#
+# `.env.example` 的行號有守衛（`test_env_audit.py` 會比對 `env-audit --template`
+# 的產出），但**這裡的行號沒有任何東西查**。所以改成引用**鍵名與值** ——
+# 那不會漂移，而且 grep 得到。
 COMMENT = {
-    "EMBED_MODEL": "compose 以字面值覆蓋（compose.yaml:87）→ 要改請改 compose，不是這裡。",
-    "RERANK_MODEL": "compose 寫死（compose.yaml:88）**且** backend/app 沒有任何消費者\n"
-                    "（幽靈分發鍵，見 settings/env/README.md §4）。",
-    "POSTGRES_DB": "compose 寫死（compose.yaml:27）。",
-    "POSTGRES_USER": "compose 寫死（compose.yaml:25）。",
-    "QDRANT_URL": "compose 寫死（compose.yaml:39），固定 http://qdrant:6333。",
+    "EMBED_MODEL": "compose 以字面值覆蓋（compose.yaml 裡 `EMBED_MODEL: bge-m3:latest`）"
+                    "→ 要改請改 compose，不是這裡。",
+    "RERANK_MODEL": "compose 寫死（`RERANK_MODEL: qllama/…`）**且** backend/app 沒有任何\n"
+                    "消費者（幽靈分發鍵，見 settings/env/README.md §4）。",
+    "POSTGRES_DB": "compose 寫死（`POSTGRES_DB: ragdemo`）。",
+    "POSTGRES_USER": "compose 寫死（`POSTGRES_USER: rag`）。",
+    "QDRANT_URL": "compose 寫死（`QDRANT_URL: http://qdrant:6333`）。",
     "QDRANT_URLS": "compose 不傳這個變數；容器化後它對容器**完全無作用**\n"
                    "（gateway.py:74 讀不到 → 走 QDRANT_URL）。若本機曾填過 tailscale IP，\n"
                    "那是已過期值 —— 留著只會在原生執行時誤導。",
