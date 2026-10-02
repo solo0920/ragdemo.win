@@ -39,21 +39,47 @@ render 之後總表被清掉留下的殘留。
 若是紅的，那就是真實漂移，處分方式（保留並補總表列／刪掉 `.env` 那行）
 取決於 mbp 到底要不要用本機 ollama。
 
-### B. `POSTGRES_DSN` 在 x570 走的是**另一條路** ⚠️
+### B. `POSTGRES_DSN` 在 x570 走的是**另一條路** ⚠️ → **已解決（2026-10-02 19:40）：是假警報，我說反了**
 
-| 機台 | `.env` | 實際怎麼拿到 DSN |
-|---|---|---|
-| x570 | ABSENT | compose 預設 `postgresql://rag:${POSTGRES_PASSWORD}@postgres:5432/ragdemo` |
-| mbp／wsl | SET | 總表 per-host 列 |
+**原本的說法（錯的）**：x570 的 `.env` 沒有 `POSTGRES_DSN` → 它吃的是
+compose 預設；mbp／wsl 走的是總表 → **兩種機制、兩份可能漂移的設定**，
+「改了 `POSTGRES_PASSWORD` 而忘了改總表的 DSN，就會有台連不上」。
 
-**兩種機制、同一個目的地。** 不一定壞（compose 預設把密碼插進去，所以應該能通），
-但那是**兩份可能漂移的設定**：mbp/wsl 的 DSN 在總表裡，x570 的在 compose 裡。
-改了 `POSTGRES_PASSWORD` 而忘了改總表的 DSN，就會有台連不上 —— 而症狀是
-「那台的 ingest 失敗，查詢正常」。
+**x570 的回報推翻了它（對的）**，而實測也支持它：
 
-⚠️ **`POSTGRES_DSN` 裡的密碼必須等於該機的 `POSTGRES_PASSWORD`。**
-這件事沒有任何測試在查，`--check` 也只驗「per-host 值與總表一致」，
-不驗「DSN 內的密碼對不對」。**三台各自驗一次（只印是否相符，不印值）。**
+```
+總表（被追蹤檔）：
+  x570_POSTGRES_DSN=                                                   ← 空
+  mbp_POSTGRES_DSN=postgresql://rag:${POSTGRES_PASSWORD}@postgres:5432/ragdemo
+  wsl_POSTGRES_DSN=postgresql://rag:${POSTGRES_PASSWORD}@postgres:5432/ragdemo
+
+compose 預設：${POSTGRES_DSN:-postgresql://rag:${POSTGRES_PASSWORD:?…}@postgres:5432/ragdemo}
+```
+
+**兩邊都是 `${POSTGRES_PASSWORD}` 佔位符。** `render --expand` 在每次 render
+時用該機自己的 `POSTGRES_PASSWORD` 展開，compose 預設則在每次啟動時插值 ——
+**兩種來源產生完全相同的結果，而且都沒有靜態憑證**。
+
+實測（wsl，只比 sha12）：
+
+```
+postgres 的 POSTGRES_PASSWORD  sha12 = e328bd31728a
+api 的 DSN 內嵌密碼            sha12 = e328bd31728a   ★相同
+api → postgres:5432            TCP 可達 ✓
+```
+
+**風險方向是反的，而且沒有風險**：三台的 DSN 都**每次從
+`POSTGRES_PASSWORD` 重新推導**，所以不存在「總表裡的靜態密碼過期」這件事。
+被追蹤的總表裡也**沒有任何明文密碼**（那三列都是佔位符或空值）。
+
+⚠️ **我為什麼會搞錯**：我從「`.env` 裡有沒有那一行」去推斷行為，沒有去看
+那一行的**值是什麼**。`${POSTGRES_PASSWORD}` 與一個靜態密碼在畫面上只差
+`${}` 三個字元，兩種機制的行為卻完全一樣 —— 而我看到「兩種機制」就下了
+「兩份可能漂移的設定」的結論。
+
+**這是本專案反覆出現的同一類錯誤**：從**檔案的形狀**推論**行為**，
+而正確做法是去看那個值怎麼被解析。`env-sync.sh --check` 的值檢查、
+`env-audit.py` 的讀取點，都是為了讓「值怎麼被解析」變成可查的東西。
 
 ### C. `TS_IP` 只有 wsl 缺 → **已解決（2026-10-02 18:50）**
 
@@ -99,7 +125,47 @@ http://msi.tailfe3f3d.ts.net:11434 → HTTP 200
 的「值＝預設」規則會自動刪掉空行。**不需要把它寫進任何手寫清單。**
 
 
+`env-sync.sh --check` 報：
+
+```
+⚠️ 1 個 per-host 鍵在總表的 x570 列是空的，該機沿用自己的值…: HOST_MACHINE_ID
+```
+
+`registry.py:65` 的取得順序是 `HOST_MACHINE_ID` 環境變數 → 檔案
+`/run/secrets/host-machine-id`（**容器裡沒有那個 mount**）→ `/etc/machine-id`
+→ 都拿不到才退化成 MAC 並告警。
+
+⚠️ **`/etc/machine-id` 是弱識別，而且容器每次重建都會變。** 若 x570 落到
+那一層，它在 registry 的識別會**隨容器重建而改變** —— 而 registry 是三機互相
+發現彼此的依據。症狀是「某台的 registry 條目無故換掉」。
+
+**處置**：在總表補上 `x570_HOST_MACHINE_ID=` 的值（該機自己的 machine-id
+雜湊）。那不是憑證（mbp／wsl 的值本來就在被追蹤的總表裡），所以由 x570 自己
+填那一行即可。
+
+
+
 ---
+
+### F. x570 的 `HOST_MACHINE_ID` 沒人管（新，2026-10-02 19:40）
+
+`env-sync.sh --check` 報：
+
+```
+⚠️ 1 個 per-host 鍵在總表的 x570 列是空的，該機沿用自己的值…: HOST_MACHINE_ID
+```
+
+`registry.py:65` 的取得順序是 `HOST_MACHINE_ID` 環境變數 → 檔案
+`/run/secrets/host-machine-id`（**容器裡沒有那個 mount**）→ `/etc/machine-id`
+→ 都拿不到才退化成 MAC 並告警。
+
+⚠️ **`/etc/machine-id` 是弱識別，而且容器每次重建都會變。** 若 x570 落到
+那一層，它在 registry 的識別會**隨容器重建而改變** —— 而 registry 是三機互相
+發現彼此的依據。症狀是「某台的 registry 條目無故換掉」。
+
+**處置**：在總表補上 `x570_HOST_MACHINE_ID=` 的值（該機自己的 machine-id
+雜湊）。那不是憑證（mbp／wsl 的值本來就在被追蹤的總表裡），所以由 x570 自己
+填那一行即可。
 
 ## 二、機械性的統一（15 鍵，零行為變更，已在本機驗證）
 

@@ -2,51 +2,66 @@
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
-## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 18:20）
+## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 19:50）
 
-規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §五（執行步驟）。摘要：
+**先謝謝 §一 B 那份回報 —— 它推翻了我規格裡的一條錯誤結論。** 那一條我寫反了
+（說 x570 走 compose 預設是「漂移風險」，實際上三台的 DSN 都是
+`${POSTGRES_PASSWORD}` 佔位符，每次 render／啟動都從該機的 `POSTGRES_PASSWORD`
+重新推導，**沒有靜態憑證、沒有漂移風險**）。已在 `ENV-SPEC.md §一 B` 修正。
+也謝謝你指出 `HOST_MACHINE_ID` 沒人管 —— 那是真的，見下面第 3 步。
+
+規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §五（執行步驟）。
+
+### 1. 遷移（你還沒做這一步 —— 你的 `--check` 只有 4 個 per-host 鍵、26 鍵檔案）
 
 ```bash
 git pull
 python3 scripts/env-audit.py --template > .env.example
 python3 scripts/env-relayout.py --dry-run      # 先看數字
 python3 scripts/env-relayout.py
-python3 scripts/env-prune.py --dry-run         # 會自動刪「值＝compose 預設」
+python3 scripts/env-prune.py --dry-run
 python3 scripts/env-prune.py
 bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
-bash scripts/env-sync.sh --check | head -1     # 指紋必須 = eab0ab8f9d4e
+bash scripts/env-sync.sh --check | head -1
 ```
 
-⚠️ **那個指紋是唯一的驗收。** 不同就是規格沒達成，把差異回報上來。
+⚠️ **驗收：版面指紋必須 = `27 keys, layout sha12=eab0ab8f9d4e`**
+（mbp 已達成）。不同的話把完整輸出貼回來。
 
-### 順便查一件只有你能查的事（§一 B）
+⚠️ 確認上面都成功、值也對之後，**手動刪掉 `.env.relayout.bak`** ——
+那是整份 `.env` 的明文副本。prune 產生的 `~/.ragdemo-env.bak-*` 也是，
+留一份就夠了。
 
-比對三台的欄位發現：**x570 的 `POSTGRES_DSN` 沒有值**（總表 `x570_POSTGRES_DSN`
-那列是空的），所以 x570 吃的是 **compose 預設**的 DSN；而 mbp／wsl 走的是總表。
-**兩種機制、同一個目的地** —— 等於兩份可能漂移的設定：改了 `POSTGRES_PASSWORD`
-而忘了改總表的 DSN，就會有台連不上，而症狀是「ingest 失敗、查詢正常」。
+### 2. `OLLAMA_URLS` 在你這台會是空的 —— 那是**正確的**
 
-先回報**現況**，不要先改：
+總表的 `x570_OLLAMA_URLS` 是空值 → 你不吃 ollama ingest 路徑。規格要求
+`OLLAMA` 與 `OLLAMA_URLS` **這兩行三台都要有**（值可以不同），relayout 會補上
+空行。若 prune 把那個空行刪了，指紋就對不上 —— 那不該發生，有測試守著。
+
+### 3. 補 `x570_HOST_MACHINE_ID`（真的沒人管的那一個）
+
+`registry.py:65` 的順序是 環境變數 → `/run/secrets/host-machine-id`
+（**容器裡沒有那個 mount**）→ `/etc/machine-id` → 都沒有才退化成 MAC 並告警。
+
+⚠️ **`/etc/machine-id` 是弱識別，而且容器每次重建都會變** —— 你在 registry
+的識別會隨容器重建而改掉，而 registry 是三機互相發現的依據。
 
 ```bash
-# 1. x570 現在實際連到哪？（只印 host/port，不印密碼）
-python3 - <<'EOF'
-import re, pathlib, os, re as _re
-d = {}
-for l in pathlib.Path(".env").read_text(encoding="utf-8").splitlines():
-    m = _re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", l)
-    if m: d[m.group(1)] = m.group(2)
-dsn = d.get("POSTGRES_DSN", "")
-print("POSTGRES_DSN:", "有值" if dsn else "沒有（吃 compose 預設）")
-if dsn:
-    m = _re.search(r"://[^:]*:([^@]*)@([^:/]*):?(\d*)", dsn)
-    if m: print(f"  host={m.group(2)} port={m.group(3) or '5432'} 密碼與 POSTGRES_PASSWORD 相符: "
-                + ("是 ✓" if m.group(1)==d.get("POSTGRES_PASSWORD","") else "否 ✗"))
-EOF
-# 2. postgres 現在能不能連
-docker compose exec -T postgres pg_isready 2>&1 | tail -1
-bash scripts/env-sync.sh --check 2>&1 | tail -3
+# 這不是憑證（mbp／wsl 的值本來就在被追蹤的總表裡），所以直接填進總表
+grep -n '^wsl_HOST_MACHINE_ID=\|^mbp_HOST_MACHINE_ID=' settings/env/hosts.shared.env
+# 把你那台的 machine-id 雜湊填成同一格式的第 94 行位置（x570_HOST_MACHINE_ID=）
+python3 -c "import hashlib,pathlib;print(hashlib.sha256(pathlib.Path('/etc/machine-id').read_bytes().strip()).hexdigest())"
 ```
+
+⚠️ **要確認那個值是「容器看到的」而不是「主機看到的」** —— 若不一致，
+以容器內的值為準並回報。填完 commit，然後 `bash scripts/env-sync.sh render`
+再 `bash scripts/env-sync.sh --check` 確認 `HOST_MACHINE_ID` 不再出現在
+那條 ⚠️ 裡。
+
+### 4. `POSTGRES_DSN` —— 已經確認沒問題，不用動
+
+你的回報是對的，實測也支持：三台的 DSN 都是 `${POSTGRES_PASSWORD}` 佔位符，
+每次都從該機自己的密碼重新推導。**總表裡沒有任何明文密碼。**
 
 ## ★★★ 接下來還有兩件事（2026-10-02 02:40 指派）
 
