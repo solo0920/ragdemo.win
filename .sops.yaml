@@ -16,8 +16,11 @@ creation_rules:
   - path_regex: settings/env/secrets\..*\.enc\.env$
     age:
       # wsl（2026-09-27 建於 MSI WSL；2026-10-01 主機改名 msi → wsl，公鑰未變）
+      #   ↑ 指紋 sha12=7ae8a4ece196（公鑰的 sha256 前 12；看到一把不认识的 key 先比這個）
       - age19et4d4etz4ptsp2s58838ffmfgzq8sfw3c775xc2gewgh74wtexqgej86q
       # x570（2026-09-30 報；x570 產生，1.2.1 產生／1.3.2 驗證可讀，公鑰未變）
+      #   ↑ 指紋 sha12=4b8b8ad59c60（公鑰的 sha256 前 12；看到一把不认识的 key 先比這個）
       - age1sp8tja87waq6zgxmpxjsf3tduvmacanknejg34xhqv0uvmwcyfgshfxu45
       # mbp（2026-09-30 報；mbp 產生，age 1.3.2 + sops 3.13.3）
+      #   ↑ 指紋 sha12=768a5e480e87（公鑰的 sha256 前 12；看到一把不认识的 key 先比這個）
       - age1hxmyltm9xhnxzmsjwqfwvpgduy2ltkvjgjv0t6wpqh0xglaw39sqe0tulm

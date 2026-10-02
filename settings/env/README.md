@@ -590,10 +590,78 @@ bash scripts/env-sync.sh --fingerprints    # 三台的 8 把 sha12 必須一致
 try：唯一還能走的是回頭看有沒有任何一份 `.env` 備份（本專案的 Windows 側
 備份 `…/env/root.env` 是**其中一台**的 `.env` 明文，見 `HOST-UPGRADE.md`）。
 
-**降低風險的兩件事**（都不難，但都還沒做）：
-- 三台的 `.env` 各自加密備份一份（**分開**放，不要集中在同一台）
-- 記下三把私鑰**指紋**（`age-keygen -y` 的輸出前 12 字元即可），
-  這樣「手上這把是哪台用的」不必靠記憶
+**降低風險的兩件事（2026-10-02 已做）**：
+- ✅ **per-host 機密的備份** → `scripts/backup-env.sh`，見 §12c。
+  只備份**不可重建**的那 2 把（其餘三層都另有來源），各自加密、三台分開放。
+  ⚠️ 它的可靠性取決於 age 私鑰備份 —— 那是鏈的下一環。
+- ✅ **三把私鑰的指紋** → 寫在 `.sops.yaml` 每把公鑰旁邊
+  （`sha12=`，公鑰的 sha256 前 12）。這樣「手上這把是哪台用的」不必靠記憶，
+  也不必靠「前三個字元」—— mbp 與 wsl 的 `age1…` 前 12 幾乎一樣，光看前綴
+  分不出來。
+  `tests/test_sops_age_invariants.py` 會驗指紋**真的等於**那把公鑰，
+  因為註解不會被任何程式檢查，不驗就會變成又一份會漂移的真相。
+
+## 12c. per-host 機密的備份（`.env` 裡唯一不可重建的東西）
+
+**為什麼只備份 2 把，不是整份 `.env`** —— `.env` 的 39 個鍵分三層：
+
+| 層 | 鍵數 | 別台有嗎 | 丟了會怎樣 |
+|---|---|---|---|
+| 共用憑證 | 8 | 有（`pull` 寫的明文）| 走 §12b 災難復原 |
+| **per-host 機密** | **2** | **沒有**（刻意不進 sops）| **永久消失** |
+| 設定值 | 29 | 可 `render` 重建 | 重新 render |
+
+那 2 把是 `QDRANT_API_KEY` 與 `POSTGRES_PASSWORD`，**每一把只存在於一台**。
+`QDRANT_API_KEY` 丟了 = 該機的 qdrant 讀不到；`POSTGRES_PASSWORD` 丟了 = 該機的
+pg 打不開。值是當初隨機選出來的，**沒有任何來源可以重建** —— 而它們刻意不在
+sops 裡（「不分發」是這兩把的定義本身）。
+
+備份整份 `.env` 會做兩件壞事：把 8 把共用憑證變成**第二份副本**（多一份要輪換
+的東西，而輪換時最容易漏掉「不在 sops 裡的那份」），以及擴大不必要的曝露面。
+
+### 用法
+
+```bash
+bash scripts/backup-env.sh --print-fingerprints
+# 預設寫到 ~/ragdemo-backup/<HOST_ID>-perhost-secrets.env.age
+# --out DIR 可換位置，但**必須在 repo 之外**
+```
+
+三台**各自**跑，產物自然分散在三台機器上（這就是「分開放」的作法 ——
+不集中，就不會一次全滅）。
+
+### 為什麼加密給**自己**的公鑰
+
+per-host 機密「不分發」是這個專案刻意維持的邊界（`env-sync.sh` 的
+`PER_HOST_SECRETS` 註解：「絕不可把它們寫進 .env、絕不可加進 py_apply 的任何
+layer」）。加密給別台的公鑰等於讓別台能解密它，那條線就破了。
+
+自己解自己在實務上夠用：本機磁碟掛掉時 age 私鑰也一起沒了，但私鑰另有備份 ——
+鏈是「磁碟掛 → 從私鑰備份拿回私鑰 → 解開這份備份」。
+
+> ⚠️ **所以這份備份的可靠性完全取決於 age 私鑰備份。** 私鑰備份沒做或過期，
+> 這份就是一份解不開的檔案。兩者必須一起做，`backup-env.sh` 每次都提醒這件事。
+
+### 復原
+
+```bash
+age -d -i ~/.config/sops/age/keys.txt ~/ragdemo-backup/<HOST_ID>-perhost-secrets.env.age
+# 印出 QDRANT_API_KEY=…  POSTGRES_PASSWORD=…，寫回該機 .env 後
+docker compose up -d --build api
+```
+
+### 什麼時候該重跑
+
+這兩把**不隨共用憑證輪換**（那是 sops 那一層的事）。要重跑的情況：
+`.env` 被改過、更換了 age 私鑰、或距離上次超過你覺得該換的週期。
+判斷是否需要更新，比的是指紋：
+
+```bash
+bash scripts/backup-env.sh --print-fingerprints
+# 把 QDRANT_API_KEY / POSTGRES_PASSWORD 的 sha12 跟上次回報的對照
+```
+
+---
 
 ## 13. 絕對不要做的事
 

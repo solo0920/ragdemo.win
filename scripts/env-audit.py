@@ -132,6 +132,24 @@ TOOL_ENV = {
     # .env.example，等於在文件裡邀請人設一個只給測試用的變數 —— 那個變數設錯
     # 會讓腳本操作另一個目錄的加密檔。
     "ROTATE_SECRET_ROOT_OVERRIDE",
+    # sops 官方的私鑰路徑變數。同樣是「工具的」不是「專案的」——
+    # 它由呼叫者的環境決定，而 .env 是在腳本**內部**被 `set -a; . .env` 讀進來的
+    # （rotate-secret.sh 不讀 .env、backup-env.sh 也不讀），所以在 .env 裡設它
+    # **不會生效**，只會在 .env.example 多一行誤導人的東西。
+    #
+    # 為什麼之前沒被報、2026-10-02 加了 backup-env.sh 才被報出來（成因很細）：
+    # env-audit 的 shell 反查會把「同檔內自己賦值的」視為 local 而跳過，而
+    # env-sync.sh:395 與 rotate-secret.sh:177 寫的是
+    #     SOPS_AGE_KEY_FILE="$KEYFILE" sops --decrypt …
+    # —— 以 `SOPS_AGE_KEY_FILE=` **開頭**（賦值給自己），於是自動跳過。
+    # 而 backup-env.sh:32 寫的是
+    #     KEYS_FILE="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+    # —— 賦值的是 KEYS_FILE，SOPS_AGE_KEY_FILE 是純讀取 → 被判定成
+    # 「該暴露給使用者調的參數」→ --template 多印一行 → 與 .env.example
+    # 不一致 → pre-push 與 CI 紅燈。
+    # 換句話說：**同一件事的兩種寫法，只因為位置不同而有不同的稽核結果** ——
+    # 那正是白名單存在的理由。
+    "SOPS_AGE_KEY_FILE",
 }
 
 SECRET_HINT = re.compile(r"(KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)", re.I)

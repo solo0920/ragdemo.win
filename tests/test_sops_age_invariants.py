@@ -173,3 +173,54 @@ def test_public_keys_are_not_secret_so_tracking_them_is_intended():
     `age1...` 可能會當成憑證值想辦法清掉，而清掉之後所有機器都 pull 不到。
     """
     assert _yaml_recipients(), ".sops.yaml 的 recipients 是空的 —— 所有機器都會 pull 失敗"
+
+
+# ── 公鑰指紋：分不清「手上這把是哪台用的」────────────────────────────
+
+def test_each_recipient_has_a_fingerprint_next_to_it():
+    """每把公鑰旁邊都要有它的指紋。
+
+    為什麼需要：三把公鑰是三行長度相同的字串，`age1…` 前 12 個字元也只有
+    wsl／x570 看得出差異（mbp 與 wsl 前 12 幾乎一樣）。**沒有指紋時，
+    「我手上這把私鑰是哪一台的」只能靠記憶或逐一試錯** —— 而試錯的失敗模式
+    是移除**別台**的公鑰，那台之後 `pull` 失敗且沒有任何提示。
+
+    指紋是公鑰的 sha256 前 12 字元（公鑰本來就是公開的，指紋不洩漏任何東西）。
+    """
+    lines = SOPS_YAML.read_text(encoding="utf-8").splitlines()
+    missing = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("- age1"):
+            ctx = "\n".join(lines[max(0, i - 3):i])
+            if "sha12=" not in ctx:
+                missing.append(line.strip()[:22])
+    assert not missing, (
+        f"這些公鑰旁邊沒有指紋：{missing}。"
+        "指紋是公鑰的 sha256 前 12 字元，用 age-keygen -y 取得後 sha256sum 一下就有"
+    )
+
+
+def test_fingerprints_match_the_actual_public_keys():
+    """註解裡的指紋必須真的等於那把公鑰的 sha256 前 12。
+
+    Friction 點：這兩行都是註解，而註解不會被任何程式驗證 —— 若不檢查，
+    「指紋」會變成又一份會漂移的真相（而它存在的理由就是防止漂移）。
+    實測：`test_env_sync.py` 那條舊測試就是這樣抓不到東西的。
+    """
+    import hashlib
+    lines = SOPS_YAML.read_text(encoding="utf-8").splitlines()
+    checked = 0
+    for i, line in enumerate(lines):
+        m = re.search(r"- (age1[0-9a-z]+)\s*$", line)
+        if not m:
+            continue
+        key = m.group(1)
+        ctx = "\n".join(lines[max(0, i - 3):i])
+        fp = re.search(r"sha12=([0-9a-f]{12})", ctx)
+        assert fp, f"{key[:16]}… 旁邊沒有指紋"
+        want = hashlib.sha256(key.encode()).hexdigest()[:12]
+        assert fp.group(1) == want, (
+            f"{key[:16]}… 的指紋寫錯了：註解說 {fp.group(1)}，實際是 {want}"
+        )
+        checked += 1
+    assert checked == 3, f"應檢查到 3 把公鑰，實際 {checked}"
