@@ -43,15 +43,54 @@ if [ "${1:-}" = "--status" ]; then
   exit 0
 fi
 
-# flock：避免 cron 重疊或使用者手動同時觸發，跑兩次
-exec 9>"$OPS/.worker.lock"
-if ! flock -n 9; then
-  log "另一個 worker 實例執行中，跳過"
-  exit 0
+# 互斥：避免 cron 重疊或使用者手動同時觸發，跑兩次
+#
+# ⚠️ macOS 沒有 flock(1)（那是 util-linux 的東西）。2026-10-01 mbp 實測
+#    `flock -n 9` 回 127（command not found）→ `! 127` 為真 → 每分鐘都記
+#    「另一個 worker 實例執行中，跳過」再 exit 0。**症狀看起來像正常的排程去重，
+#    實際是 worker 在 macOS 上一次都沒執行過**，前端「更新」按鈕因此是死的。
+#    而且 log 會一直出現，看久了會被當成「正常」。
+#
+# 有 flock 就走原路（Linux 行為完全不變）；沒有就退回 mkdir —— 在 POSIX 檔案
+# 系統上 mkdir 是原子的，所以同樣能當鎖。
+LOCKDIR="$OPS/.worker.lock.d"
+LOCK_HELD=0
+# ⚠️ 這個 trap 必須**先**設：下面第 53 行 `[ -f "$REQ" ] || exit 0`（沒有請求，
+#    也就是每分鐘的正常情況）會在取得鎖之後立刻離開。若等到有 $RUN 才設 trap，
+#    鎖就會每分鐘洩漏一次，第 54 行起從此再也拿不到鎖 —— 而洩漏的鎖看起來
+#    又是「另一個實例執行中」，症狀與上面那個 bug 幾乎一樣難查。
+_worker_cleanup() {
+  [ -n "${RUN:-}" ] && rm -f "$RUN"
+  [ "$LOCK_HELD" = 1 ] && rmdir "$LOCKDIR" 2>/dev/null
+  return 0
+}
+trap _worker_cleanup EXIT
+
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$OPS/.worker.lock"
+  if ! flock -n 9; then
+    log "另一個 worker 實例執行中，跳過"
+    exit 0
+  fi
+else
+  if ! mkdir "$LOCKDIR" 2>/dev/null; then
+    owner="$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")"
+    if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+      log "另一個 worker 實例執行中（pid ${owner}），跳過"
+      exit 0
+    fi
+    # pid 已不在 → 上次是被 kill -9，不會跑 EXIT trap，鎖是殘留的。
+    # 不清的話這臺機器的 worker 會從此永遠跳過。
+    log "清除殘留鎖（pid ${owner:-未知} 已不存在）"
+    rm -rf "$LOCKDIR"
+    mkdir "$LOCKDIR" 2>/dev/null || { log "另一個 worker 實例執行中，跳過"; exit 0; }
+  fi
+  LOCK_HELD=1
+  printf '%s\n' "$$" >"$LOCKDIR/pid"
 fi
 
 [ -f "$REQ" ] || exit 0        # 沒請求 → 正常情況，靜默退出
-[ -f "$ENV_FILE" ] || { log "找不到 $ENV_FILE，放棄"; exit 1; }
+[ -f "$ENV_FILE" ] || { log "找不到 ${ENV_FILE}，放棄"; exit 1; }
 
 set -a; . "$ENV_FILE"; set +a
 TS_IP="${TS_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
@@ -89,7 +128,7 @@ PY
   exit 1
 fi
 
-log "開始更新（角色=$ROLE）: $CMD"
+log "開始更新（角色=${ROLE}）: $CMD"
 START=$(date +%s)
 OUT="$OPS/.last-output.log"
 ( cd "$ROOT" && eval "$CMD" ) >"$OUT" 2>&1
@@ -125,7 +164,7 @@ pathlib.Path(path).write_text(json.dumps({
 PY
 
 rm -f "$REQ"
-log "更新結束 rc=$RC（$((END-START))s）version=${TAILOUT:0:0}$(python3 -c "
+log "更新結束 rc=${RC}（$((END-START))s）version=${TAILOUT:0:0}$(python3 -c "
 import json,sys
 try: print(json.load(open('$STATUS'))['version'] or '(無)')
 except Exception: print('(讀不到)')")"

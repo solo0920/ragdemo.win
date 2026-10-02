@@ -342,7 +342,7 @@ step_verify() {
 }
 
 # ── 主流程 ───────────────────────────────────────────────────────────────────
-hdr "host-sync on $(host_id_of)（$ROOT）"
+hdr "host-sync on $(host_id_of)（${ROOT}）"
 if [ "$DRY" -eq 1 ]; then
   say "模式: dry-run（不寫檔、不 fetch、不切 ref、不動容器）"
 fi

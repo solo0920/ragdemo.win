@@ -193,7 +193,7 @@ for l in open(sys.argv[1],encoding='utf-8'):
 #     使用者以為換掉了，實際上舊值還在流（這比 die 危險得多）
 if [ "$ADD" = "1" ]; then
   [ -z "$OLD" ] || die "$KEY 已經在加密檔裡了（len=${#OLD}）—— 那是換值，不是新增；拿掉 --add"
-  echo "rotate-secret: $KEY（新增）"
+  echo "rotate-secret: ${KEY}（新增）"
   info "加密檔裡原本沒有這把；其他鍵不動"
 else
   [ -n "$OLD" ] || die "key not found in decrypted file: $KEY
