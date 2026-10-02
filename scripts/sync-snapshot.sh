@@ -80,6 +80,16 @@ auth_precheck() {
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$ROOT/data/laws/.law_version"
 
+# 寫 .law_version 的唯一出口（2026-10-02 抽出來給兩條路共用）。
+# 兩條路徑必須產出**同一種語意**：`update_date`＝這批法規是哪天的、
+# `raw`＝上游原值（稽核用）、`synced_at`＝**上次確認同步的時間**。
+# 分成兩份寫的時候，其中一份漏了 synced_at，欄位語意就走樣了（實測踩過）。
+_write_law_version() {
+  printf '{"update_date": "%s", "raw": "%s", "source": "%s", "synced_at": "%s"}\n' \
+    "$1" "$2" "$SOURCE" "$(date '+%F %T')" >"$VERSION_FILE.tmp" \
+    && mv "$VERSION_FILE.tmp" "$VERSION_FILE"
+}
+
 # 自動載入 .env（單一真相來源＝repo 根那份，與 compose 同檔）。
 # 2026-09-26 收斂：原本呼叫端要自己 source backend/.env，crontab 就得寫
 # `set -a; . .../backend/.env; set +a;`，而那份與根 .env 是兩份副本 ——
@@ -178,15 +188,35 @@ header = \"CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}\""
 log "law version: 取不到（src_api=${SRC_API}；來源機的 sync_daily.py 還沒跑過、該網址不通、或 Cloudflare Access 拒絕——後者要查 CF_ACCESS_CLIENT_ID/SECRET 有沒有設）"
     return 0
   fi
-  # 版本沒變就不重寫，避免每 10 分鐘動一次 mtime
   old="$(python3 -c 'import json,sys
 try: print(json.load(open(sys.argv[1])).get("update_date",""))
 except Exception: print("")' "$VERSION_FILE" 2>/dev/null)"
+  mkdir -p "$(dirname "$VERSION_FILE")"
+
+  # ⚠️⚠️ 2026-10-02 修正：**版本沒變時也要刷新 `synced_at`**。
+  #
+  # 原本這裡是 `return 0`，而 `synced_at` 只在版本**變化**時才寫 —— 所以它表達的
+  # 是「上次**法規版本變了**」，不是「上次**同步跑了**」。上游沒發新版時它永遠不動，
+  # 而那正是正常狀態（上游可能幾週才發一次）。
+  #
+  # 後果：`host-doctor` 讀 `synced_at` 判陳舊度 → **結構性誤報**。實測
+  # 2026-10-02 mbp 回報：log 最後一行是
+  #     [2026-10-02 23:17:29] unchanged (39879 points), skip
+  # —— 同步**有在跑而且成功**，而 doctor 說「快照已 25 小時沒成功更新」。
+  #
+  # 原註解給的理由是「避免每 10 分鐘動一次 mtime」。查證過：`data/laws/*` 已被
+  # gitignore（`git check-ignore` 確認，只剩 `.gitkeep` 進版控），**動 mtime 無害**。
+  # 而那個理由是用一個無害的成本，換來一個會說謊的欄位。
   if [ "$old" = "$ver" ]; then
-    log "law version unchanged ($ver)"
+    # raw 要沿用**檔案裡既有的**（上游現在回的是正規化的字串，raw 是稽核用的原值）
+    raw_old="$(python3 -c 'import json,sys
+try:
+    d=json.load(open(sys.argv[1])); print(d.get("raw") or d.get("update_date",""))
+except Exception: print("")' "$VERSION_FILE" 2>/dev/null)"
+    _write_law_version "$old" "${raw_old:-$ver}"
+    log "law version unchanged ($ver)（synced_at 已刷新）"
     return 0
   fi
-  mkdir -p "$(dirname "$VERSION_FILE")"
   # 正規化成 ISO：官方 UpdateDate 是中文格式（「2026/9/18 上午 12:00:00」），
   # 前端要比對新舊、判斷本機是否落後，需要可比較的字串。raw 保留原值供稽核。
   raw="$ver"
@@ -204,10 +234,8 @@ else:
     log "law version 無法解析成 ISO 日期（raw=${raw}），不寫入"
     return 0
   fi
-  printf '{"update_date": "%s", "raw": "%s", "source": "%s", "synced_at": "%s"}\n' \
-    "$ver_iso" "$raw" "$SOURCE" "$(date '+%F %T')" >"$VERSION_FILE.tmp" \
-    && mv "$VERSION_FILE.tmp" "$VERSION_FILE" \
-    && log "law version updated: $old -> ${ver_iso}（raw=${raw}）"
+  _write_law_version "$ver_iso" "$raw"
+  log "law version updated: $old -> ${ver_iso}（raw=${raw}）"
 }
 
 # 1) source 在線？

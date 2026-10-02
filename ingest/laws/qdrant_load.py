@@ -20,23 +20,34 @@ ROOT = Path(__file__).resolve().parents[2]
 # 實作（過去這裡另有一份 byte-identical 的 sparse.py，兩邊各自演化已經分叉的風險）。
 sys.path.insert(0, str(ROOT / "backend"))
 from app.common.jsonl import load_jsonl  # noqa: E402  # pg_load.py 共用同一份
+import _hostenv  # noqa: E402  # 主機端環境變數（載入 .env＋改寫容器主機名）
 from app.common.sparse import sparse_vector  # noqa: E402
 
 DATA = ROOT / "data" / "laws"
 # ingest 跑在 host 端（不是容器內），所以預設就是本機 ollama。
 # 舊預設是 x570 的 tailscale IP：一台沒設 OLLAMA 的新機器會去戳別台機器的 ollama，
 # 然後把「連不上」誤認成「嵌入失敗」，除錯方向整個跑掉。
-OLLAMA = os.getenv("OLLAMA") or "http://127.0.0.1:11434".rstrip("/")
-QDRANT = os.getenv("QDRANT") or "http://localhost:6333".rstrip("/")
+# ⚠️ 2026-10-02：**顯式**載入，不要靠行序。
+# 下面 `QDRANT_API_KEY`／`EMBED_MODEL` 是用 os.getenv 讀的，而 .env 是在
+# `_hostenv.host_*()` 裡才載入的 —— 第一版靠「33/34 行剛好先呼叫過」這個**行序巧合**
+# 才讀得到值。誰把那些行往上挪或往下移，就會**靜默**退回空字串（→ 不帶 key → 401），
+# 而且沒有任何錯誤。所以這裡明寫一次。
+_hostenv.load_host_env()
+
+# ⚠️ 2026-10-02：這三個 fallback 在主機上全是壞的（見 _hostenv.py 的說明）。
+# qdrant 只綁 ${TS_IP}:6333、API key 沒帶會 401，所以「安靜地退回 localhost」
+# 只會讓腳本看起來跑完了，實際上什麼都沒寫進去。
+OLLAMA = _hostenv.host_ollama_url().rstrip("/")
+QDRANT = _hostenv.host_qdrant_url().rstrip("/")
 # qdrant 啟用 QDRANT__SERVICE__API_KEY 後，所有請求都要帶 api-key header，
 # 否則 401（實測）。compose.yaml:15 有設那個 key，所以這支腳本一定要帶。
 # 讀不到值時不帶 header —— 讓無認證的 qdrant（本機測試）仍能用。
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
+QDRANT_API_KEY = (os.getenv("QDRANT_API_KEY") or "").strip()
 QDRANT_HEADERS = {"api-key": QDRANT_API_KEY} if QDRANT_API_KEY else {}
 # `or` 不是多餘的：.env 裡 `EMBED_MODEL=`（存在但空）會讓 os.getenv 回空字串，
 # 送出 {'model': ''} → ollama 回 404 "model '' not found"（實測踩到）。
 # 與 tests/test_env_empty_values.py 鎖的是同一件事。
-EMBED_MODEL = os.getenv("EMBED_MODEL") or "bge-m3:latest"
+EMBED_MODEL = (os.getenv("EMBED_MODEL") or "").strip() or "bge-m3:latest"
 COLLECTION = "laws"
 DENSE = 1024
 MAX_DOC = 7900

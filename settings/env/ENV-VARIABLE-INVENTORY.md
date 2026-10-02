@@ -41,7 +41,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | 變數 | 誰讀 | 用途 | x570 | mbp | wsl | 決策 |
 |---|---|---|---|---|---|---|
 | `POSTGRES_PASSWORD` | compose.yaml:51, compose.yaml:74 | 必填；憑證 | 待填 | 待填 | SET | **留** — per-host 機密，只存在這台，刪了永久損失 |
-| `QDRANT_API_KEY` | compose.yaml:15, compose.yaml:71 | 憑證 | 待填 | 待填 | SET | **留** — per-host 機密，只存在這台，刪了永久損失 |
+| `QDRANT_API_KEY` | compose.yaml:15, compose.yaml:71 | 必填；憑證 | 待填 | 待填 | SET | **留** — per-host 機密，只存在這台，刪了永久損失 |
 
 ## per-host 設定（值來自 `settings/env/hosts.shared.env` 的 `<機台>_<鍵>` 列）
 
@@ -52,12 +52,12 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `HOST_MACHINE_ID` | compose.yaml:105, backend/app/registry.py:27 | 選填 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `HOST_NAME` | compose.yaml:104, backend/app/registry.py:15 | 選填 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `LLM_MODEL` | compose.yaml:93, compose.yaml:119 | 必填；預設 qwen3:14b} | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
-| `OLLAMA` | ingest/laws/qdrant_load.py:29 | 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
+| `OLLAMA` | ingest/laws/_hostenv.py:167 | 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `OLLAMA_URLS` | compose.yaml:84, backend/app/gateway.py:72 | 預設 http://host.docker.internal:11434 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `POSTGRES_DSN` | compose.yaml:74, backend/app/common/pg.py:24 | 必填 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `QDRANT_URLS` | backend/app/gateway.py:74 | compose 沒列 environment → 容器讀不到，只吃原始碼預設 | 待填 | 待填 | 待填 | **待確認** — compose 沒傳入容器 → 現在設了無效；若日後要傳入，值要重新填 |
-| `SRC_API_URL` | scripts/sync-snapshot.sh:146, scripts/sync-snapshot.sh:147 | 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
-| `TS_IP` | compose.yaml:12, compose.yaml:48 | 預設 127.0.0.1 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
+| `SRC_API_URL` | scripts/sync-snapshot.sh:156, scripts/sync-snapshot.sh:157 | 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
+| `TS_IP` | compose.yaml:12, compose.yaml:48 | 必填；預設 127.0.0.1 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 
 ## 其餘變數（共用非敏感設定）
 
@@ -89,8 +89,8 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `JEV_MODEL` | compose.yaml:174, backend/app/rag.py:133 | **compose／backend** — 必填；預設 jev-latest | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 jev-latest） |
 | `JEV_VERIFY_MIN` | compose.yaml:181, backend/app/rag.py:136 | **compose／backend** — 必填；預設 0.4 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 0.4） |
 | `KEEP_ALIVE` | compose.yaml:120, backend/app/gateway.py:89 | **compose／backend** — 必填；預設 -1 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 -1） |
-| `LAW_SYNC_SOURCE` | scripts/law-update-worker.sh:120, scripts/sync-snapshot.sh:121 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — 有值且被讀 |
-| `LIMIT` | ingest/laws/qdrant_load.py:293 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `LAW_SYNC_SOURCE` | scripts/law-update-worker.sh:120, scripts/sync-snapshot.sh:131 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — 有值且被讀 |
+| `LIMIT` | ingest/laws/qdrant_load.py:304 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `MISTRAL_GATEWAY_URL` | compose.yaml:165, backend/app/rag.py:121 | **compose／backend** — 選填 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `MISTRAL_MODELS` | compose.yaml:166 | **compose** — 預設 ministral-8b-latest,codestral-latest | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 ministral-8b-latest,codestral-latest） |
 | `NVIDIA_API_KEY` | compose.yaml:154, backend/app/rag.py:71 | **compose／backend** — 憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
@@ -105,7 +105,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `POSTGRES_DB` | compose.yaml:52 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
 | `POSTGRES_USER` | compose.yaml:50 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
 | `PROBE_TIMEOUT` | compose.yaml:134, backend/app/gateway.py:114 | **compose／backend** — 必填；預設 2.5 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 2.5） |
-| `QDRANT` | ingest/laws/qdrant_load.py:30 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `QDRANT` | ingest/laws/_hostenv.py:154 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `QDRANT_PEER_API_KEY` | compose.yaml:30, scripts/sync-snapshot.sh:65 | **compose／scripts** — 憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `QDRANT_URL` | compose.yaml:70, backend/app/gateway.py:32 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
 | `RAGDEMO_NO_QUERY` | scripts/host-doctor.sh:564 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |

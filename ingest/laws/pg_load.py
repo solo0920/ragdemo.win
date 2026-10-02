@@ -18,9 +18,17 @@ import asyncpg
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 from app.common.jsonl import load_jsonl  # noqa: E402  # qdrant_load.py 共用同一份
+import _hostenv  # noqa: E402  # 主機端環境變數（載入 .env＋改寫容器主機名）
 
 DATA = ROOT / "data" / "laws"
-DSN = os.getenv("POSTGRES_DSN") or "postgresql://rag@localhost:5432/ragdemo"
+# ⚠️⚠️ 2026-10-02 換掉 `os.getenv("POSTGRES_DSN") or "…@localhost:5432"`。
+# 那個 fallback **在三台上都是壞的**（實測）：
+#   · cron 在主機上跑，沒有 source .env → getenv 回 None → localhost
+#   · postgres 只綁 `${TS_IP}:5432`（compose 唯一真相來源）→ ConnectionRefused
+#   · 就算 source .env，DSN 裡的主機名是 `postgres`（容器服務名）→ 主機上 gaierror
+# 症狀是「沒有錯誤輸出，只是法規沒更新」。x570 先撞到；wsl 被上游 500 擋在前面，
+# 還沒暴露。細節與修法見 ingest/laws/_hostenv.py。
+DSN = _hostenv.host_postgres_dsn()
 DDL = (Path(__file__).resolve().parent / "pg_schema.sql").read_text(encoding="utf-8")
 CHUNK = 2000
 
