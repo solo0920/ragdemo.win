@@ -728,6 +728,21 @@ async def _openrouter_complete(model: str, prompt: str) -> str:
     return j["choices"][0]["message"]["content"]
 
 
+# 走雲端 provider 的模型前綴（`generate()` 依這些前綴分流）。抽成常數是為了讓
+# `readiness` 能判斷「這個 default_model 是不是 ollama 模型」—— 不是的話就不該
+# 去 ollama 的 `/api/tags` 裡找它（那裡永遠不會有 `openrouter/…`）。
+#
+# ⚠️ 與 `generate()` 的分流必須一致：`tests/test_readiness.py` 有一條測試直接從
+# `generate()` 的原始碼抽出所有 `model.startswith("…")` 字面值比對這個清單，
+# 所以「加了 provider 但忘了加進這裡」會是 pytest 紅，不是靜默漏報。
+CLOUD_MODEL_PREFIXES = ("openrouter/", "zen/", "nv/", "gemini/", "groq/", "cohere/", "hf/", "mis/")
+
+
+def is_cloud_model(model: str) -> bool:
+    """model 是否走雲端 provider（→ 不是 ollama 模型，不該拿去 ollama 找）。"""
+    return bool(model) and model.startswith(CLOUD_MODEL_PREFIXES)
+
+
 async def generate(question: str, contexts: list[dict], cautious: bool = False,
                    brief_law: str | None = None, model: str = "") -> str:
     blocks = "\n\n".join(f"{retrieve._ref(h)} {h['payload'].get('text', '')}" for h in contexts)

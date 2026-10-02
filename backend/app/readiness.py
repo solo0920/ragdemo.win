@@ -1,0 +1,324 @@
+"""`GET /ready` —— 「這台現在能不能服務一次查詢」，不是「進程活著嗎」。
+
+## 為什麼要有這個（2026-10-02 實測，不是假設）
+
+刪掉 `OLLAMA_URLS` 之後 `/health` **全程回 200**，而 `POST /query` 全部 500：
+
+    httpx.ConnectError: ollama unreachable      掛在 **/api/embed**
+
+`EMBED_MODEL=bge-m3:latest` 也是 ollama 模型，所以**每個查詢都要先算嵌入** ——
+沒有 ollama 位址 = 整條 RAG 斷掉，而 `/health` 一點忙都沒幫上。是後來手動打了
+一次 `/query` 才發現的。（`.githooks/pre-push` 的 HTTP smoke 抓得到，但它需要
+`RAGDEMO_SMOKE=1` 才會跑。）
+
+## 為什麼 `/health` 不改成會探（**不要動它**）
+
+`/health` 的語意被兩個地方依賴，而它們要的是「進程活著且可达」：
+
+1. `frontend/src/routes/api/[...path]/+server.ts` 的同儕連線探測 —— 用它決定面板上
+   顯示「連線成功」還是「連線失敗」，也驗證 Cloudflare Access 的 Service Token
+   有沒有生效。
+2. `scripts/wait-stack.sh` —— 等 stack 就緒。
+
+而且那個檔案上方就記錄過同款 bug：「面板說『連線成功』但查詢全 403」—— 舊版只檢查
+`r.ok`，而 Cloudflare Access 回 302 時 fetch 跟到登入頁拿到 200 + text/html，於是
+面板說這台活著、實際上真正的查詢會被擋。
+
+**若 `/health` 在 ollama 掛掉時回 503，那個面板就會說「連線失敗」，而後端其實好好
+地活著、只是其中一個依賴沒了。** 那正是這個專案反覆在修的那類錯誤（把「部分依賴
+壞」呈現成「這台死了」）。
+
+分工於是：`/health` = liveness（永遠 200、零探測）／`/ready` = readiness（真的探）。
+`/status?probe=1` 探的是**別的主機**；`/ready` 只探自己這台的依賴鏈。兩者不合併。
+
+## 「探不到」與「壞了」是兩件事
+
+這條對這個專案特別重要，因為**「無從驗證」的症狀最容易被誤讀成「依賴壞了」**，然後
+排查被帶去錯的方向（2026-10-02 就是這樣：`/query` 500 與「ollama 壞了」其實無關）。
+
+所以每一項檢查回三態：
+
+| `verdict` | 意思 | `ok` |
+|---|---|---|
+| `up` | 探到了，而且正常 | `true` |
+| `down` | 探到了，而且**不正常** | `false` |
+| `unknown` | **無從驗證**（探測逾時、回應形狀看不懂） | `false` |
+
+HTTP 狀態碼回答的是「現在該不該把流量送來」→ 任一**必要**依賴不是 `up` 就 503
+（含 `unknown`：不能驗證就不能承諾）。`verdict` 回答的是「到底是什麼狀況」→
+面板與人從那裡分辨「壞了」與「還不知道」。兩者刻意分開，不合成一個總開關。
+"""
+import asyncio
+import copy
+import logging
+import re
+import time
+
+from . import gateway, host_settings, rag, registry, retrieve
+from .common import pg
+
+logger = logging.getLogger("ragdemo")
+
+# 結果快取：/ready 會被輪詢（負載平衡、監控、面板），不該每次都打三個相依服務。
+TTL = 15.0
+# 每項檢查的逾時上限。3–5s：足以容忍容器剛起來的慢啟動，又不會讓輪詢者乾等。
+PER_CHECK = 5.0
+# 整體上限（安全網）。各項已各自有 PER_CHECK 且並行跑，正常情況用不到這條。
+TOTAL = 15.0
+# 回應裡列「該機有的模型」時最多顯示幾個 —— /ready 的 body 不該無上限。
+MODEL_PREVIEW = 8
+
+# 哪些是「必要」依賴（壞了就不該接流量）。`cloud` 不在內：它只是設定狀態報告，
+# 而且 ollama 才是預設路徑 —— 沒有開雲端 provider 不是故障。
+REQUIRED = {"postgres": True, "qdrant": True, "ollama": True, "cloud": False}
+
+UP, DOWN, UNKNOWN = "up", "down", "unknown"
+
+# asyncpg／httpx 的錯誤字串可能帶出 DSN（`postgresql://rag:<密碼>@postgres`）。
+# /ready 的回應會被面板與監控抓走、可能貼進 issue，所以任何對外文字都先刮掉憑證。
+_DSN_RE = re.compile(r"://[^\s/@:]+:[^\s/@]*@")
+
+_cache: tuple[float, dict] | None = None
+_lock = asyncio.Lock()
+
+
+class Unverifiable(Exception):
+    """探測給不出答案（逾時、回應看不懂）。**不等於壞了** —— 對應 `verdict: unknown`。"""
+
+
+def _scrub(e) -> str:
+    """例外 → 對外字串：刮掉 DSN 裡的憑證，並截斷。"""
+    return _DSN_RE.sub("://***:***@", str(e))[:200]
+
+
+def _preview(names) -> str:
+    s = sorted(names)
+    if not s:
+        return "（沒有）"
+    head = "、".join(s[:MODEL_PREVIEW])
+    return head + (f" …共 {len(s)} 個" if len(s) > MODEL_PREVIEW else "")
+
+
+# ── 四項檢查 ───────────────────────────────────────────────────────────────
+
+async def _check_postgres() -> dict:
+    """registry（backends）、host_settings 與 laws 表都在這裡。
+
+    `SELECT 1` 是最便宜的真實往返 —— 不開新連線，走共用池（common/pg.py）。
+    """
+    pool = await pg.pool_get()
+    async with pool.acquire() as con:
+        got = await con.fetchval("SELECT 1")
+    if got != 1:
+        # 不是「壞了」也不是「通了」：那表示我們其實不理解自己連到了什麼。無從驗證。
+        raise Unverifiable(f"SELECT 1 回 {got!r}（不是 1）—— 無從驗證")
+    return {"detail": "SELECT 1 ok"}
+
+
+async def _check_qdrant() -> dict:
+    """檢索全靠它。用 `gateway._req`（自帶認證 header 與候選降級），並確認
+    `retrieve.COLLECTION` **真的讀得到** —— 只探 `/` 會回 200 卻沒有 collection，
+    那種「探測通過但查詢全滅」正是這個專案踩過的形狀。"""
+    coll = retrieve.COLLECTION
+    r = await gateway._req("qdrant", gateway.QDRANT_URLS, "get",
+                           f"/collections/{coll}", timeout=PER_CHECK)
+    if r.status_code == 404:
+        raise RuntimeError(f"collection {coll!r} 不存在（檢索會全滅）")
+    if r.status_code != 200:
+        raise RuntimeError(f"GET /collections/{coll} 回 {r.status_code}")
+    return {"detail": f"collection {coll} 可讀"}
+
+
+async def _ollama_candidate(url: str, dm: str) -> tuple[bool, str]:
+    """這台 ollama 能不能服務「本機實際會用到的」那組模型。回 (ok, 失敗原因)。
+
+    `gateway._ollama_probe()` 是主閘門 —— **複用它**而不是自己重寫，因為
+    「TCP 通 ＋ 該機的聊天模型與 EMBED_MODEL 齊備」這條判準已經被降級鏈
+    （`gateway._pick`）依賴；readiness 必須與它一致，否則會出現「查得了但
+    /ready 說不行」或反過來。
+
+    ⚠️ **它驗的聊天模型是 `_llm_model_for(url)`，而 `default_model` 存在時實際會用的是
+    `default_model`。** 所以只要兩者不同，就必須自己再查一次 `/api/tags`：
+
+    - probe **通過**也要查 —— probe 通過不代表 `default_model` 在那台機器上，
+      而那正是要抓的形狀（`/api/generate` 吃 **404**，不是連不上，症狀完全不可見）。
+    - probe **失敗**也要查 —— 該台可能沒有 `_llm_model_for` 卻有 `default_model`，
+      那時查詢是成功的；直接沿用 probe 會在這裡**誤報 not ready**，而那正是
+      `default_model` 這個功能要支援的情境。
+
+    為什麼要指名缺哪一個：只說「探測失敗」的排查價值是零 —— 換模型與換機器是
+    兩個完全不同的動作。
+    """
+    chat = dm or gateway._llm_model_for(url)
+    probe_ok = await gateway._ollama_probe(url)
+    if probe_ok and not dm:
+        return True, ""                       # probe 已驗過 EMBED_MODEL ＋ 聊天模型
+    if not probe_ok and not await gateway._tcp_open(url):
+        return False, "連不上"               # TCP 都不通，讀 tags 沒意義
+    if probe_ok and chat == gateway._llm_model_for(url):
+        return True, ""                       # probe 驗的就是它
+    try:
+        have = await gateway._ollama_tags(url)
+    except Exception as e:
+        return False, f"讀不到 /api/tags（{type(e).__name__}）"
+    # 查詢實際會用到的：永遠要 EMBED_MODEL（每個查詢都先算嵌入），加上聊天模型。
+    missing = sorted({gateway.EMBED_MODEL, chat} - have)
+    if missing:
+        return False, f"缺 {'、'.join(missing)}（該機有: {_preview(have)}）"
+    return True, ""
+
+
+async def _check_ollama() -> dict:
+    """聊天 + **嵌入**。ollama 掛掉 = 整條 RAG 斷掉（每個查詢都要先算嵌入）。
+
+    `default_model` 的檢查放在**這一層**（組裝層）而不是塞進
+    `gateway._ollama_probe`：gateway 是最底層，不能讀 pg，不知道 `default_model`
+    的存在 —— 而要把它放進底層就得讓底層依賴資料庫，那會把分層打破。
+    """
+    urls = gateway.OLLAMA_URLS
+    stored = await host_settings.stored()      # 不拋：讀不到回 ""（降級成 LLM_MODEL）
+    # 雲端模型不在 ollama 這裡找（`openrouter/…` 之類永遠不會出現在 /api/tags）。
+    dm = stored if stored and not rag.is_cloud_model(stored) else ""
+    results = await asyncio.gather(*(_ollama_candidate(u, dm) for u in urls))
+    for url, (ok, _) in zip(urls, results):
+        if ok:
+            return {"detail": f"{gateway.host_label(url)} 可服務（TCP ＋ 嵌入 ＋ 聊天模型齊備）"}
+    raise RuntimeError("；".join(f"{gateway.host_label(u)}: {why}" for u, (_, why) in zip(urls, results))
+                       or "沒有任何 OLLAMA_URLS —— 每個查詢都會卡在 /api/embed")
+
+
+def _cloud_state() -> dict[str, bool]:
+    """與 `/models` 的 `*_ready` 旗標同一組判準 —— 不另立一套，否則兩邊會漂移。"""
+    tok = rag._gateway_token()
+
+    def via_cf_ai_gateway(url: str) -> bool:
+        # CF AI Gateway 那一組：URL 與 token 缺一就算未設定（"-" 是 sentinel）。
+        return bool(url and url != "-" and tok)
+
+    return {
+        "openrouter": bool(rag.OPENROUTER_GATEWAY_URL and tok),
+        "zen": bool(rag.ZEN_API_KEY),
+        "nvidia": bool(rag.NVIDIA_API_KEY),
+        "gemini": via_cf_ai_gateway(rag.GEMINI_GATEWAY_URL),
+        "groq": via_cf_ai_gateway(rag.GROQ_GATEWAY_URL),
+        "cohere": via_cf_ai_gateway(rag.COHERE_GATEWAY_URL),
+        "hf": bool(rag.HF_BASE_URL and rag.HF_TOKEN),
+        "mistral": via_cf_ai_gateway(rag.MISTRAL_GATEWAY_URL),
+    }
+
+
+async def _check_cloud() -> dict:
+    """雲端 provider：**只報設定狀態，不發請求**。
+
+    為什麼不探：`/ready` 會被每 10–30 秒輪詢一次，而每個 provider 的「探測」都是
+    一個會燒額度的真實 API 呼叫（free 額度是共享池，50/天）。
+    未設定也**不是故障** —— 那是「這台沒開雲端選項」，報錯會把正常狀況講成故障。
+    雲端真的壞了會由 `/query` 個別回報，那才是它該出現的地方。
+    """
+    on = [k for k, v in _cloud_state().items() if v]
+    if not on:
+        return {"detail": "未設定任何雲端 provider（不是故障）", "configured": []}
+    return {"detail": f"已設定 {len(on)} 個雲端 provider（不探：輪詢會燒額度）",
+            "configured": on}
+
+
+_CHECKS = {"postgres": _check_postgres, "qdrant": _check_qdrant,
+           "ollama": _check_ollama, "cloud": _check_cloud}
+
+
+# ── 組裝 ───────────────────────────────────────────────────────────────────
+
+async def _timed(name: str, fn) -> dict:
+    """跑一項檢查並把三態收斂成 `{ok, verdict, detail}`。
+
+    `ok` 的語意是「這一項讓不讓人安心」，`verdict` 的語意是「到底怎麼了」——
+    分開是為了讓「探不到」不會被讀成「壞了」（見模組 docstring）。
+    """
+    try:
+        out = await asyncio.wait_for(fn(), timeout=PER_CHECK)
+    except (asyncio.TimeoutError, Unverifiable) as e:
+        why = f"探測逾時（{PER_CHECK}s），無從驗證 —— 不等於壞了" if isinstance(e, asyncio.TimeoutError) \
+            else _scrub(e)
+        return {"ok": False, "verdict": UNKNOWN, "detail": why}
+    except Exception as e:
+        return {"ok": False, "verdict": DOWN, "detail": _scrub(e)}
+    res = dict(out or {})
+    res.setdefault("ok", True)
+    res.setdefault("verdict", UP)
+    res.setdefault("detail", "")
+    return res
+
+
+async def _probe_all() -> dict:
+    """並行探全部依賴，順手套上整體逾時（TOTAL）這道安全網。"""
+    tasks = {n: asyncio.create_task(_timed(n, f)) for n, f in _CHECKS.items()}
+    done, pending = await asyncio.wait(tasks.values(), timeout=TOTAL)
+    checks: dict[str, dict] = {}
+    for n, t in tasks.items():
+        if t in done:
+            try:
+                c = t.result()
+            except Exception as e:      # _timed 不該拋，這裡是防護網
+                c = {"ok": False, "verdict": DOWN, "detail": _scrub(e)}
+        else:
+            t.cancel()
+            c = {"ok": False, "verdict": UNKNOWN,
+                 "detail": f"整體逾時（{TOTAL}s），無從驗證 —— 不等於壞了"}
+        c["required"] = REQUIRED[n]
+        if not REQUIRED[n]:
+            # 非必要依賴不影響 503（雲端沒開不是故障）。
+            c["ok"] = True
+        checks[n] = c
+    stored = await host_settings.stored()
+    return {
+        "ok": all(c["ok"] for c in checks.values()),
+        "host": registry.HOST_ID,
+        # 「實際會用的模型」＝ 存的 default_model，沒設就用 LLM_MODEL —— 與
+        # host_settings.envelope() 的 effective 同一條規則。
+        "default_model": stored or gateway.LLM_MODEL,
+        "stored": stored or None,
+        "checks": checks,
+    }
+
+
+def _fresh():
+    if _cache is None:
+        return None
+    ts, body = _cache
+    return (ts, body) if time.monotonic() - ts < TTL else None
+
+
+def _aged(hit) -> dict:
+    """加上 age（這份結果是多久前探出來的）。
+
+    **深拷貝**：回應會離開這個模組（給 FastAPI 序列化、給測試斷言），而快取是
+    module global。若只淺拷貝，呼叫端就地 `body["checks"][x]["ok"] = …` 會改到
+    快取 —— 未來誰加一行「在回應上補個欄位」就會讓後續 15 秒的呼叫看到假資料。
+    """
+    ts, body = hit
+    return {**copy.deepcopy(body), "age": round(time.monotonic() - ts, 1)}
+
+
+def invalidate() -> None:
+    """清掉結果快取（測試與「我剛修好但還是不 ready」的排查用）。"""
+    global _cache
+    _cache = None
+
+
+async def report(force: bool = False) -> dict:
+    """一次完整的 readiness 報告（回應形狀見 main.py 的 `/ready`）。
+
+    `force=True` 跳過 TTL 快取 —— `/ready?force=1`。沒有它，「剛把 ollama 修好」
+    的人得等最多 15 秒才會看到自己修好了，然後會以為沒修好。
+    """
+    global _cache
+    hit = _fresh()
+    if hit is not None and not force:
+        return _aged(hit)
+    async with _lock:
+        hit = _fresh()
+        if hit is not None and not force:
+            return _aged(hit)
+        ts, body = time.monotonic(), await _probe_all()
+        _cache = (ts, body)
+        return _aged((ts, body))

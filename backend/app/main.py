@@ -1,4 +1,7 @@
-"""FastAPI：/health /ingest /query /eval /hosts /settings/default-model，模型與服務全走環境變數。
+"""FastAPI：/health /ready /ingest /query /eval /hosts /settings/default-model，模型與服務全走環境變數。
+
+`/health` 是 liveness（永遠 200、零探測）；`/ready` 是 readiness（真的探依賴鏈，
+不 ready 回 503）。分工理由見 app/readiness.py。
 
 唯一的例外是 `/settings/default-model` 的 `default_model`：那是**本機的使用者設定**
 （存本機 pg，見 host_settings.py），會取代該機的 `LLM_MODEL` 成為查詢時的實際預設。
@@ -17,7 +20,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import host_settings, rag, registry, rules_store as rules
+from . import host_settings, rag, readiness, registry, rules_store as rules
 from . import usage
 
 logger = logging.getLogger("ragdemo")
@@ -79,6 +82,26 @@ async def health():
         "machine_id": registry._system_id(),
         "ips": registry._ips(),
     }
+
+
+@app.get("/ready")
+async def ready(force: int = 0):
+    """readiness：「這台現在**能不能服務一次查詢**」（真的探依賴鏈）。
+
+    與 `/health`（liveness，永遠 200、零探測）的分工理由見 app/readiness.py 的
+    模組 docstring。一句話：`/health` 被同儕面板與 wait-stack.sh 依賴，它們要的
+    是「進程活著」；把「某個依賴壞」呈現成「這台死了」是這個專案反覆在修的錯誤。
+
+    503 的條件是「任一**必要**依賴不是 up」—— 含「無從驗證」（探測逾時），
+    因為不能驗證就不能承諾。但 `checks[x].verdict` 會分開說明是 `down` 還是
+    `unknown`，別把兩者讀成同一件事。
+
+    `?force=1` 跳過 TTL 快取（「我剛修好但還是不 ready」的排查用）。
+    """
+    body = await readiness.report(force=bool(force))
+    if not body["ok"]:
+        return JSONResponse(status_code=503, content=body)
+    return body
 
 
 @app.get("/models")

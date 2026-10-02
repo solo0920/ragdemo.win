@@ -145,28 +145,93 @@ host_settings(host_id TEXT PK, default_model TEXT NOT NULL DEFAULT '', updated_a
 （那兩個檔記錄 `誰讀` 的 `file:line`）。改完要重新產生，否則
 `tests/test_env_audit.py::test_template_has_no_lan_ip_assignment` 會紅。
 
-## 6. 驗收
+## 6. liveness vs readiness：`/health` 與 `/ready`（2026-10-02）
+
+| | `/health` | `/ready` |
+|---|---|---|
+| 問的問題 | 進程活著且可达嗎 | 這台**現在能不能服務一次查詢** |
+| 探測 | **零探測，永遠 200** | 真的探四個依賴 |
+| 誰依賴它 | `frontend/.../+server.ts` 的同儕面板、`scripts/wait-stack.sh` | 監控／負載平衡／排查 |
+
+**`/health` 的語意凍結，不要動。** 那個面板用它決定「連線成功」還是「連線失敗」，
+而它要的正是「進程活著」。若 ollama 掛掉時 `/health` 回 503，面板就會說「連線失敗」，
+而後端其實好好地活著、只是其中一個依賴沒了 —— 而且那個面板上方就記錄過同款 bug
+（「面板說連線成功但查詢全 403」：只檢查 `r.ok`，Cloudflare Access 回 302 時 fetch
+跟到登入頁拿到 200 + text/html）。`tests/test_readiness.py` 有兩條測試釘住
+「`/health` 不得出現探測／不得改變回傳碼」。
+
+**為什麼需要 `/ready`（實測，不是假設）**：2026-10-02 刪掉 `OLLAMA_URLS` 之後
+`/health` **全程回 200**，而 `POST /query` 全部 500（`httpx.ConnectError: ollama
+unreachable`，掛在 **`/api/embed`**）。`EMBED_MODEL` 也是 ollama 模型，所以每個
+查詢都要先算嵌入 —— 沒有 ollama 就整條 RAG 斷掉，而 `/health` 一點忙都沒幫上。
+
+`/ready` 探四項，每項獨立回報（`readiness.py`）：
+
+| 依賴 | 怎麼探 | 必要 |
+|---|---|---|
+| postgres | 共用池跑 `SELECT 1`（不開新連線） | ✅ |
+| qdrant | `gateway._req` GET `/collections/{COLLECTION}` —— **要確認 collection 存在**，只探 `/` 會回 200 卻沒有 collection | ✅ |
+| ollama | `gateway._ollama_probe()`（TCP ＋ `/api/tags` ＋ 該機聊天模型與 `EMBED_MODEL` 齊備）**＋ `default_model` 存在性** | ✅ |
+| cloud | 只報**設定狀態**（沿用 `/models` 的 `*_ready` 判準），**不發請求** | ❌ |
+
+### `default_model` 的檢查放在哪一層
+
+放在**組裝層**（`readiness._ollama_candidate`），不塞進 `gateway._ollama_probe` ——
+gateway 是最底層，不能讀 pg、不知道 `default_model` 存在；把它放進底層等於讓底層
+依賴資料庫，會打破分層（`tests/test_module_layers.py` 會紅）。
+
+而且它**不能只是複用** `_ollama_probe`：那個函式驗的聊天模型是 `_llm_model_for(url)`，
+而 `default_model` 存在時實際會用的是 `default_model`。兩種情況都要自己查
+`/api/tags`（gateway 新增的 `_ollama_tags()` 就是為了讓這裡能**指名缺哪一個**）：
+
+- probe **通過**也要查 —— probe 通過不代表 `default_model` 在那台機器上，而那正是
+  要抓的形狀（`/api/generate` 吃 **404**，不是連不上，症狀完全不可見）。
+- probe **失敗**也要查 —— 該台可能沒有 `_llm_model_for` 卻有 `default_model`，那時
+  查詢是成功的；直接沿用 probe 會**誤報 not ready**（症狀：明明查得了卻說不行）。
+
+### 「探不到」與「壞了」是兩件事
+
+每項回三態，`ok` 與 `verdict` 分開：
+
+| `verdict` | 意思 | `ok` |
+|---|---|---|
+| `up` | 探到了，正常 | `true` |
+| `down` | 探到了，**不正常** | `false` |
+| `unknown` | **無從驗證**（逾時、`SELECT 1` 回的不是 1） | `false` |
+
+HTTP 503 的條件是「任一**必要**依賴不是 `up`」—— 含 `unknown`（不能驗證就不能
+承諾），但 `verdict` 讓面板與人分得清「壞了」與「還不知道」。合成一個總開關就會
+回到那種把症狀講成診斷的錯誤。
+
+逾時：每項 `PER_CHECK=5s`（並行），整體 `TOTAL=15s` 這道安全網。例外訊息會先
+用 regex 刮掉 DSN 裡的憑證再進回應（`/ready` 的 body 會被面板與監控抓走）。
+雲端那項**不發請求**：`/ready` 會被每 10–30 秒輪詢，而 provider 的「探測」都是會
+燒 free 額度的真實 API 呼叫。
+
+## 7. 驗收
 
 ```bash
 pytest -q
 python3 scripts/env-audit.py          # 不是 --quiet（那個會跳過根 .env 的稽核）
 docker compose config -q              # 只驗語法，不會印出憑證
-curl -s localhost:8000/health
+curl -s localhost:8000/health         # liveness：必須 200（依賴壞時也一樣）
+curl -s localhost:8000/ready          # readiness：壞時 503，且逐項指名
 curl -s localhost:8000/settings/default-model
 curl -s localhost:8000/query -H 'content-type: application/json' \
-  -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # 確認 RAG 真的通（/health 不夠）
+  -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # 確認 RAG 真的通
 ```
 
-⚠️ **`/health` 抓不到很多東西。** 2026-10-02 刪掉一個環境變數之後 `/health`
-一直是 200，是後來手動打 `POST /query` 才發現 RAG 已經斷了。ollama 相關尤其如此
-（見上節 `_ollama_probe` 的 `need <= have` 靜默劣化）。改檢索／模型相關的東西
-一定要真的打一次 `/query`。
+⚠️ **`/health` 抓不到很多東西**（2026-10-02 實測），改檢索／模型相關的東西
+一定要真的打一次 `/query`；`RAGDEMO_SMOKE=1 bash .githooks/pre-push` 會幫你打。
+`/ready` 是「可自動化輪詢」的那一層 —— 但它回 200 **不等於**查詢會成功
+（例如雲端 provider 掛了，而那項刻意不探）。
 
 ## 待補（owner）
 
-- 路由一覽（每個 endpoint 的用途、認證要求）
+- 路由一覽（每個 endpoint 的用途、認證要求）—— `/ready` 見 §6、`/settings/*` 見 §5
 - rules（題庫）在 pg 與 `data/rules` 的分工
-- 降級鏈的完整決策流程圖（ollama / qdrant / pg 三條鏈各自的候選與快取）
+- 降級鏈的完整決策流程圖（ollama / qdrant / pg 三條鏈各自的候選與快取）——
+  §6 只覆蓋 ollama 那一條的「主機可服務」判準
 - **（scope D，不在本模組做）** 把本節〈刻意不傳入容器的 3 個變數〉升級成
   `settings/env/manifest.tsv` 的顯式欄位（例如 `forward=always｜never｜host-only`
   ＋ 理由欄）。現在這條「不傳」的理由只存在於本檔與 `tests/test_env_audit.py`

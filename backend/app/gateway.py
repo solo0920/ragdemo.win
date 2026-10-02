@@ -287,15 +287,24 @@ def _local_law_version() -> dict:
         return {}
 
 
+async def _ollama_tags(url: str) -> set[str]:
+    """該 ollama 持有的模型名集合（`/api/tags`）。失敗**拋**，不吞。
+
+    從 `_ollama_probe` 抽出來的理由：光知道「探測失敗」沒有用 —— 「TCP 通但沒有
+    那個 model」與「連不上」要分開回報，前者的修法是換模型而不是換機器。
+    `readiness._check_ollama` 需要指名缺哪一個（2026-10-02：只探 TCP 抓不到
+    `default_model` 設錯的形狀 —— `/api/generate` 吃 **404**，不是連不上）。
+    """
+    async with httpx.AsyncClient(timeout=5) as c:
+        r = await c.get(f"{url}/api/tags")
+    r.raise_for_status()
+    return {m["name"] for m in r.json().get("models", [])}
 async def _ollama_probe(url: str) -> bool:
     """ollama 主機可用：TCP 通，且同時具備該機對應的 LLM model 與 EMBED_MODEL（避免 404）。"""
     if not await _tcp_open(url):
         return False
     try:
-        async with httpx.AsyncClient(timeout=5) as c:
-            r = await c.get(f"{url}/api/tags")
-        r.raise_for_status()
-        have = {m["name"] for m in r.json().get("models", [])}
+        have = await _ollama_tags(url)
         need = {_llm_model_for(url), EMBED_MODEL}
         return need <= have
     except Exception:
