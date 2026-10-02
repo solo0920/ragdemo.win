@@ -383,14 +383,27 @@ age-keygen -o ~/.config/sops/age/keys.txt
 chmod 600 ~/.config/sops/age/keys.txt
 ```
 
-> 重建會讓已加密的檔案解不開（舊私鑰不在名單裡了）。要撤銷只能換新的公鑰，
-> 那等於所有共用憑證都要換值。
+> 重建會讓已加密的檔案解不開（舊私鑰不在名單裡了）。
+>
+> **要撤銷某把 age 公鑰（私鑰外洩）不必換任何憑證值** —— 2026-10-02 實測：
+> 從 `.sops.yaml` 移除該公鑰、跑 `sops updatekeys`，recipients 從 2 變 1，
+> 而每個值**仍是逐位元相同的密文**（實測 `TOKEN=ENC[…,data:ZTu1P0fJ…]` 撤銷前後
+> 一模一樣）。剩下那把私鑰照樣解得開，被撤銷那把回
+> `Failed to get the data key`。
+>
+> 舊版這裡寫「那等於所有共用憑證都要換值」，是**錯的**，而且方向很糟：
+> 它讓人以為撤銷代價極高而拖延，而 age 私鑰外洩正是該立刻撤銷的情況。
+> 真正要換值的是**憑證本身**外洩（那走 `rotate-secret.sh`），不是加密用的 key。
 
 ### 3. 在 `.env` 設 `HOST_ID`（render 的選擇器）
 
 ```bash
-HOST_ID=msi   # 或 x570 / mbp
+HOST_ID=wsl   # 跑後端的那台是 wsl（2026-10-01 由 msi 改名）；或 x570 / mbp
 ```
+
+> ⚠️ 必須是 `settings/env/hosts.shared.env` 的 `HOSTS=` 裡**字面存在**的值。
+> 寫錯（例如沿用舊的 `msi`）會讓 `render` 直接 die「主機代號不合法」——
+> 那是硬失敗，不會靜默用錯設定，所以看到那訊息就是這裡填錯了。
 
 ### 4. 回報公鑰
 
@@ -432,7 +445,7 @@ scripts/env-sync.sh pull            # 解密＋合併＋render（一次同步所
 scripts/env-sync.sh render          # 只做 per-host（不需 sops）
 scripts/env-sync.sh render --dry-run  # 只印「會動哪幾個鍵」，不寫檔、不印值
 scripts/env-sync.sh --check         # 鍵覆蓋率＋總表 schema＋漂移＋版控衛生
-scripts/env-sync.sh --fingerprints  # 6 把共用（跨機比對）＋2 把 per-host（不跨機比對）
+scripts/env-sync.sh --fingerprints  # 8 把共用（跨機比對）＋2 把 per-host（不跨機比對）
 scripts/env-prune.py --dry-run      # 檢查 .env 裡的空值賦值（見 §4 追加條）
 scripts/env-prune.py                # 清理：刪掉有預設的空值、註解掉設定了也不生效的
 ```

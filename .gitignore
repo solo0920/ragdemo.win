@@ -45,3 +45,15 @@ data/.ops/
 # 2026-09-27：files/ 進版控時清掉一批（docs/ 三份文件的 originals）。
 *:Zone.Identifier
 *:Zone.Identifier:*
+
+# age 私鑰（2026-10-02 稽核後加）
+# 正常位置是 ~/.config/sops/age/keys.txt，在 repo 之外，所以「理論上」不會被
+# 加進來。但「理論上」不是保險 —— 而這是**全部 8 把共用憑證**唯一的解密材料，
+# 洩漏等於 8 把一起走。
+# 危險情境不是有人在 repo 根跑 age-keygen（那不會覆蓋家目錄那份），而是
+#   - 在 repo 內做金鑰備份時直接複製過來
+#   - 從 Windows 側的備份（/mnt/d/backup/.../sops-age-keys.txt）複製進來
+# 兩者的檔名都不叫 keys.txt，所以底下那行擋不住 —— 它擋的是「打錯字把
+# age-keygen -o 寫到 repo 內」。真正的防線是 §11 的步驟 2（絕不重建）。
+keys.txt
+*.keys.txt

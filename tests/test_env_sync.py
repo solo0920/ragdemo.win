@@ -767,12 +767,28 @@ def test_no_tracked_secret_values():
     assert not bad, f"追蹤檔含憑證明文值: {bad}"
 
 
-def test_sops_config_has_wsl_recipient_no_private_key():
-    """.sops.yaml 有 wsl 公鑰、無私鑰材料；x570/mbp 為 TODO 佔位。"""
+def test_sops_config_has_all_three_recipients_no_private_key():
+    """.sops.yaml 有**三把**公鑰（wsl／x570／mbp）、無私鑰材料。
+
+    ⚠️ 2026-10-02 這條被改寫過。原版斷言 `"x570" in text` 與
+    `"mbp" in text` —— 而那兩個字串**只出現在註解裡**。實測：把真正的
+    公鑰從 recipients 拿掉、註解留著，這條**照樣綠**。
+    一條抓不到東西的守衛比沒有守衛更糟，因為它讓人以為有人管著。
+
+    現在改成比對**實際的 recipients**（`age1…` 開頭的行），並且把
+    「.sops.yaml 的 recipients 必須與加密檔一致」與「數量必須等於
+    HOSTS」這兩條搬到 `tests/test_sops_age_invariants.py` —— 那個檔案
+    專門放這組不變量，也放了「忘了 updatekeys」的守衛。
+    """
     text = (ROOT / ".sops.yaml").read_text(encoding="utf-8")
-    assert "age19et4d4etz4ptsp2s58838ffmfgzq8sfw3c775xc2gewgh74wtexqgej86q" in text
+    # 只抓 recipients 區塊裡的行首 `- age1…`，不要抓到註解裡的
+    keys = set(re.findall(r"^\s*-\s+(age1[0-9a-z]{58})\s*$", text, re.M))
+    assert keys == {
+        "age19et4d4etz4ptsp2s58838ffmfgzq8sfw3c775xc2gewgh74wtexqgej86q",  # wsl
+        "age1sp8tja87waq6zgxmpxjsf3tduvmacanknejg34xhqv0uvmwcyfgshfxu45",  # x570
+        "age1hxmyltm9xhnxzmsjwqfwvpgduy2ltkvjgjv0t6wpqh0xglaw39sqe0tulm",  # mbp
+    }, f"公鑰集合不符：{sorted(keys)}"
     assert "AGE-SECRET-KEY" not in text
-    assert "x570" in text and "mbp" in text
 
 
 def test_gitignore_blocks_plaintext_layers():
