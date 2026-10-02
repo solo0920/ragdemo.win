@@ -1,4 +1,8 @@
-"""FastAPI：/health /ingest /query /eval /hosts，模型與服務全走環境變數。"""
+"""FastAPI：/health /ingest /query /eval /hosts /settings/default-model，模型與服務全走環境變數。
+
+唯一的例外是 `/settings/default-model` 的 `default_model`：那是**本機的使用者設定**
+（存本機 pg，見 host_settings.py），會取代該機的 `LLM_MODEL` 成為查詢時的實際預設。
+"""
 import asyncio
 import json
 import logging
@@ -13,7 +17,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import rag, registry, rules_store as rules
+from . import host_settings, rag, registry, rules_store as rules
 from . import usage
 
 logger = logging.getLogger("ragdemo")
@@ -151,7 +155,11 @@ async def ingest(docs: list[Doc]):
 @app.post("/query")
 async def query(q: Query):
     try:
-        return await rag.answer(q.question, q.recall, q.top_k, model=q.model)
+        # model 的優先權：/query 指定的 → 本機存的 default_model → 未指定
+        #（未指定時 rag.generate() 走 gateway._llm_model_for(選中的 ollama)，
+        #   見 backend/app/host_settings.py 模組 docstring 為什麼不直接塞 LLM_MODEL）
+        return await rag.answer(q.question, q.recall, q.top_k,
+                                model=await host_settings.resolve(q.model))
     except httpx.HTTPStatusError as e:
         # 別再一律標成「LLM 上游」：檢索(qdrant)、嵌入(ollama)、gateway 全都丟同一個
         # HTTPStatusError。標錯會把 qdrant 的 400 顯示成「LLM 故障」，排查時被帶去錯的方向
@@ -164,6 +172,39 @@ async def query(q: Query):
         )
     except rag.GatewayUnconfigured as e:
         return JSONResponse(status_code=503, content={"ok": False, "detail": str(e)})
+
+
+# ── per-host 預設聊天模型（可在網頁設定；存本機 pg）─────────────────────
+# 契約與理由見 backend/app/host_settings.py 的模組 docstring 與 backend/DESIGN.md。
+#
+# ⚠️ **沒有 `host` 欄位**：這個端點只設定自己這台。三台各有自己的 pg，
+#    跨機寫入等於要一套「遠端寫入授權」，而需求不需要 —— 前端用 HOST_API_URLS
+#    直接去問／寫每一台就好。
+#
+# ⚠️ **不掛 ADMIN_TOKEN**（與 /rules 的寫入不同）：這是「這台自己的預設」，
+#    沒有跨機影響；而對外路徑已由 Pages worker 的登入 guard ＋ Cloudflare Access
+#    收著（ARCHITECTURE.md〈認證〉）。加上 token 會讓前端多一套憑證分發，
+#    換來的只是「能改自己那台預設模型」這件事被擋住。
+class DefaultModelIn(BaseModel):
+    model: str | None = None  # null／空字串＝清除，回到 LLM_MODEL
+
+
+@app.get("/settings/default-model")
+async def default_model_get():
+    return host_settings.envelope(await host_settings.stored())
+
+
+@app.put("/settings/default-model")
+async def default_model_put(body: DefaultModelIn):
+    try:
+        return host_settings.envelope(await host_settings.set_default(body.model))
+    except ValueError as e:  # 自己的驗證（例如名稱過長）→ 400
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # ⚠️ 不把 str(e) 回給用戶：asyncpg 的連線錯誤字串會帶 DSN 的形狀。
+        # 詳細原因只進 log（寫入端點必須誠實回報失敗，不能假裝成功）。
+        logger.error("寫入預設模型失敗：%s", e)
+        raise HTTPException(status_code=503, detail="寫入預設模型失敗（資料庫不可用）")
 
 
 @app.get("/rules")

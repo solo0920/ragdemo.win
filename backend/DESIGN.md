@@ -75,19 +75,96 @@
 > 留著就等於要求 env-audit 永遠維持一個沒有使用者的機制。刪除不是靜默的：
 > `env-audit.py` 的 `REMOVED_KEYS` 會把殘留的舊鍵報成幽靈並附遷移指引。
 
-## 5. 驗收
+## 5. pg 裡的兩張表：peer 自我回報 vs 本機設定
+
+### `backends`（registry.py）—— 由心跳**完全接管**
+
+| 欄位 | 意義 |
+|---|---|
+| `host_id` | PK。每列＝一個活著的 peer，**由心跳 INSERT 建立** |
+| `hostname`／`machine_id`／`mac`／`ips`／`ts_ip`／`lan_ip` | 自我回報的身分（`ips` 只留 tailscale IP） |
+| `models` | JSONB，`rag.local_models()` 回的 ollama 模型清單 |
+| `llm` | **心跳當下的 `LLM_MODEL`**，不是使用者的設定 —— 每 `REGISTRY_HEARTBEAT` 秒被覆寫 |
+| `last_seen`／`ok` | 心跳時間；`DELETE … last_seen < now() - STALE_MIN 分` 讓離線的自動消失 |
+
+`heartbeat()` 是 `INSERT … ON CONFLICT (host_id) DO UPDATE`，**除 `host_id` 外每一列都被
+EXCLUDED 覆寫**。所以這張表裡沒有任何欄位能存放「本機設定」。
+
+### `host_settings`（host_settings.py，2026-10-02）—— 只由使用者寫入
+
+`GET`／`PUT /settings/default-model` —— 網頁上設定「**這台**用哪個 model 當預設」，
+存本機 pg，**取代該機的 `LLM_MODEL`** 成為查詢時的實際預設。
+
+```sql
+host_settings(host_id TEXT PK, default_model TEXT NOT NULL DEFAULT '', updated_at TIMESTAMPTZ)
+```
+
+回應形狀固定四欄（前端契約，`envelope()` 產生，GET 與 PUT 共用）：
+`{ok, host, model, effective}`。`model`＝存的設定（`null`＝未設定）、
+`effective`＝`model or gateway.LLM_MODEL`。
+
+### 為什麼不存進 `backends.llm`
+
+`backends` 已有 `llm TEXT`，但它**每 `REGISTRY_HEARTBEAT` 秒被心跳覆寫**
+（`registry.heartbeat()` 的 `llm=EXCLUDED.llm`）。症狀是「存進去、GET 看得到、
+下一次心跳洗掉、沒有任何錯誤」。獨立表的理由是語意：`backends` 的每列＝
+**一個活著的 peer**，由心跳建立、也只由心跳更新；`default_model` 是本機的使用者
+設定，不該要求那台先心跳過才有地方放。獨立表讓「心跳絕不會碰到它」**結構上成立**，
+`tests/test_default_model.py` 從 SQL 層與原始碼層各釘一條。
+
+### 查詢時的優先權
+
+    /query 的 model 欄位 → 存的 default_model → 未指定（= `gateway._llm_model_for(選中的 ollama)`）
+
+第三段刻意是「未指定」而不是 `LLM_MODEL`：空字串讓 `rag.generate()` 走
+`_llm_model_for(base)`（該台 ollama 對應的模型）。多台 ollama 配 `OLLAMA_MODELS` 時
+`LLM_MODEL` **不等於**它，填進去是靜默劣化。
+
+### 快取與降級
+
+- `TTL=10s` 快取；寫入成功後**立刻**更新快取（不必等 TTL）。
+- 讀不到 DB **不拋**：有上次已知的值就用它，沒有才回 `""`（→ `LLM_MODEL`）。
+  `invalidate()` 刻意「讓快取過期但保留值」，降級才不會讓使用者剛設的東西消失。
+- 降級結果只快取 `TTL_FAIL=5s`（比 TTL 短）：否則 pg 掛掉時每個查詢都要等一次
+  connect timeout。
+- **寫入端不降級**（PUT 失敗回 503），只有讀取端降級 —— 寫入失敗還回 200 是說謊。
+
+### 三個刻意的選擇
+
+- **不新增環境變數**（TTL 是模組常數）。多一個 `os.getenv` 就多一份
+  「程式讀得到、容器拿不到」的風險，還得同時補 `compose.yaml` 與 `.env.example`。
+  `tests/test_default_model.py` 有一條測試擋住「順手加個 knob」。
+- **`host` 只出現在回應、不在 request body**。三台各有自己的 pg，跨機寫入要一套
+  「遠端寫入授權」，而需求不需要 —— 前端用 `HOST_API_URLS` 直接問／寫每一台。
+  測試從 AST 釘住 PUT 的 body 只有 `model`。
+- **不掛 `ADMIN_TOKEN`**（與 `/rules` 的寫入不同）：這是「自己那台的預設」，
+  對外路徑已由 worker 登入 guard ＋ Cloudflare Access 收著。
+
+⚠️ 動 `main.py` 會讓 `scripts/env-audit.py --template` 產生的
+`.env.example`／`settings/env/ENV-VARIABLE-INVENTORY.md` 裡的**行號**失效
+（那兩個檔記錄 `誰讀` 的 `file:line`）。改完要重新產生，否則
+`tests/test_env_audit.py::test_template_has_no_lan_ip_assignment` 會紅。
+
+## 6. 驗收
 
 ```bash
 pytest -q
 python3 scripts/env-audit.py          # 不是 --quiet（那個會跳過根 .env 的稽核）
 docker compose config -q              # 只驗語法，不會印出憑證
 curl -s localhost:8000/health
+curl -s localhost:8000/settings/default-model
+curl -s localhost:8000/query -H 'content-type: application/json' \
+  -d '{"question":"契約解除後雙方有何回復原狀義務？"}'   # 確認 RAG 真的通（/health 不夠）
 ```
+
+⚠️ **`/health` 抓不到很多東西。** 2026-10-02 刪掉一個環境變數之後 `/health`
+一直是 200，是後來手動打 `POST /query` 才發現 RAG 已經斷了。ollama 相關尤其如此
+（見上節 `_ollama_probe` 的 `need <= have` 靜默劣化）。改檢索／模型相關的東西
+一定要真的打一次 `/query`。
 
 ## 待補（owner）
 
 - 路由一覽（每個 endpoint 的用途、認證要求）
-- registry 的 `backends` 表 schema 與心跳語意
 - rules（題庫）在 pg 與 `data/rules` 的分工
 - 降級鏈的完整決策流程圖（ollama / qdrant / pg 三條鏈各自的候選與快取）
 - **（scope D，不在本模組做）** 把本節〈刻意不傳入容器的 3 個變數〉升級成
