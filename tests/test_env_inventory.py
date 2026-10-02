@@ -156,7 +156,18 @@ def test_emit_column_is_reproducible_against_the_committed_file():
     `host-inventory/<host>.txt` 是**快照**，不是設定檔。它過期時沒有任何人
     會被通知，而它的作用是「讓人相信三台長相一樣」。一份過期的快照比沒有
     快照更糟 —— 因為它會讓錯誤的結論看起來有證據。
+
+    ⚠️ **沒有 `.env` 時要跳過，不是報過期**（2026-10-02 實測）。
+    CI 是乾淨 clone、沒有 `.env` → 每個鍵都讀成 ABSENT → 第一版會報
+    「41 個鍵全部過期」，那是**假的**：沒有 `.env` 就沒有可比對的對象，
+    「無從驗證」與「驗證失敗」是兩件事。
+
+    這正是本專案記錄在案的 CI 坑：**測試依賴真實 `.env` 時，本機全綠、
+    CI 紅**。修法是判斷前提，不是放寬斷言。
     """
+    if not (ROOT / ".env").is_file():
+        import pytest
+        pytest.skip("無 .env：欄位快照無從驗證（CI 的乾淨 clone 就是這種情況）")
     f = ROOT / "settings" / "env" / "host-inventory" / "wsl.txt"
     if not f.is_file():
         return
