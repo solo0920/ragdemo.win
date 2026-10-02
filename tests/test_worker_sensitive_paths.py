@@ -110,12 +110,30 @@ def test_the_guard_matches_nested_paths_not_only_the_first_segment():
         assert not re.search(r"guard\(\s*request,\s*parsed\(", span), (
             f"{verb} handler 仍把 parsed(path)（只取第一段）餵給 guard()")
 
-    # 比對邏輯本身也要兩段都看：只比對完整路徑 → query/ingest/eval/rules 失效；
-    # 只比對第一段 → settings/* 失效。兩邊都漏掉其中一邊都是同型漏洞。
-    assert re.search(r"SENSITIVE\.has\(\s*path\s*\)", src), (
-        "isSensitive() 應比對完整路徑 —— 只比第一段會讓 settings/* 失效")
-    assert re.search(r"SENSITIVE\.has\(\s*path\.split\('/'\)\[0\]\s*\)", src), (
-        "isSensitive() 應也比對第一段 —— 只比完整路徑會讓 query/ingest/eval/rules 失效")
+    # 比對邏輯本身：⚠️ **不要 grep 原始碼，直接把函式抽出來真的跑。**
+    #
+    # grep 只能證明「寫了什麼」，證明不了「每個輸入的結果對不對」，而這個函式
+    # 真正的要求就是結果。這一版的 grep 寫法（`SENSITIVE.has(path)`）對一個
+    # **有漏的**實作回綠 —— `settings/default-model/`（尾隨斜杠）會穿過去，
+    # 那個漏是三環實測出來的。**測行為，不測字串。**
+    got = _run_is_sensitive([
+        "query", "ingest", "eval", "rules",
+        "settings/default-model", "settings/probe-clouds",
+        "settings/default-model/", "settings/probe-clouds/",
+        "settings/default-model/extra", "settings/probe-clouds/force",
+        "health", "status", "models", "settings", "settings/xyz", "auth/me",
+    ])
+    for p in ("query", "ingest", "eval", "rules",
+              "settings/default-model", "settings/probe-clouds",
+              "settings/default-model/", "settings/probe-clouds/",
+              "settings/default-model/extra", "settings/probe-clouds/force"):
+        assert got[p], (
+            f"`{p}` 沒被擋下 —— 匿名可呼叫。"
+            "只比對單一段就會漏掉 settings/*；只比字串相等會漏掉尾隨斜杠與子路徑")
+    for p in ("health", "status", "models", "settings", "settings/xyz", "auth/me"):
+        assert not got[p], (
+            f"`{p}` 被擋了，但它是刻意匿名可讀的 —— 同儕面板與 wait-stack.sh 依賴它。"
+            "（guard() 對未列出的路徑 fail-open 是刻意的）")
 
 
 def test_every_writing_path_is_login_guarded():
@@ -167,3 +185,124 @@ def test_design_doc_agrees_with_the_guard_list():
         assert "settings/default-model" in window or "SENSITIVE" in window, (
             f"DESIGN.md:{i} 的保護宣稱沒有指明 settings/default-model 在 "
             f"`SENSITIVE` 裡 —— 與實際不符")
+
+
+def test_trailing_slash_and_subpath_cannot_bypass_the_guard():
+    """**尾隨斜杠與子路徑都必須被擋** —— 這是 2026-10-02 三環實測出來的漏洞。
+
+    完整鏈路，每一環都實測過（不是推論）：
+
+    1. SvelteKit 為 `/api/[...path]` 產生的 pattern（抄自
+       `.svelte-kit/output/server/manifest-full.js`）是
+       `/^\\/api(?:\\/([^]*))?\\/?$/` —— 尾隨 `\\/?` 讓
+       `/api/settings/default-model/` 也匹配，而且 **`params.path` 保留那個斜杠**
+       （實測 = `"settings/default-model/"`）。
+    2. `SENSITIVE.has("settings/default-model/")` 是 **false** → guard **放行**。
+    3. 後端對 `PUT /settings/default-model/` 回 **307**（PUT 保留方法與 body）
+       → **匿名寫入成功**。curl 實測：值真的被改掉。
+
+    所以比對**不能**是字串相等，必須是**逐段比對**：清單某條 = 本路徑的前綴段序列。
+
+    這條同時檢查**兩個方向**：擋得住漏掉的那些，也**沒有**因為修得太寬而把刻意
+    匿名可讀的路徑擋掉 —— 那會讓同儕面板整片掛掉，而且沒有任何錯誤訊息。
+    """
+    got = _run_is_sensitive([
+        "settings/default-model/", "settings/probe-clouds/",
+        "settings/probe-clouds/force", "settings/default-model/x/y",
+        "settings", "settings/", "settings/xyz", "health", "models", "status",
+    ])
+    for p in ("settings/default-model/", "settings/probe-clouds/",
+              "settings/probe-clouds/force", "settings/default-model/x/y"):
+        assert got[p], f"`{p}` 穿過 guard —— 尾隨斜杠／子路徑的漏（見 docstring 的三環）"
+    for p in ("settings", "settings/", "settings/xyz", "health", "models", "status"):
+        assert not got[p], f"`{p}` 被誤擋 —— fail-open 是設計要求，不能收窄"
+    # 別修成「只要第一段在清單就擋」—— 那會把 settings/xyz 也擋掉
+    assert not got["settings/xyz"], "第一段比對會誤擋 settings/xyz"
+
+
+def test_guard_actually_calls_is_sensitive():
+    """**`guard()` 必須真的呼叫 `isSensitive()`。**
+
+    ⚠️ 同一個 bug 已經發生過兩次，形狀都一樣：清單是對的、函式是對的、測試也全綠，
+    但**比對邏輯沒接到實際執行的路徑上**。
+
+    | 輪次 | 樣子 | 症狀 | 為什麼測試沒抓到 |
+    |---|---|---|---|
+    | 1 | `guard(request, parsed(path))` | `settings/*` 永不命中 → **匿名可寫** | 只驗 Set 的內容 |
+    | 2 | `isSensitive()` 定義了但沒人呼叫 | 多一層的路徑穿過去 | 只驗函式本體寫對 |
+
+    第 2 次特別陰險：**功能上看起來沒壞**（當時清單裡 6 條，完整路徑都剛好命中），
+    所以 84 條測試全過。而 guard() 是 **fail-open** —— 漏接的症狀是匿名可呼叫，
+    沒有錯誤、沒有日誌、沒有任何徵兆。
+
+    所以這條**不驗**「`isSensitive()` 寫對了嗎」（上面那條驗），只驗**接線**。
+    """
+    import re as _re
+    src = PROXY.read_text(encoding="utf-8")
+    m = _re.search(r"async function guard\(.*?\n\}(?=\n)", src, _re.S)
+    assert m, "guard() 抓不到（寫法變了？）"
+    body = m.group(0)
+
+    # ⚠️ **先剝掉註解再斷言**，否則這條測試會自己打自己：
+    #   · 斷言「有呼叫 isSensitive」時，**只有註解提到**也算過（和 bug #2 同形狀）
+    #   · 斷言「不得直接 SENSITIVE.has」時，**為這個 bug 寫的註解裡正好有那句**
+    #     → 紅 → 有人會「修」成刪註解 → 知識沒了，bug 留著
+    # 兩種結局都比沒有這條測試糟。
+    code = _re.sub(r"/\*.*?\*/", " ", body, flags=_re.S)
+    code = _re.sub(r"//[^\n]*", " ", code)
+
+    assert "isSensitive(path)" in code, (
+        "guard() 的**可執行碼**沒有呼叫 isSensitive() —— 那個函式就是死代碼。\n"
+        "  放行條件寫成 `SENSITIVE.has(path)` 只比完整路徑，"
+        "`settings/probe-clouds/force` 這類子路徑會穿過去；"
+        "而 guard() 是 fail-open，穿過去就是匿名可呼叫。")
+    assert not _re.search(r"SENSITIVE\.has\(\s*path\s*\)", code), (
+        "guard() 又改回直接 `SENSITIVE.has(path)` —— 那是 bug #2 的形狀")
+
+    cond = _re.search(r"if\s*\((.+)\)\s*return\s+null", code)
+    assert cond, "guard() 的放行條件抓不到"
+    assert "isSensitive" in cond.group(1), (
+        f"放行條件 {_re.escape(cond.group(1))!r} 不是 isSensitive(...) —— "
+        "放行判斷和 SENSITIVE 之間又脫鉤了")
+
+
+def _run_is_sensitive(paths):
+    """把**真實原始碼**裡的 `SENSITIVE` 與 `isSensitive()` 抽出來，用 node 真的跑。
+
+    為什麼不用 grep 斷言「寫了什麼」：grep 證明不了**每個輸入的結果** —— 而這個
+    函式真正的要求就是結果。真的跑一次，才會發現「寫法對」與「結果對」是兩件事
+    （第一版就是寫法對、結果漏）。
+    """
+    import json
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+    if shutil.which("node") is None:
+        pytest.skip("沒有 node，跑不了前端函式")
+
+    src = PROXY.read_text(encoding="utf-8")
+    set_m = re.search(r"const SENSITIVE = new Set\(\[([\s\S]*?)\]\)", src)
+    fn_m = re.search(r"function isSensitive\([^)]*\)\s*:\s*boolean \{[\s\S]*?\n\}", src)
+    assert set_m and fn_m, "抽不出 SENSITIVE / isSensitive()（寫法變了？）"
+
+    fn_src = fn_m.group(0)
+    for t in (": string", ": boolean"):          # TS 型別標註拿掉才能跑
+        fn_src = fn_src.replace(t, "")
+    args = ", ".join(json.dumps(x) for x in paths)
+    script = (
+        "const SENSITIVE = new Set([" + set_m.group(1) + "]);\n"
+        "const isSensitive = (" + fn_src + ");\n"
+        "const out = {};\n"
+        f"for (const p of [{args}]) out[p] = isSensitive(p);\n"
+        "console.log(JSON.stringify(out));\n"
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False) as fh:
+        fh.write(script)
+        tmp = fh.name
+    try:
+        r = subprocess.run(["node", tmp], capture_output=True, text=True, timeout=30)
+    finally:
+        os.unlink(tmp)
+    assert r.returncode == 0, f"node 執行失敗：\n{r.stdout}\n{r.stderr}"
+    return json.loads(r.stdout)

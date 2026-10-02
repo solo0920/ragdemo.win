@@ -25,7 +25,7 @@ import { readCookie, verifySession } from '$lib/google';
 // `settings`、**永遠不命中**這個 Set —— 清單裡有那個字串等於沒寫。
 // 實測（把 guard() 原樣抽出來用 node 跑）：匿名 PUT /api/settings/default-model
 // 照樣轉發出去，401 完全沒出現。
-// 修法是 `isSensitive()`（見下）：完整路徑與第一段都比對。
+// 修法是 `isSensitive()`（見下）：**逐段比對**，完整路徑、尾隨斜杠、子路徑都涵蓋。
 // **寫下這段是為了別有人只加字串就以為修好了** —— 那正是這個漏洞第一次發生的方式。
 const SENSITIVE = new Set([
   'query',
@@ -39,16 +39,34 @@ const SENSITIVE = new Set([
 /**
  * 這條路徑需不需要登入。
  *
- * ⚠️ **兩段都要比對**，缺一不可（理由見上方 2026-10-02 的實測）：
- *   · 完整路徑 → 讓 `settings/default-model`、`settings/probe-clouds` 生效
- *   · 第一段   → 讓 `query`、`ingest`、`eval`、`rules` 生效（它們沒有第二段）
- * 只比對其中一邊，另一邊那一組就變成匿名可呼叫。
+ * ⚠️⚠️ **必須用「逐段比對」，不能用 Set 的字串相等。** 這是實測出來的，不是推理：
  *
- * 對**未列出**的路徑仍然 fail-open（`health`／`status`／`models` 必須匿名可讀，
- * 同儕面板與 wait-stack.sh 依賴它們），所以**漏一個項目 = 對全網開放**。
+ *   SvelteKit 為 `/api/[...path]` 產生的 pattern（抄自
+ *   `.svelte-kit/output/server/manifest-full.js`）是 `/^\/api(?:\/([^]*))?\/?$/`
+ *   —— 尾隨的 `\/?` 讓 `/api/settings/default-model/` 也匹配，而且
+ *   **`params.path` 保留那個斜杠**（實測 = `"settings/default-model/"`）。
+ *
+ *   接著 `SENSITIVE.has("settings/default-model/")` 是 false → guard **放行** →
+ *   後端回 307（PUT 保留方法與 body）→ **匿名寫入成功**。三個環節都實測過，
+ *   不是推論。所以第一版（`has(path) || has(path.split('/')[0])`）是**漏的**。
+ *
+ * 比對規則：**清單裡某一條是本路徑的「前綴段序列」就擋**。同時涵蓋：
+ *   · 完整路徑      `settings/default-model`
+ *   · 尾隨斜杠      `settings/default-model/`     ← filter(Boolean) 去掉空段
+ *   · 多一層子路徑  `settings/probe-clouds/force`
+ *   · 單段（無第二段）`query`／`ingest`／`eval`／`rules`
+ *
+ * 而 `settings`、`settings/xyz` 這種**沒被列出的**仍然放行 —— fail-open 是刻意的
+ * （`health`／`status`／`models` 必須匿名可讀，同儕面板與 wait-stack.sh 依賴它們）。
+ * **代價是：清單漏一個項目 = 對全網開放。**
  */
 function isSensitive(path: string): boolean {
-  return SENSITIVE.has(path) || SENSITIVE.has(path.split('/')[0]);
+  const segs = path.split('/').filter(Boolean);   // `a/b/` → ['a','b']
+  for (const entry of SENSITIVE) {
+    const e = entry.split('/');
+    if (e.every((seg, i) => segs[i] === seg)) return true;
+  }
+  return false;
 }
 
 interface Host { id: string; url: string }
@@ -97,7 +115,23 @@ function parseOrigins(s?: string): Host[] {
 }
 
 async function guard(request: Request, path: string): Promise<Response | null> {
-  if (!SENSITIVE.has(path)) return null;
+  // ⚠️⚠️ 這裡**必須呼叫 isSensitive()**，不能直接寫 `SENSITIVE.has(path)`。
+  //
+  // 2026-10-02 實測：`isSensitive()` 剛被引進來時**是死代碼** —— guard() 還在用
+  // `SENSITIVE.has(path)`。功能上當時碰巧沒事（清單裡 6 條，要嘛沒有第二段、
+  // 要嘛第二段就是清單裡那個字串，完整路徑都剛好命中），所以**全部測試綠著**。
+  // 但：
+  //
+  //   · `isSensitive()` 的註解宣稱「兩段都要比對，缺一不可」—— 而只接了完整路徑
+  //     那一段。任何**多一層**的路徑（`settings/probe-clouds/force`）都會穿過去。
+  //   · guard() 是 **fail-open**（對未列出的路徑 `return null` 放行），所以漏接的
+  //     症狀是**匿名可呼叫**，而且沒有錯誤、沒有日誌、沒有任何徵兆。
+  //   · 有人（包含我）看見「有註解、有函式、有測試」就會相信保護存在。
+  //
+  // 這跟上一輪 `guard(request, parsed(path))` 是**同一個 bug 的同一個位置**：
+  // 清單是對的，卻沒接到實際的比較上。**修掉一次不等於不會再犯**，所以
+  // `tests/test_worker_sensitive_paths.py` 有一條專門釘這個接線。
+  if (!isSensitive(path)) return null;
   const secret = env.SESSION_SECRET;
   if (!secret) {
     return new Response(JSON.stringify({ detail: 'SESSION_SECRET 未設定，無法驗證登入狀態' }), {
