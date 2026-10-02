@@ -87,7 +87,7 @@ def normalize(raw: str | None) -> str:
 
 
 def envelope(model: str) -> dict:
-    """GET／PUT 共用的回應形狀（前端契約見 backend/DESIGN.md〈per-host 設定〉）。
+    """GET／PUT 共用的回應形狀（前端契約見 backend/DESIGN.md〈pg 裡的兩張表〉）。
 
     `model` ＝ 存的設定（null 表示未設定）；`effective` ＝ 實際會用的那個
     （存的設定，沒有就用 `LLM_MODEL`）。
