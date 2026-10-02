@@ -67,7 +67,7 @@ HOST_ID="$(grep -m1 -E '^HOST_ID=' "$ENV_FILE" 2>/dev/null | cut -d= -f2-)"
 # ⚠️ 拒絕寫進 repo：這個檔案叫「.env 的備份」，放在 repo 裡時
 #    `git add -A` 會把它撈進去，而它的檔名不帶任何「這是密文」的線索。
 case "$(cd "$OUT_DIR" 2>/dev/null && pwd || echo "$OUT_DIR")" in
-  "$ROOT"|"$ROOT"/*) die "輸出目錄在 repo 內（$OUT_DIR）。
+  "$ROOT"|"$ROOT"/*) die "輸出目錄在 repo 內（${OUT_DIR}）。
     備份檔必須在 repo 之外 —— 它是明文 .env 的加密檔，放進 repo 會被 git add
     撈走，而 commit 出去就等於把『三把共用憑證的副本』放上公開版控。
     換一個 --out，或用預設的 ~/ragdemo-backup。" ;;
