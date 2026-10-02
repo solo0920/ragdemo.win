@@ -1,10 +1,24 @@
-# x570 交接（2026-10-02 02:00 全清空；2026-10-01 修訂，取代 2026-09-30 版）
-
-> **下一手請先讀最上面那兩段**（2026-10-02 已完成 ＋ `code-drift` 病灶），
-> 再往下看。**待辦清單目前是空的** —— 若你讀到某處寫「先做這件」，
-> 那是被摺進 `<details>` 的舊指示。
+# x570 交接（2026-10-02 02:40 指派兩項任務；Access 待辦已清空）
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
+
+## ★★★ 現在有兩件事等你做（2026-10-02 02:40 指派）
+
+| # | 事項 | 在哪 | 大約 |
+|---|---|---|---|
+| **1** | **修每日同步那條 crontab**（兩個獨立錯誤）| 〈7c-1〉| 10 分鐘 |
+| **2** | **輪換 `QDRANT_PEER_API_KEY`**（前置已就緒，但**要等我先改加密檔**）| 〈7c-2〉| 見該節 |
+
+**順序：先 7c-1，再 7c-2。** 第 2 件**不要先動手** —— 我要先在 wsl 端把新值
+寫進 `secrets.common.enc.env`，你等我通知再 pull。**在通知之前請只做第 1 件。**
+
+⚠️ **動任何東西之前先跑一次 `bash scripts/host-doctor.sh`。** 2026-10-02 02:00
+那次回報揭露：x570 的後端**長達數天跑著 2026-09-30 拆分重構之前的架構**，
+而當時**每一道檢查都是綠的**。現在 `host-doctor` 多了 `code-drift` 檢查
+（比對容器內 `app/**/*.py` 的 sha256 與工作區），pull 之後就有。
+
+> 若你讀到某處寫「唯一還沒做的：Access Service Token」——
+> **那已經做完了**，而且被摺進 `<details>`。別重做。
 
 > **代號對照（2026-10-01 改的，看得懂的話跳過）**：跑後端的那台的代號已從
 > `msi` 改成 **`wsl`** —— 後端跑在 WSL 上，WSL 自己有 tailscale、hostname 是
@@ -75,44 +89,44 @@
 >
 > ---
 >
-> <details>
-> <summary>🗄 當時的指示（已完成，保留作為查證紀錄）</summary>
->
-> ### ⭐ 2026-10-02：不用手動貼了，跑 `env-sync.sh pull` 就好
->
-> `CF_ACCESS_CLIENT_ID`／`CF_ACCESS_CLIENT_SECRET` 已納入**共用憑證層**
-> （sops 加密，8 把之一），wsl 端已把值寫進加密檔。所以你那台只要：
->
-> ```bash
-> git pull && bash scripts/env-sync.sh pull
-> ```
->
-> 舊指示（步驟 2 的 `printf 'CF_ACCESS_CLIENT_ID=<39字元hex>...' >> .env`）
-> **作廢**。本節保留它，是為了讓你知道為什麼不要照做：
-> ① 值要經過聊天／剪貼簿；② **貼反的症狀與「Access 沒開」完全一樣**
-> （都回 403，所以要靠 `access-check.sh` 第 3 段才分辨得出）；
-> ③ `--fingerprints` 不涵蓋它 → 兩台不一致是**無聲**的。
-> 走 `pull` 這三個問題整類消失。
->
-> 驗證（不印值）：
-> ```bash
-> bash scripts/env-sync.sh --fingerprints | grep CF_ACCESS
-> # CF_ACCESS_CLIENT_ID      len=39   sha12=11cb9bc42f55
-> # CF_ACCESS_CLIENT_SECRET  len=54   sha12=f00a6bd62ddc
-> ```
-> **這兩組指紋三台必須相同**。不同 = `pull` 沒成功。
->
-> 然後 **`docker compose up -d --build api`** —— `--build` 不能省，見下方
-> 步驟 3 與〈坑二〉。
->
-> ---
->
-> 三台的 Access app 都建好了（三台一致 403）。沒 token 的症狀（都很安靜）：
->
-> - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（但查詢正常）
-> - `sync.log` 出現 `law version: 取不到` → `.law_version` 凍結在舊版
-> - `host-doctor.sh` 的 `law-version` **warn**（「快照已 N 小時沒成功更新」）
->
+<details>
+<summary>🗄 當時的指示（已完成，保留作為查證紀錄）</summary>
+
+### ⭐ 2026-10-02：不用手動貼了，跑 `env-sync.sh pull` 就好
+
+`CF_ACCESS_CLIENT_ID`／`CF_ACCESS_CLIENT_SECRET` 已納入**共用憑證層**
+（sops 加密，8 把之一），wsl 端已把值寫進加密檔。所以你那台只要：
+
+```bash
+git pull && bash scripts/env-sync.sh pull
+```
+
+舊指示（步驟 2 的 `printf 'CF_ACCESS_CLIENT_ID=<39字元hex>...' >> .env`）
+**作廢**。本節保留它，是為了讓你知道為什麼不要照做：
+① 值要經過聊天／剪貼簿；② **貼反的症狀與「Access 沒開」完全一樣**
+（都回 403，所以要靠 `access-check.sh` 第 3 段才分辨得出）；
+③ `--fingerprints` 不涵蓋它 → 兩台不一致是**無聲**的。
+走 `pull` 這三個問題整類消失。
+
+驗證（不印值）：
+```bash
+bash scripts/env-sync.sh --fingerprints | grep CF_ACCESS
+# CF_ACCESS_CLIENT_ID      len=39   sha12=11cb9bc42f55
+# CF_ACCESS_CLIENT_SECRET  len=54   sha12=f00a6bd62ddc
+```
+**這兩組指紋三台必須相同**。不同 = `pull` 沒成功。
+
+然後 **`docker compose up -d --build api`** —— `--build` 不能省，見下方
+步驟 3 與〈坑二〉。
+
+---
+
+三台的 Access app 都建好了（三台一致 403）。沒 token 的症狀（都很安靜）：
+
+- 前端「連線詳細」顯示 **x570／mbp 連線失敗**（但查詢正常）
+- `sync.log` 出現 `law version: 取不到` → `.law_version` 凍結在舊版
+- `host-doctor.sh` 的 `law-version` **warn**（「快照已 N 小時沒成功更新」）
+
 
 </details>
 
@@ -650,9 +664,288 @@ crontab -l | grep sync_daily          # 看它指向哪個 python
 ls -d .venv .venv-ingest 2>&1        # 指向的那個在不在
 ```
 
-**x570 端刻意沒有自行修改這條 crontab**（修正既有排程不在本 handoff 的授權範圍）。
-交由 ingest／ops 端統一處理三台，避免各機各自發明寫法（`python` 絕對路徑 vs
-`uv run` 會讓三台再產生一種分歧）。
+### 7c. ★★★ 兩項任務交給你（2026-10-02 02:40 指派）
+
+> 這兩項原本是「移交 ingest／ops、不動」。現在**正式指派給 x570 端執行** ——
+> 因為兩項都只需要改**你這台**的東西，不需要動版控或另外兩台。
+> **順序：先 7c-1，再 7c-2**（理由見各節）。
+
+#### 7c-1. 修每日同步那條 crontab —— 有**兩個**獨立錯誤
+
+2026-10-02 02:00 你回報的原文：
+
+> crontab 那條每日同步寫的是 `.venv-ingest/bin/python`（不存在），而且路徑是
+> `/home/solo/projects/ragdemo` — 少了 `.win` 後綴，repo 實際在
+> `/home/solo/projects/ragdemo.win`。除了 venv 不存在，連工作目錄都不對。
+
+**兩個錯誤互相獨立，修一個不會讓另一個好** —— 而症狀只有一個（`last_checked`
+凍結），所以很容易只修一個就以為好了。
+
+**為什麼這條該用 `.venv/bin/python` 而不是 `uv run`**：`uv run` 會在每次執行時
+解析 `pyproject.toml`／`uv.lock`，在 cron 的極簡環境下要 PATH 裡有 uv
+（WSL/x570 的 cron PATH 通常不含 `~/.local/bin`）。`.venv/bin/python` 是絕對
+路徑、不依賴 PATH，是 cron 唯一穩定的寫法。三台統一用這一種。
+
+```bash
+# 步驟 1：先看清現況（不要先改）
+crontab -l | grep -n sync_daily
+ls -d .venv .venv-ingest 2>&1
+pwd                                  # 確認你現在在 repo 根
+```
+
+```bash
+# 步驟 2：兩處一起換掉。用 sed 換整行，不要只改其中一段。
+REPO="$HOME/projects/ragdemo.win"     # 換成你的實際路徑（步驟 1 的 pwd）
+crontab -l | grep -v 'sync_daily\.py' \
+  | { cat; echo "30 6 * * * cd $REPO && $REPO/.venv/bin/python ingest/laws/sync_daily.py --apply"; } \
+  | crontab -
+crontab -l | grep sync_daily         # 確認新行正確
+```
+
+⚠️ **`cd` 不能省。** `sync_daily.py` 用**相對**路徑讀寫
+`data/laws/.law_sync.json` 與 `data/laws/`（`ingest/laws/sync_daily.py` 的常數），
+cron 的工作目錄是 `$HOME`，不是 repo —— 少了 `cd` 會寫到 `~/data/laws/`，
+**而真正的檔案不動**。症狀與現在一模一樣（`last_checked` 凍結），但 log 會顯示
+「成功」。
+
+```bash
+# 步驟 3：立刻手動跑一次，不要等明早 06:30
+cd "$REPO" && .venv/bin/python ingest/laws/sync_daily.py --apply
+```
+
+**判讀**：
+
+| 你看到 | 意義 |
+|---|---|
+| `無更新：sha=… update=2026/9/18…` | ✅ **正常**。上游確實沒更新（另一端已直接比對過上游）|
+| `下載失敗：HTTP Error 500` | ⚠️ **上游掛了，不是你的問題** —— 見下方 7c-1a |
+| `下載失敗：SSL: CERTIFICATE_VERIFY_FAILED` | ❌ **你用錯 interpreter** —— 系統 `python3` 的症狀，見下方紅鯡魚 |
+| `同步中止（未更動資料）` | ❌ 失敗。看上面幾行是**哪一種**原因 |
+
+> 這三種的**處置完全不同**：第一種不用做任何事、第二種等上游、第三種是
+> cron 寫錯了。把它們混成「失敗」的話，就會出現「反覆重試一個壞掉的上游」
+> 或「以為修好了但其實 interpreter 還是錯的」。
+
+#### 7c-1a. `HTTP Error 500` —— 上游真的掛了，不要動你的設定
+
+**2026-10-02 10:31 wsl 端實測到**：上游 `https://law.moj.gov.tw/api/ch/law/json`
+回 **HTTP 500**，`curl` 直接問也是 500 —— **與憑證、interpreter、路徑都無關**，
+是律資料伺服器端的事。
+
+**如果你的手動執行也看到 500：**
+
+1. **不要**去改 crontab、不要換 interpreter、不要重建 venv —— 它們都沒問題
+2. 照樣把 crontab 修好（7c-1 步驟 2／5），那是獨立的一件事
+3. 回報時**寫「上游 500」**，不要寫「同步失敗」—— 前者是等一下就好，
+   後者會讓人去查一個沒壞的設定
+4. `.law_sync.json` 的 `last_checked` **仍會更新**（那是「有去查」的紀錄，
+   不是「有更新資料」的紀錄），所以 `last_checked` 新鮮**不代表**資料是新的 ——
+   要看 `update_date` 有沒有變
+
+**怎麼確認是上游而不是自己**（一分鐘）：
+
+```bash
+curl -s -o /dev/null -m 30 -w 'HTTP %{http_code}\n' https://law.moj.gov.tw/api/ch/law/json
+# 500 = 上游的問題，等它恢復
+# 200 = 上游正常，那你的問題在別處（回報完整錯誤訊息）
+```
+
+⚠️ 2026-09-30 記過一個紅鯡魚：系統 `python3` 對這個站的憑證鏈處理不了，會
+SSL 失敗。**那與 500 是不同的兩件事** —— 不要把 500 當成「又是那個 SSL 問題」而
+去換 interpreter。
+
+**步驟 4：確認排程真的會跑**（不要只看手動執行成功）
+
+```bash
+python3 -c "import json;print(json.load(open('data/laws/.law_sync.json'))['last_checked'])"
+# 這應該是「剛才」或明早 06:30 之後的時間，不是 2026-09-26
+```
+
+⚠️ **`last_checked` 有值不代表排程正常** —— 手動跑也會更新它。要證明 cron
+真的在跑，把 cron 的輸出導到檔案：
+
+```bash
+# 步驟 5（強烈建議）：讓 cron 有輸出，失敗時才有線索
+crontab -l | grep -v 'sync_daily\.py'   | { cat; echo "30 6 * * * cd $REPO && $REPO/.venv/bin/python ingest/laws/sync_daily.py --apply >> $REPO/data/.ops/sync_daily.log 2>&1"; }   | crontab -
+```
+
+**為什麼值得加**：cron 的 stderr 會寄到 root 的信箱，而**你看的是自己（非 root）
+的信箱** —— 所以 `SSL: CERTIFICATE_VERIFY_FAILED` 這種錯誤你**永遠看不到**。
+那正是「連續失敗 6 天而無人察覺」的機制。導到檔案之後
+`tail data/.ops/sync_daily.log` 就有東西看。
+
+> 📌 **這段就是當初「`.venv-ingest` 不存在 6 天沒人知道」的根因**，不只是
+> 打字錯誤。cron 失敗時沒有任何輸出是預設行為。
+
+**步驟 6：回報**
+
+1. `crontab -l | grep sync_daily` 的輸出
+2. 步驟 3 手動跑的**最後兩行**（不是全部輸出）
+3. `last_checked` 的值
+4. `bash scripts/host-doctor.sh` 的摘要 —— law-version 那條**不該變**（x570 是
+   source 機，本來就沒有 `.law_version`；見 7d）
+
+**x570 之前為什麼不自行修改**（保留紀錄）：原本的授權範圍只涵蓋「讀與回報」，
+而修改既有排程會影響三台一致性。現在已明確指派，並且指定了統一寫法
+（`.venv/bin/python` ＋ `cd` ＋ 輸出重導向），所以**不會產生分歧**。
+
+#### 7c-2. 輪換 `QDRANT_PEER_API_KEY` —— `host-doctor` 那條 warn 的前置已就緒
+
+**2026-10-02 wsl 端查證：`rotate-hint` 說的前置條件已經滿足了**，所以這件事
+現在**可以做**（過去不行）。先讀懂為什麼以前不行：
+
+> `QDRANT_PEER_API_KEY` 的定義是「能認證到來源機（**你**）qdrant 的那把 key」。
+> 而你的 qdrant 只認一個值 —— `compose.yaml` 的
+> `QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}`。所以 peer 那把與你自己的
+> `QDRANT_API_KEY` **同值是結構性必然**，不是忘了輪換。
+> 直接輪換 peer 那把 → mbp／wsl 拿到新值卻打不進你的 qdrant → **永久 401**。
+
+**解除的關鍵是 `QDRANT__SERVICE__ALT_API_KEY`** —— qdrant 的第二個**讀寫**槽，
+上游註解明寫 "can be used for rolling key rotation"。`compose.yaml` 已經有：
+
+```yaml
+QDRANT__SERVICE__API_KEY:     ${QDRANT_API_KEY:-}         # 自己那台
+QDRANT__SERVICE__ALT_API_KEY: ${QDRANT_PEER_API_KEY:-}    # 跨機
+```
+
+**2026-10-02 10:29 wsl 端實測（ALT 槽是活的）**：
+
+```
+容器內   API_KEY len=43   ALT_KEY len=43
+self key  → /collections 200
+peer key  → /collections 200   ← ALT 槽生效
+random    → /collections 401   ← 亂數仍被擋
+```
+
+⚠️ **不能用 `read_only_api_key`**：peer 對你的 qdrant 要 `POST` 建快照與
+`DELETE` 清舊快照，唯讀會擋掉（`sync-snapshot.sh` 內）。
+
+##### ⚠️ 但有一個前提你必須自己確認：ALT 槽在**你這台**是否也生效
+
+wsl 端實測過，**你（x570）那台還沒驗過**。三台裡你正是**來源機**，peer key
+要能認證到**你**的 qdrant —— 所以順序是：
+
+```bash
+# 步驟 1（先做這個）：確認你這台的 ALT 槽有值
+docker compose exec -T qdrant sh -c 'echo "API len=${#QDRANT__SERVICE__API_KEY}"; echo "ALT len=${#QDRANT__SERVICE__ALT_API_KEY}"'
+```
+
+| 結果 | 下一步 |
+|---|---|
+| `ALT len=43`（非 0）| ✅ 往下走步驟 2 |
+| `ALT len=0` | ⚠️ **你的 `.env` 沒有 `QDRANT_PEER_API_KEY`** → 先 `env-sync.sh pull`，再 `docker compose up -d`（qdrant），重跑本步 |
+
+```bash
+# 步驟 2：三種 key 對「你自己」的 qdrant
+#   （不經過 tunnel，直接打本機，所以不涉及 Access token）
+docker compose exec -T qdrant sh -c 'echo ok' >/dev/null
+for L in QDRANT_API_KEY QDRANT_PEER_API_KEY; do
+  v="$(grep "^$L=" .env | cut -d= -f2-)"
+  printf '%-24s ' "$L"; curl -s -o /dev/null -m 8 -w '%{http_code}
+'     -H "api-key: $v" http://127.0.0.1:6333/collections
+done
+```
+
+**兩把都必須是 200**，且亂數必須是 401：
+
+```bash
+printf 'random                 '; curl -s -o /dev/null -m 8 -w '%{http_code}
+'   -H "api-key: definitely-not-a-real-key" http://127.0.0.1:6333/collections   # 要 401
+```
+
+⚠️ **輪換會讓那把外洩值繼續有效。** 這是這件事最容易被誤解的地方：
+`QDRANT_PEER_API_KEY` 與你的 `QDRANT_API_KEY` 同值，**只輪換 peer 那把
+吊銷不了外洩值** —— 它同時是你自己 qdrant 的 `api_key`。輪換後
+`host-doctor` 的 `rotate-hint` 會轉成 `[ ok ]`，但那是「**指紋不同了**」，
+不是「外洩值失效了」。真正吊銷要另外輪換**各機自己的** `QDRANT_API_KEY`
+（那是 per-host，各機獨立，三台不用鎖步）。
+
+所以**這兩件事要分開決定**：
+
+| 想達成 | 要做 |
+|---|---|
+| 三台不再鎖步、peer 可以獨立輪換 | 下面步驟 3～5（**本項任務**）|
+| 讓外洩的那個值**真的失效** | 三台各輪換自己的 `QDRANT_API_KEY`（per-host，不鎖步）。**建議另開一件事** |
+
+```bash
+# 步驟 3：產生新值並加進共用層（wsl 端已把值寫進加密檔）
+#   ⚠️ 由 wsl 端執行，不要在 x570 執行 —— 加密檔要一次改到位
+#   （rotate-secret.sh 在 wsl 端跑：bash scripts/rotate-secret.sh QDRANT_PEER_API_KEY --from-stdin）
+```
+
+**所以你的部分從這裡開始** —— 等 wsl 端 commit 並通知你之後：
+
+```bash
+git pull && bash scripts/env-sync.sh pull    # 拿到新的 QDRANT_PEER_API_KEY
+docker compose up -d qdrant                   # ⚠️ 只 qdrant，不是 --build
+```
+
+⚠️ **`docker compose up -d` 在這裡就夠了**（不需要 `--build`）—— 這與 7c-1 那條
+不同：`QDRANT__SERVICE__ALT_API_KEY` 是**環境變數**，`up -d` 會 Recreate 容器
+並重讀 `.env`。沒有程式碼要重建。
+
+```bash
+# 步驟 4：驗收 —— 這裡是本任務的核心，別跳過
+#   a) 你自己的 ALT 槽接受新 peer 值
+bash scripts/env-sync.sh --fingerprints | grep QDRANT_PEER
+#   b) 兩把 key 都能認證（因為 ALT 槽不同值了，現在應該**同值**的情況消失）
+#   c) 亂數仍 401
+#   d) ⭐ 最關鍵：確認 peer 與 self 已經**不同值**
+python3 - <<'EOF'
+import hashlib, re
+v = {}
+for l in open('.env', encoding='utf-8'):
+    m = re.match(r'^([A-Za-z_][A-Za-z_0-9]*)=(.*)$', l.rstrip('
+'))
+    if m: v[m.group(1)] = m.group(2)
+for k in ('QDRANT_API_KEY', 'QDRANT_PEER_API_KEY'):
+    x = v.get(k, '')
+    print(f'  {k:<22} len={len(x)} sha12={hashlib.sha256(x.encode()).hexdigest()[:12]}')
+print('  → 兩個 sha12 相同 = 還沒拆開', '/ 不同 = 已拆開 ✅')
+EOF
+```
+
+```bash
+# 步驟 5：回報確認另外兩台沒被打斷（這是「會不會造成永久 401」的實際證據）
+#   請 x570 端不要改另外兩台 —— 回報就好，由 wsl 端驗。
+#   wsl 端會跑：bash scripts/host-doctor.sh，mbp 端會回報它的。
+```
+
+**如果任何一步失敗：立刻回報，不要繼續往下。** 症狀會是 mbp／wsl 的
+`sync-snapshot.sh` 開始出現 `401`，而 `auth_precheck` 會在**建立快照與刪本機
+collection 之前** exit 1 —— 所以**不會損資料**，但備援資料會悄悄停更。修法是
+把 `QDRANT_PEER_API_KEY` 換回舊值（三台一起 pull）。
+
+**步驟 6：回報**
+
+1. 步驟 1 的 ALT 槽長度
+2. 步驟 2 三種 key 的狀態碼（不印值）
+3. 步驟 4 的兩個 sha12（**只印 sha12**）
+4. `host-doctor` 的 `rotate-hint` 那條（應該從 warn 變 ok）
+
+#### 7d. 順帶確認：`law-version` 在 x570 不該是 warn
+
+2026-10-02 你回報的這一條**是措辭問題，已修**，不要去查：
+
+```
+[warn] law-version  沒有 data/laws/.law_version（備援機靠 sync-snapshot.sh 帶過來…）
+```
+
+x570 是 **source 機**（`data/laws/.law_sync.json` 存在，`law-update-worker.sh:18`
+就是靠那個檔判角色），版本由 `sync_daily.py` 自己 ingest 產生，
+**不走 `sync-snapshot.sh`** → `.law_version` **本來就不會存在**。
+
+**2026-10-02 已修 `host-doctor.sh`**：缺 `.law_version` 時會先分角色，
+source 機回 `ok` 並說明原因。你 `git pull` 後就會看到。舊訊息對所有機器都說
+「沒有＝快照同步還沒成功過」，那是**對 source 機的結構性誤報**，而且永遠不會
+自己好。
+
+#### 7c-3. 不屬於你的兩件（不要動）
+
+- **另外兩台的排程**：mbp 用 launchd、wsl 用另一種寫法。統一寫法在
+  `HOST-UPGRADE.md §3`，由 wsl 端處理三台一致。你只改自己那條。
+- **各機自己的 `QDRANT_API_KEY` 輪換**（讓外洩值真正失效）：那是 per-host，
+  三台可各自為之，但要另開一件事決定時程。見 7c-2 步驟 4 的對照表。
 
 #### 查上游時的紅鯡魚：用系統 `python3` 會 SSL 失敗
 
@@ -669,6 +962,17 @@ python3 ingest/laws/sync_daily.py
 對 `law.moj.gov.tw` 的憑證鏈處理不了，`.venv` 裡的可以。
 **看到那個 SSL 錯誤不要回報成「上游連不上」或「法規站掛了」** —— 先換
 `.venv/bin/python` 再說。
+
+⚠️ **但 500 是第三種東西，別混成 SSL。** 2026-10-02 10:31 實測：上游回
+**HTTP 500**（`curl` 直接問也是 500），`.venv/bin/python` 也一樣 —— 那就是
+**上游自己掛了**，兩種「換 interpreter」都救不了，等它恢復即可。
+**三者的判別**：
+
+| 錯誤 | 誰的問題 | 處置 |
+|---|---|---|
+| `SSL: CERTIFICATE_VERIFY_FAILED` ＋ 用系統 `python3` | 你的 interpreter | 換 `.venv/bin/python` |
+| `SSL: CERTIFICATE_VERIFY_FAILED` ＋ 用 `.venv/bin/python` | `.venv` 的憑證庫 | 回報（不常見）|
+| `HTTP Error 500`（`curl` 也 500）| **上游** | 等，見 7c-1a |
 
 ### 7b. `env-sync.sh render` 可以跑，但先看 dry-run（★2026-10-01 推翻舊指示）
 
@@ -760,6 +1064,15 @@ ollama list
 
 ## 回報格式
 
+> **2026-10-02 02:40：回報請照〈7c-1 步驟 6〉與〈7c-2 步驟 6〉那兩份清單**，
+> 那一段是為這兩項任務寫的，優先於下面這張 2026-10-01 的舊表。
+> 下面保留作為其他事項的對照。
+
+<details>
+<summary>2026-10-01 的回報表（Access 那輪的，已完成）</summary>
+
+## 回報格式（旧）
+
 **2026-10-01：x570 端全部執行完畢。以下是實際回報的結果，供下一手對照。**
 
 | 項目 | 結果 |
@@ -782,6 +1095,8 @@ ollama list
 
 **下一手拿到這份文件的時候，請先跑 `bash scripts/host-doctor.sh`** ——
 本文件的結論都帶日期，`api-mbp` 那台也還在 502。
+
+</details>
 
 ---
 
