@@ -36,19 +36,46 @@ ROOT = Path(__file__).resolve().parents[1]
 MOD_PATH = ROOT / "ingest" / "laws" / "_hostenv.py"
 
 
-def _load_module(monkeypatch, env: dict[str, str]):
-    """在**乾淨的環境**下載入模組（每次都重新載入，避免彼此污染）。"""
+# ⚠️⚠️ 2026-10-03：**每個測試都必須自己給 `.env` 的內容，不讀真的那一份。**
+#
+# 第一版沒做，結果 CI 紅而本機綠 —— 而這正是這個 repo 記錄過的陷阱：**CI 是乾淨
+# clone、沒有 `.env`**。`test_cron_context_rewrites_container_hostname_to_ts_ip`
+# 在本機靠真的 `.env` 有 `POSTGRES_DSN` 而通過，CI 上 `load_env()` 回空 → 走不到
+# 分支 → RuntimeError。
+#
+# 但問題不只在 CI：**依賴真的 `.env` 會讓同一條測試在不同機器上走不同的路**。
+# 例如某台若在 `.env` 放了 `QDRANT`，`host_qdrant_url()` 的分支就會變 —— 測試結果
+# 會隨著那台機器的設定而變，而**沒有人會知道**。
+#
+# 修法是**判斷前提**（給受控的 fixture），不是加 skip。skip 會讓這條測試在 CI 上
+# 什麼都不驗，而那正是「本機全綠、CI 紅」換來的最壞結果。
+DEFAULT_ENVFILE: dict[str, str] = {
+    "POSTGRES_DSN": "postgresql://rag:pw@postgres:5432/ragdemo",
+    "POSTGRES_PASSWORD": "pw-from-envfile",
+    "TS_IP": "100.122.78.7",
+    "QDRANT_API_KEY": "key-from-envfile",
+}
+
+
+def _load_module(monkeypatch, env: dict[str, str] | None = None,
+                 envfile: dict[str, str] | None = None):
+    """在**乾淨的環境**下載入模組，並把 `.env` 的內容**固定下來**。
+
+    * `env`     —— 模擬「進程式環境裡本來就有」的變數（容器路徑）
+    * `envfile` —— 模擬 `.env` 的內容；預設用 `DEFAULT_ENVFILE`，**不讀真的檔案**
+    """
     for k in ("POSTGRES_DSN", "POSTGRES_PASSWORD", "TS_IP", "QDRANT",
               "QDRANT_API_KEY", "EMBED_MODEL", "OLLAMA"):
         monkeypatch.delenv(k, raising=False)
-    for k, v in env.items():
+    for k, v in (env or {}).items():
         monkeypatch.setenv(k, v)
-    # 清掉 module 內部記錄「哪些鍵是我們載入的」的狀態
     sys.modules.pop("_hostenv_under_test", None)
     spec = importlib.util.spec_from_file_location("_hostenv_under_test", MOD_PATH)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["_hostenv_under_test"] = mod
     spec.loader.exec_module(mod)
+    mod._load_env_file = lambda: dict(
+        DEFAULT_ENVFILE if envfile is None else envfile)
     return mod
 
 
@@ -163,11 +190,7 @@ def test_missing_dsn_and_password_raises_instead_of_silently_connecting(monkeypa
     然後在好幾步之後才失敗，症狀是「法規沒更新」。明確的 `RuntimeError` 至少
     會讓 log 裡出現一行可讀的訊息。
     """
-    mod = _load_module(monkeypatch, {})
-    mod._load_env_file = lambda: {}          # 模擬「.env 讀不到」
-    import os
-    for k in ("POSTGRES_DSN", "POSTGRES_PASSWORD"):
-        os.environ.pop(k, None)
+    mod = _load_module(monkeypatch, {}, envfile={})   # 模擬「.env 讀不到」
     with pytest.raises(RuntimeError) as e:
         mod.host_postgres_dsn()
     msg = str(e.value)
@@ -183,11 +206,7 @@ def test_credential_never_appears_in_the_error_message(monkeypatch):
     這個專案的硬規則是憑證只印 `len=`／`sha12=`。這裡是唯一一個「把值組進字串」
     的地方（DSN），所以要釘住：報錯時不能把值帶出去。
     """
-    mod = _load_module(monkeypatch, {})
-    mod._load_env_file = lambda: {"POSTGRES_PASSWORD": "hunter2-super-secret"}
-    import os
-    for k in ("POSTGRES_DSN", "POSTGRES_PASSWORD"):
-        os.environ.pop(k, None)
+    mod = _load_module(monkeypatch, {}, envfile={"POSTGRES_PASSWORD": "hunter2-super-secret"})
     # 強制走「有密碼但組出來的 DSN 無法解析」的路徑不現實；這裡直接確認
     # RuntimeError 的訊息不帶值
     try:
@@ -209,15 +228,10 @@ def test_no_dsn_in_envfile_but_password_present_uses_ts_ip(monkeypatch):
     要嘛 `.env` 有 `POSTGRES_DSN`（走不到這個分支），要嘛兩者都缺（會先報錯）。
     **缺口剛好落在唯一一台真的會踩到的機器上。**
     """
-    mod = _load_module(monkeypatch, {})
-    mod._load_env_file = lambda: {
+    mod = _load_module(monkeypatch, {}, envfile={
         "POSTGRES_PASSWORD": "pw-from-envfile",
         "TS_IP": "100.119.83.111",
-    }
-    import os
-    for k in ("POSTGRES_DSN", "POSTGRES_PASSWORD", "TS_IP"):
-        os.environ.pop(k, None)
-
+    })
     dsn = mod.host_postgres_dsn()
     hostpart = dsn.split("://", 1)[1]
     assert "localhost" not in hostpart, (
