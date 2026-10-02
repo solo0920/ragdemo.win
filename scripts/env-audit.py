@@ -492,6 +492,51 @@ def scan_python() -> dict[str, Ref]:
     return refs
 
 
+def quoted_heredoc_lines(text: str) -> set[int]:
+    """回傳「位於**帶引號的 heredoc** 內」的行號（1-based）。
+
+    為什麼需要這個：2026-10-02 實測發現 registry 有幽靈變數 `VAR`，唯一的
+    「讀取點」是 `scripts/env-sync.sh` 裡
+
+        python3 - "$TABLE" <<'PY'
+        ...
+        print("…需要內嵌密碼時寫 ${VAR} 佔位由 render 展開。")
+        PY
+
+    分隔符 `'PY'` **帶引號** → shell 完全不展開內容 → 那個 `${VAR}` 是
+    純粹的文件字串，印出來就長那樣。沒有任何程式碼讀取叫 `VAR` 的環境變數，
+    但 `scan_shell()` 只認「行首不是 `#`」，於是把它記成一個變數。
+
+    症狀特別隱蔽：`VAR` 混在一份看起來很有根據的清單裡，而那份清單的存在
+    理由就是「**從程式碼反查、不有人工清單**」。一個幽靈會讓整份清單的可信度
+    打折 —— 使用者沒辦法分辨哪些是真的、哪些是假的。
+
+    **判準是「帶引號」這一件事**，不是「內容像不像程式碼」：
+    * `<<'PY'` / `<<"PY"` / `<<-'PY'` → 內容原樣，**裡面的 `$VAR` 不是讀取**
+    * `<<PY`（不帶引號）→ 內容會被展開，裡面的 `$VAR` **是真的讀取**
+
+    所以未加引號的 heredoc 必須**保留**在掃描範圍內 —— 那是真的讀取。
+    順帶一提：未加引號時 `${VAR}` 會在 heredoc 展開期被換成實際值，而
+    `VAR` 通常未設定 → 變成空字串，所以那種寫法本身就是個 bug；留著掃描
+    反而能讓它被看見。
+
+    `<<-` 允許結尾標籤前有 tab（POSIX 規定只吃 tab，不吃空格）。
+    """
+    skip: set[int] = set()
+    delim: str | None = None
+    for ln, line in enumerate(text.splitlines(), 1):
+        if delim is not None:
+            skip.add(ln)
+            if line.lstrip("\t").strip() == delim:
+                delim = None
+            continue
+        for m in re.finditer(r"<<-?\s*(['\"])([A-Za-z_][A-Za-z_0-9]*)\1", line):
+            delim = m.group(2)
+            skip.add(ln)        # 開頭那一行本身也不含真正的讀取
+            break
+    return skip
+
+
 def scan_shell() -> dict[str, Ref]:
     refs: dict[str, Ref] = {}
     scripts = ROOT / "scripts"
@@ -499,10 +544,17 @@ def scan_shell() -> dict[str, Ref]:
         return refs
     for f in _iter_files(scripts, "*.sh"):
         text = f.read_text(encoding="utf-8", errors="replace")
+        # 帶引號的 heredoc 內容不會被展開 → 其中的 `$VAR` 不是讀取。
+        # 在**兩個**迴圈都要扣：否則 heredoc 裡的 `FOO=bar` 會被當成 shell
+        # 賦值，害 `FOO` 被誤判成「局部變數」而從 registry 消失
+        # —— 那是相反方向的另一種錯，同樣是幽靈。
+        quoted = quoted_heredoc_lines(text)
         # 同檔內自己賦值的 = 局部變數，不是 .env 該管的。
         # 以 ; 或 && 切開後逐段比對，因為一行可能有兩個賦值。
         local: set[str] = set()
-        for line in text.splitlines():
+        for ln, line in enumerate(text.splitlines(), 1):
+            if ln in quoted:
+                continue
             for seg in re.split(r"[;&|]+", line):
                 m = SH_ASSIGN.match(seg)
                 if m:
@@ -518,7 +570,7 @@ def scan_shell() -> dict[str, Ref]:
                 if mr:
                     local.update(_read_targets(mr.group("rest")))
         for ln, line in enumerate(text.splitlines(), 1):
-            if line.lstrip().startswith("#"):
+            if ln in quoted or line.lstrip().startswith("#"):
                 continue
             for m in SH_READ.finditer(line):
                 name = m.group(1) or m.group(2)

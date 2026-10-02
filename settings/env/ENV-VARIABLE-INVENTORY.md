@@ -64,7 +64,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 
 | 變數 | 誰讀 | 分類／用途 | x570 | mbp | wsl | 決策 |
 |---|---|---|---|---|---|---|
-| `ACCESS_HOSTS` | scripts/access-check.sh:20 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | EMPTY | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `ACCESS_HOSTS` | scripts/access-check.sh:20 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `ADMIN_TOKEN` | compose.yaml:183, backend/app/main.py:182 | **compose／backend** — 憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `CF_ACCESS_CLIENT_ID` | compose.yaml:143, backend/app/gateway.py:133 | **compose／backend／scripts** — 必填 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `CF_ACCESS_CLIENT_SECRET` | compose.yaml:144, backend/app/gateway.py:134 | **compose／backend／scripts** — 必填；憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
@@ -73,7 +73,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `CF_AIG_TOKEN_FILE` | compose.yaml:148, backend/app/gateway.py:81 | **compose／backend** — 憑證 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `COHERE_GATEWAY_URL` | compose.yaml:160, backend/app/rag.py:100 | **compose／backend** — 選填 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `COHERE_MODELS` | compose.yaml:161 | **compose** — 預設 command-a-plus-05-2026,command-a-03-2025 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 command-a-plus-05-2026,command-a-03-） |
-| `COLLECTION` | compose.yaml:126, backend/app/retrieve.py:23 | **compose／backend** — 必填；預設 laws | 待填 | 待填 | SET | **留** — 有值且被讀 |
+| `COLLECTION` | compose.yaml:126, backend/app/retrieve.py:23 | **compose／backend** — 必填；預設 laws | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 laws） |
 | `EMBED_MODEL` | compose.yaml:124, backend/app/gateway.py:76 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
 | `GEMINI_GATEWAY_URL` | compose.yaml:156, backend/app/rag.py:82 | **compose／backend** — 選填 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `GEMINI_MODELS` | compose.yaml:157 | **compose** — 預設 gemini-3.8-flash,gemini-3.5-flash,gemini | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 gemini-3.8-flash,gemini-3.5-flash,ge） |
@@ -85,13 +85,13 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `HOST_API_LOCAL` | scripts/host-doctor.sh:38, scripts/host-sync.sh:47 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `HOST_HOSTNAME_FILE` | backend/app/registry.py:21 | **未傳入容器** — compose 沒列 environment → 容器讀不到，只吃原始碼預設 | 待填 | 待填 | 待填 | **待確認** — compose 沒傳入容器 → 現在設了無效；若日後要傳入，值要重新填 |
 | `HOST_MACHINE_ID_FILE` | backend/app/registry.py:20 | **未傳入容器** — compose 沒列 environment → 容器讀不到，只吃原始碼預設 | 待填 | 待填 | 待填 | **待確認** — compose 沒傳入容器 → 現在設了無效；若日後要傳入，值要重新填 |
-| `JEV_BANK_MIN` | compose.yaml:182, backend/app/rag.py:140 | **compose／backend** — 必填；預設 0.6 | 待填 | 待填 | SET | **留** — 有值且被讀 |
-| `JEV_DISABLED` | compose.yaml:180, backend/app/rag.py:134 | **compose／backend** — 選填 | 待填 | 待填 | EMPTY | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `JEV_BANK_MIN` | compose.yaml:182, backend/app/rag.py:140 | **compose／backend** — 必填；預設 0.6 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 0.6） |
+| `JEV_DISABLED` | compose.yaml:180, backend/app/rag.py:134 | **compose／backend** — 選填 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `JEV_MODEL` | compose.yaml:174, backend/app/rag.py:133 | **compose／backend** — 必填；預設 jev-latest | 待填 | 待填 | EMPTY | **留** — 空值但有預設值 —— 留著是文件（預設 jev-latest） |
-| `JEV_VERIFY_MIN` | compose.yaml:181, backend/app/rag.py:136 | **compose／backend** — 必填；預設 0.4 | 待填 | 待填 | SET | **留** — 有值且被讀 |
+| `JEV_VERIFY_MIN` | compose.yaml:181, backend/app/rag.py:136 | **compose／backend** — 必填；預設 0.4 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 0.4） |
 | `KEEP_ALIVE` | compose.yaml:120, backend/app/gateway.py:89 | **compose／backend** — 必填；預設 -1 | 待填 | 待填 | EMPTY | **留** — 空值但有預設值 —— 留著是文件（預設 -1） |
 | `LAW_SYNC_SOURCE` | scripts/law-update-worker.sh:120, scripts/sync-snapshot.sh:121 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — 有值且被讀 |
-| `LIMIT` | ingest/laws/qdrant_load.py:293 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | EMPTY | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `LIMIT` | ingest/laws/qdrant_load.py:293 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `MISTRAL_GATEWAY_URL` | compose.yaml:165, backend/app/rag.py:121 | **compose／backend** — 選填 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `MISTRAL_MODELS` | compose.yaml:166 | **compose** — 預設 ministral-8b-latest,codestral-latest | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 ministral-8b-latest,codestral-latest） |
 | `NVIDIA_API_KEY` | compose.yaml:154, backend/app/rag.py:71 | **compose／backend** — 憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
@@ -100,7 +100,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `OLLAMA_BASE_URL` | compose.yaml:83, backend/app/gateway.py:31 | **低優先** — 高優先的 OLLAMA_URLS 設了有效值時用不到它 | 待填 | 待填 | 待填 | **清空** — 低優先：有更高優先的來源（OLLAMA_URLS） |
 | `OPENROUTER_GATEWAY_URL` | compose.yaml:135, backend/app/rag.py:42 | **compose／backend** — 選填 | 待填 | 待填 | SET | **留** — 有值且被讀 |
 | `OPENROUTER_MODELS` | compose.yaml:149 | **compose** — 預設 cohere/north-mini-code:free,dots-studio/ | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 cohere/north-mini-code:free,dots-stu） |
-| `PG_CONNECT_TIMEOUT` | compose.yaml:80, backend/app/common/pg.py:37 | **compose／backend** — 必填；預設 3 | 待填 | 待填 | SET | **留** — 有值且被讀 |
+| `PG_CONNECT_TIMEOUT` | compose.yaml:80, backend/app/common/pg.py:37 | **compose／backend** — 必填；預設 3 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 3） |
 | `PICK_TTL` | compose.yaml:123, backend/app/gateway.py:87 | **compose／backend** — 必填；預設 30 | 待填 | 待填 | EMPTY | **留** — 空值但有預設值 —— 留著是文件（預設 30） |
 | `POSTGRES_DB` | compose.yaml:52 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
 | `POSTGRES_USER` | compose.yaml:50 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
@@ -116,9 +116,8 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `RERANK_MODEL` | compose.yaml:125, backend/app/retrieve.py:22 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
 | `TYPESAFE_API_KEY` | compose.yaml:167, backend/app/rag.py:131 | **compose／backend** — 憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `TYPESAFE_URL` | compose.yaml:171, backend/app/rag.py:132 | **compose／backend** — 必填；預設 https://api.typesafe.ai/v1/systemone | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 https://api.typesafe.ai/v1/systemone） |
-| `VAR` | scripts/env-sync.sh:508 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `ZEN_API_KEY` | compose.yaml:151, backend/app/rag.py:60 | **compose／backend** — 憑證 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
-| `ZEN_BASE_URL` | compose.yaml:150, backend/app/rag.py:59 | **compose／backend** — 必填；預設 https://opencode.ai/zen/v1 | 待填 | 待填 | SET | **留** — 有值且被讀 |
+| `ZEN_BASE_URL` | compose.yaml:150, backend/app/rag.py:59 | **compose／backend** — 必填；預設 https://opencode.ai/zen/v1 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 https://opencode.ai/zen/v1） |
 | `ZEN_FREE_MODELS` | compose.yaml:152 | **compose** — 預設 deepseek-v4-flash-free,muse-spark-1.3-co | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 deepseek-v4-flash-free,muse-spark-1.） |
 
 ## ⚠️ 幽靈鍵（`.env` 裡有，但**程式碼沒讀它**）

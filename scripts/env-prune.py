@@ -133,6 +133,51 @@ def _why(text: str) -> list[str]:
     return out
 
 
+_REGISTRY = None
+
+
+def _registry():
+    """(registry_by_key, shared_secrets, per_host_secrets)，惰性載入並快取。
+
+    真相來源是 `env-audit.py` 的 registry（它自己就是從 compose.yaml 解析的），
+    這裡**不重新實作解析** —— 那會是第二份會漂移的實作，而「會漂移」正是
+    這個 repo 反覆在修的那類問題。
+    """
+    global _REGISTRY
+    if _REGISTRY is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "env_audit", Path(__file__).resolve().parent / "env-audit.py")
+        ea = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ea)
+        sync = (Path(__file__).resolve().parent / "env-sync.sh").read_text(
+            encoding="utf-8")
+
+        def names(var: str) -> set[str]:
+            m = re.search(rf'^{var}="([^"]+)"', sync, re.M)
+            return set(m.group(1).split()) if m else set()
+
+        reg = {k: v.compose_default for k, v in ea.build_registry().items()}
+        _REGISTRY = (reg, names("SHARED_SECRETS"), names("PER_HOST_SECRETS"))
+    return _REGISTRY
+
+
+def _compose_default(key: str) -> str | None:
+    """這個鍵在 compose.yaml 的 `${KEY:-預設}` 預設值；沒有回 None。"""
+    return _registry()[0].get(key)
+
+
+def _managed_elsewhere(key: str) -> bool:
+    """這個鍵的**生命週期**由 env-sync 管理嗎（共用憑證／per-host 機密）？
+
+    那些鍵不該由 prune 動：刪了之後要等 `render` 才有機會寫回來，而在那之前
+    該機就是壞的。而且共用憑證的值若碰巧等於某個預設（不太可能，但後果
+    **不可逆**），刪掉就是永久損失 —— 沒有任何來源能重建那 10 把。
+    """
+    _, shared, per_host = _registry()
+    return key in shared or key in per_host
+
+
 def in_place(lines: list[str]) -> tuple[list[str], dict[str, str]]:
     """就地轉換：只動清單裡的鍵，其他鍵逐字保留、不重新排序。"""
     acted: dict[str, str] = {}
@@ -147,6 +192,22 @@ def in_place(lines: list[str]) -> tuple[list[str], dict[str, str]]:
             continue
 
         key, val = m.group(1), m.group(2)
+
+        # ── 新規則：值與 compose 預設**完全相同** → 刪（零行為變更）────────
+        # 2026-10-02 三機比對時發現：三台的 `.env` 有 5 個鍵的值與 compose 預設
+        # 逐位元組相同（COLLECTION / PG_CONNECT_TIMEOUT / ZEN_BASE_URL /
+        # JEV_BANK_MIN / JEV_VERIFY_MIN）。那 5 個是**純冗餘**：刪掉之後
+        # compose 給的值一模一樣，而檔案少一份可能過期的副本。
+        #
+        # 為什麼自動偵測而不寫死鍵名：`DELETE` 那份手寫清單就是「會漂移」的東西
+        # —— 它列的是「空值 + 有預設」，而這一類的真正判準是**可證明的相等**。
+        # 寫死 5 個名字只是把同一個問題換個位置放。
+        dflt = _compose_default(key)
+        if dflt is not None and val == dflt and not _managed_elsewhere(key):
+            acted[key] = f"刪（值與 compose 預設相同 len={len(dflt)}）"
+            i += 1
+            continue
+
         # 這個鍵的說明＝它上方**連續**的註解行（碰到空行／章節標題／另一個鍵就停）
         start = len(out)
         while start > 0:
