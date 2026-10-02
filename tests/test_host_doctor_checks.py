@@ -152,6 +152,66 @@ def test_perm_of_helper_avoids_the_gnu_stat_f_trap():
         "不可用 `||` 串 stat 的兩種旗標：GNU 的 `stat -f` 會成功但答非所問"
 
 
+def test_no_gnu_only_commands_are_used_unconditionally():
+    """**不可無條件使用只存在於 GNU coreutils 的指令。**
+
+    ⚠️ 2026-10-02 實測踩到（mbp 回報）：我寫 `timeout 60 sops ...`，
+    而 **macOS 沒有 `timeout`**（那是 GNU coreutils 的，macOS 上通常也沒裝
+    `gtimeout`）。結果 `command not found` → rc=127 → 那條檢查**永遠 fail**，
+    而且 fail 的理由看起來像「sops 解不開」，實際是「指令不存在」——
+    **症狀指向完全錯誤的方向。**
+
+    這是本專案第三次只會在 macOS 炸的錯誤：
+
+    | # | 形狀 | 類別 | 現有守衛涵蓋？ |
+    |---|---|---|---|
+    | 1 | `$VAR（全形` | 引號／字元 | ✅ `test_bash32_fullwidth.py` |
+    | 2 | GNU `stat -f` | 旗標語意 | ✅ `test_perm_of_helper_*` |
+    | 3 | `timeout` 不存在 | **指令存在性** | ❌ **原本沒有** ← 這條 |
+
+    前兩個是「寫法」問題，這個是「有沒有」問題 —— **完全不同的類別**，
+    所以前兩個的守衛涵蓋不到它。這就是為什麼要單獨一條。
+
+    判準是「這個指令在 macOS 上預設有沒有」。清單要短且可辯護：只列**確定
+    不在 macOS 預設環境**的，不要把所有 Linux 指令都塞進來（否則這條測試
+    會變成一份無法維護的假設清單）。
+    """
+    # macOS 預設**沒有**的 GNU coreutils 指令。每一個都要有理由。
+    for fn_name, body in _fns().items():
+        for i, line in enumerate(body.splitlines(), 1):
+            code = line.split("#")[0]
+            # 判準是**呼叫形態** `timeout <數字>`，而不是「前面是什麼」。
+            # ⚠️ 第一版寫成「前面是 `$(` 或行首或 `;`」—— 那漏掉了
+            #   `out="$(FOO=bar timeout 60 sops …)"` 這種形狀：
+            #   `timeout` 前面是 `"$keyf" `，於是測試**綠著**而 mbp 照樣炸。
+            #   那是「用猜的規則驗證實際行為」的典型失敗。
+            for m in re.finditer(r"(?<!run_with_)(?<![\w-])timeout\s+\d", code):
+                assert "command -v timeout" not in code, (
+                    f"{fn_name}() 第 {i} 行：偵測式要留 `command -v timeout`，"
+                    f"但那不該同時是無條件呼叫")
+                raise AssertionError(
+                    f"{fn_name}() 第 {i} 行**無條件**用了 `timeout`："
+                    f"{line.strip()[:90]}\n"
+                    f"   macOS 沒有它（GNU coreutils 才有）→ rc=127，"
+                    f"而 fail 的理由會看起來像「sops 解不開」。"
+                    f"請改用 run_with_timeout。")
+            # gtimeout 只允許出現在 fallback 分支（`^\s*gtimeout "$secs"`）
+            for m in re.finditer(r"(?<![\w-])gtimeout\b", code):
+                assert re.match(r'^\s*gtimeout\s+"\$secs"', code), (
+                    f"{fn_name}() 第 {i} 行：gtimeout 只該出現在 fallback 分支"
+                    f"（且要帶 \"$secs\"），這裡：{line.strip()[:80]}")
+
+    # 必須有那個可攜的 helper，而且它**真的**處理了三種情況
+    assert "run_with_timeout()" in SRC, "缺少可攜的 timeout helper"
+    helper = re.search(r"run_with_timeout\(\) \{(.*?)\n\}", SRC, re.S)
+    assert helper, "run_with_timeout() 沒有實作"
+    h = helper.group(1)
+    assert "command -v timeout" in h, "要先試系統的 timeout"
+    assert "gtimeout" in h, "macOS + coreutils 要有 gtimeout 這條路"
+    assert re.search(r'^\s*"\$@"', h, re.M), \
+        "兩者都沒有時要直接跑（寧可沒有上限，也不能因為沒有 timeout 就不檢查）"
+
+
 def test_bash32_fullwidth_safe():
     """新程式碼不可有 `$VAR` + 全形字元 —— **本機測不出來，只有 mbp 會炸**。
 
@@ -168,3 +228,84 @@ def test_bash32_fullwidth_safe():
         if m:
             bad.append(f"{i}: {m.group(0)!r}")
     assert not bad, "可執行行有 `$VAR` + 全形字元（bash 3.2 會當成變數名的一部分）:\n  " + "\n  ".join(bad)
+
+
+# ── source 機每日同步（2026-10-02）────────────────────────────────────────
+
+def test_source_sync_check_exists_and_is_wired():
+    """source 機的每日同步檢查必須存在**而且被呼叫**。
+
+    為什麼需要：`ch_law_version` 對 source 機（`.law_sync.json` 存在）**只看檔案
+    在不在**，完全沒檢查 `last_checked` —— 而它自己的註解卻寫著「每日
+    `sync_daily` 有在跑（last_checked 是新的）」。**那句話沒有任何程式碼在驗。**
+
+    後果正是使用者要確認的那件事：x570 的 crontab 有兩個錯誤時，`host-doctor`
+    回 ok。**一個宣稱一個沒驗證過的東西，比沒有那個檢查更糟。**
+    """
+    fns = _fns()
+    assert "ch_source_sync" in fns, "缺少 source-sync 檢查"
+    calls = re.findall(r"^ch_[a-z_]+$", SRC, re.M)
+    assert "ch_source_sync" in calls, "定義了但沒被呼叫"
+
+
+def test_source_sync_distinguishes_not_run_from_ran_and_failed():
+    """**「沒在跑」與「跑了但失敗」必須是兩句不同的話。**
+
+    ⚠️ 2026-10-02 wsl 實測：資料停在 62 小時前，而 log 顯示**當天有在嘗試** ——
+    是上游 `law.moj.gov.tw` 回 HTTP 500。第一版訊息寫「沒在跑，或 crontab 有錯」，
+    那是**把跑了但失敗說成沒跑**，會讓人去查 crontab 而真正的原因是上游。
+
+    這個專案反覆在收這一類（把兩個不同的失效混成一句話）。所以訊息必須：
+    * 看 log 最後的時間戳判斷「有沒有近期嘗試」
+    * 兩種情況給**不同的處置方向**（看 crontab vs 看 log／上游）
+    """
+    body = _fns()["ch_source_sync"]
+    assert "last_checked" in body, "必須讀 last_checked（那才是「上次同步」的證據）"
+    assert "applied_at" in body, "也要看 applied_at —— last_checked 會更新但 applied_at 不會（下載到了但沒套用）"
+    # 判斷「近期嘗試」的依據必須是 log，而不是猜
+    assert "log" in body.lower(), "要去看 sync 的 log"
+    assert "跑了但失敗" in body, "必須有『跑了但失敗』這個說法"
+    assert "沒在跑" in body, "必須有『沒在跑』這個說法"
+    # last_checked 的門檻要 > 24h，否則每天下午都誤報
+    m = re.search(r"float\('\$age_h'\) < (\d+)", body)
+    assert m, "門檻寫法變了"
+    assert int(m.group(1)) >= 26, (
+        f"門檻 {m.group(1)}h 太短 —— 每日 06:30 跑的機器在當天下午就會誤報。"
+        f"要 >24h 留緩衝")
+
+
+def test_source_sync_checks_every_path_in_the_cron_line():
+    """**cron 那條指令的每個路徑都要靜態驗** —— 因為 cron 失敗是靜默的。
+
+    2026-10-02 x570 的兩個錯誤就是這兩種形狀，而症狀都是「沒有任何錯誤輸出，
+    只是法規沒更新」：cron 的信寄到郵件，而多半沒人看。
+
+    必須分別驗：工作目錄（`cd` 目標）、解譯器、腳本 —— 少驗一個，那一類錯誤
+    就漏掉。
+    """
+    body = _fns()["ch_source_sync"]
+    assert "source-sync-cwd" in body, "要驗 cd 的目標"
+    assert "source-sync-interp" in body, "要驗解譯器（.venv 名稱拼錯是常見原因）"
+    assert "source-sync-script" in body, "要驗腳本本身"
+
+
+def test_source_sync_parsed_paths_are_trimmed():
+    """**解析出來的路徑必須 trim** —— 第一版在 wsl 上**假失敗**。
+
+    ⚠️ `[^&|;]+` 是貪婪的，會把 `&&` 前的空白一起吃進去，於是 cdpath 變成
+    `/…/ragdemo.win `（帶尾隨空白）→ `[ -d ]` 為假 → 回報「cd 目標不存在」，
+    而那個目錄明明存在、cron 完全正常。
+
+    **一支專門告訴人「你的 cron 會不會失敗」的檢查，如果會假失敗就會被忽略** ——
+    那比沒有這個檢查更糟。所以 trim 不是細節，是這條檢查能不能被信任的前提。
+    """
+    body = _fns()["ch_source_sync"]
+    for var in ("cdpath", "ipath", "spath"):
+        # 取出該變數那一行，必須有去空白的動作
+        m = re.search(rf'^\s*{var}="\$\(.*$', body, re.M)
+        assert m, f"找不到 {var} 的取得那一行（寫法變了？）"
+        line = m.group(0)
+        assert re.search(r"sed -E 's/\^\[\[:space:\]\]\+//", line) or \
+               re.search(r"tr -d '[:space:]'", line) or \
+               "awk" in line, \
+            f"{var} 沒有 trim —— 尾隨空白會讓 [ -d ] / [ -x ] 為假（2026-10-02 實測假失敗）"

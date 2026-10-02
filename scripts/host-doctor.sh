@@ -351,6 +351,30 @@ perm_of() {
   fi
 }
 
+# ── 可攜的 timeout ──────────────────────────────────────────────────────
+# ⚠️ 2026-10-02 實測踩到：**macOS 沒有 `timeout`**（那是 GNU coreutils 的，
+# macOS 上通常也沒有 `gtimeout`）。我寫 `timeout 60 sops ...` 時沒查，結果在
+# mbp 上 `command not found` → rc=127 → 那條檢查**永遠 fail**，而且 fail 的
+# 理由看起來像「sops 解不開」，實際是「指令不存在」。
+#
+# 那是本專案第三次只會在 macOS 炸的錯誤（前面兩個：`$VAR（全形`、GNU 的
+# `stat -f`）。**前兩個是引號／旗標的問題，這個是「指令是否存在」的問題 ——
+# 而我現有的守衛（`test_bash32_fullwidth.py`）只查引號，涵蓋不到。**
+#
+# 處置順序：系統的 `timeout` → `gtimeout`（coreutils）→ 沒有就**跑但自己計時**。
+# 最後那條很重要：寧可沒有上限，也不能因為「沒有 timeout」就不檢查 ——
+# 那會讓 sops 在卡住時把整支腳本拖死。
+run_with_timeout() {
+  local secs="$1"; shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$secs" "$@"
+  else
+    "$@"                                   # 沒有 timeout 指令就跑；見上方說明
+  fi
+}
+
 ch_sops() {
   command -v sops >/dev/null 2>&1 || { bump sops skip "沒有 sops"; return; }
   command -v age >/dev/null 2>&1 || { bump age skip "沒有 age（sops 的預設收件人解密需要它）"; }
@@ -380,7 +404,7 @@ ch_sops() {
   local tmp rc=0
   tmp="$(mktemp "${TMPDIR:-/tmp}/ragdemo-sopsprobe.XXXXXX")"
   chmod 600 "$tmp"
-  if out="$(SOPS_AGE_KEY_FILE="$keyf" timeout 60 sops --decrypt --extract "[\"$key\"]" "$enc" 2>&1)"; then
+  if out="$(SOPS_AGE_KEY_FILE="$keyf" run_with_timeout 60 sops --decrypt --extract "[\"$key\"]" "$enc" 2>&1)"; then
     bump sops ok "真的解密成功（試 ${key}，len=${#out}）"
     # out 已在記憶體；把它寫到 tmp 只為量長度是多余的，直接銷毀 tmp。
     :
@@ -648,6 +672,176 @@ for r in rows:
 # .law_version 這個檔的內容是日期，不是憑證，可以照印。
 # 備援機靠 sync-snapshot.sh 寫它、source 機靠 sync_daily 產生，兩條路徑不同，
 # 所以「有這個檔」不代表「這台版本是最新的」—— 要比的是 update_date 本身。
+# ── 檢查 8b. source 機的每日同步**真的有在跑** ──────────────────────────
+#
+# ⚠️⚠️ 2026-10-02：`ch_law_version` 對 source 機（`.law_sync.json` 存在）
+#   **只看檔案在不在**，完全沒有檢查 `last_checked`。而它自己的註解寫著
+#   「每日 `sync_daily` 有在跑（.law_sync.json 的 last_checked 是新的）」——
+#   **那句話沒有任何程式碼在驗**。
+#
+#   後果：x570 的 crontab 有兩個錯誤（工作路徑少 `.win`、`.venv-ingest` 不存在）
+#   時，`host-doctor` **回 ok**。而那正是使用者要確認的事 —— 工具說「好」，
+#   它卻壞著。**一個宣稱一個沒驗證過的東西，比沒有那個檢查更糟。**
+#
+# 這個檢查要回答兩個獨立問題，而且**要分得開**：
+#   (a) **上次真的同步過嗎** → `last_checked` / `applied_at` 新不新鮮
+#   (b) **明天的 crontab 會成功嗎** → 那條指令的**每個路徑都存在嗎**
+#   (b) 是靜態檢查，不需要等它跑；(a) 要等。**兩個都做，因為它們的失效
+#   症狀不同**：只有 (a) 過但 (b) 壞 = 下次就會壞；只有 (b) 過但 (a) 舊 =
+#   已經壞了一段時間。
+ch_source_sync() {
+  # 非 source 機 → 這條不適用（備援機靠 sync-snapshot.sh，那由 ch_law_version 管）
+  if [ ! -f "$LAW_SYNC_FILE" ]; then
+    bump source-sync skip "這台不是 source 機（沒有 .law_sync.json）—— 由 ch_law_version 檢查快照"
+    return
+  fi
+
+  # ── (a) 上次同步的時間 ──
+  local lc ac
+  lc="$(python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("last_checked") or "")
+except Exception: print("")' "$LAW_SYNC_FILE" 2>/dev/null)"
+  ac="$(python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("applied_at") or "")
+except Exception: print("")' "$LAW_SYNC_FILE" 2>/dev/null)"
+  # 門檻 26 小時：每日 06:30 跑，26h 給「昨天跑了但今天還沒到 06:30」與
+  # 「真的跳過了至少一次」之間留一個身分的餘裕。太短會在每天下午誤報。
+  local age_h="?"
+  if [ -n "$lc" ]; then
+    age_h="$(python3 -c 'import sys,datetime as d
+try:
+    t=d.datetime.fromisoformat(sys.argv[1].replace("Z","+00:00"))
+    if t.tzinfo is None: t=t.replace(tzinfo=d.timezone.utc)
+    print(round((d.datetime.now(d.timezone.utc)-t).total_seconds()/3600,1))
+except Exception: print("?")' "$lc" 2>/dev/null)"
+  fi
+  # ⚠️ 2026-10-02 修正訊息：第一版寫「沒在跑，或 crontab 有錯」——
+  #   而 wsl 實測是**有在跑、但失敗**（上游 law.moj.gov.tw 回 HTTP 500）。
+  #   那兩件事的處置完全不同：前者看 crontab，後者看上游。把它們混成一句
+  #   會讓人去查錯方向 —— 這個專案反覆在修的正是這一類。
+  #
+  #   所以：先看 log 最後一行的時間戳。**有近期嘗試 → 跑了但失敗**；
+  #   **沒有 → 真的沒跑**。log 的路徑在 `sync_daily.py` 裡，這裡不重寫一份
+  #   路徑常數，而是去問它（見下方 SLOGS 取得）。
+  local logline=""
+  for lg in "$ROOT/data/laws/sync.log" "$HOME/qdrant/sync.log"; do
+    [ -f "$lg" ] && { logline="$(tail -3 "$lg" 2>/dev/null | tr '\n' ' ' | tail -c 220)"; break; }
+  done
+  local recent="no"
+  if [ -n "$logline" ]; then
+    recent="$(printf '%s' "$logline" | python3 -c '
+import sys, re, datetime as d
+txt = sys.stdin.read()
+best = None
+for m in re.finditer(r"(20\d\d-\d\d-\d\d)[ T](\d\d:\d\d)", txt):
+    try:
+        t = d.datetime.fromisoformat(m.group(1) + "T" + m.group(2))
+    except Exception:
+        continue
+    h = (d.datetime.now() - t).total_seconds() / 3600
+    if best is None or h < best:
+        best = h
+print("yes" if best is not None and best < 26 else "no")' 2>/dev/null || echo no)"
+  fi
+  case "$age_h" in
+    '?')  bump source-sync-last fail "讀不到 last_checked（$LAW_SYNC_FILE 的格式變了？）" ;;
+    *)    if python3 -c "import sys; sys.exit(0 if float('$age_h') < 26 else 1)" 2>/dev/null; then
+            bump source-sync-last ok "上次同步 ${age_h} 小時前（last_checked=${lc}）"
+          elif [ "$recent" = "yes" ]; then
+            bump source-sync-last fail "資料停在 ${age_h} 小時前，但 log 顯示**最近有在嘗試** → 是**跑了但失敗**，不是沒跑。處置看 log 最後幾行（常見原因：上游回 5xx）: ${logline}"
+          else
+            bump source-sync-last fail "資料停在 ${age_h} 小時前，且 log 沒有近期嘗試 → **每日 sync_daily 沒在跑**。看下面 source-sync-cron 那幾項（路徑／解譯器／腳本）"
+          fi ;;
+  esac
+  [ -n "$ac" ] && bump source-sync-applied ok "applied_at=${ac}" || \
+    bump source-sync-applied warn "沒有 applied_at —— 同步可能從沒成功套用過"
+
+  # ── (b) 明天的 crontab 會成功嗎（靜態）──
+  local crontab_out=""
+  crontab_out="$(crontab -l 2>/dev/null || true)"
+  if [ -z "$crontab_out" ]; then
+    bump source-sync-cron fail "crontab 是空的 —— 沒有任何排程，而這台是 source 機"
+    return
+  fi
+  # 只看含 sync_daily 的那條（source 機該跑的是它，不是 ensure-stack）
+  local line
+  line="$(printf '%s\n' "$crontab_out" | grep -vE '^\s*#|^\s*$' | grep -F 'sync_daily' | head -1)"
+  if [ -z "$line" ]; then
+    bump source-sync-cron fail "crontab 沒有 sync_daily 的排程 —— 這台是 source 機卻沒人更新法規"
+    return
+  fi
+  bump source-sync-cron ok "找到 sync_daily 的排程"
+
+  # ⚠️ **逐個路徑檢查**。2026-10-02 x570 的兩個錯誤就是這兩種：
+  #   (1) 工作目錄少 `.win` → `cd` 失敗，後面的指令根本沒跑
+  #   (2) `.venv-ingest/bin/python` 不存在 → python 找不到
+  # 而症狀都是「沒有任何錯誤輸出，只是法規沒更新」—— cron 失敗的信會寄到
+  # 郵件，而多半沒人看。所以在這裡靜態驗一次。
+  local bad=0 checked=0
+  local p
+  # (1) cd 的目標
+  local cdpath
+  # ⚠️ 2026-10-02 修正（第一版在 wsl 上**假失敗**）：`[^&|;]+` 是貪婪的，會把
+  # `&&` 前面的空白一起吃進去，於是 cdpath 變成 `/…/ragdemo.win `（帶尾隨空白）
+  # → `[ -d ]` 為假 → 回報「cd 目標不存在」，而那個目錄明明存在。
+  # 這一支的全部用途就是告訴人「你的 cron 會不會失敗」，**假失敗會讓它被忽略** ——
+  # 那比沒有這個檢查更糟。所以一律 trim。
+  cdpath="$(printf '%s' "$line" | sed -nE 's/.*\bcd[[:space:]]+([^&|;]+)[[:space:]]*&&.*/\1/p' | head -1 | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  if [ -n "$cdpath" ]; then
+    checked=$((checked+1))
+    if [ -d "$cdpath" ]; then
+      bump source-sync-cwd ok "${cdpath}"
+    else
+      bump source-sync-cwd fail "cd 目標不存在：${cdpath} ← **cron 會整條失敗**（常見原因：路徑少了副檔名）"
+      bad=1
+    fi
+  else
+    bump source-sync-cwd skip "那條排程沒有 cd（直接在 cron 的工作目錄跑）—— 相對路徑要靠 $ROOT 之外的 cwd，這種寫法本身就脆弱"
+  fi
+  # (2) 直譯器（第一個看起來像路徑的 ./*/bin/* 或 /usr/bin/*）
+  local ipath
+  ipath="$(printf '%s' "$line" | tr ' ' '\n' | grep -E '(^|/)(python3?|uv)$|/\.venv[^/]*/bin/python' | head -1 | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  if [ -n "$ipath" ]; then
+    checked=$((checked+1))
+    case "$ipath" in
+      /*) if [ -x "$ipath" ]; then
+             bump source-sync-interp ok "${ipath}"
+           else
+             bump source-sync-interp fail "解譯器不存在或不可執行：${ipath} ← **cron 會整條失敗**"
+             bad=1
+           fi ;;
+      *)  # 相對路徑 → 相對於 cd 目標（若有的話）
+           local abs="$ipath"
+           [ -n "$cdpath" ] && abs="${cdpath}/${ipath}"
+           if [ -x "$abs" ]; then
+             bump source-sync-interp warn "解譯器是相對路徑（${ipath}）—— 只在 cd 成功時才找得到；建議改用絕對路徑"
+           else
+             bump source-sync-interp fail "解譯器是相對路徑（${ipath}）且在 ${cdpath} 下找不到 ← **cron 會整條失敗**（常見原因：venv 名稱拼錯）"
+             bad=1
+           fi ;;
+    esac
+  else
+    bump source-sync-interp skip "那條排程看不出用哪個解譯器（用 PATH 裡的）"
+  fi
+  # (3) 腳本本身
+  local spath
+  spath="$(printf '%s' "$line" | tr ' ' '\n' | grep -E 'sync_daily\.py$' | head -1 | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  if [ -n "$spath" ]; then
+    checked=$((checked+1))
+    local sabs="$spath"
+    case "$spath" in /*) ;; *) [ -n "$cdpath" ] && sabs="${cdpath}/${spath}" ;; esac
+    if [ -f "$sabs" ]; then
+      bump source-sync-script ok "${spath}"
+    else
+      bump source-sync-script fail "腳本不存在：${sabs} ← **cron 會整條失敗**"
+      bad=1
+    fi
+  fi
+  [ "$checked" -eq 0 ] && bump source-sync-paths warn "沒從那條排程解析出任何路徑 —— 靜態檢查等於沒做，請確認排程寫法"
+  [ "$bad" -eq 0 ] && bump source-sync-verdict ok "靜態檢查：${checked} 個路徑都存在" || \
+    bump source-sync-verdict fail "有路徑不存在 —— **明天的排程會失敗**，症狀是「沒有錯誤、只是法規沒更新」"
+}
+
 ch_law_version() {
   if [ ! -f "$LAW_VERSION_FILE" ]; then
     # 2026-10-02：這台是 **source 機**（有 .law_sync.json）還是備援機？
@@ -750,6 +944,7 @@ ch_query
 ch_env_check
 ch_rotate
 ch_registry
+ch_source_sync
 ch_law_version
 
 # ── 輸出 ─────────────────────────────────────────────────────────────────────
