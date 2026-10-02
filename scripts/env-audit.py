@@ -1105,7 +1105,8 @@ def print_template(reg: dict[str, Ref]) -> None:
             elif not r.compose_ref and r.python_read and not r.host_only_reader():
                 print("#   ⚠️ compose 沒列入 environment，這裡設的值到不了容器")
             if r.readers:
-                shown = ", ".join(r.readers[:3])
+                paths = _reader_paths(r.readers)
+                shown = ", ".join(paths[:3])
                 more = f" …等 {len(r.readers)} 處" if len(r.readers) > 3 else ""
                 print(f"#   讀取處：{shown}{more}")
             print(f"{r.name}=")
@@ -1130,8 +1131,37 @@ def print_template(reg: dict[str, Ref]) -> None:
             for chunk in _wrap(POLICY_EXCLUDED[r.name], 76):
                 print(f"#   {chunk}")
             if r.readers:
-                print(f"#   讀取處：{', '.join(r.readers[:3])}")
+                print(f"#   讀取處：{', '.join(_reader_paths(r.readers)[:3])}")
         print()
+
+
+def _reader_paths(readers: list[str]) -> list[str]:
+    """`path:行號` → 只留 `path`，並依原順序去重。
+
+    ⚠️ **`.env.example` 不能帶行號**（2026-10-02 實測復現）：
+
+    模板是被**逐位元組比對**的（`tests/test_env_audit.py::test_template_has_no_
+    lan_ip_assignment`）。而 `backend/app/main.py` 是高頻改動檔 —— 實測近 20 次
+    提交全部動過它。所以**任何**後端編輯（加一行、刪一行、連加個註解）都會讓
+    行號位移，於是那條測試紅 —— 而紅的原因寫「請重新生成 .env.example」，
+    **和 LAN_IP 毫無關係**（那條測試就叫 `..._no_lan_ip_assignment`）。
+
+    復現步驟：在 `main.py` 加 5 行 → `main.py:287` 變 `main.py:282` → 紅。
+
+    行號是**一改就過期的文件**。路徑穩定、可 grep；行號只會製造假警報，而
+    **真的 LAN_IP 回歸反而會被埋掉** —— 那條測試的存在理由就這樣被自己擋掉。
+
+    ⚠️ **計數仍用原始的 `readers`**（`…等 N 處` 靠它），只在顯示時去行號 ——
+    在記錄時就去掉會讓多處讀取合併成一處，計數失真。
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for rd in readers:
+        p = rd.rsplit(":", 1)[0] if ":" in rd else rd
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
 
 
 def _wrap(text: str, width: int) -> list[str]:

@@ -34,22 +34,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PROXY = ROOT / "frontend" / "src" / "routes" / "api" / "[...path]" / "+server.ts"
 
-# 必須登入才能呼叫的路徑。從「有哪些寫入／燒額度的端點」推出來的，
-# **不是**從 guard 的清單推出來的 —— 這份獨立正是這條測試的價值。
+# ⚠️⚠️ 2026-10-02：**這份清單原本試圖列「所有需要登入的路徑」，而那正是第四個
+# 同型缺陷的成因。** 實測：在 `main.py` 加一條會改狀態的 `POST /xxx` 路由、哪裡
+# 都不加，下面那條測試**照樣綠** —— 手寫的清單和 `SENSITIVE` 一起漂移，測試就
+# 一起綠。而 `guard()` 是 **fail-open**（未列出就放行），所以漏一個 = 匿名可呼叫。
 #
-# 分兩類，兩類都要擋：
-#   · 會**改變狀態**（PUT／POST／DELETE 的目標）
-#   · 會**動用使用者的外部資源**（不改狀態但燒額度，見 probe-clouds）
-WRITING_PATHS = {
-    "query",          # 會寫入 usage/quota 統計
-    "ingest",         # 寫入 qdrant
-    "rules",          # 新增／刪除題庫
-    "eval",
-    "settings/default-model",
-    # 2026-10-02：後端新增的雲端 catalog 探測端點。**冪等、不改狀態**，
-    # 但會真的打每個 provider 的 catalog —— 動用的是使用者的雲端額度。
-    # 不擋的話任何人都能讓這台把探測打出去。
-    "settings/probe-clouds",
+# 現在改成：**會改狀態的那些全部從 `main.py` 的路由裝飾器推導**，見
+# `test_every_backend_mutating_route_is_either_guarded_or_self_authenticating`。
+# 手寫不再負責「完整性」，那是它的弱點。
+#
+# 那麼這裡還留著什麼？**推導蓋不到的那一小塊**：HTTP 方法看不出副作用的端點。
+# 具體是「不改狀態、但會動用使用者的外部資源」—— `GET` 形狀。按方法推導抓不到
+# `GET /settings/probe-clouds`，所以這類必須手寫，而且**每一筆都要寫理由**：
+# 沒有理由就等於沒有依據，那正是這個缺陷的形狀。
+#
+# 另一種常見的 GET 副作用是「回傳機敏資料」（憑證、路徑、主機清單）。目前沒有
+# 這類端點；真的加了要寫在這裡並附理由。
+QUOTA_OR_DISCLOSURE_PATHS = {
+    # 雲端 catalog 探測。**冪等、不改狀態**，但會真的打每個 provider 的 catalog
+    # —— 動用的是使用者的雲端額度。不擋的話任何人都能讓這台把探測打出去。
+    "settings/probe-clouds": "會打每個雲端 provider 的 catalog，動用使用者額度",
 }
 
 
@@ -136,17 +140,30 @@ def test_the_guard_matches_nested_paths_not_only_the_first_segment():
             "（guard() 對未列出的路徑 fail-open 是刻意的）")
 
 
-def test_every_writing_path_is_login_guarded():
-    """**每個會改變狀態的路徑都必須在 `SENSITIVE` 裡。**
+def test_quota_and_disclosure_paths_are_login_guarded():
+    """**每個「方法看不出副作用」而需要登入的路徑，都必須在 `SENSITIVE` 裡。**
 
-    漏一個 = 該路徑匿名可存取。這是 2026-10-02 `settings/default-model` 的實際狀況。
+    會改狀態的那些**已經改成從 `main.py` 推導**（見
+    `test_every_backend_mutating_route_is_either_guarded_or_self_authenticating`），
+    因為手寫清單保不了完整性 —— 那正是第四個同型缺陷。
+
+    這裡負責**推導蓋不到**的那一小塊：`GET` 形狀、冪等但燒額度或回傳機敏資料的
+    端點。按 HTTP 方法看不出副作用，所以只能手寫。
+
+    ⚠️ 所以這條測試**還要求每一筆都有理由**：沒有理由就等於沒有依據，
+    而「沒有依據的手寫清單」正是這個缺陷的形狀。
     """
     listed = _listed()
-    missing = sorted(WRITING_PATHS - listed)
+    missing = sorted(set(QUOTA_OR_DISCLOSURE_PATHS) - listed)
     assert not missing, (
-        f"這些路徑會改變狀態但沒有登入保護（`guard()` 對未列出的路徑直接放行）: "
-        f"{missing}\n"
+        f"這些路徑不改狀態但會動用外部資源／回傳機敏資料，"
+        f"而 `guard()` 對未列出的路徑直接放行: {missing}\n"
         f"   目前已列出: {sorted(listed)}")
+
+    no_reason = [k for k, why in QUOTA_OR_DISCLOSURE_PATHS.items() if not why.strip()]
+    assert not no_reason, (
+        f"這幾筆沒有寫理由: {no_reason} —— "
+        "一份沒有依據的手寫清單保不了完整性，理由就是依據")
 
 
 def test_the_backend_comment_does_not_overclaim_protection():
@@ -306,3 +323,91 @@ def _run_is_sensitive(paths):
         os.unlink(tmp)
     assert r.returncode == 0, f"node 執行失敗：\n{r.stdout}\n{r.stderr}"
     return json.loads(r.stdout)
+
+
+def _backend_mutating_routes():
+    """從 `backend/app/main.py` **真的解析**出所有會改狀態的路由。
+
+    回傳 `[(method, path, handler_body)]`。這是為什麼這條測試不用手寫清單：
+    **手寫的清單會和現實一起漂移，而測試還綠著。**
+
+    ⚠️ 解析方式刻意**不碰簽名**。第一版用
+    `async def (\\w+)\\s*\\([^)]*\\)[^:]*:` 去找 handler 的開頭，而
+    `async def eval_route(payload: str = Body(...))` 的**簽名裡就有冒號**，
+    `[^:]*:` 在第一個冒號停住，後面不是換行 → 整條匹配失敗 → **只解析出 1 條**。
+
+    那正好是這個 repo 一直在收的形狀：**守衛看起來在那裡，實際上幾乎什麼都沒看到**
+    —— 而且因為「至少 8 條」的斷言在同一個函式裡，它至少還會喊一下。
+    改成：只抓裝飾器（那一定是一行），再**按位置切片**找 handler 區塊。
+    """
+    src = (ROOT / "backend" / "app" / "main.py").read_text(encoding="utf-8")
+
+    decos = list(re.finditer(
+        r'^[ \t]*@app\.(post|put|delete|patch)\(\s*f?["\']([^"\']+)["\']',
+        src, re.M))
+    routes = []
+    for i, d in enumerate(decos):
+        method, path = d.group(1).upper(), d.group(2)
+        # 這個裝飾器之後、第一個 `async def` 之前的區間＝裝飾器區
+        after = d.end()
+        stop = decos[i + 1].start() if i + 1 < len(decos) else len(src)
+        seg = src[after:stop]
+        dm = re.search(r"^[ \t]*async\s+def\s+(\w+)", seg, re.M)
+        if not dm:                      # 同步 def 或其他形式
+            dm = re.search(r"^[ \t]*def\s+(\w+)", seg, re.M)
+        if not dm:
+            continue
+        # handler 區塊：從 def 那行到下一個頂層 @app. / class / 檔尾
+        body_start = after + dm.start()
+        tail = src[body_start:stop]
+        nxt = re.search(r"\n@|^class ", tail, re.M)
+        body = tail[:nxt.start()] if nxt else tail
+        routes.append((method, path, body))
+    return routes
+
+
+def test_every_backend_mutating_route_is_either_guarded_or_self_authenticating():
+    """**每一條會改狀態的後端路由，都必須被 worker 擋住 —— 或自己驗證身分。**
+
+    ⚠️ 這是 2026-10-02 找到的**第四個**同型缺陷：守衛存在，但**看不見現實**。
+
+    `test_every_writing_path_is_login_guarded` 拿**手寫**的 `WRITING_PATHS` 去比
+    **手寫**的 `SENSITIVE`。實測：在 `main.py` 加一條會改狀態的 `POST /xxx` 路由、
+    哪裡都不加，那條測試**照樣綠** —— 兩份清單一起漂移，測試就一起綠。
+    而 `guard()` 是 **fail-open**（未列出就放行），所以漏一個 = **匿名可呼叫**。
+
+    所以這條**不讀任何手寫清單**，全部從 `main.py` 的路由裝飾器推導。兩種正當
+    情況，都從原始碼判定：
+
+    1. **被 worker 的 `SENSITIVE` 涵蓋**（逐段比對，含 `{rid}` 這種參數路徑）
+    2. **handler 自己驗證身分**（`POST /law-update` 走 `_require_admin(authorization)`）
+
+    換不到以上兩者的，就是匿名可呼叫 —— 那正是這個 repo 一直在收的那一類。
+    """
+    routes = _backend_mutating_routes()
+    assert len(routes) >= 8, (
+        f"只解析出 {len(routes)} 條會改狀態的路由（預期至少 8）—— "
+        "解析器的寫法可能跟 main.py 的裝飾器形式不同步了。"
+        "**守衛抓不到路由比沒有守衛更糟**，因為它會讓人以為有保護。")
+
+    listed = _listed()          # SENSITIVE 的內容（既有 helper）
+    unguarded = []
+    for method, path, body in routes:
+        segs = [s for s in path.strip("/").split("/") if s]
+        covered = any(
+            all(ls == rs or (rs.startswith("{") and rs.endswith("}"))
+                for ls, rs in zip(entry.split("/"), segs))
+            for entry in listed
+        )
+        self_auth = "_require_admin" in body
+        if covered or self_auth:
+            continue
+        unguarded.append(f"{method} {path}")
+
+    assert not unguarded, (
+        "這些路由會改狀態，但既不在 worker 的 SENSITIVE、handler 也沒有自己驗證身分"
+        "（匿名可呼叫）：\n  "
+        + "\n  ".join(unguarded)
+        + "\n\n  兩種修法：加進 SENSITIVE（要登入），或讓 handler 呼叫 "
+          "_require_admin()。\n"
+          "  ⚠️ 不要手寫清單 —— 手寫的清單就是這條缺陷的成因。")

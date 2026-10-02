@@ -663,3 +663,49 @@ def test_registry_has_no_hand_maintained_list():
     # env-audit 對「我只設了舊鍵」的機器回報錯誤的遷移建議）。
     for gone in ("HOST_API_X570", "HOST_API_MBP", "HOST_API_MSI"):
         assert gone not in REG, f"{gone} 已被 HOST_API_URLS 取代，不該再被讀取"
+
+
+def test_env_example_carries_no_source_line_numbers():
+    """**`.env.example` 的註解不得含源碼行號。**
+
+    ⚠️ 2026-10-02 實測復現的假警報源頭。模板是被**逐位元組比對**的，而
+    `backend/app/main.py` 是高頻改動檔（實測近 20 次提交全部動過它）。所以
+    **任何**後端編輯 —— 加一行、刪一行、連加個註解 —— 都會讓行號位移，於是
+    `test_template_has_no_lan_ip_assignment` 紅，而紅的原因寫
+    「請重新生成 .env.example」。
+
+    **和 LAN_IP 毫無關係。** 那條測試的存在理由是擋 `LAN_IP=` 回歸，卻被自己的
+    行號雜訊淹掉 —— 真的回歸反而更容易被忽略。
+
+    復現：在 `main.py` 加 5 行 → `main.py:287` 變 `main.py:282` → 紅。
+
+    行號是**一改就過期的文件**。路徑穩定、可 grep；行號只會製造假警報。
+    修法是 `_reader_paths()`：**只在顯示時**去行號（計數仍用原始 readers，
+    否則多處讀取會併成一處、計數失真）。
+    """
+    import re as _re
+    import subprocess
+    import sys
+
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "env-audit.py"), "--template"],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert out.returncode == 0, f"--template 失敗：{out.stderr[:300]}"
+
+    reader_lines = [ln for ln in out.stdout.splitlines() if "讀取處" in ln]
+    assert reader_lines, "模板裡沒有『讀取處』註解 —— 生成器的寫法變了？"
+
+    # 只查「讀取處」那幾行：其他註解裡出現數字是合法的（例如端口、版本）
+    bad = [ln for ln in reader_lines
+           if _re.search(r"[A-Za-z0-9_./-]+\.(?:py|ya?ml|sh|ts|svelte|md):\d+", ln)]
+    assert not bad, (
+        "模板的『讀取處』含源碼行號 —— 任何後端編輯都會讓 .env.example 失效：\n  "
+        + "\n  ".join(bad[:3])
+        + "\n  請改用 _reader_paths()（scripts/env-audit.py）")
+
+    # 計數必須還在：去行號不該把「…等 N 處」弄丟
+    multi = [ln for ln in reader_lines if "等" in ln and "處" in ln]
+    assert multi or len(reader_lines) == len(set(reader_lines)), (
+        "去行號後每個變數只剩一行讀取處 —— 多處讀取被併掉了，"
+        "計數（…等 N 處）應該保留才對")

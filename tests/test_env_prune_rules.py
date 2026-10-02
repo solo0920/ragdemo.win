@@ -283,4 +283,12 @@ def test_the_rules_are_documented_where_they_live():
     assert "值與 compose 預設" in src, "規則 1 沒有說明為什麼自動偵測"
     assert "per-host 鍵的空行" in src or "per-host 設定鍵" in src, \
         "規則 2 的理由沒有寫在 _managed_elsewhere 旁邊"
-    assert re.search(r"compose\.yaml:\d+", src) is None or True
+    # ⚠️ 2026-10-02：這行原本寫成 `... is None or True` —— **恆真**，等於沒測。
+    #   而它的意圖是對的：prune 的規則不該燒進 `compose.yaml:<行號>`，理由和
+    #   `.env.example` 那條一樣 —— **行號一改就過期**（compose.yaml 也在 frequent
+    #   改動），硬編行號的規則會默默對錯條目，症狀是「規則不生效」而沒有報錯。
+    #
+    #   恆真斷言比沒有斷言更糟：它在測試報告裡**看起來像有覆蓋**。
+    assert re.search(r"compose\.yaml:\d+", src) is None, (
+        "prune 不得硬編 compose.yaml 的行號 —— 行號會隨著檔案改動而過期，"
+        "症狀是規則默默對錯條目而不報錯")
