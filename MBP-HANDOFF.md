@@ -2,7 +2,57 @@
 
 給 **mbp 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
-## ☆☆ 最優先：`OLLAMA_URLS` 清空（2026-10-02 20:10，使用者決定：選 (b)）
+## ★★★ 2026-10-02 23:11 最新待辦（其下章節是歷史，別照舊指示做）
+
+### 1. `git pull` → 你回報時的 `0be580b` 之後有 4 個 commit，其中一個是**修你的 bug**
+
+```bash
+git pull
+docker compose up -d --build api      # 你說已 rebuild，但那次是 pull 之後
+bash scripts/host-doctor.sh
+```
+
+你回報的 3 項 fail，**兩項是同一個根因、一項是我寫錯**：
+
+| 你回報的 | 根因 | 狀態 |
+|---|---|---|
+| `[FAIL] code-drift` | pull 沒 rebuild api（新增 `cloud_probe.py`／`host_settings.py`／`readiness.py`，舊映像沒有）| **已修版會自己消失** |
+| `[FAIL] readiness HTTP 404` | 同上 —— 舊程式碼沒有 `/ready` 這個端點 | 同上 |
+| `[FAIL] sops rc=127: timeout: command not found` | **我的 bug**：我寫 `timeout 60 sops`，而 **macOS 沒有 `timeout`** | **已在 `1d38a13` 修好**（可攜的 `run_with_timeout`：`timeout` → `gtimeout` → 直接跑） |
+
+⚠️ 那一項的 fail 理由**看起來像「sops 解不開」，實際是「指令不存在」** ——
+症狀指向完全錯誤的方向。所以 pull 之後請**確認 sops 那條真的轉綠**，不要只看
+「沒有 fail 就好」。
+
+### 2. 確認 `OLLAMA_URLS` 清空完成了（**我沒有你的回報**）
+
+下方「☆☆ 最優先」那節指派了這件事，但還沒看到你執行後的回報。驗收兩項：
+
+```bash
+bash scripts/env-sync.sh --check | head -1      # 必須是 27 keys, layout sha12=eab0ab8f9d4e
+curl -s -o /dev/null -m 150 -w '  /query HTTP %{http_code}\n' \
+  -X POST http://localhost:8000/query -H 'Content-Type: application/json' \
+  -d '{"question":"測試","top_k":2}'
+```
+
+⚠️ **`/query` 才是真驗收，`/health` 抓不到 ollama 掛掉** —— 我在 wsl 實測過：
+刪掉那個鍵之後 `/health` 全程 200，是後來手動打了一次 `/query` 才發現 RAG 已斷。
+
+### 3. 不必重跑的事
+
+* **新的 `source-sync-*` 檢查對你會是 `skip`** —— 那是給 source 機的，你是備援機
+  （靠 `sync-snapshot.sh` 帶快照）。**skip 是正確的，不是故障。**
+* `law-version` 那條 warn（快照 23 小時沒更新）是**上游 `law.moj.gov.tw` 回 HTTP 500**
+  造成的，**不是你的設定問題**，不要去動它。
+* `rotate-hint` 你回「peer 與本機 key 不同值（已拆分，正確）」—— 那是三台裡
+  **唯一正確**的狀態，wsl／x570 還沒拆。**不要配合他們改回去。**
+
+### 4. 回報請貼這些
+
+`bash scripts/host-doctor.sh` 的**完整輸出**（值一律不顯示，那是腳本自己的行為），
+外加第 2 項那兩行的結果。
+
+## ☆☆ 已指派、等你回報：`OLLAMA_URLS` 清空（2026-10-02 20:10，使用者決定：選 (b)）
 
 **一行的事。把那個值清空就好，不要刪掉那一行。**
 

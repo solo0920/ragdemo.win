@@ -2,7 +2,69 @@
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
-## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 19:50）
+## ★★★ 2026-10-02 23:11 最新待辦（其下章節是歷史，別照舊指示做）
+
+### 1. `git pull` → 你回報時的 `0be580b` 之後有 4 個 commit，**其中一個是為你加的**
+
+```bash
+git pull
+docker compose up -d --build api
+bash scripts/host-doctor.sh
+```
+
+你回報的 2 項 fail 是**同一個根因**：`code-drift`（pull 沒 rebuild，新增的
+`cloud_probe.py`／`host_settings.py`／`readiness.py` 舊映像裡沒有）與
+`readiness HTTP 404`（舊程式碼沒有 `/ready` 這個端點）。**已修版會自己消失。**
+
+### 2. ⭐ 你那兩條 crontab 的錯誤，**現在才真的有人查**
+
+你之前回報「每日同步那條 crontab 有兩個錯誤」（工作路徑少 `.win`、`.venv-ingest`
+不存在）—— 但那時 `host-doctor` **根本沒在查這件事**。原因我已查證：
+
+`ch_law_version` 對 source 機（`.law_sync.json` 存在）**只看檔案在不在**，而它
+自己的註解卻寫著「每日 `sync_daily` 有在跑（`last_checked` 是新的）」——
+**那句話沒有任何程式碼在驗。** 所以你的 crontab 壞掉時它回 ok。
+
+已在 `1d38a13` 新增 `ch_source_sync`，回報時請看這幾項：
+
+| 檢查 | 它在查什麼 |
+|---|---|
+| `source-sync-cwd` | `cd` 目標不存在 → **就是「路徑少 `.win`」那個錯誤** |
+| `source-sync-interp` | 解譯器不存在 → **就是「`.venv-ingest` 不存在」那個錯誤** |
+| `source-sync-script` | 腳本本身在不在 |
+| `source-sync-verdict` | 綜合判定；「N 個路徑都存在」＝ 修好了 |
+| `source-sync-last` | 資料停在多久前 —— ⚠️ **看它說哪一句**，見下 |
+
+⚠️ **`source-sync-last` 的兩種訊息處置完全不同，不要搞反**：
+
+* **「跑了但失敗」** → cron 是好的，**問題在上游**（`law.moj.gov.tw` 回 HTTP 500）。
+  處置是看 log、等上游恢復。**不要去動 crontab。**
+* **「沒在跑」** → 那才是 crontab 的問題，往下看路徑那幾項。
+
+（我第一版的訊息把這兩件寫成同一句「沒在跑，或 crontab 有錯」，會讓你查錯方向。
+已改成分開判。）
+
+### 3. `.env` 版面遷移 —— **你是唯一還沒做的那台**
+
+你 `--check` 只有 4 個 per-host 鍵、檔案 26 鍵（mbp 6 鍵／wsl 8 鍵已遷移）。步驟在
+下方「☆☆ 最優先」那節，驗收是 `--check` 顯示 `27 keys, layout sha12=eab0ab8f9d4e`，
+外加補上 `x570_HOST_MACHINE_ID`（`/etc/machine-id` 是弱識別，而且容器每次重建會變）。
+
+### 4. 不要動的兩件
+
+* **`QDRANT_PEER_API_KEY` 輪換（下方 7c-2）暫停** —— wsl／你的 peer key 目前與本機
+  qdrant key **同值**，mbp 已拆開（那是三台裡唯一正確的狀態）。
+  同值是**結構性必然**，拆開需要 compose 先有 ALT 槽，而且**不要直接輪換 peer 那把**
+  （同值就一起換，順序錯了兩台備援機會永久 401）。**等 wsl 端決定順序再動。**
+  你現在的 `rotate-hint` warn 是**預期中的**，不是故障。
+* **法規上游 500** —— 若 `source-sync-last` 報「跑了但失敗」，那是上游的問題。
+
+### 5. 回報請貼這些
+
+`bash scripts/host-doctor.sh` 的**完整輸出**，重點是第 2 項那 5 個 `source-sync-*`
+（值一律不顯示，那是腳本自己的行為），外加 `--check | head -1`。
+
+## ☆☆ 已指派、等你回報：套用三機 `.env` 標準規格（2026-10-02 19:50）
 
 **先謝謝 §一 B 那份回報 —— 它推翻了我規格裡的一條錯誤結論。** 那一條我寫反了
 （說 x570 走 compose 預設是「漂移風險」，實際上三台的 DSN 都是
@@ -63,7 +125,12 @@ python3 -c "import hashlib,pathlib;print(hashlib.sha256(pathlib.Path('/etc/machi
 你的回報是對的，實測也支持：三台的 DSN 都是 `${POSTGRES_PASSWORD}` 佔位符，
 每次都從該機自己的密碼重新推導。**總表裡沒有任何明文密碼。**
 
-## ★★★ 接下來還有兩件事（2026-10-02 02:40 指派）
+## ★★ 接下來還有兩件事（2026-10-02 02:40 指派；**驗收方式已被上面第 2 節取代**）
+
+> ⚠️ 這節的**步驟**仍然照做，但**驗收別再用舊方法**。
+> 7c-1（修那兩條 crontab）的完成證據是新的 `source-sync-cwd`／`interp`／`verdict`
+> 三項 —— 舊的 `law-version` 對 source 機**只會回 ok**，證明不了任何事。
+> 7c-2（輪換 peer key）**已暫停**，理由見上面第 4 節。
 
 | # | 事項 | 在哪 | 大約 |
 |---|---|---|---|
