@@ -236,6 +236,15 @@ def test_runs_against_real_docker_on_a_healthy_stack():
     stub 測不出「stub 漏掉的參數」這類問題（例如 `ps -aq` 在某個 compose
     版本不支援，那會讓判斷恆為 0 → 永遠走「建立」路徑）。
     """
+    # 兩個前提都要檢查，**不可只看 stack 在不在線**。
+    #
+    # Friction 點（2026-10-02 實測）：只有「stack 不在線就 skip」時，
+    # 「.env 不存在但 stack 正在跑」這個組合會讓這條紅 ——
+    # `ensure-stack.sh` 內部跑 `docker compose ps`，那需要 .env 做插值，
+    # 沒有就整組失敗。CI 剛好不會踩到（CI 也沒有跑著的 stack，所以會 skip），
+    # 於是這個缺口可以一直藏著。判準要寫成真正的前提，而不是間接的線索。
+    if not (ROOT / ".env").is_file():
+        pytest.skip("沒有 .env —— docker compose 的插值需要它（CI 乾淨 clone）")
     if subprocess.run(["curl", "-sf", "-m", "5", "-o", "/dev/null",
                       "http://127.0.0.1:8000/health"],
                      capture_output=True).returncode != 0:

@@ -191,9 +191,14 @@ def test_local_only_declaration_must_be_a_comment():
             assert line.lstrip().startswith("#"), (
                 f"LOCAL_ONLY 那行必須是註解：{line[:60]}"
             )
-    # 而且實際跑一次 render 確認它不會被當成資料
+    # 而且實際跑一次 render 確認它不會被當成資料。
+    #
+    # ⚠️ 必須帶 `--host`：沒有它，render 會去讀 `.env` 的 HOST_ID，而
+    # **CI 是乾淨 clone、沒有 .env** → 報「.env 沒有 HOST_ID」→ 這條測試
+    # 在本機綠、在 CI 紅。第一版就這樣寫，CI 第一次跑就掛。
+    # 那與 test_env_check_coverage.py 當初改自造 .env 是同一個坑。
     r = subprocess.run(["bash", str(ROOT / "scripts" / "env-sync.sh"),
-                        "render", "--dry-run"],
+                        "render", "--dry-run", "--host", "x570"],
                        capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0, f"render 失敗（LOCAL_ONLY 被當成資料了？）：{r.stderr}"
 
@@ -234,23 +239,53 @@ def test_layout_fingerprint_is_stable_and_value_free(tmp_path):
     assert "sha12=" in a
 
 
+def _check_src() -> str:
+    t = (ROOT / "scripts" / "env-sync.sh").read_text(encoding="utf-8")
+    i = t.index("cmd_check() {")
+    j = t.index("\n\n", t.index("env-sync --check: 版面", i))
+    return t[i:j]
+
+
 def test_check_prints_the_layout_fingerprint():
-    """`env-sync.sh --check` 要印版面指紋 —— 否則跨機比對沒有入口。"""
-    r = subprocess.run(["bash", str(ROOT / "scripts" / "env-sync.sh"), "--check"],
-                       capture_output=True, text=True, cwd=ROOT)
-    assert r.returncode == 0, r.stderr
-    assert "版面" in r.stdout and "sha12=" in r.stdout, \
-        "--check 沒有印版面指紋"
-    assert "必須相同" in r.stdout, "要說明這個數字怎麼用（三台要拿它互比）"
+    """`env-sync.sh --check` 要印版面指紋 —— 否則跨機比對沒有入口。
+
+    ⚠️ 這條是**靜態**比對，不是執行。`--check` 的定義就是「檢查 .env」，
+    而 CI 是乾淨 clone、沒有 .env → 執行必然失敗。第一版寫成執行，
+    本機綠、CI 紅（2026-10-02 第一次 push 就被抓到）。
+    """
+    seg = _check_src()
+    assert "版面" in seg and "sha12=" in seg, "--check 沒有印版面指紋"
+    assert "必須相同" in seg, "要說明這個數字怎麼用（三台要拿它互比）"
 
 
 def test_check_fingerprint_explains_it_is_not_value_consistency():
     """指紋只證明**結構**一致，值的一致性是 --fingerprints 的工作。
 
     不講清楚的話，使用者會把「指紋相同」當成「三台環境一樣」——
-    而那兩件事完全不同（值會漂移而結構不變，這正是它要抓的）。
+    而那兩件事完全不同（值會漂移而結構不變，這正是版面要抓的）。
     """
-    r = subprocess.run(["bash", str(ROOT / "scripts" / "env-sync.sh"), "--check"],
-                       capture_output=True, text=True, cwd=ROOT)
-    assert "--fingerprints" in r.stdout, \
+    seg = _check_src()
+    assert "--fingerprints" in seg, \
         "--check 的指紋那行要指向 --fingerprints（那是驗值的地方）"
+
+
+def test_check_layout_fingerprint_does_not_emit_values():
+    """版面指紋那段不可讀 `.env` 的值 —— 只讀鍵名與區段標題。
+
+    `--check` 的整條紀律是「值一律不印」，而這一段是新加的。
+    一段新加的指紋計算若不小心讀了值，指紋就會**因值而變**，
+    三台指紋就永遠不同 —— 而那個症狀會被誤讀成「版面漂移」。
+    """
+    seg = _check_src()
+    for line in seg.splitlines():
+        m = re.match(r"\s*if m:", line)
+        if m:
+            continue
+    # 精確一點：指紋計算的 Python 區塊裡不可有 ASSIGN 的 group(2)
+    py = seg[seg.index("python3 - "):]
+    py = py[:py.index("\nPY\n")] if "\nPY\n" in py else py
+    assert "m.group(1)" in py, "指紋必須只用鍵名（group(1)）"
+    assert "m.group(2)" not in py, (
+        "指紋用了 group(2)（＝值）—— 那指紋會因值而變，三台永遠不同，"
+        "而症狀會被誤讀成版面漂移"
+    )
