@@ -355,3 +355,19 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
     return jsonError(`POST /${params.path} 轉發`, e);
   }
 };
+
+// PUT 只為了 /settings/default-model（per-host 預設模型）。少了這個 handler，
+// SvelteKit 對 PUT 一律回 405 —— 症狀是「設定視窗儲存失敗」而 GET 正常，
+// 看起來像後端拒絕寫入，實際上請求根本沒離開 edge。
+//
+// 刻意沿用 POST 的結構（guard → through → jsonError），不開特例路徑：
+// through() 已經處理了 content-type 與 CF token，唯一差別只是動詞。
+export const PUT: RequestHandler = async ({ params, request, platform }) => {
+  const blocked = await guard(request, parsed(params.path));
+  if (blocked) return blocked;
+  try {
+    return await through('PUT', params.path, await request.text(), platform, request.headers);
+  } catch (e) {
+    return jsonError(`PUT /${params.path} 轉發`, e);
+  }
+};

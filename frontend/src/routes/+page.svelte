@@ -1,5 +1,8 @@
 <script>
   import { onMount } from 'svelte';
+  import {
+    fetchHostDefaults, hostUrl, modelOptions, saveHostDefaults, targetRows,
+  } from '$lib/hostDefaults';
 
   // 後端切換器的候選名單**從 /status 回的 known 推導**，不在這裡列舉主機。
   // known 來自後端的 HOST_API_URLS；未設就是空 → 只剩「自動」，單機部署正常。
@@ -74,9 +77,101 @@
   let modelOpen = false;
   let groups = [];
 
+  // ── 「設定」對話框（每台主機的預設模型）──────────────────────────────
+  // 邏輯在 $lib/hostDefaults.ts，不在這裡 —— 那樣才測得到「連不上時顯示什麼」。
+  let showSettings = false;
+  let settingHosts = [];
+  let hostPicked = {};
+  let settingsLoading = false;
+  let settingsSaving = false;
+  let settingsMsg = '';
+  let settingsErr = '';
+
+  // 開啟對話框時要問的對象：目前服務的那台（/status 的 host）＋ known 裡的 peer。
+  // ⚠️ 刻意不放進 onMount 的啟動路徑：這是使用者按下去才發生的請求，
+  // 首頁不需要為它多打三台 ×2 個請求。
+  async function openSettings() {
+    showSettings = true;
+    await reloadSettings();
+  }
+
+  async function reloadSettings() {
+    settingsLoading = true;
+    settingsErr = '';
+    settingsMsg = '';
+    // selfId 取 /status 的 host：那才是「依後端主機」實際在跑的那台。
+    // 拿不到就退回切換器目前選的那個 —— 空字串會讓 targetRows 少一列，
+    // 那比顯示一個問號誠實（少一列 = 使用者看得到「沒有別台」）。
+    const selfId = status?.host || backendId;
+    const targets = targetRows(selfId, base(), knownHosts);
+    if (!targets.length) {
+      settingHosts = [];
+      settingsErr = '還不知道有哪些主機（/status 沒回來，或後端沒有設定 peer 清單）';
+      settingsLoading = false;
+      return;
+    }
+    // 一台讀不到不該拖垮其他台：逐台各自成敗，UI 分別呈現。
+    settingHosts = await Promise.all(targets.map((t) => fetchHostDefaults(t, fetch)));
+    const picked = {};
+    for (const r of settingHosts) picked[r.id] = r.model ?? '';
+    hostPicked = picked;
+    settingsLoading = false;
+  }
+
+  function closeSettings() {
+    showSettings = false;
+    settingsMsg = '';
+    settingsErr = '';
+  }
+
+  async function saveSettings() {
+    settingsSaving = true;
+    settingsMsg = '';
+    settingsErr = '';
+    try {
+      const res = await saveHostDefaults(settingHosts, hostPicked, fetch);
+      const ok = res.filter((r) => r.ok);
+      const skipped = res.filter((r) => r.skipped);
+      const failed = res.filter((r) => !r.ok && !r.skipped);
+      // 逐台結果都顯示出來 —— 一次儲存三台，其中一台失敗卻只說「已儲存」
+      // 就是把「部分失敗」講成「成功」。
+      const parts = [];
+      for (const r of res) {
+        if (r.ok) parts.push(`${r.id}：${r.model ?? '（清除，回到該機 LLM_MODEL）'}`);
+        else parts.push(`${r.id}：${r.skipped ? '未送出' : '失敗'} —— ${r.error}`);
+      }
+      // 只重讀**成功**的那些台：拿後端實際存下的值（它可能 normalize 過）。
+      // 失敗的那幾台保留原狀 —— 重讀會把使用者的選擇換成舊值，等於
+      // 「一台上失敗，使用者的輸入就消失了」，他得從頭再選一次。
+      const okIds = new Set(ok.map((r) => r.id));
+      settingHosts = await Promise.all(
+        settingHosts.map(async (row) => {
+          if (!okIds.has(row.id)) return row;
+          const fresh = await fetchHostDefaults(row, fetch);
+          hostPicked = { ...hostPicked, [row.id]: fresh.model ?? '' };
+          return fresh;
+        }),
+      );
+      // ⚠️ 訊息必須在重讀**之後**才寫：reloadSettings() 開頭會清掉它們，
+      //    順序寫反的話「已儲存 2/3 台」會一閃就不見，使用者以為沒反應。
+      settingsMsg = ok.length ? `已儲存 ${ok.length}/${res.length} 台` : '沒有任何一台儲存成功';
+      if (skipped.length || failed.length) settingsErr = parts.join('；');
+    } catch (e) {
+      settingsErr = '儲存失敗：' + (e && e.message ? e.message : e);
+    } finally {
+      settingsSaving = false;
+    }
+  }
+
   onMount(async () => {
     document.addEventListener('click', (ev) => {
       if (modelOpen && !ev.target.closest('.model-drop')) modelOpen = false;
+    });
+    // Esc 關閉「設定」對話框。
+    // ⚠️ 分開一個 keydown handler 而不是在 document click 裡判斷：Esc 不是點擊，
+    // 而且這段必須能在對話框 focus 在裡面時生效（用 window 才保證）。
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && showSettings) closeSettings();
     });
     try {
       const r = await fetch('/auth/me');
@@ -431,6 +526,17 @@
     }
   }
 
+  // 「預設（依後端主機）」那一列要顯示**實際在跑的那台**。
+  // 來源是 /status 的 host（後端回 registry.HOST_ID）—— 那正是「依後端主機」
+  // 四個字的意思：不是切換器上選的名字，是後端真正服務請求的那台。
+  //
+  // ⚠️ 分不清「還沒載入」與「載入失敗」就會講謊：status 失敗時後端給的 fallback
+  // 是 `{ok:false, host:'-'}`，那個 '-' 不是主機名。兩種情況都顯示「未知」。
+  function backendHostLabel() {
+    const h = status?.host;
+    return h && h !== '-' ? h : '未知';
+  }
+
   function srcRows(r) {
     return [
       { k: '檢索後端', v: r.host ?? '-' },
@@ -464,12 +570,13 @@
       {#if user}
         <div class="model-drop">
           <button class="btn model-select" onclick={() => { modelOpen = !modelOpen; }} aria-haspopup="listbox" title="選擇查詢使用的 LLM model">
-            {modelLabel() || '預設（依後端主機）'}
+            {modelLabel() || `預設（依後端主機：${backendHostLabel()}）`}
           </button>
           {#if modelOpen}
             <div class="model-menu" role="listbox">
               <div class="model-row group">
-                <span class="m-name">預設</span><span class="m-meta">（依後端主機）</span>
+                <span class="m-name">預設</span>
+                <span class="m-meta">（依後端主機：{backendHostLabel()}）</span>
               </div>
               {#each groups as g}
                 <div class="model-row group">{g.label}</div>
@@ -496,6 +603,9 @@
           {/if}
         </div>
         <a href="/rules" class="btn">題庫管理</a>
+        <button class="btn" onclick={openSettings} aria-haspopup="dialog" title="設定各主機的預設聊天模型">
+          設定
+        </button>
         <a href="/auth/logout" class="btn">登出</a>
       {:else}
         <a href="/auth/login" class="btn">使用 Google 登入</a>
@@ -632,6 +742,96 @@
   {#if !user}
     <p class="hint">尚未登入，請先 <a href="/auth/login" rel="external">使用 Google 登入</a> 後才能查詢。</p>
   {/if}
+
+  <!-- ── 設定對話框（每台主機的預設模型）─────────────────────────────
+    * 點背景關閉：onclick 掛在遮罩上、內層 .set-box 呼叫 stopPropagation，
+    * 否則點對話框裡的任何地方都會被當成點背景。
+    -->
+  {#if showSettings}
+    <div class="set-mask" onclick={closeSettings} role="presentation">
+      <div
+        class="set-box"
+        role="dialog"
+        aria-modal="true"
+        aria-label="各主機預設聊天模型"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <h2>各主機的預設聊天模型</h2>
+        <p class="hint">
+          每台主機各自存自己的設定（各有一個資料庫），不會互相覆蓋。
+          查詢時沒指定 model 就用這裡的值；選「（未設定）」則回到該機的 LLM_MODEL。
+        </p>
+
+        {#if settingsLoading}
+          <p class="muted">讀取各主機現況中…</p>
+        {:else if !settingHosts.length}
+          <p class="err">{settingsErr || '沒有可設定的主機'}</p>
+        {:else}
+          <table>
+            <thead>
+              <tr><th>主機</th><th>預設模型</th><th>實際使用</th></tr>
+            </thead>
+            <tbody>
+              {#each settingHosts as row}
+                <tr>
+                  <td>
+                    {row.id}
+                    {#if row.self}<span class="m-meta">（目前這台）</span>{/if}
+                  </td>
+                  <td>
+                    {#if row.state !== 'ok'}
+                      <!-- 連不到：明說「無法連線」。
+                           ⚠️ 絕對不能在這裡給空下拉或「未設定」—— 那看起來像
+                           「那台沒有任何 model」，事實是「不知道」。 -->
+                      <span class="err">無法連線</span>
+                      <span class="m-meta" title={row.error}>（{row.error}）</span>
+                    {:else if !row.modelsKnown}
+                      <!-- 清單取不到 ≠ 清單為空。disabled 且不給選項。 -->
+                      <select disabled title="無法讀取該機的模型清單">
+                        <option>（模型清單取不到）</option>
+                      </select>
+                    {:else if !row.models.length}
+                      <select disabled>
+                        <option>（該機沒有可用的聊天模型）</option>
+                      </select>
+                    {:else}
+                      <select bind:value={hostPicked[row.id]}>
+                        {#each modelOptions(row) as opt}
+                          <option value={opt.value}>{opt.label}</option>
+                        {/each}
+                      </select>
+                    {/if}
+                  </td>
+                  <td>
+                    {#if row.state === 'ok'}
+                      <code>{row.effective || '—'}</code>
+                    {:else}
+                      <span class="muted">不知道</span>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+
+        {#if settingsMsg}<p class="hint">{settingsMsg}</p>{/if}
+        {#if settingsErr}<p class="err">{settingsErr}</p>{/if}
+
+        <div class="set-actions">
+          <button class="btn" onclick={closeSettings}>關閉</button>
+          <button
+            class="btn primary"
+            onclick={saveSettings}
+            disabled={settingsSaving || settingsLoading || !settingHosts.length}
+          >
+            {settingsSaving ? '儲存中…' : '儲存'}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if error}<p class="err">{error}</p>{/if}
   {#if result}
     {#if result.ok}
@@ -886,4 +1086,43 @@
   button.upd:disabled { opacity: 0.5; cursor: not-allowed; }
   .upd-row { margin: var(--xs) 0 0; display: flex; flex-wrap: wrap; gap: var(--xs); align-items: center; }
   .upd-row input[type=password] { height: 32px; padding: 0 var(--xs); font: var(--body-sm); min-width: 14rem; }
+
+  /* ── 設定對話框 ────────────────────────────────────────────────────
+   * 遮罩 + 卡片。刻意**不**沿用 .info-pop 的深色：那一個是「連線詳細」
+   * 的旁白（DESIGN.md product-mockup-card-dark），這裡是可操作的表單，
+   * 深色底上的 <select> 在各瀏覽器會掉回系統樣式、反白不可讀。
+   * 高度用 dvh 而不是 100vh：iOS Safari 的 100vh 含網址列，會讓卡片
+   * 在小螢幕被切掉（這是 dvh 存在的唯一理由）。
+   */
+  .set-mask {
+    position: fixed; inset: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--lg);
+    background: rgba(20, 20, 19, 0.45);
+  }
+  .set-box {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: var(--rounded-lg);
+    box-shadow: var(--shadow-float);   /* 唯一的浮層陰影 token */
+    padding: var(--lg);
+    width: 100%; max-width: 40rem;
+    max-height: 85dvh; overflow-y: auto;
+  }
+  .set-box h2 { font: var(--display-sm); letter-spacing: -0.3px; margin: 0 0 var(--xs); }
+  .set-box td select {
+    height: 32px; padding: 0 var(--xs);
+    border: 1px solid var(--hairline); border-radius: var(--rounded-md);
+    background: var(--canvas); color: var(--ink);
+    font: var(--body-sm); max-width: 100%;
+  }
+  .set-box td select:disabled { color: var(--muted); background: var(--surface-soft); cursor: not-allowed; }
+  .set-box td code { font: var(--code); font-size: 12px; color: var(--body); }
+  .set-actions { display: flex; justify-content: flex-end; gap: var(--xs); margin-top: var(--md); }
+  /* 儲存是這個對話框的唯一 affirmative action（DESIGN.md button-primary） */
+  .btn.primary {
+    background: var(--primary); color: var(--on-primary); border-color: var(--primary);
+  }
+  .btn.primary:active:not(:disabled) { background: var(--primary-active); }
+  .btn.primary:disabled { background: var(--primary-disabled); color: var(--muted); cursor: not-allowed; }
 </style>
