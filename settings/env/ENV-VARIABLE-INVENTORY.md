@@ -108,6 +108,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `QDRANT` | ingest/laws/qdrant_load.py:30 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `QDRANT_PEER_API_KEY` | compose.yaml:30, scripts/sync-snapshot.sh:65 | **compose／scripts** — 憑證 | 待填 | 待填 | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `QDRANT_URL` | compose.yaml:70, backend/app/gateway.py:32 | **compose 寫死** — compose 以字面值覆寫 → **.env 設了對容器無效** | 待填 | 待填 | 待填 | **刪** — compose 以字面值覆寫 → .env 設了對容器無效；要生效得先改 compose.yaml |
+| `RAGDEMO_NO_QUERY` | scripts/host-doctor.sh:480 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `RAG_HIGH_DENSE` | compose.yaml:131, backend/app/retrieve.py:31 | **compose／backend** — 必填；預設 0.70 | 待填 | 待填 | EMPTY | **留** — 空值但有預設值 —— 留著是文件（預設 0.70） |
 | `RAG_MID_DENSE` | compose.yaml:130, backend/app/retrieve.py:30 | **compose／backend** — 必填；預設 0.62 | 待填 | 待填 | EMPTY | **留** — 空值但有預設值 —— 留著是文件（預設 0.62） |
 | `RAG_MIN_DENSE` | compose.yaml:129, backend/app/retrieve.py:29 | **compose／backend** — 必填；預設 0.58 | 待填 | 待填 | EMPTY | **留** — 空值但有預設值 —— 留著是文件（預設 0.58） |

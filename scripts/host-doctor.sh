@@ -321,6 +321,192 @@ ch_code_drift() {
 # ── 4. env-sync --check ──────────────────────────────────────────────────────
 # 呼叫既有子命令而不是重算：鍵覆蓋率、總表 schema、per-host 漂移三件事
 # 的判斷邏輯都在 env-sync.sh 裡，複製一份必然漂移。
+# ── 檢查 4b. 「工具存在」與「工具能用」是兩件事 ─────────────────────────
+#
+# 2026-10-02：`ch_tools` 只用 `command -v` 確認 sops **執行檔**在，那**證明不了
+# 任何事** —— 私鑰不在、recipient 對不上、`$SOPS_AGE_KEY_FILE` 指錯，一樣是
+# 「sops 在」而 `pull` 會失敗。而這是本專案反覆在收的那一型（2026-10-02 的
+# 逐鍵比對指紋、版面指紋，都是同一個道理：證明**形狀**不等於證明**行為**）。
+#
+# 所以這裡做的是**真的解密一次**，而且把值**立刻銷毀**：
+#   * 不印值（只印長度）
+#   * 不留在磁碟（`shred -u`，macOS 沒有 shred 就用 `rm -f`）
+#   * 失敗時把 sops 的訊息帶回來 —— 「解不開」與「不能解」是兩件事
+# ── 檔案權限，跨 BSD/GNU ────────────────────────────────────────────────
+# ⚠️ 2026-10-02 實測踩到：`stat -f '%Lp' || stat -c%a` 這個寫法在 **Linux** 上
+# 是錯的 —— GNU 的 `stat -f` 不是「filesystem」，是**檔案系統狀態**，於是它
+# **成功**了（exit 0）並印出整份 filesystem 報告，短路讓 `||` 的 fallback
+# 永遠不會執行。那不是報錯，是**印出一堆不相干的東西並看起來像通過**。
+#
+# 反過來 macOS 的 `stat -c` 不存在。所以必須**先探測哪個旗標可用**，而不是
+# 靠 `||` 串（`||` 只在「前者失敗」時才走，而這裡前者是「成功但答非所問」）。
+perm_of() {
+  local f="$1"
+  if stat -c '%a' "$f" >/dev/null 2>&1; then
+    stat -c '%a' "$f" 2>/dev/null
+  elif stat -f '%Lp' "$f" >/dev/null 2>&1; then
+    stat -f '%Lp' "$f" 2>/dev/null
+  else
+    echo '?'
+  fi
+}
+
+ch_sops() {
+  command -v sops >/dev/null 2>&1 || { bump sops skip "沒有 sops"; return; }
+  command -v age >/dev/null 2>&1 || { bump age skip "沒有 age（sops 的預設收件人解密需要它）"; }
+
+  local enc="$ROOT/settings/env/secrets.common.enc.env"
+  [ -f "$enc" ] || { bump sops skip "沒有加密檔 ${enc##*/}（尚未 --init-secrets）"; return; }
+
+  # 私鑰：SOPS_AGE_KEY_FILE > 預設位置。**不印路徑以外的任何東西**。
+  local keyf="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
+  if [ -r "$keyf" ]; then
+    # ⚠️ `${keyf}（` 不是 `$keyf（` —— 後面緊接全形括號時，macOS 的 bash 3.2
+    # 會把全形當成變數名的一部分（找 `keyf（` 這個變數）→ `set -u` 下整支死掉。
+    # 本專案在 `env-sync.sh:561` 為此踩過，`tests/test_bash32_fullwidth.py`
+    # 守著。**一律寫 `${VAR}`。**
+    bump age-privkey ok "${keyf}（$(wc -l < "$keyf" | tr -d ' ') 行, mode $(perm_of "$keyf")）"
+  else
+    bump age-privkey fail "讀不到 age 私鑰：$keyf"
+    bump sops warn "沒有私鑰就不可能解密；§12b 災難復原會失敗"
+    return
+  fi
+
+  # ⚠️ 挑一個**一定存在**的鍵。寫死鍵名會漂 —— 改成從加密檔的檔頭取第一個鍵。
+  local key
+  key="$(grep -m1 -E '^[A-Za-z_][A-Za-z_0-9]*=' "$enc" | cut -d= -f1)"
+  [ -n "$key" ] || { bump sops warn "加密檔裡找不到任何鍵名，無法試解密"; return; }
+
+  local tmp rc=0
+  tmp="$(mktemp "${TMPDIR:-/tmp}/ragdemo-sopsprobe.XXXXXX")"
+  chmod 600 "$tmp"
+  if out="$(SOPS_AGE_KEY_FILE="$keyf" timeout 60 sops --decrypt --extract "[\"$key\"]" "$enc" 2>&1)"; then
+    bump sops ok "真的解密成功（試 ${key}，len=${#out}）"
+    # out 已在記憶體；把它寫到 tmp 只為量長度是多余的，直接銷毀 tmp。
+    :
+  else
+    rc=$?
+    bump sops fail "解密 ${key} 失敗 rc=${rc}：$(printf '%s' "$out" | tr '\n' ';' | head -c 300)"
+  fi
+  unset out
+  if command -v shred >/dev/null 2>&1; then shred -u "$tmp" 2>/dev/null || rm -f "$tmp"
+  else rm -f "$tmp"; fi
+}
+
+# ── 檢查 4c. qdrant 的**兩個**讀寫槽 ────────────────────────────────────
+#
+# 2026-10-02 實測教訓：`QDRANT__SERVICE__API_KEY` 有、`QDRANT__SERVICE__ALT_API_KEY`
+# 沒有，是**可以正常運作**的狀態 —— 本機查詢全對，只有 `sync-snapshot.sh` 跨機
+# 寫入時 401。而症狀是「某台的同步靜默失敗」，不會有人聯想到 qdrant 少了第二把
+# key。所以這裡直接看**容器裡實際收到的值**（只印長度），不看 `.env` ——
+# `.env` 有值不代表容器收到（`up -d` 才會 Recreate）。
+ch_qdrant_keys() {
+  local cid
+  cid="$(docker compose -f "$ROOT/compose.yaml" ps -q qdrant 2>/dev/null | head -1)"
+  [ -n "$cid" ] || { bump qdrant-keys skip "qdrant 容器沒在跑"; return; }
+  local api alt
+  api="$(docker exec "$cid" sh -c 'echo "${#QDRANT__SERVICE__API_KEY}"' 2>/dev/null)"
+  alt="$(docker exec "$cid" sh -c 'echo "${#QDRANT__SERVICE__ALT_API_KEY}"' 2>/dev/null)"
+  case "$api" in ''|*[!0-9]*) bump qdrant-keys fail "讀不到 API_KEY 長度（容器沒起來？）"; return ;; esac
+  if [ "${api:-0}" -eq 0 ]; then
+    bump qdrant-keys fail "QDRANT__SERVICE__API_KEY 是空的 —— 本機 qdrant 沒有認證"
+  else
+    bump qdrant-api-key ok "API_KEY len=${api}"
+  fi
+  case "$alt" in ''|*[!0-9]*) bump qdrant-keys warn "讀不到 ALT_API_KEY 長度"; return ;; esac
+  if [ "${alt:-0}" -eq 0 ]; then
+    # ⚠️ **不是 fail**：本機查詢不需要它（見函式上方）。但一定要講清楚缺了會壞什麼。
+    bump qdrant-alt-key warn "ALT_API_KEY 是空的 → 這台**不能**作為 sync-snapshot 的寫入端（跨機會 401）。本機查詢不受影響。"
+  else
+    bump qdrant-alt-key ok "ALT_API_KEY len=${alt}"
+  fi
+}
+
+# ── 檢查 4d. readiness 與「真的打一次查詢」 ────────────────────────────
+#
+# ⚠️⚠️ **這是本專案目前最大的盲點，而 `/health` 抓不到。**
+#
+# 2026-10-02 實測：刪掉 `OLLAMA_URLS` 之後 `/health` **全程回 200**，而
+# `POST /query` 全部 500（`httpx.ConnectError: ollama unreachable`，掛在
+# `/api/embed`）。是後來手動打了一次查詢才發現整條 RAG 已經斷了。
+#
+# `/health` 回 200 是**設計如此**（它的語意是「進程活著且可達」，前端同儕探測
+# 依賴那個語意 —— 見 `frontend/src/routes/api/[...path]/+server.ts` 的 guard）。
+# 所以**不能**把依賴探測塞進 `/health`，要另外有 `/ready` 與真查詢。
+ch_readiness() {
+  local body rc=0
+  body="$(curl -s -m 20 -o /tmp/.rd.$$ -w '%{http_code}' http://localhost:8000/ready 2>/dev/null)" || rc=1
+  if [ "$rc" -ne 0 ] || [ -z "$body" ]; then
+    bump readiness skip "打不到 /ready（api 沒起來？）"
+    rm -f "/tmp/.rd.$$"; return
+  fi
+  if [ "$body" = "200" ]; then
+    local det
+    det="$(python3 -c 'import json,sys
+try:
+    d=json.load(open(sys.argv[1]))
+except Exception:
+    print(""); raise SystemExit
+c=(d.get("checks") or {})
+bad=[k for k,v in c.items() if v.get("required") and v.get("verdict")!="up"]
+print("全 up" if not bad else "非 up: "+",".join(bad))' "/tmp/.rd.$$" 2>/dev/null)"
+    if [ -z "$det" ]; then
+      bump readiness ok "HTTP 200（讀不出逐項明細 —— 格式變了？）"
+    else
+      bump readiness ok "$det"
+    fi
+  else
+    local det
+    det="$(python3 -c 'import json,sys
+try:
+    d=json.load(open(sys.argv[1]))
+except Exception:
+    print(""); raise SystemExit
+c=(d.get("checks") or {})
+out=[]
+for k,v in c.items():
+    if v.get("required") and v.get("verdict")!="up":
+        out.append(f"{k}={v.get(chr(118)+chr(101)+chr(114)+chr(100)+chr(105)+chr(99)+chr(116))}: {str(v.get(chr(100)+chr(101)+chr(116)+chr(97)+chr(105)+chr(108)))[:90]}")
+print("; ".join(out))' "/tmp/.rd.$$" 2>/dev/null)"
+    bump readiness fail "HTTP ${body}${det:+ — ${det}}"
+  fi
+  rm -f "/tmp/.rd.$$"
+}
+
+# ⚠️ 這條會**真的打一次**提問（約 3 秒），而且它**會用掉一點額度**。
+# 這是刻意的取捨：`/health` 與 `/ready` 都抓不到「實際查詢會不會成功」。
+# 可以用 `RAGDEMO_NO_QUERY=1` 跳過。
+ch_query() {
+  if [ -n "${RAGDEMO_NO_QUERY:-}" ]; then
+    bump query skip "RAGDEMO_NO_QUERY 有設"
+    return
+  fi
+  local out code
+  out="$(curl -s -m 120 -o /tmp/.qq.$$ -w '%{http_code}' \
+        -X POST http://localhost:8000/query \
+        -H 'Content-Type: application/json' \
+        -d '{"question":"健康檢查：請用一句話說明民法第18條","top_k":2}' 2>/dev/null)"
+  code="$out"
+  case "$code" in
+    200)
+      local n
+      n="$(python3 -c 'import json,sys
+try:
+    d=json.load(open(sys.argv[1]))
+except Exception:
+    print("?"); raise SystemExit
+print(len(d.get("answer") or ""))' "/tmp/.qq.$$" 2>/dev/null)"
+      if [ "${n:-0}" -ge 10 ] 2>/dev/null; then
+        bump query ok "HTTP 200，答案 ${n} 字"
+      else
+        bump query warn "HTTP 200 但答案只有 ${n} 字 —— 檢索可能沒撈到東西"
+      fi ;;
+    '')  bump query fail "查詢逾時（120s）或連不上 —— ⚠️ /health 與 /ready 都不會抓到這種情況" ;;
+    *)   bump query fail "HTTP ${code}：$(head -c 200 "/tmp/.qq.$$" | tr '\n' ' ')" ;;
+  esac
+  rm -f "/tmp/.qq.$$"
+}
+
 ch_env_check() {
   local out rc=0
   out="$("$ROOT/scripts/env-sync.sh" --check 2>&1)" || rc=$?
@@ -554,6 +740,13 @@ ch_repo
 ch_tools
 ch_containers
 ch_code_drift
+# 2026-10-02 新增。順序有意義：**先確認工具真的能用（ch_sops），再看依賴
+# （ch_qdrant_keys）、再看 readiness、最後才真的打一次查詢** —— 前面的失敗會讓
+# 後面的結果沒有意义（例如 api 沒起來時 ch_query 必然失敗，那不是新問題）。
+ch_sops
+ch_qdrant_keys
+ch_readiness
+ch_query
 ch_env_check
 ch_rotate
 ch_registry
