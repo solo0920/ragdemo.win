@@ -2,21 +2,51 @@
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
-## ☆☆ 最優先：回報你這台的 `.env` 欄位（2026-10-02 17:40，10 秒的事）
+## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 18:20）
+
+規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §四（執行步驟）。摘要：
 
 ```bash
-git pull && python3 scripts/env-inventory.py --emit-column > x570-env-column.txt
-cat x570-env-column.txt
+git pull
+python3 scripts/env-audit.py --template > .env.example
+python3 scripts/env-relayout.py --dry-run      # 先看數字
+python3 scripts/env-relayout.py
+python3 scripts/env-prune.py --dry-run         # 會自動刪「值＝compose 預設」
+python3 scripts/env-prune.py
+bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
+bash scripts/env-sync.sh --check | head -1     # 指紋必須 = 00a9eae29228
 ```
 
-**把那 71 行原樣貼回來。** 就這樣，沒有別的步驟。
+⚠️ **那個指紋是唯一的驗收。** 不同就是規格沒達成，把差異回報上來。
 
-為什麼要這個：三台的 `.env` 長相不一樣，而使用者要它們**同規格**。
-我需要先知道三台各自「哪些鍵有值／哪些鍵是空行／哪些鍵根本沒有」才能擬規格。
-那個資訊**不敏感**（只有 SET/EMPTY/ABSENT，沒有任何值），所以可以回報 ——
-而 `.env` 本身有 8 份憑證，不能離開那台機器。
+### 順便查一件只有你能查的事（§一 B）
 
-不要順便改任何東西。**這一輪只跑上面那兩行。**
+比對三台的欄位發現：**x570 的 `POSTGRES_DSN` 沒有值**（總表 `x570_POSTGRES_DSN`
+那列是空的），所以 x570 吃的是 **compose 預設**的 DSN；而 mbp／wsl 走的是總表。
+**兩種機制、同一個目的地** —— 等於兩份可能漂移的設定：改了 `POSTGRES_PASSWORD`
+而忘了改總表的 DSN，就會有台連不上，而症狀是「ingest 失敗、查詢正常」。
+
+先回報**現況**，不要先改：
+
+```bash
+# 1. x570 現在實際連到哪？（只印 host/port，不印密碼）
+python3 - <<'EOF'
+import re, pathlib, os, re as _re
+d = {}
+for l in pathlib.Path(".env").read_text(encoding="utf-8").splitlines():
+    m = _re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", l)
+    if m: d[m.group(1)] = m.group(2)
+dsn = d.get("POSTGRES_DSN", "")
+print("POSTGRES_DSN:", "有值" if dsn else "沒有（吃 compose 預設）")
+if dsn:
+    m = _re.search(r"://[^:]*:([^@]*)@([^:/]*):?(\d*)", dsn)
+    if m: print(f"  host={m.group(2)} port={m.group(3) or '5432'} 密碼與 POSTGRES_PASSWORD 相符: "
+                + ("是 ✓" if m.group(1)==d.get("POSTGRES_PASSWORD","") else "否 ✗"))
+EOF
+# 2. postgres 現在能不能連
+docker compose exec -T postgres pg_isready 2>&1 | tail -1
+bash scripts/env-sync.sh --check 2>&1 | tail -3
+```
 
 ## ★★★ 接下來還有兩件事（2026-10-02 02:40 指派）
 

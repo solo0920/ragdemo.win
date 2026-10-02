@@ -2,21 +2,58 @@
 
 給 **mbp 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
-## ☆☆ 最優先：回報你這台的 `.env` 欄位（2026-10-02 17:40，10 秒的事）
+## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 18:20）
+
+規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §四（執行步驟）與 §一 A
+（有一件只有你能查的事）。摘要：
 
 ```bash
-git pull && python3 scripts/env-inventory.py --emit-column > mbp-env-column.txt
-cat mbp-env-column.txt
+git pull
+python3 scripts/env-audit.py --template > .env.example
+python3 scripts/env-relayout.py --dry-run      # 先看數字
+python3 scripts/env-relayout.py
+python3 scripts/env-prune.py --dry-run         # 會自動刪「值＝compose 預設」
+python3 scripts/env-prune.py
+bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
+bash scripts/env-sync.sh --check | head -1     # 指紋必須 = 00a9eae29228
 ```
 
-**把那 71 行原樣貼回來。** 就這樣，沒有別的步驟。
+⚠️ **那個指紋是唯一的驗收。** 不同就是規格沒達成，把差異回報上來。
 
-為什麼要這個：三台的 `.env` 長相不一樣，而使用者要它們**同規格**。我需要先知道
-三台各自「哪些鍵有值／哪些鍵是空行／哪些鍵根本沒有」才能擬出規格。那個資訊
-**不敏感**（只有 SET/EMPTY/ABSENT，沒有任何值），所以可以回報 —— 而 `.env` 本身
-有 8 份憑證，不能離開那台機器。
+### 順便回答一個只有你能查的問題（§一 A）
 
-不要順便改任何東西。**這一輪只跑上面那兩行。**
+比對三台的欄位發現：**mbp 的 `OLLAMA_URLS` 有值，但總表
+`settings/env/hosts.shared.env` 的 `mbp_OLLAMA_URLS` 那列是空的。**
+`render` 只會寫入總表裡該機有值的列 —— 所以你那個值**不是 render 來的**。
+
+```bash
+bash scripts/env-sync.sh --check 2>&1 | grep -i "per-host\|不一致\|mismatch"
+```
+
+* 若**報紅** → 真實漂移。處分方式取決於 mbp 是否真的要用本機 ollama：
+  要用就在總表補上 `mbp_OLLAMA_URLS=`（值＝你那個，**不要貼進聊天**），
+  不用就刪掉 `.env` 那一行。**先回報 `--check` 的結果，不要先改。**
+* 若**綠燈** → 那 `render` 有個我們不知道的行為，回報這個事實本身。
+
+### 另一個：DSN 裡的密碼對不對（§一 B）
+
+`POSTGRES_DSN` 裡的密碼必須等於 `.env` 的 `POSTGRES_PASSWORD`。**這件事沒有
+任何測試在查**，而症狀是「那台的 ingest 失敗、查詢正常」。只印是否相符，
+不要印值：
+
+```bash
+python3 - <<'EOF'
+import re, pathlib
+d = {}
+for l in pathlib.Path(".env").read_text(encoding="utf-8").splitlines():
+    m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", l)
+    if m: d[m.group(1)] = m.group(2)
+dsn, pw = d.get("POSTGRES_DSN",""), d.get("POSTGRES_PASSWORD","")
+m = re.search(r"://[^:]*:([^@]*)@", dsn)
+print("DSN 裡有密碼:", "是" if m else "否")
+if m: print("與 POSTGRES_PASSWORD 相符:", "是 ✓" if m.group(1)==pw else "否 ✗ 要修")
+EOF
+```
 
 前置：`git pull`（x570 那份建議用 `host-sync.sh`，那是為 x570 寫的；
 mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`。
