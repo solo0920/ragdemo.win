@@ -34,6 +34,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,92 @@ PAGE = ROOT / "frontend" / "src" / "routes" / "+page.svelte"
 SELF = ""
 P1 = "https://peer-one.invalid"
 P2 = "https://peer-two.invalid"
+
+# harness 腳本放在一個固定的可寫目錄（不是 tmp_path fixture）—— 有些測試要
+# 直接呼叫 _pure() / _run0() 而不經過 fixture。用 tempfile.mkdtemp 而不是硬寫
+# /tmp 的子目錄，免得跟同一個 session 的其他測試互相覆蓋。
+_TMP = tempfile.mkdtemp(prefix="ragdemo-hostdefaults-")
+
+
+def _harness(entry: str, argv: str, inject_fetch: bool) -> str:
+    """組出呼叫 ENTRY(...) 的 harness 原始碼。
+
+    ⚠️ `inject_fetch` 決定假 fetch 放在**哪個位置**，而這件事不能想當然：
+    把 fetch 永遠塞在第一個參數，會讓那些簽名是 `(value)` 的純函式
+    （`verdictState(v)`、`modelAvailability(model, probe)`）拿到 fetch 當 v，
+    回傳一個**看起來合理但完全沒測到目標程式碼**的結果。
+
+    實測踩過：`verdictState(fake, "off")` 回 'unknown'（因為 fake 不是
+    'up'/'down'/'off' 任何一個），而測試會以為「off 被誤判成 unknown」——
+    一個看起來像在測「四種狀態」的測試，實際上完全沒碰到那四種。
+    """
+    call = f"{entry}(fake, ...ARGV)" if inject_fetch else f"{entry}(...ARGV)"
+    return (
+        f"import {{ {entry} }} from {json.dumps(str(LIB))};\n"
+        "const spec = JSON.parse(process.argv[2]);\n"
+        "const calls = [];\n"
+        "const fake = async (url, init) => {\n"
+        "  const u = String(url);\n"
+        "  calls.push({ url: u, method: init?.method ?? 'GET', body: init?.body ?? null });\n"
+        "  if ((spec.unreachable ?? []).includes(u)) throw new TypeError('fetch failed');\n"
+        "  const r = spec.routes[u];\n"
+        "  if (!r) throw new TypeError('no route for ' + u);\n"
+        "  return new Response(JSON.stringify(r.body ?? {}), {\n"
+        "    status: r.status ?? 200, headers: { 'content-type': 'application/json' } });\n"
+        "};\n"
+        f"const ARGV = {argv};\n"
+        f"const result = await {call};\n"
+        "console.log(JSON.stringify({ result, calls }));\n"
+    )
+
+
+def _go(entry: str, argv: str, spec: dict, inject_fetch: bool) -> dict:
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 不在 PATH")
+    script = Path(_TMP) / f"{entry}_{int(inject_fetch)}.ts"
+    script.write_text(_harness(entry, argv, inject_fetch), encoding="utf-8")
+    r = subprocess.run(
+        [node, "--experimental-strip-types", str(script), json.dumps(spec)],
+        capture_output=True, text=True, timeout=30,
+    )
+    if r.returncode != 0:
+        pytest.fail(f"node 執行失敗：{r.stderr[:600]}")
+    return json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def _pure(entry: str, argv: str) -> dict:
+    """給**純函式**（`verdictState(v)`、`modelAvailability(model, probe)`）。
+
+    ⚠️ 這裡**不傳**假 fetch —— 傳了會被當成第一個參數，於是測的不是我們想
+    測的那件事（見 _harness 的說明）。
+    """
+    return _go(entry, argv, {}, inject_fetch=False)
+
+
+def _run0(entry: str, argv: str, spec: dict) -> dict:
+    """給**依賴 fetch** 的函式（`probeClouds(doFetch)`）：fetch 是唯一參數。"""
+    return _go(entry, argv, spec, inject_fetch=True)
+
+
+def _run_js(name: str, body: str) -> dict:
+    """把一段 JS 跑在真的 hostDefaults.ts 旁邊並回傳它的 JSON 輸出。
+
+    給「要測多個函式組成的行為」（例如並行呼叫 `makeOnce()`）—— 那些沒辦法
+    用單一 entry 的 harness 表達。
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 不在 PATH")
+    script = Path(_TMP) / f"{name}.ts"
+    script.write_text(
+        f"import {{ makeOnce }} from {json.dumps(str(LIB))};\n" + body,
+        encoding="utf-8",
+    )
+    r = subprocess.run([node, "--experimental-strip-types", str(script)],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, f"node 執行失敗：{r.stderr[:400]}"
+    return json.loads(r.stdout.strip().splitlines()[-1])
 
 
 def _run(entry: str, argv: str, spec: dict, tmp_path: Path) -> dict:
@@ -605,3 +692,554 @@ def test_failed_hosts_keep_the_users_selection() -> None:
     code = _code_only(PAGE)
     assert re.search(r"if\s*\(!okIds\.has\(row\.id\)\)\s*return row;", code), \
         "儲存後只重讀成功的主機；失敗的要保留使用者的選擇"
+
+# ── 雲端 catalog probe 的四種 verdict ───────────────────────────────────
+#
+# 核心不變式：**「探不到」與「未設定」都不是故障**。
+#
+# 把 unknown 畫成紅字 → 使用者以為 provider 壞了，去換 key、查網路，而真相是
+# 「這次沒探到」。把 off 畫成紅字 → 一台沒開某 provider 的機器看起來有問題。
+# 這兩者都是本專案反覆在修的那類錯誤（把無從驗證呈現成驗證失敗）。
+
+def _probe(providers: dict, **extra) -> dict:
+    return {"ok": True, "providers": providers, **extra}
+
+
+def _v(verdict, **extra) -> dict:
+    return {"verdict": verdict, **extra}
+
+
+def test_verdict_up_is_ok() -> None:
+    assert _pure("verdictState", json.dumps(["up"]))["result"] == "ok"
+
+
+def test_verdict_down_is_the_only_one_marked_bad() -> None:
+    """`down`（401 key 過期／403／404）才是明確失敗。"""
+    assert _pure("verdictState", json.dumps(["down"]))["result"] == "bad"
+
+
+def test_verdict_unknown_is_not_bad() -> None:
+    """⚠️ 探不到**不是壞了** —— 這是本組測試存在的理由。
+
+    把它回成 'bad' 就會讓使用者去排查一個不存在的故障。逾時／DNS／TLS
+    失敗都歸這一類。
+    """
+    got = _pure("verdictState", json.dumps(["unknown"]))["result"]
+    assert got == "unknown"
+    assert got != "bad", "unknown 絕不可與 down 合併"
+
+
+def test_verdict_off_is_not_bad() -> None:
+    """`off`（未設定 ZEN_API_KEY 之類）不是故障。
+
+    實測 wsl 上 zen/groq/cohere 都沒開 —— 若把它們算成故障，那個面板會說
+    「這台有問題」，而它其實沒有。
+    """
+    got = _pure("verdictState", json.dumps(["off"]))["result"]
+    assert got == "off"
+    assert got != "bad"
+
+
+def test_unrecognized_verdict_is_unknown_not_bad() -> None:
+    """形狀看不懂 → unknown（不知道），不可猜成 bad。"""
+    got = _pure("verdictState", json.dumps(["weird-new-verdict"]))["result"]
+    assert got == "unknown"
+    assert got != "bad"
+
+
+def test_verdict_labels_say_probe_failed_not_broken() -> None:
+    """字也要分開：`unknown` 說「探不到」，不是「失敗」。"""
+    labels = {v: _pure("verdictLabel", json.dumps([v]))["result"]
+              for v in ("up", "down", "unknown", "off")}
+    assert labels == {"up": "可用", "down": "失敗", "unknown": "探不到", "off": "未設定"}
+    assert len(set(labels.values())) == 4, f"四種狀態的字必須都不同：{labels}"
+
+
+# ── modelAvailability ───────────────────────────────────────────────────
+
+def _av(model: str, probe) -> dict:
+    return _pure("modelAvailability", json.dumps([model, probe]))["result"]
+
+
+def test_available_model_is_ok() -> None:
+    # ⚠️ probe 的清單裡**沒有**前端前綴（真實後端就是這樣回的）；
+    #   前端的 model 值有。理由見檔末「前綴」那一組。
+    p = _probe({"openrouter": _v("up", available=["a/b"], missing=[], configured=["a/b"])})
+    assert _av("openrouter/a/b", p) == {"ok": True, "known": True}
+
+
+def test_missing_model_is_known_and_flagged() -> None:
+    """⚠️ `missing`（設了但上游 catalog 沒有）是最有價值的資訊。
+
+    症狀是「選了才 404」，所以必須標出來，而不是混在可用清單裡。
+    """
+    p = _probe({"openrouter": _v("up", available=["a/b"], missing=["a/gone"],
+                                 configured=["a/b", "a/gone"])})
+    got = _av("openrouter/a/gone", p)
+    assert got["known"] is True
+    assert got["missing"] is True
+    assert got["ok"] is False
+
+
+def test_unknown_verdict_makes_every_model_unknown() -> None:
+    """⚠️ verdict≠up 時清單不可信 → 全部「不知道」，不是「不可用」。
+
+    provider 探不到時 `available`／`missing` 必然不完整；拿它說某個 model
+    不可用，就是把「無從驗證」講成「驗證失敗」。
+    """
+    p = _probe({"openrouter": _v("unknown", available=["a"], missing=["b"])})
+    for m in ("openrouter/a", "openrouter/b", "openrouter/whatever"):
+        assert _av(m, p)["known"] is False, f"{m} 應為未知"
+
+
+def test_off_verdict_does_not_mark_models_unavailable() -> None:
+    p = _probe({"zen": _v("off", detail="未設定 ZEN_API_KEY", available=[], missing=[])})
+    assert _av("zen/foo", p)["known"] is False, "未設定 provider 不代表它列出的 model 壞了"
+
+
+def test_down_verdict_does_not_mark_models_unavailable() -> None:
+    """provider 層 down 就夠了；逐個 model 再標一次「不可用」是噪音。"""
+    p = _probe({"groq": _v("down", detail="401", available=[], missing=[])})
+    assert _av("groq/x", p)["known"] is False
+
+
+def test_local_ollama_model_is_unknown_not_unavailable() -> None:
+    """地端 ollama 不在 probe 範圍內 → 不知道，不是不可用。"""
+    p = _probe({"openrouter": _v("up", available=[], missing=[])})
+    assert _av("qwen2.5-coder:latest", p)["known"] is False
+
+
+def test_provider_absent_from_probe_is_unknown() -> None:
+    p = _probe({"openrouter": _v("up", available=[], missing=[])})
+    assert _av("hf/some/model", p)["known"] is False
+
+
+def test_no_probe_at_all_is_unknown() -> None:
+    """沒有 probe 資料（失敗了）→ 全部未知，UI 不可畫成不可用。"""
+    for probe in (None, {}, {"providers": None}):
+        assert _av("openrouter/a", probe)["known"] is False
+
+
+def test_model_name_without_provider_prefix_is_unknown() -> None:
+    p = _probe({"openrouter": _v("up", available=["a/b"], missing=[], configured=["a/b"])})
+    assert _av("plainname", p)["known"] is False
+    assert _av("", p)["known"] is False
+    assert _av("/leading-slash", p)["known"] is False
+
+
+# ── missingModels ───────────────────────────────────────────────────────
+
+def test_missing_models_extracts_the_list() -> None:
+    p = {"verdict": "up", "missing": ["a", "b"]}
+    assert _pure("missingModels", json.dumps([p]))["result"] == ["a", "b"]
+
+
+def test_missing_models_of_a_provider_with_none_is_empty_not_missing() -> None:
+    """沒有 missing 欄位 → 空陣列（UI 不顯示該區塊），不是 undefined。"""
+    for p in ({"verdict": "up"}, {"verdict": "up", "missing": None}, None):
+        assert _pure("missingModels", json.dumps([p]))["result"] == []
+
+
+# ── probeClouds：失敗不可拋，且失敗與「沒 probe」不可區分 ─────────────────
+
+def test_probe_clouds_posts_to_the_settings_endpoint() -> None:
+    """走 /api 相對路徑（經 worker），與其他設定端點同一條路。"""
+    got = _run0("probeClouds", "[]",
+                {"routes": {"/api/settings/probe-clouds": {"body": _probe({"openrouter": _v("up")})}}})
+    assert got["calls"][0]["method"] == "POST"
+    assert got["calls"][0]["url"] == "/api/settings/probe-clouds"
+
+
+def test_probe_clouds_returns_the_payload_on_success() -> None:
+    body = _probe({"openrouter": _v("up", available=["a/b"]), "zen": _v("off")},
+                  summary={"up": 1, "off": 1})
+    got = _run0("probeClouds", "[]", {"routes": {"/api/settings/probe-clouds": {"body": body}}})
+    assert got["result"]["providers"]["zen"]["verdict"] == "off"
+    assert got["result"]["summary"] == {"up": 1, "off": 1}
+
+
+@pytest.mark.parametrize("spec,why", [
+    ({"unreachable": ["/api/settings/probe-clouds"]}, "網路層失敗"),
+    ({"routes": {"/api/settings/probe-clouds": {"status": 401, "body": {}}}}, "未登入"),
+    ({"routes": {"/api/settings/probe-clouds": {"status": 503, "body": {}}}}, "後端不可用"),
+    ({"routes": {"/api/settings/probe-clouds": {"body": {"ok": True}}}}, "缺 providers 欄位"),
+    ({"routes": {"/api/settings/probe-clouds": {"body": {"providers": "not-an-object"}}}}, "providers 型別錯"),
+    ({"routes": {}}, "根本沒有這條路徑"),
+])
+def test_probe_clouds_returns_null_on_any_failure(spec, why) -> None:
+    """⚠️ 失敗回 **null**，不拋、不回「已 probe 但失敗」。
+
+    回一個帶 error 的物件會讓 UI 分不出「沒 probe」與「probe 失敗」，於是
+    顯示成後者 —— 使用者會去排查一個不影響任何功能的問題。
+    """
+    got = _run0("probeClouds", "[]", spec)
+    assert got["result"] is None, f"{why}：應回 null，實際 {got['result']!r}"
+
+
+def test_probe_clouds_never_throws_even_when_fetch_throws_synchronously() -> None:
+    """fetch 同步拋出（不只是回 rejected promise）也要被吞掉。
+
+    登入流程不該因為一個附加功能的問題而中斷 —— 那會讓使用者以為登入失敗。
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 不在 PATH")
+    script = Path(_TMP) / "sync_throw.ts"
+    script.write_text(
+        f"import {{ probeClouds }} from {json.dumps(str(LIB))};\n"
+        "const boom = () => { throw new Error('boom'); };\n"
+        "console.log(JSON.stringify({ r: await probeClouds(boom) }));\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run([node, "--experimental-strip-types", str(script)],
+                       capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, f"probeClouds 應該吞掉例外，但 node 報錯：{r.stderr[:400]}"
+    assert json.loads(r.stdout.strip().splitlines()[-1])["r"] is None
+
+
+def test_probe_clouds_does_not_throttle_or_force_on_its_own() -> None:
+    """⚠️ 前端**不自己加節流**，且不打 `?force=1`。
+
+    後端已有 300 秒 TTL（`?force=1` 才跳過）。前端再加一層 localStorage
+    節流會變成兩套機制互相繞過，而且會讓「我剛換了 key，現在就探」在前端
+    就被擋住。呼叫端重複打是**預期行為**。
+    """
+    got = _run0(
+        "probeClouds",
+        "[]",
+        {"routes": {"/api/settings/probe-clouds": {"body": _probe({"openrouter": _v("up")})}}},
+    )
+    urls = [c["url"] for c in got["calls"]]
+    assert urls == ["/api/settings/probe-clouds"], f"不應自行加參數或重導向：{urls}"
+    assert not any("force" in u for u in urls), "前端不該帶 force=1"
+
+
+# ── 「只做一次」的守衛：並行也要安全 ─────────────────────────────────────
+
+def test_make_once_grants_the_right_to_exactly_one_caller_even_in_parallel() -> None:
+    """⚠️ 行為層驗「並行只打一次」—— 這比原始碼斷言可靠。
+
+    純 regex 看不出「旗標設在 await 之前」與「await 之後」的差別有多要命：
+    後者原始碼斷言照樣綠，但並行時會各打一次 —— 而雲端探測會燒額度。
+    """
+    got = _run_js("once_parallel", (
+        "const claim = makeOnce();\n"
+        "let fired = 0;\n"
+        "const task = async () => { if (claim()) { fired++; await null; } };\n"
+        "await Promise.all([task(), task(), task(), task()]);\n"
+        "console.log(JSON.stringify({ fired }));\n"
+    ))
+    assert got["fired"] == 1, "四個並行呼叫只該有一個取得權利"
+
+
+def test_make_once_is_not_reusable_after_it_fires() -> None:
+    """取得權利之後不放開 —— 否則 await 一輪之後又會再打一次。"""
+    got = _run_js("once_seq", (
+        "const claim = makeOnce();\n"
+        "console.log(JSON.stringify({ results: [claim(), claim(), claim()] }));\n"
+    ))
+    assert got["results"] == [True, False, False]
+
+
+def test_page_uses_the_proven_once_guard_not_a_hand_rolled_flag() -> None:
+    """頁面必須用 `makeOnce()`，而不是自己寫 `if (flag) return`。
+
+    那個寫法在**並行**下會各打一次，而原始碼層看不出來。這條釘的是「有使用
+    經過行為驗證的守衛」。
+    """
+    code = _code_only(PAGE)
+    assert "makeOnce()" in code, "probe 的單次守衛應使用 makeOnce()"
+    assert not re.search(r"let\s+probeStarted\s*=", code), \
+        "不要自己維護 probeStarted 布林值 —— 用 makeOnce()（並行安全）"
+    m = re.search(r"async function probeOnceOnLogin\(\)\s*\{.*?\n  \}", code, re.S)
+    assert m, "找不到 probeOnceOnLogin —— 若被改名請同步維護這個測試"
+    assert "if (!claimProbeOnce()) return;" in m.group(0), "應先取得權利再往下走"
+
+
+# ── 登入觸發：只掛一次，且失敗不影響登入 ──────────────────────────────────
+
+def test_probe_is_triggered_only_after_login_is_confirmed() -> None:
+    """probe 必須掛在 `/auth/me` 回 ok **之後**。
+
+    掛在之前會讓匿名頁面也去要求登入才能呼叫的端點 —— 症狀是每次打開首頁
+    都看到一個 401，而且與「登入時做一次」的需求無關。
+    """
+    code = _code_only(PAGE)
+    m = re.search(r"const r = await fetch\('/auth/me'\);", code)
+    assert m, "找不到 /auth/me 呼叫 —— 若被改名請同步維護這個測試"
+    window = code[m.start(): m.start() + 500]
+    assert "probeOnceOnLogin()" in window, "probe 應在確認登入之後觸發"
+    assert window.index("d.ok") < window.index("probeOnceOnLogin()"), \
+        "probe 必須在 `d.ok` 判斷之後呼叫"
+
+
+def test_probe_is_guarded_by_a_logged_in_check() -> None:
+    """`if (user)` 不可拿掉 —— 那會讓未登入者也被打一次 probe。"""
+    code = _code_only(PAGE)
+    assert re.search(r"if \(user\) probeOnceOnLogin\(\);", code), \
+        "probe 只在已登入時觸發"
+
+
+def test_probe_is_not_called_at_script_top_level() -> None:
+    """⚠️ probe 不可在 script 頂層呼叫。
+
+    那會在組件初始化時執行、SSR 階段就發出相對網址的 POST（SvelteKit 禁止），
+    而且每次頁面載入都會打 —— 正是需求明說不要的「每次頁面載入」。
+    """
+    code = _code_only(PAGE)
+    # ⚠️ 必須比對「onMount 主體**之外**」的位置，而不是用 `^\s*` 開頭 ——
+    # onMount 裡的呼叫本來就縮排在行首（縮排多一階），同樣符合那個 regex。
+    # 這裡改成量出 top-level 範圍（沿用 tests/test_frontend_hosts.py 的
+    # 大括配對法），再斷言那個範圍裡沒有 probe。
+    lo, hi = _onmount_span(code)
+    assert "probeOnceOnLogin()" in code[lo:hi], "probe 應在 onMount 裡被呼叫"
+    outside = code[:lo] + code[hi:]
+    # ⚠️ 比對「**呼叫**」而不是那個字串本身：`function probeOnceOnLogin() {…}`
+    #   的宣告本身就是同一個字串，會讓這條測試永遠紅。
+    #   也不能只看「有沒有宣告」—— 要確認的是有沒有人在 onMount 之外叫它。
+    assert not re.search(r"probeOnceOnLogin\s*\(\s*\)\s*;", outside), (
+        "probeOnceOnLogin() 不得在 onMount 之外被呼叫 —— "
+        "那會在組件初始化時就發出 POST（SSR 階段 SvelteKit 禁止相對網址 fetch）")
+
+
+def _onmount_span(code: str) -> tuple[int, int]:
+    """onMount(...) 回呼在 script 裡的字元範圍（大括號配對）。"""
+    m = re.search(r"\bonMount\s*\(", code)
+    assert m, "找不到 onMount —— 這個測試假設它還在，若被改名請同步維護"
+    i = code.index("{", m.end())
+    depth, j = 0, i
+    while j < len(code):
+        if code[j] == "{":
+            depth += 1
+        elif code[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return m.start(), j
+        j += 1
+    raise AssertionError("onMount 的大括號沒配對到")
+
+
+def test_probe_failure_does_not_set_any_user_visible_error() -> None:
+    """⚠️ probe 失敗**不可**產生錯誤訊息 —— 它不影響任何功能。
+
+    顯示「probe 失敗」會讓使用者去排查一個不影響查詢、不影響設定的問題，
+    而真相可能只是「沒探到」。
+    """
+    code = _code_only(PAGE)
+    m = re.search(r"async function probeOnceOnLogin\(\)\s*\{.*?\n  \}", code, re.S)
+    assert m, "找不到 probeOnceOnLogin —— 若被改名請同步維護這個測試"
+    body = m.group(0)
+    for var in ("settingsErr", "settingsMsg", "error ="):
+        assert var not in body, (
+            f"probeOnceOnLogin 不可寫入 {var} —— probe 失敗要靜默，"
+            "它不是登入或查詢的錯誤")
+    assert "catch" in body, "probe 必須包在 try/catch 裡，不讓例外影響登入"
+
+
+def test_probe_failure_leaves_login_intact() -> None:
+    """行為層：probe 失敗時呼叫端拿到 null，可照常繼續。
+
+    驗的是 lib 的契約（回 null、不拋）；頁面接線（try/catch、不寫錯誤訊息）
+    由上面兩條分開測。
+    """
+    got = _run0("probeClouds", "[]", {"unreachable": ["/api/settings/probe-clouds"]})
+    assert got["result"] is None, "probe 失敗 → null（頁面據此不顯示任何 probe 區塊）"
+    assert got["calls"], "它有真的嘗試過（不是因為沒接線才回 null）"
+
+
+def test_probe_state_starts_null_so_nothing_is_shown_before_it_returns() -> None:
+    """`cloudProbe` 預設 null，且 UI 以 `{#if cloudProbe}` 包住整個區塊。
+
+    預設值若是一個空物件，UI 就會顯示一個「全部未知」的空表格 —— 那看起來
+    像真的探過了、而且什麼都探不到。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    assert re.search(r"\{#if cloudProbe\}", text), "probe 區塊應以 {#if cloudProbe} 包住"
+    assert re.search(r"let cloudProbe\s*=\s*null", _code_only(PAGE)), \
+        "cloudProbe 應預設為 null（未 probe 與 probe 失敗是同一個狀態）"
+
+
+# ── 模型清單的可用性標記 ───────────────────────────────────────────────
+
+def test_availability_suffix_is_empty_when_unknown() -> None:
+    """⚠️ 不知道時**不加任何字串** —— 不可畫成「不可用」。
+
+    空字串與「不可用」在使用者眼裡是天差地別的兩件事：前者是什麼都沒說，
+    後者是明確的否定斷言（而我們沒有根據）。
+    """
+    code = _code_only(PAGE)
+    m = re.search(r"function availabilitySuffix\(.*?\n  \}", code, re.S)
+    assert m, "找不到 availabilitySuffix —— 若被改名請同步維護這個測試"
+    body = m.group(0)
+    assert re.search(r"if\s*\(!a\.known\)\s*return\s*'';", body), \
+        "known=false 必須回空字串，不可顯示任何可用性判斷"
+    assert "missing" in body, \
+        "上游沒有的 model 必須特別標出（那是「選了才 404」）"
+
+
+def test_probe_section_renders_all_four_verdicts_via_the_shared_mapping() -> None:
+    """provider 列的 class／字都走 verdictState／verdictLabel。
+
+    若在模板裡自己寫一份對應表，就會有「lib 改了、模板沒改」的漂移 ——
+    而那正是 `unknown` 被畫成紅字最可能的成因。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    assert "vp-{verdictState(p.verdict)}" in text, "provider 列要用 verdictState 決定 class"
+    assert "verdictLabel(p.verdict)" in text, "狀態字也要用共用的對應"
+    assert "{p.detail ?? '—'}" in text, "要顯示後端給的 detail（處置方式在那裡）"
+    assert "missingModels(p)" in text, "要顯示 missing 清單"
+    assert "上游沒有" in text, "missing 必須有明確的視覺標記"
+
+
+def test_probe_section_only_describes_the_local_host() -> None:
+    """只顯示本機的 probe（登入時打的是本機後端）。
+
+    把 probe 結果套到 peer 上會是謊話 —— 我們從來沒探過那些台。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    assert "雲端可用性（本機）" in text, "probe 區塊要標明是本機結果"
+    code = _code_only(PAGE)
+    assert code.count("probeClouds(") == 1, "probe 只應打一次（不是逐台）"
+
+
+# ── 前綴：前端選單有 `openrouter/`，probe 回的沒有 ────────────────────────
+#
+# 這是實測才發現的不一致（wsl，2026-10-02），而且**症狀極其安靜**：
+#   前端下拉選單的值：  openrouter/cohere/north-mini-code:free
+#   probe 回的 missing： cohere/north-mini-code:free        ← 少了第一段
+# 若用整串 includes() 比對，**每一個**模型都落空 → 全部顯示成「不知道」。
+# 而 `missing`（上游沒有這個模型）永遠不會被標出 —— 這個功能看起來沒壞，
+# 但從沒生效過。沒有對照真實資料根本看不出來。
+
+def test_availability_strips_the_frontend_prefix_before_matching() -> None:
+    """前端帶前綴、probe 不帶 → 比對前要先剝掉前綴。"""
+    p = _probe({"openrouter": _v(
+        "up",
+        available=["cohere/north-mini-code:free"],
+        missing=["z-ai/glm-5.2:free"],
+        configured=["cohere/north-mini-code:free", "z-ai/glm-5.2:free"],
+    )})
+    assert _av("openrouter/cohere/north-mini-code:free", p) == {"ok": True, "known": True}
+    got = _av("openrouter/z-ai/glm-5.2:free", p)
+    assert got["known"] is True and got["missing"] is True
+
+
+def test_availability_matches_real_openrouter_shapes() -> None:
+    """用真實 wsl 的 id 形狀驗一次（owner 前綴 + `:free` 標記）。"""
+    p = _probe({"openrouter": _v(
+        "up",
+        available=["cohere/north-mini-code:free", "dots-studio/dots-3-note-preview:free"],
+        missing=["inclusionai/ling-3.0-flash-fin:free", "z-ai/glm-5.2:free"],
+        configured=["cohere/north-mini-code:free", "z-ai/glm-5.2:free"],
+    )})
+    assert _av("openrouter/cohere/north-mini-code:free", p)["ok"] is True
+    assert _av("openrouter/inclusionai/ling-3.0-flash-fin:free", p)["missing"] is True
+    assert _av("openrouter/z-ai/glm-5.2:free", p)["missing"] is True
+
+
+def test_availability_works_for_every_real_provider_prefix() -> None:
+    """`nv/`、`mis/`、`hf/` 這些**前綴名與 provider key 不同**的也要對。
+
+    ⚠️ 這是最容易漏的一類：`mistral` 的前端前綴是 `mis/`（見 +page.svelte
+    的 prefixOf），不是 `mistral/`。若比對時拿前綴直接當 key 查，
+    `mis/codestral-latest` 會查不到 provider 而變成「不知道」。
+    """
+    p = _probe({
+        "nvidia": _v("up", available=["z-ai/glm-5.3-flash"], missing=["mistralai/mistral-nemotron"],
+                     configured=["z-ai/glm-5.3-flash", "mistralai/mistral-nemotron"]),
+        "mistral": _v("up", available=["codestral-latest"], missing=[],
+                      configured=["codestral-latest"]),
+        "hf": _v("up", available=["Qwen/Qwen3.8-27B"], missing=[],
+                 configured=["Qwen/Qwen3.8-27B"]),
+        "gemini": _v("up", available=["gemini-3.8-flash"], missing=[],
+                     configured=["gemini-3.8-flash"]),
+        "groq": _v("up", available=["openai/gpt-oss-120b"], missing=[],
+                   configured=["openai/gpt-oss-120b"]),
+        "cohere": _v("up", available=["command-a-plus-05-2026"], missing=[],
+                     configured=["command-a-plus-05-2026"]),
+        "zen": _v("off", configured=["deepseek-v4-flash-free"], available=[], missing=[]),
+    })
+    assert _av("nv/z-ai/glm-5.3-flash", p)["ok"] is True, "nv/ 前綴"
+    assert _av("nv/mistralai/mistral-nemotron", p)["missing"] is True
+    assert _av("mis/codestral-latest", p)["ok"] is True, "mis/ 前綴（不是 mistral/）"
+    assert _av("hf/Qwen/Qwen3.8-27B", p)["ok"] is True, "含 owner 的 hf/ id"
+    assert _av("gemini/gemini-3.8-flash", p)["ok"] is True
+    assert _av("groq/openai/gpt-oss-120b", p)["ok"] is True
+    assert _av("cohere/command-a-plus-05-2026", p)["ok"] is True
+    assert _av("zen/deepseek-v4-flash-free", p)["known"] is False, "off 的 provider 不下判斷"
+
+
+def test_prefixed_model_from_a_different_provider_stays_unknown() -> None:
+    """`openrouter/zen-model` 不能去查 `zen` 的清單。
+
+    前綴只決定「查哪個 provider」，剩下那段才拿去比對；不該跨 provider 比。
+    """
+    p = _probe({"openrouter": _v("up", available=["a/b"], missing=[], configured=["a/b"]),
+                "zen": _v("up", available=["x/y"], missing=[], configured=["x/y"])})
+    assert _av("openrouter/x/y", p) == {"ok": False, "known": False}
+
+
+def test_model_not_in_configured_at_all_is_unknown() -> None:
+    """使用者手動輸入、provider 根本沒設定的模型 → 不知道，不是不可用。"""
+    p = _probe({"openrouter": _v("up", available=["a/b"], missing=[], configured=["a/b"])})
+    assert _av("openrouter/never/configured", p) == {"ok": False, "known": False}
+
+
+def test_frontend_prefix_table_stays_in_sync_with_the_pages_prefixof() -> None:
+    """⚠️ 前綴表有**兩個方向**，兩邊不一致就會有 provider 永遠不顯示。
+
+    `+page.svelte` 的 `prefixOf` 是 provider→前綴（組 usageMap 用），
+    `hostDefaults.ts` 的 `PROVIDER_OF_PREFIX` 是反方向（查 probe 用）。
+    兩份各自演化、沒有交叉檢查時，症狀是「某些 provider 的模型永遠顯示成
+    不知道」—— 看起來像 probe 沒送到，實際上是查錯了 key。
+
+    這條從頁面的 prefixOf **實際解析出來**比對，不是抄一份常數過來 ——
+    抄一份的話這條測試就只是在驗證自己。
+    """
+    code = _code_only(PAGE)
+    m = re.search(r"const prefixOf\s*=\s*\{(.*?)\};", code, re.S)
+    assert m, "找不到 +page.svelte 的 prefixOf —— 若被改名請同步維護這個測試"
+    pairs = re.findall(r"(\w+)\s*:\s*'([\w/]+)'", m.group(1))
+    assert pairs, "prefixOf 沒解析到任何項目（掃描器失效？）"
+    page_map = dict(pairs)
+    # ⚠️ 先確認解析到的數量對得上宣告裡的項目數。
+    #   prefixOf 是用 `key: 'val', …` 寫在**一行**、跨行的物件常值；
+    #   若 regex 抓到不完整（漏掉跨行的項目），下面會誤報「表不一致」——
+    #   而那正是這條測試要避免的假紅。
+    assert len(pairs) == m.group(1).count(":") - m.group(1).count("//"), (
+        f"prefixOf 只解析到 {len(pairs)} 項，但宣告看起來更多 —— "
+        "regex 抓不完整，請同步維護")
+
+    # 反方向送進 lib 驗：每一個頁面用得到的前綴都查得到 provider。
+    # `ollama` 刻意排除 —— 它在地端，前綴對應的不是 probe 的 provider。
+    # ⚠️ probe 的 key 是 **provider 名**（page_map 的鍵），不是前綴（值）。
+    #   這正是 `nv`／`nvidia` 那一組會出錯的原因 —— 用值去建 providers 的話，
+    #   查出來的是 providers['nvidia'] 找不到（因為表裡只有 'nv'）。
+    providers = {provider: {"verdict": "up", "available": ["m"], "missing": [],
+                            "configured": ["m"]}
+                 for provider in page_map if provider != "ollama"}
+    probe = _probe(providers)      # ⚠️ 要包成 {providers: …} —— 那才是真契約
+    for provider, prefix in page_map.items():
+        if provider == "ollama":
+            continue
+        got = _pure("modelAvailability", json.dumps([f"{prefix}/m", probe]))
+        assert got["result"]["known"] is True, (
+            f"頁面 prefixOf 裡的 {provider}→'{prefix}'，但 lib 查不到 "
+            f"providers['{provider}'] —— 兩個方向的表不一致")
+
+
+def test_the_two_mismatched_prefixes_are_covered() -> None:
+    """`nv/`→nvidia 與 `mis/`→mistral 是實測會落空的那兩個。
+
+    直接拿前綴當 provider key 查會查不到，而症狀安靜：那几个 provider 的
+    所有模型都變成「不知道」，功能看起來沒壞。
+    """
+    p = _probe({
+        "nvidia": _v("up", available=["x"], missing=[], configured=["x"]),
+        "mistral": _v("up", available=["y"], missing=[], configured=["y"]),
+    })
+    assert _av("nv/x", p)["ok"] is True
+    assert _av("mis/y", p)["ok"] is True
+    # 完整名也該能用（probe 的 key 本身就是完整名）
+    assert _av("nvidia/x", p)["ok"] is True
+    assert _av("mistral/y", p)["ok"] is True

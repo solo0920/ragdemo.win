@@ -14,13 +14,42 @@ import { readCookie, verifySession } from '$lib/google';
 // 不會有任何錯誤。
 //
 // 加上之後前端不受影響：設定對話框本來就在 `{#if user}` 裡面，只有登入者看得到。
+//
+// ⚠️ 2026-10-02 加 `settings/probe-clouds`：後端新增了雲端 catalog 探測端點
+// （冪等、不改狀態，但**會真的打各 provider**，動用使用者的雲端額度）。危害比
+// default-model 輕 —— 它不改掉任何設定 —— 但仍要擋：它燒的是**使用者的額度**，
+// 而且匿名可呼叫等於任何人都能讓這台把探測打出去。
+//
+// ⚠️⚠️ 加字串**本身不夠**：`guard()` 的呼叫端過去傳的是 `parsed(path)`，而它
+// 只取第一段（`path.split('/')[0]`）。於是 `settings/default-model` 被截成
+// `settings`、**永遠不命中**這個 Set —— 清單裡有那個字串等於沒寫。
+// 實測（把 guard() 原樣抽出來用 node 跑）：匿名 PUT /api/settings/default-model
+// 照樣轉發出去，401 完全沒出現。
+// 修法是 `isSensitive()`（見下）：完整路徑與第一段都比對。
+// **寫下這段是為了別有人只加字串就以為修好了** —— 那正是這個漏洞第一次發生的方式。
 const SENSITIVE = new Set([
   'query',
   'ingest',
   'eval',
   'rules',
   'settings/default-model',
+  'settings/probe-clouds',
 ]);
+
+/**
+ * 這條路徑需不需要登入。
+ *
+ * ⚠️ **兩段都要比對**，缺一不可（理由見上方 2026-10-02 的實測）：
+ *   · 完整路徑 → 讓 `settings/default-model`、`settings/probe-clouds` 生效
+ *   · 第一段   → 讓 `query`、`ingest`、`eval`、`rules` 生效（它們沒有第二段）
+ * 只比對其中一邊，另一邊那一組就變成匿名可呼叫。
+ *
+ * 對**未列出**的路徑仍然 fail-open（`health`／`status`／`models` 必須匿名可讀，
+ * 同儕面板與 wait-stack.sh 依賴它們），所以**漏一個項目 = 對全網開放**。
+ */
+function isSensitive(path: string): boolean {
+  return SENSITIVE.has(path) || SENSITIVE.has(path.split('/')[0]);
+}
 
 interface Host { id: string; url: string }
 
@@ -86,6 +115,11 @@ async function guard(request: Request, path: string): Promise<Response | null> {
   return null;
 }
 
+// 只取第一段，**只**留給「這個 path 是不是 query」那個分支判斷。
+//
+// ⚠️ 不要再拿它餵 `guard()`（2026-10-02 的漏洞就是那樣造成的）：截成第一段會
+// 讓 `settings/default-model`、`settings/probe-clouds` 永遠不命中 SENSITIVE。
+// `guard()` 收完整路徑，比對邏輯在 `isSensitive()`。
 function parsed(path: string): string {
   return path.split('/')[0];
 }
@@ -354,7 +388,7 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
 }
 
 export const GET: RequestHandler = async ({ params, request, platform }) => {
-  const blocked = await guard(request, parsed(params.path));
+  const blocked = await guard(request, params.path);
   if (blocked) return blocked;
   try {
     return await through('GET', params.path, undefined, platform, request.headers);
@@ -364,7 +398,7 @@ export const GET: RequestHandler = async ({ params, request, platform }) => {
 };
 
 export const POST: RequestHandler = async ({ params, request, platform }) => {
-  const blocked = await guard(request, parsed(params.path));
+  const blocked = await guard(request, params.path);
   if (blocked) return blocked;
   try {
     if (parsed(params.path) === 'query') return await queryRoute(request, platform);
@@ -381,7 +415,7 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
 // 刻意沿用 POST 的結構（guard → through → jsonError），不開特例路徑：
 // through() 已經處理了 content-type 與 CF token，唯一差別只是動詞。
 export const PUT: RequestHandler = async ({ params, request, platform }) => {
-  const blocked = await guard(request, parsed(params.path));
+  const blocked = await guard(request, params.path);
   if (blocked) return blocked;
   try {
     return await through('PUT', params.path, await request.text(), platform, request.headers);

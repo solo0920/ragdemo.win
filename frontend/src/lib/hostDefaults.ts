@@ -201,3 +201,181 @@ export async function saveHostDefaults(rows: HostRow[], picked: Record<string, s
   }
   return out;
 }
+
+/**
+ * 「同一個 session 內只做一次」的守衛。
+ *
+ * ⚠️ 為什麼是一個函式而不是頁面裡的一個布林值：因為**並行**呼叫。
+ * 頁面裡若寫成
+ *
+ *     if (probeStarted) return;
+ *     probeStarted = true;          // ← 這裡之後、await 之前必須設
+ *     await probe();
+ *
+ * 順序寫對了才安全，而「寫對了」是原始碼看不出來的事（實測：把賦值移到
+ * try 裡、await 之後，兩條 regex 斷言都照樣綠，但兩個並行呼叫會各打一次
+ * —— 而雲端探測是會燒額度的）。
+ *
+ * 放在這裡是為了能**真的跑一次並行的情況**來驗證（tests 會對它做
+ * `Promise.all([once(), once()])` 並斷言只打一次）。
+ */
+export function makeOnce(): () => boolean {
+  let done = false;
+  return () => {
+    if (done) return false;
+    done = true;          // 在回傳之前就設：同步生效，兩個並行呼叫只會有一個 true
+    return true;
+  };
+}
+
+// ── 雲端 catalog probe ────────────────────────────────────────────────────
+
+/**
+ * probe 的四種 verdict。⚠️ **四種都不可合併**，尤其 `unknown` 不可當成故障。
+ *
+ * | verdict   | 意思                        | 不是                              |
+ * |-----------|-----------------------------|-----------------------------------|
+ * | `up`      | catalog 可用                | —                                 |
+ * | `down`    | **明確失敗**（401/403/404） | 不是「沒設定」                    |
+ * | `unknown` | **探不到**（逾時/DNS/TLS）   | **不是壞了**                      |
+ * | `off`     | **未設定**                  | **不是故障**                      |
+ *
+ * 把 `unknown` 畫成紅字等於說「那個 provider 壞了」，而真相是「不知道」——
+ * 使用者會去換 key、查網路，問題其實只是這次沒探到。把 `off` 畫成紅字會讓
+ * 一台完全正常的機器看起來有問題（實測 wsl 上 zen 沒設 key，那是預設狀況）。
+ */
+export type Verdict = 'up' | 'down' | 'unknown' | 'off';
+
+export interface ProviderProbe {
+  verdict: Verdict;
+  detail?: string;
+  count?: number;
+  /** 已設定但**上游 catalog 裡沒有**的 —— 最有價值的資訊（症狀是「選了才 404」） */
+  missing?: string[];
+  available?: string[];
+  configured?: string[];
+}
+
+export interface CloudProbe {
+  summary?: Record<string, number>;
+  providers: Record<string, ProviderProbe>;
+  age?: number;
+}
+
+/** verdict → 樣式用的狀態。四種**各自有別**，`unknown` 刻意不是 `bad`。 */
+export function verdictState(v: unknown): 'ok' | 'bad' | 'unknown' | 'off' {
+  if (v === 'up') return 'ok';
+  if (v === 'down') return 'bad';
+  if (v === 'off') return 'off';
+  return 'unknown';   // 含「形狀看不懂」→ 不知道，不是壞了
+}
+
+/** 給人看的字。`unknown` 說「探不到」而不是「失敗」。 */
+export function verdictLabel(v: unknown): string {
+  switch (verdictState(v)) {
+    case 'ok': return '可用';
+    case 'bad': return '失敗';
+    case 'off': return '未設定';
+    default: return '探不到';
+  }
+}
+
+/**
+ * 前端 model 值的前綴 → probe 回應裡的 provider key。
+ *
+ * ⚠️ **兩個名字不一樣的有兩個**，而那正是最容易漏的：
+ *     前端選單：  nv/…      probe：providers["nvidia"]
+ *     前端選單：  mis/…     probe：providers["mistral"]
+ * 直接拿前綴當 key 去查會查不到 —— 而症狀是「那幾個 provider 的模型永遠
+ * 顯示成不知道」，看起來像 probe 沒送到。
+ *
+ * 這是 `+page.svelte` 裡 `prefixOf` 的反方向（那個是 provider→前綴，用來
+ * 組 usageMap 的 key）。兩份必須一致，測試有釘（見 tests）。
+ */
+const PROVIDER_OF_PREFIX: Record<string, string> = {
+  openrouter: 'openrouter',
+  zen: 'zen',
+  nv: 'nvidia',
+  nvidia: 'nvidia',
+  gemini: 'gemini',
+  groq: 'groq',
+  cohere: 'cohere',
+  hf: 'hf',
+  mis: 'mistral',
+  mistral: 'mistral',
+};
+
+/**
+ * 某個 model 的可用性標記。
+ *
+ * ⚠️ 回 `known: false` = **沒有任何資訊**（provider 沒被 probe／verdict 不是
+ *    up／形狀看不懂），UI **必須**照原樣顯示 model 名，不可畫成「不可用」。
+ *
+ * ⚠️ 只有 `verdict === 'up'` 才代表清單可信：那時 `available`／`missing`
+ *    才是完整的。provider 探不到時這兩個陣列必然不完整，拿它去否定某個
+ *    model，就是把「無從驗證」講成「驗證失敗」。
+ */
+export function modelAvailability(
+  model: string,
+  probe: CloudProbe | null,
+): { ok: boolean; known: boolean; missing?: boolean } {
+  if (!probe || !probe.providers) return { ok: false, known: false };
+  const slash = model.indexOf('/');
+  if (slash <= 0) return { ok: false, known: false };   // 地端 ollama：probe 不涵蓋
+  const key = PROVIDER_OF_PREFIX[model.slice(0, slash)];
+  const p = key ? probe.providers[key] : undefined;
+  if (!p) return { ok: false, known: false };
+  if (p.verdict !== 'up') return { ok: false, known: false };
+
+  // ⚠️ **probe 的 model id 沒有前端的前綴**，而前端的下拉選單有。
+  // 實測（wsl，2026-10-02）：
+  //     前端選單：  openrouter/cohere/north-mini-code:free
+  //     probe 回：  cohere/north-mini-code:free          ← 少了第一段
+  // 直接用整串 `includes(model)` 比對會**全部落空**：於是每一個模型都變成
+  // 「不知道」，而 `missing`（上游沒有這個模型，最有價值的那個訊息）永遠
+  // 不會顯示 —— 症狀是「功能看起來沒壞，但從沒標出過任何一個」。
+  //
+  // 所以要把前綴剝掉再比對。前綴本身已經確認過是這個 provider 的
+  // （上面 `probe.providers[prefix]` 那一行），所以剝掉是安全的。
+  const bare = model.slice(slash + 1);
+
+  if (Array.isArray(p.missing) && p.missing.includes(bare)) {
+    return { ok: false, known: true, missing: true };
+  }
+  if (Array.isArray(p.available) && p.available.includes(bare)) {
+    return { ok: true, known: true };
+  }
+  // 不在 configured 裡的模型（例如使用者手動輸入的）→ probe 沒有它的資訊。
+  if (Array.isArray(p.configured) && p.configured.includes(bare)) {
+    // configured 卻不在 available/missing → catalog 回來了但兩邊都沒有它。
+    // 這是後端比對規則（葉子名比對）沒命中；不可判成「不可用」。
+    return { ok: false, known: false };
+  }
+  return { ok: false, known: false };
+}
+
+/** 該 provider 有沒有「設了但上游沒有」的 model。 */
+export function missingModels(p: ProviderProbe | undefined): string[] {
+  return p && Array.isArray(p.missing) ? p.missing : [];
+}
+
+/**
+ * 打一次 probe。**冪等**（後端 300 秒 TTL，`?force=1` 才跳過），
+ * 所以前端**刻意不做節流** —— 那是兩套機制互相繞過。
+ *
+ * @returns 失敗回 `null`。**不是**回 `{error}` —— 那會讓 UI 分不出
+ *          「沒 probe」與「probe 失敗」，於是顯示成後者，而那是謊話。
+ */
+export async function probeClouds(doFetch: any): Promise<CloudProbe | null> {
+  try {
+    const r = await doFetch(hostUrl('', '/settings/probe-clouds'), { method: 'POST' });
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d || typeof d.providers !== 'object' || d.providers === null) return null;
+    return d as CloudProbe;
+  } catch {
+    // ⚠️ 靜默：這是附加資訊，不是登入的前置條件。回 null，UI 據此不顯示
+    // 任何 probe 區塊 —— 那比顯示「probe 失敗」誠實（真的可能只是沒探到）。
+    return null;
+  }
+}

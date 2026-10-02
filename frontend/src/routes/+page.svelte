@@ -1,7 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import {
-    fetchHostDefaults, hostUrl, modelOptions, saveHostDefaults, targetRows,
+    fetchHostDefaults, hostUrl, makeOnce, missingModels, modelAvailability,
+    modelOptions, probeClouds, saveHostDefaults, targetRows,
+    verdictLabel, verdictState,
   } from '$lib/hostDefaults';
 
   // 後端切換器的候選名單**從 /status 回的 known 推導**，不在這裡列舉主機。
@@ -124,6 +126,21 @@
     settingsErr = '';
   }
 
+  // model 清單裡每個選項的可用性標記。
+  //
+  // ⚠️ **known=false 一律回空字串** —— 沒有資訊時不可畫成「不可用」。
+  // 地端 ollama 與所有「探不到」的 provider 都走這裡：那不是壞了，
+  // 而是這次沒有答案（理由見 $lib/hostDefaults.ts 的 modelAvailability）。
+  // 只有 probe 明確說它在 `missing`（設了但上游 catalog 沒有）才標出來 ——
+  // 那是最有價值的資訊：症狀是「選了才 404」。
+  function availabilitySuffix(model) {
+    if (!model) return '';
+    const a = modelAvailability(model, cloudProbe);
+    if (!a.known) return '';
+    if (a.missing) return '　⚠ 上游沒有這個模型';
+    return a.ok ? '　✓ 可用' : '';
+  }
+
   async function saveSettings() {
     settingsSaving = true;
     settingsMsg = '';
@@ -163,6 +180,31 @@
     }
   }
 
+  // ── 雲端 catalog probe（登入時觸發一次）───────────────────────────────
+  let cloudProbe = null;
+  // 「同一個 session 內只打一次」由 makeOnce() 負責，**不要**改成
+  // 「if (probeStarted) return; probeStarted = true; await …」那種寫法。
+  //
+  // 為什麼需要：/auth/callback redirect 回首頁，而 SvelteKit 換頁會重建
+  // component。不過瀏覽器重新整理是**新的 JS realm**、狀態會重置 —— 那種
+  // 情況靠後端的 300 秒 TTL 吸收（見下），前端不做跨頁的持久化節流。
+  //
+  // ⚠️ 刻意**不做** localStorage／cookie 節流：後端已有 300 秒 TTL +
+  //   ?force=1，那才是節流的正確層級。在前端再加一套會變成兩套機制互相繞過，
+  //   而且會讓「我剛換了 key，現在就探」這件事在前端就被擋住。
+  const claimProbeOnce = makeOnce();
+  async function probeOnceOnLogin() {
+    if (!claimProbeOnce()) return;         // 同步取得權利 → 並行呼叫也只有一個進去
+    try {
+      // 回 null 表示失敗（未登入／網路問題／形狀看不懂）。
+      cloudProbe = await probeClouds((u, i) => fetch(api(u), i));
+    } catch (_) {
+      cloudProbe = null;                    // probe 失敗不影響登入，也不影響查詢
+    }
+    // ⚠️ 刻意不設任何錯誤訊息：probe 是附加資訊。顯示「probe 失敗」會讓
+    // 使用者去排查一個不影響任何功能的問題 —— 而真相可能只是沒探到。
+  }
+
   onMount(async () => {
     document.addEventListener('click', (ev) => {
       if (modelOpen && !ev.target.closest('.model-drop')) modelOpen = false;
@@ -178,6 +220,9 @@
       const d = await r.json();
       if (d.ok) user = d.user;
     } catch (_) {}
+    // 登入後做一次雲端 catalog probe —— 掛在**確認已登入之後**、且每次
+    // onMount 最多一次。理由見 probeOnceOnLogin() 的註解。
+    if (user) probeOnceOnLogin();
     // 這三個必須留在 onMount 裡，不要提到 script 頂層。
     // 兩個原因：
     //  1) SSR 階段 SvelteKit 禁止相對網址的 eager fetch，症狀是 health 徽章顯示
@@ -762,6 +807,37 @@
           查詢時沒指定 model 就用這裡的值；選「（未設定）」則回到該機的 LLM_MODEL。
         </p>
 
+        <!-- 雲端可用性 probe。只顯示**本機**的結果（登入時打的是本機後端）；
+             逐台的 model 清單是上面那張表的事，兩者不重疊。 -->
+        {#if cloudProbe}
+          <h3 class="pop-sub">雲端可用性（本機）</h3>
+          <table>
+            <thead>
+              <tr><th>服務</th><th>狀態</th><th>說明</th></tr>
+            </thead>
+            <tbody>
+              {#each Object.entries(cloudProbe.providers) as [name, p]}
+                <tr>
+                  <td>{name}</td>
+                  <!-- ⚠️ 四種 verdict 各有自己的 class，unknown 不是 bad：
+                       「探不到」畫成紅字會讓使用者去換 key、查網路。 -->
+                  <td>
+                    <span class="vp vp-{verdictState(p.verdict)}">{verdictLabel(p.verdict)}</span>
+                  </td>
+                  <td>
+                    {p.detail ?? '—'}
+                    {#if missingModels(p).length}
+                      <div class="vp-missing">
+                        ⚠ 上游沒有：{missingModels(p).join('、')}
+                      </div>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {/if}
+
         {#if settingsLoading}
           <p class="muted">讀取各主機現況中…</p>
         {:else if !settingHosts.length}
@@ -797,7 +873,7 @@
                     {:else}
                       <select bind:value={hostPicked[row.id]}>
                         {#each modelOptions(row) as opt}
-                          <option value={opt.value}>{opt.label}</option>
+                          <option value={opt.value}>{opt.label}{availabilitySuffix(opt.value)}</option>
                         {/each}
                       </select>
                     {/if}
@@ -1119,6 +1195,21 @@
   .set-box td select:disabled { color: var(--muted); background: var(--surface-soft); cursor: not-allowed; }
   .set-box td code { font: var(--code); font-size: 12px; color: var(--body); }
   .set-actions { display: flex; justify-content: flex-end; gap: var(--xs); margin-top: var(--md); }
+
+  /* ── 雲端 probe 的四種 verdict ────────────────────────────────────────
+   * ⚠️ 四種狀態各有階調，**unknown 不是 bad**。
+   * 「探不到」畫成紅字會讓使用者以為那個 provider 壞了，於是去換 key、
+   * 查網路 —— 而真相是「這次沒探到」。`off`（未設定）同樣不是故障：
+   * 一台沒開某個 provider 的機器完全正常。
+   *
+   * 顏色用 theme.css 已有的語意階：error / warning / muted-text / success-text。
+   */
+  .vp { font: var(--caption); white-space: nowrap; }
+  .vp-ok { color: var(--success-text); }
+  .vp-bad { color: var(--error); }
+  .vp-unknown { color: var(--warning); }   /* 探不到 ≠ 壞了 */
+  .vp-off { color: var(--muted-text); }    /* 未設定，不是故障 */
+  .vp-missing { color: var(--error); font: var(--caption); margin-top: var(--xxs); }
   /* 儲存是這個對話框的唯一 affirmative action（DESIGN.md button-primary） */
   .btn.primary {
     background: var(--primary); color: var(--on-primary); border-color: var(--primary);
