@@ -399,9 +399,51 @@ python3 scripts/env-inventory.py --emit-column  # 在任一台跑，印出該機
 ```
 
 **為什麼要拆成 `--emit-column`**：清單裡三台的欄位並排，但每一欄的資料只能
-來自那一台自己。把「該機的 SET/EMPTY/ABSENT」寫成一個 40 行的獨立小檔
+來自那一台自己。把「該機的 SET/EMPTY/ABSENT」寫成一個 70 行的獨立小檔
 （**沒有值**，所以可以進版控），其他人跑產生器就能合成三欄並排的完整表。
 第一次做時另外兩台會是「待填」—— 那不是錯誤，單機先把清單生出來比三台互等快。
+
+⚠️ **`--emit-column` 的輸出會被 commit，所以它必須通得過 repo 自己的護欄。**
+2026-10-02 實測踩到：它印了 `LAN_IP=ABSENT`，而 pre-push 與 CI 擋 `^LAN_IP=`。
+症狀很難查 —— 指令成功、輸出看起來正常、照說明貼回來也沒問題，**然後 push
+被拒**，而且只有真的 commit 那一步才會發現。`test_emit_column_output_passes_the_repo_own_guards`
+存在的理由不是「LAN_IP 不該出現」（那件事另有測試守），而是**把每個會產生
+可提交輸出的工具都放進護欄射程內**。
+
+⚠️ **`host-inventory/<host>.txt` 是快照，不是設定檔。** 它過期時沒有任何人會
+被通知，而它的作用是「讓人相信三台長相一樣」—— 一份過期的快照**比沒有快照更糟**，
+因為它會讓錯誤的結論看起來有證據。`test_emit_column_is_reproducible_against_the_committed_file`
+會在改完 `.env` 沒重產生時讓測試紅掉。
+
+### 三機往返：`scripts/env-diff-hosts.py`
+
+第一半在 `--emit-column`（每台產出自己的欄位），這是第二半：**吃三份欄位，
+逐鍵比對，並對每個不一致提出一個有理由的標準化提案。**
+
+```bash
+python3 scripts/env-diff-hosts.py \
+    settings/env/host-inventory/{x570,mbp,wsl}.txt
+# 也接受 stdin：… | python3 scripts/env-diff-hosts.py - settings/env/host-inventory/wsl.txt
+```
+
+輸出分兩段。**第一段是分歧，分四類**（每類有不同的處置方向）：
+
+| 類別 | 形狀 | 為什麼危險 |
+|---|---|---|
+| 🔴 共用憑證分歧 | 共用憑證在某台不是 SET | 那一台的 peer 探測／外部認證會失敗，症狀是「查詢正常、只有連線面板紅」|
+| 🟠 per-host 分歧 | per-host 鍵在某台缺 | `render` 挑不到列 → 吃預設值 |
+| 🟡 SET vs ABSENT | 某台設了、某台沒這行 | 兩台的檔案長相不同但**都不報錯** |
+| 🔵 EMPTY vs ABSENT | 兩種寫法代表同一件事 | 純格式分歧，讓版面指紋對不上 |
+
+**第二段是標準化提案**，目標是「三台的 `.env` 有相同的鍵集合與排列，只有值不同」。
+
+⚠️ **提案由鍵的「角色」決定，不是把現況照抄。** 這一點是刻意的：若照抄，
+某台的共用憑證是 ABSENT 時提案就會寫「ABSENT」—— 等於把故障認可成規格。
+正確的提案對共用憑證一律是「全部 SET」，不管現在誰缺。
+
+⚠️ **這支工具不執行任何修改。** 它不在任何一台機器上跑，產生的是給人看的規格；
+實際套用是每台各自跑 `env-relayout.py`／手動調整。理由與 `--emit-column` 相同：
+`.env` 不能離開那台機器，但「哪個鍵有沒有值」可以。
 
 ### 「清掉根本沒用到的」—— 實測結果是**幾乎沒有**
 

@@ -2,6 +2,22 @@
 
 給 **mbp 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
+## ☆☆ 最優先：回報你這台的 `.env` 欄位（2026-10-02 17:40，10 秒的事）
+
+```bash
+git pull && python3 scripts/env-inventory.py --emit-column > mbp-env-column.txt
+cat mbp-env-column.txt
+```
+
+**把那 71 行原樣貼回來。** 就這樣，沒有別的步驟。
+
+為什麼要這個：三台的 `.env` 長相不一樣，而使用者要它們**同規格**。我需要先知道
+三台各自「哪些鍵有值／哪些鍵是空行／哪些鍵根本沒有」才能擬出規格。那個資訊
+**不敏感**（只有 SET/EMPTY/ABSENT，沒有任何值），所以可以回報 —— 而 `.env` 本身
+有 8 份憑證，不能離開那台機器。
+
+不要順便改任何東西。**這一輪只跑上面那兩行。**
+
 前置：`git pull`（x570 那份建議用 `host-sync.sh`，那是為 x570 寫的；
 mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`。
 

@@ -209,12 +209,24 @@ def main() -> int:
 
     if args.emit_column:
         col = local_column()
-        for k in sorted(reg):
+        # ⚠️ POLICY_EXCLUDED 的鍵**不可**印成 `NAME=…`（2026-10-02 修正）。
+        # 這個分支的輸出有兩個下游客戶：(a) 貼進聊天回報、(b) 存成
+        # `settings/env/host-inventory/<host>.txt` 後 **commit**。
+        # 而 `LAN_IP=` 會被 pre-push 與 CI 的 `^LAN_IP=` 擋掉，IP 準則也明文
+        # 禁止 —— 於是「照說明跑完、貼回來、commit」這條正常路徑會被自己的
+        # 守衛擋下。症狀很難查：指令成功、輸出看起來正常、然後 push 被拒。
+        #
+        # 這不是「擔心會不會被繞過」，而是**不要讓工具產出自己禁止的東西**。
+        excluded = set(getattr(EA, "POLICY_EXCLUDED", {}))
+        for k in sorted(set(reg) - excluded):
             print(f"{k}={col.get(k, 'ABSENT')}")
         # .env 裡有、但程式碼沒讀到的 —— 那是幽靈鍵，必須一起報，
         # 否則「清單」會漏掉最該被發現的那一類。
-        for k in sorted(set(col) - set(reg)):
+        for k in sorted(set(col) - set(reg) - excluded):
             print(f"{k}={col[k]}  # 幽靈：程式碼沒讀它")
+        if excluded:
+            print(f"# 略過（政策上停用，不可寫入 .env）：{' '.join(sorted(excluded))}",
+                  file=sys.stderr)
         return 0
 
     cols: dict[str, dict[str, str] | None] = {}

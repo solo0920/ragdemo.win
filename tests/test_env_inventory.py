@@ -88,6 +88,63 @@ def test_emit_column_prints_only_set_empty_absent():
     assert not bad, f"這幾行的格式不對（可能夾帶了值）：{bad}"
 
 
+def test_emit_column_output_passes_the_repo_own_guards():
+    """**工具的輸出必須通得過 repo 自己的護欄** —— 否則正常使用流程會被擋。
+
+    Friction 點（2026-10-02 實測）：`--emit-column` 印了 `LAN_IP=ABSENT`，
+    而它的輸出**就是要 commit 的**（`settings/env/host-inventory/<host>.txt`），
+    也會被貼進聊天回報。pre-push 與 CI 擋 `^LAN_IP=`，IP 準則也明文禁止。
+
+    症狀特別難查：指令成功、輸出看起來正常、照說明貼回來也沒問題，
+    **然後 push 被拒**。而且只有真的 commit 那一步才會發現。
+
+    所以這條測試的存在理由不是「LAN_IP 不該出現」—— 那件事另有
+    `test_policy_excluded_keys_are_not_decision_candidates` 守著 —— 而是
+    **把每個會產生可提交輸出的工具，都放進護欄的射程內**。
+    """
+    r = _run("--emit-column")
+    assert r.returncode == 0, r.stderr
+    for line in r.stdout.splitlines():
+        assert not line.startswith("LAN_IP="), (
+            "--emit-column 不可印 `LAN_IP=`：它的輸出會被 commit，"
+            "而 pre-push／CI 擋 `^LAN_IP=`")
+    # 同時驗證已提交的 wsl.txt 也乾淨（那是這個機制真正的產物）
+    col_file = ROOT / "settings" / "env" / "host-inventory"
+    for f in col_file.glob("*.txt") if col_file.is_dir() else []:
+        for line in f.read_text(encoding="utf-8").splitlines():
+            assert not line.startswith("LAN_IP="), \
+                f"{f.name} 含 `LAN_IP=` —— 這檔是會被 commit 的"
+
+
+def test_emit_column_is_reproducible_against_the_committed_file():
+    """已提交的欄位檔必須跟「現在跑出來的」一致 —— 不然那份檔在騙人。
+
+    `host-inventory/<host>.txt` 是**快照**，不是設定檔。它過期時沒有任何人
+    會被通知，而它的作用是「讓人相信三台長相一樣」。一份過期的快照比沒有
+    快照更糟 —— 因為它會讓錯誤的結論看起來有證據。
+    """
+    f = ROOT / "settings" / "env" / "host-inventory" / "wsl.txt"
+    if not f.is_file():
+        return
+    stored = {}
+    for line in f.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)", line.strip())
+        if m:
+            stored[m.group(1)] = m.group(2)
+    live = {}
+    for line in _run("--emit-column").stdout.splitlines():
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)", line.strip())
+        if m:
+            live[m.group(1)] = m.group(2)
+    stale = {k: (stored[k], live.get(k, "ABSENT"))
+             for k in stored if stored[k] != live.get(k, "ABSENT")}
+    assert not stale, (
+        f"settings/env/host-inventory/wsl.txt 過期了，這些鍵已變：{stale}\n"
+        f"   改完 .env 請重新產生："
+        f"python3 scripts/env-inventory.py --emit-column "
+        f"> settings/env/host-inventory/wsl.txt")
+
+
 # ── 結構 ───────────────────────────────────────────────────────────────
 
 def test_inventory_has_the_three_machine_columns():
