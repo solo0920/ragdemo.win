@@ -309,6 +309,27 @@ if action in ("plan", "check"):
         sys.exit(1)
     print(f"env-sync --check: per-host 值與總表一致（{len(layer)} 鍵，該機 "
           f"{host or '?'}）")
+    # ⚠️ 2026-10-02：把「空列 → 沿用現值」這個狀態**印出來**。
+    #
+    # 那個語意是刻意的（總表可以宣告「這台自己決定」），但它有個看不見的後果：
+    # `layer` 只收有值的列 → **表裡是空列的 per-host 鍵，`--check` 根本不比較**。
+    # 於是「該機有值、總表沒人管」這種漂移在 `--check` 下是**全綠**的。
+    #
+    # 實測踩到（2026-10-02 三機比對）：mbp 的 `OLLAMA_URLS` 有值，而總表的
+    # `mbp_OLLAMA_URLS` 是空的 → 層級裡沒這個鍵 → `--check` 綠 → 沒有人知道
+    # 那個值是手改的還是 render 後總表被清掉留下的殘留。
+    #
+    # 這裡**不**把它變成錯誤：那會擋住「這台刻意自己決定」的合法用法，
+    # 而那個用法是這段程式碼的原設計意圖。只報出來 ——
+    # 不可見的狀態不會被處理，可見的至少會被問一次。
+    if action == "check":
+        inherit = sorted(k for k, cols in table.items()
+                         if not cols.get(host, "") and cur.get(k))
+        if inherit:
+            print(f"env-sync --check: ⚠️ {len(inherit)} 個 per-host 鍵在總表的 "
+                  f"{host or '?'} 列是空的，該機沿用自己的值（設計如此，但值不在"
+                  f"總表裡 → 改總表不會影響它 → 沒有任何人在管它）: "
+                  f"{' '.join(inherit)}", file=sys.stderr)
     sys.exit(0)
 
 lines = open(env_path, encoding="utf-8").read().splitlines() if os.path.exists(env_path) else []
@@ -631,9 +652,22 @@ PY
       fail=1
     fi
     # 白名單：README.md、*.env.example、common.env、hosts.shared.env、*.enc.env
+    #
+    # `host-inventory/*.txt` 也放行（2026-10-02）：那三個檔是**三機往返的
+    # 欄位快照**，內容只有 `KEY: SET|EMPTY|ABSENT`，**沒有任何值**。
+    #
+    # 這條放行不該靠信任，而是靠三道獨立的守衛：
+    #  1. 格式本身用**冒號**分隔 —— `KEY: SET` 結構上不可能被讀成賦值
+    #     （`test_column_format_cannot_be_mistaken_for_an_assignment`）
+    #  2. `test_no_tracked_secret_values` 掃**所有**被追蹤檔，任何 `SECRET=<值>`
+    #     都會紅 —— 放行白名單不會繞過它
+    #  3. `test_emit_column_output_passes_the_repo_own_guards` 掃這個目錄的
+    #     `^LAN_IP=`
+    # 換句話說：白名單放行的是**檔名**，安全由**內容規則與測試**保證。
     local extra
     extra="$(git -C "$ROOT" ls-files settings/env/ \
-      | grep -vE '(\.md|\.env\.example|common\.env|hosts\.shared\.env|\.enc\.env)$' || true)"
+      | grep -vE '(\.md|\.env\.example|common\.env|hosts\.shared\.env|\.enc\.env)$' \
+      | grep -vE '^settings/env/host-inventory/[a-z0-9_-]+\.txt$' || true)"
     if [ -n "$extra" ]; then
       echo "env-sync --check: settings/env 下有非白名單的追蹤檔（per-host 真值只能放總表）:" >&2
       echo "$extra" | sed 's/^/    /' >&2
