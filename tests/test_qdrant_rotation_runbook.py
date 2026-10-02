@@ -66,8 +66,11 @@ def test_runbook_snippets_still_run():
     另一個類型就是「測試污染真實狀態」。
     """
     snippets = re.findall(r"<<'PY'\n(.*?)\nPY\n", _text(), re.S)
-    assert len(snippets) == 3, \
-        f"應該有 3 個 python 片段，實際 {len(snippets)} —— 有人改過或刪過"
+    # ⚠️ 2026-10-03：從 3 個減為 2 個，因為**移除了 S2 那段手動貼值的片段** ——
+    #   改用「x570 自己 pull」（`QDRANT_API_KEY` 不在版控總表，pull 不會動它）。
+    #   少一個片段不是退步：那段片段會讓**秘密經過聊天**。
+    assert len(snippets) == 2, \
+        f"應該有 2 個 python 片段，實際 {len(snippets)} —— 有人改過或刪過？"
 
     for i, sn in enumerate(snippets, 1):
         key = re.search(r'startswith\("([A-Z_]+)="', sn)
@@ -142,11 +145,14 @@ def test_the_irreversible_step_comes_after_the_verification_step():
 
     # 不可回頭點必須**明寫**，而且排在 S4（最後的跨機驗收）之後
     assert "不可回頭" in t, "必須標示哪一步不可回頭 —— 否則沒人知道要在哪裡停下"
-    assert steps["S5"] > steps["S4"], \
-        "S5（不可回頭）必須在 S4（跨機驗收）之後 —— 反過來就是兩台備援機永久 401"
-    # S3 是「還沒 pull 之前先證明新值能連」的閘門，也不能排在 S4 之後
-    assert steps["S3"] < steps["S4"], \
-        "S3 是散播前的閘門，必須在 S4 之前 —— 散播了才驗就來不及了"
+    # ⚠️ 2026-10-03 改版後**不可回頭點是 S4**（舊版是 S5）：新版拿掉「S2 手動
+    #   傳值」，x570 直接 pull，所以少一步。**門檻跟著步驟走，不跟著舊號碼走。**
+    assert steps["S4"] > steps["S3"], \
+        "S4（不可回頭：抽掉 x570 的舊值）必須在 S3（三項跨機驗收）之後 —— " \
+        "反過來就是兩台備援機永久 401"
+    # S2 必須在 S3 之前（來源機先接受新 peer，散播才安全）
+    assert steps["S2"] < steps["S3"], \
+        "S2（x570 先接受 N）必須在 S3（散播到 peers）之前"
 
 
 def test_runbook_contains_no_plaintext_credential():

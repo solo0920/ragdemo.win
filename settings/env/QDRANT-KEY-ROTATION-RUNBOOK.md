@@ -82,147 +82,100 @@ qdrant 的 `can_write = read_write || alt_read_write`（上游 `src/common/auth/
 
 | 步驟 | 之後還能不能回滾到 V |
 |---|---|
-| S1–S4 | **可以** —— V 還在 sops 以外至少一台機器的 `.env` 裡（見 §4） |
-| **S5** | **不可以** —— x570 不再接受 V |
+| S1–S3 | **可以** —— V 還在 sops 以外至少一台機器的 `.env` 裡（見 §4） |
+| **S4** | **不可以** —— x570 不再接受 V |
 
-**所以 S5 只能在 S4 驗收全過之後做。**
+**所以 S4 只能在 S3 三項驗收全過之後做。**
 
 ---
 
 ## 2. 步驟
 
-### S0. 三台基線（兩台分開跑）
+> ⚠️ **2026-10-03 改寫**：原本的 S2 是「由 wsl 手動把 N 傳給 x570、貼進 `.env`」。
+> 那是**多餘的，而且不安全** —— 秘密會經過聊天。查證後確認 `QDRANT_API_KEY`
+> **不在版控總表裡**，所以 `pull`／`render` **不會動它** ⟹ **x570 自己 `pull` 就
+> 拿到 N**，N 完全不必離開 wsl 的檔案系統。
+>
+> 而且新版**沒有任何時刻是拉不到的**（舊版 S2 到 S4 之間是一段隱含風險）。
+> 兩台的 `QDRANT_API_KEY` 都是 per-host、pull 不動，所以 **pull 只換 peer**。
+
+### S0. 三台基線（**已完成 2026-10-03**）
+
+```
+        QDRANT_API_KEY        QDRANT_PEER_API_KEY
+wsl     fe4b2d4ba82a         fe4b2d4ba82a
+x570    fe4b2d4ba82a         fe4b2d4ba82a     ← 同值（要修的）
+mbp     94c1f7a9ef3d         fe4b2d4ba82a     ← 已拆分
+```
+
+`mbp` 的 `LAW_SYNC_SOURCE=http://100.119.83.111:6333`（= x570）✓；
+`x570` 沒有那行（它是來源機，不拉別人的）✓。
+
+### S1. 在 **wsl** 產生 N 寫進 sops，然後 commit + push
+
+```bash
+read -rs -p '新的 peer key（43 字符；產生方式見下）: ' N; echo
+printf '%s' "$N" | bash scripts/rotate-secret.sh QDRANT_PEER_API_KEY --from-stdin
+unset N
+git add settings/env/secrets.common.enc.env
+git commit -m 'wsl: 輪換 QDRANT_PEER_API_KEY（撤銷 2026-10-03 外洩的值）'
+git push
+```
+
+**N 從哪來**：讓 qdrant 自己產生格式正確的值最省事 ——
+
+```bash
+N="$(python3 -c "import secrets,string;a=string.ascii_letters+string.digits+'-_';print(''.join(secrets.choice(a) for _ in range(43)))")"
+printf '  長度=%s\n' "${#N}"
+```
+
+⚠️ **`rotate-secret.sh` 會改版控中的加密檔**，所以**必須 commit + push**，否則另外兩台
+pull 不到。**在 push 之前不要在別的機器 pull** —— 那是 S2 的順序。
+
+### S2. 在 **x570** pull（peer 變 N）＋ 重啟 qdrant
 
 ```bash
 git pull
-bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant|rotate|registry'
-bash scripts/env-sync.sh --fingerprints | grep -i qdrant
+bash scripts/env-sync.sh pull          # peer=N；QDRANT_API_KEY 不動（per-host）
+docker compose up -d qdrant            # ALT 槽要重啟才吃到 N
+bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant|rotate|query'
 ```
 
-**回報**：三台各自的 `qdrant-api-key` / `qdrant-alt-key` 的 `len=` 與 `sha12=`，
-以及 `rotate-hint` 那條。
+**此時 x570 的槽位 = 槽1 `V` ＋ 槽2 `N`（兩把都收）** —— 這是**刻意**的過渡狀態。
 
-⚠️ **不要**把任何值貼回來。若 `sha12` 在三台之間**不一致**，**停下來回報** ——
-那代表實際狀態與本文件的不同，後面的順序推論全部不成立。
+| 檢查 | 期望 |
+|---|---|
+| `query` | HTTP 200（x570 自己的後端用 `QDRANT_API_KEY`＝V 打槽 1） |
+| `rotate-hint` | 轉成 `[ ok ]` peer 與本機不同值 |
 
-### S0b. 確認來源機是 x570（在 **mbp 與 wsl** 上各跑一次）
+⚠️ **此時 mbp／wsl 手上還是 V，而 x570 的槽 1 仍是 V → 它們照常拉得到。** 沒有風險窗口。
 
-```bash
-grep -E '^LAW_SYNC_SOURCE=' .env | sed -E 's#(https?://)[^:]*:[^@]*@#\1<HOST>:<PORT>@#'
-```
-
-**回報**：主機名（不要貼帳密）。若任一台的來源**不是 x570**，**停下來回報** ——
-本 runbook 的槽位模型是照「只有 x570 是來源」寫的。
-
----
-
-### S1. 在 **wsl** 產生 N 並寫進 sops（**先不要 pull 到別台**）
-
-```bash
-read -rs -p '新的 peer key（43 字符，勿貼到聊天）: ' N; echo
-printf '%s' "$N" | bash scripts/rotate-secret.sh QDRANT_PEER_API_KEY --from-stdin
-unset N
-```
-
-**在 wsl 這台自己驗收**（不 pull、不重啟）：
-
-```bash
-bash scripts/env-sync.sh --fingerprints | grep -i qdrant
-```
-
-`sha12` 應該**已經變了**（因為 sops 檔案改了），而 `.env` 裡的**還是舊的 V** ——
-**這個不一致是刻意的**，它是 S4 的回滾保險。**不要**去 pull 把它蓋掉。
-
-### S2. 在 **x570** 手動把 N 放進 `.env`，然後重啟 qdrant
-
-⚠️ 這一步**不能**用 `pull`（會同時覆寫 x570 自己的 `QDRANT_API_KEY`，那正是
-S5 才該做的事）。所以手動：
-
-```bash
-# 用 read -rs 拿到 N（由 wsl 透過安全管道傳給你，別貼進聊天）
-read -rs -p 'N（從 wsl 取得）: ' N; echo
-python3 - "$N" <<'PY'
-import os, pathlib, sys, tempfile, shutil
-new = sys.argv[1]
-assert len(new) == 43, f"長度不對：{len(new)}（應為 43）"
-p = pathlib.Path(".env")
-lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
-out, hit = [], 0
-for ln in lines:
-    if ln.startswith("QDRANT_PEER_API_KEY="):
-        out.append(f"QDRANT_PEER_API_KEY={new}\n"); hit += 1
-    else:
-        out.append(ln)
-assert hit == 1, f"QDRANT_PEER_API_KEY 出現 {hit} 次（預期 1）"
-pathlib.Path(".env.rotbak").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
-p.write_text("".join(out), encoding="utf-8")
-print("  已換（備份在 .env.rotbak）")
-PY
-unset N
-docker compose up -d qdrant
-```
-
-**驗收（x570）**：
-
-```bash
-docker compose ps qdrant
-bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant-api-key|qdrant-alt-key|query'
-```
-
-`query` 必須 **HTTP 200** —— x570 自己的後端用 `QDRANT_API_KEY`（仍是 V）打槽 1，
-應該照常。**若 200 不見了，停下來回報，不要往下走。**
-
-### S3. 🚧 閘門：在**還沒 pull** 之前，先證明 N 真的能連 x570
-
-在 **mbp** 上（此時 mbp 的 peer 還是 V，但你要用 N 手動試）：
-
-```bash
-read -rs -p 'N: ' N; echo
-printf 'header = "api-key: %s"\n' "$N" \
-  | curl -s -o /dev/null -w '  x570 /collections → HTTP %{http_code}\n' --config - \
-      http://100.119.83.111:6333/collections
-unset N
-```
-
-**必須是 200。**
-
-* **200** → 往下走 S4
-* **401** → **停下來回報。** 常見原因：x570 的 qdrant 沒重啟成功、或 N 沒真的進到
-  `.env`。**此時三台都還能用 V -pull，所以是安全的。**
-
-### S4. 兩台備援機 `pull`（現在才散播 N）
-
-在 **mbp** 與 **wsl** 上各跑：
+### S3. 在 **mbp 與 wsl** pull ＋ 重啟 qdrant
 
 ```bash
 git pull
 bash scripts/env-sync.sh pull
-docker compose up -d qdrant        # ALT 槽要重啟才吃到 N
+docker compose up -d qdrant
 bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant|rotate|query'
 ```
 
-**驗收（兩台都要）**：
+**驗收（兩台都要，三項全過才往下）**：
 
-| 檢查 | 期望 |
-|---|---|
-| `rotate-hint` | peer 與本機**不同值**（已拆分，正確） |
-| `query` | HTTP 200 |
-| `env-check` | per-host 值與總表一致 |
-
-⚠️ **`query` 通過還不算完** —— 它打的是**本機** qdrant。還要證明**跨機**那條路
-（`sync-snapshot.sh`）也通：
+| 檢查 | 期望 | 為什麼這三項各自獨立 |
+|---|---|---|
+| `query` | HTTP 200 | 打的是**本機** qdrant（用 `QDRANT_API_KEY`，pull 沒動它） |
+| `rotate-hint` | `[ ok ]` 已拆分 | peer 與本機不同值 |
+| `sync-snapshot.sh --force` | 有 `SYNC OK` | **唯一證明跨機那條路**的檢查 |
 
 ```bash
-LAW_SYNC_SOURCE= bash scripts/sync-snapshot.sh --force 2>&1 | tail -6
+bash scripts/sync-snapshot.sh --force 2>&1 | tail -6
 ```
 
-看有沒有 `SYNC OK`。**沒有就是還沒好，別往下走。**
+⚠️ **`query` 通過不等於好了** —— 它完全沒碰 x570。只有第三項碰到。
 
-### S5. 🚨 抽掉 x570 的 V（**不可回頭點**）
+### S4. 🚨 在 **x570** 抽掉 V（**不可回頭點**）
 
-⚠️ **只有在 S3 與 S4 都驗收全過之後才做這一步。**
-
-在 **x570**：
+⚠️ **只有 S3 三項全過才做這一步。** 做完之後 V 在 x570 失效，**不能回滾**。
 
 ```bash
 read -rs -p 'x570 新的 QDRANT_API_KEY（43 字符）: ' X; echo
@@ -240,31 +193,32 @@ for ln in p.read_text(encoding="utf-8").splitlines(keepends=True):
         out.append(ln)
 assert hit == 1, f"QDRANT_API_KEY 出現 {hit} 次（預期 1）—— 停下來查，別繼續"
 p.write_text("".join(out), encoding="utf-8")
-print("  已換（備份在 .env.rotbak2）")
 PY
 unset X
 docker compose up -d qdrant api
 bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant|rotate|query'
 ```
 
-**驗收**：`query` HTTP 200；`rotate-hint` 顯示 peer 與本機不同值。
+**驗收**：`query` HTTP 200；`rotate-hint` `[ ok ]`。
 
-**再證明 V 真的失效了**（在 wsl 上）：
+### S5. 證明 V 真的死了（在 **mbp** 上，用它還留著的 V）
 
 ```bash
-read -rs -p '舊值 V（見 §4 怎麼取）: ' V; echo
-printf 'header = "api-key: %s"\n' "$V" \
-  | curl -s -o /dev/null -w '  x570 /collections → HTTP %{http_code}（要 401）\n' --config - \
-      http://100.119.83.111:6333/collections
-unset V
+python3 -c "
+import pathlib
+for ln in pathlib.Path('.env').read_text().splitlines():
+    if ln.startswith('QDRANT_PEER_API_KEY='):
+        open('/tmp/v.key','w').write(ln.split('=',1)[1])
+" && chmod 600 /tmp/v.key
+curl -s -o /dev/null -w '  x570 /collections → HTTP %{http_code}（要 401）\n' \
+  --config <(printf 'header = "api-key: %s"\n' "$(cat /tmp/v.key)") \
+  http://100.119.83.111:6333/collections
+shred -u /tmp/v.key 2>/dev/null || rm -f /tmp/v.key
 ```
 
-**401 才是完成。** 若仍是 200，V 還活著，**停下來回報**。
+**401 才是完成。** 若 200 → V 還活著，**停下來回報**。
 
-### S6. 抽掉 wsl 的 V
-
-wsl 沒有任何別的機器把它當來源（§0b 會確認），所以**這一步是本機的**，不影響
-任何人。
+### S6. 在 **wsl** 抽掉 V（本機動作，不影響別人）
 
 ```bash
 read -rs -p 'wsl 新的 QDRANT_API_KEY（43 字符）: ' Y; echo
@@ -282,7 +236,6 @@ for ln in p.read_text(encoding="utf-8").splitlines(keepends=True):
         out.append(ln)
 assert hit == 1, f"QDRANT_API_KEY 出現 {hit} 次（預期 1）—— 停下來查，別繼續"
 p.write_text("".join(out), encoding="utf-8")
-print("  已換（備份在 .env.rotbak3）")
 PY
 unset Y
 docker compose up -d qdrant api
@@ -292,15 +245,13 @@ bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant|rotate|query'
 ### S7. 三台最終驗收
 
 ```bash
-bash scripts/host-doctor.sh          # 0 fail，且 rotate-hint = 已拆分
+bash scripts/host-doctor.sh          # 0 fail，rotate-hint = 已拆分
 bash scripts/env-sync.sh --check     # 0 warn
 bash scripts/env-sync.sh --fingerprints | grep -i qdrant
 ```
 
-**全部通過後**：刪掉三台的 `.env.rotbak*`（裡面有舊的憑證值）。
-
-⚠️ 刪之前先確認 **S5 的 401 驗收已經做過** —— 刪掉備份之後，V 就**再也拿不回來**
-了，而它是「V 是否真的失效」的唯一驗證材料。
+**S5 的 401 已經看到之後**，才刪掉各台的 `.env.rotbak*`（裡面有舊值）。
+刪掉之後 V 就再也拿不回來，而它是「V 是否真失效」的唯一驗證材料。
 
 ---
 
@@ -309,14 +260,14 @@ bash scripts/env-sync.sh --fingerprints | grep -i qdrant
 | 機器 | `rotate-hint` | 意義 |
 |---|---|---|
 | mbp | `[ ok ]` peer 與本機**不同值**（已拆分，正確） | 已經是目標狀態的**形狀**，但 peer 仍是 V |
-| x570 | `[warn]` 同值 → 三台鎖步 | S5 處理 |
-| wsl | `[warn]` 同值 → 三台鎖步 | S6 處理 |
+| x570 | `[warn]` 同值 → 三台鎖步 | **S4** 處理 |
+| wsl | `[warn]` 同值 → 三台鎖步 | **S6** 處理 |
 
 ---
 
 ## 4. 回滾
 
-**S1–S4 之間**：V 還在**尚未 `pull` 的那台機器**的 `.env` 裡。任一台沒 pull 的
+**S1–S3 之間**：V 還在**尚未 `pull` 的那台機器**的 `.env` 裡。任一台沒 pull 的
 機器都能取回：
 
 ```bash
@@ -328,10 +279,10 @@ for ln in pathlib.Path('.env').read_text().splitlines():
 "
 ```
 
-回滾就是把 V 重新 `rotate-secret.sh` 回去，然後 `pull` + 重啟。**因為 x570 在 S5
+回滾就是把 V 重新 `rotate-secret.sh` 回去，然後 `pull` + 重啟。**因為 x570 在 S4
 之前槽 1 仍是 V，所以回滾一定有效。**
 
-**S5 之後**：**沒有回滾**。此時唯一能連 x570 的是 N，只能往前修。
+**S4 之後**：**沒有回滾**。此時唯一能連 x570 的是 N，只能往前修。
 
 ---
 
