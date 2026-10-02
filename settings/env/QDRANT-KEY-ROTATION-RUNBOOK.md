@@ -201,22 +201,49 @@ bash scripts/host-doctor.sh 2>&1 | grep -E 'qdrant|rotate|query'
 
 **驗收**：`query` HTTP 200；`rotate-hint` `[ ok ]`。
 
-### S5. 證明 V 真的死了（在 **mbp** 上，用它還留著的 V）
+### S5. 證明 V 真的死了（在 **wsl** 上，用**自己的** `QDRANT_API_KEY`）
+
+⚠️⚠️ **2026-10-03 修正：這一步原本寫「在 mbp 上，用它還留著的 V」，並讀
+`QDRANT_PEER_API_KEY` —— 那是錯的。**
+
+S3 跑完之後，mbp 的 peer **已經是 N 了**（pull 覆蓋了它）。所以照原文那樣做會
+**送出 N、期待 401、得到 200**，然後誤判成「V 還活著」—— 而實際上 V 已經死了。
+**那會把一個成功的輪換判成失敗。**
+
+**V 在 S3 之後只剩一份：`wsl` 自己的 `QDRANT_API_KEY`**（S6 換掉之後就連這份也
+沒了）。而這正是外洩的那把值的本人 —— 用它去打 x570，結果最有意義。
+
+在 **wsl** 上（要在 **S4 之後、S6 之前**）：
+
+```bash
+python3 -c "
+import pathlib
+for ln in pathlib.Path('.env').read_text().splitlines():
+    if ln.startswith('QDRANT_API_KEY='):
+        open('/tmp/v.key','w').write(ln.split('=',1)[1])
+" && chmod 600 /tmp/v.key
+curl -s -o /dev/null -w '  x570 用 V → HTTP %{http_code}（要 401）\n' \
+  --config <(printf 'header = "api-key: %s"\n' "$(cat /tmp/v.key)") \
+  http://100.119.83.111:6333/collections
+shred -u /tmp/v.key 2>/dev/null || rm -f /tmp/v.key
+```
+
+**401 才是完成。** 若 200 → V 在 x570 上還活著，**停下來回報**。
+
+⚠️ 順帶確認 **N 仍然有效**（不然就是整個輪換壞了）：
 
 ```bash
 python3 -c "
 import pathlib
 for ln in pathlib.Path('.env').read_text().splitlines():
     if ln.startswith('QDRANT_PEER_API_KEY='):
-        open('/tmp/v.key','w').write(ln.split('=',1)[1])
-" && chmod 600 /tmp/v.key
-curl -s -o /dev/null -w '  x570 /collections → HTTP %{http_code}（要 401）\n' \
-  --config <(printf 'header = "api-key: %s"\n' "$(cat /tmp/v.key)") \
+        open('/tmp/n.key','w').write(ln.split('=',1)[1])
+" && chmod 600 /tmp/n.key
+curl -s -o /dev/null -w '  x570 用 N → HTTP %{http_code}（要 200）\n' \
+  --config <(printf 'header = "api-key: %s"\n' "$(cat /tmp/n.key)") \
   http://100.119.83.111:6333/collections
-shred -u /tmp/v.key 2>/dev/null || rm -f /tmp/v.key
+shred -u /tmp/n.key 2>/dev/null || rm -f /tmp/n.key
 ```
-
-**401 才是完成。** 若 200 → V 還活著，**停下來回報**。
 
 ### S6. 在 **wsl** 抽掉 V（本機動作，不影響別人）
 
