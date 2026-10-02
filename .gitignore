@@ -16,6 +16,21 @@ __pycache__/
 .env.old
 .env.orig
 .env.*.bak
+# 2026-10-03: `.env.rotbak*` is the backup filename used by
+# QDRANT-KEY-ROTATION-RUNBOOK.md, and the rules above do NOT cover it --
+# `git status` lists it as `??`, so `git add -A` would commit the OLD
+# CREDENTIAL into version control. Same shape as the 2026-10-01 fix, only
+# with a different filename.
+#
+# The real lesson is not 'add one more name': ANY newly invented
+# `.env.<something>` can fall through this gap. So there is now a TEST
+# that scans every `.env.*` filename appearing in scripts and docs and
+# asserts each one is gitignored (tests/test_env_ignore_guard.py).
+.env.rotbak*
+# 同一個道理，**用一條通配規則**蓋掉整類命名，而不是每多加一個檔名就加一行：
+#   .env.dropbak / .env.oldbak / .env.whateverbak …
+# （2026-10-03 實測：`drop-ollama-urls.sh` 的註解裡出現過 `hosts.shared.env.dropbak`。）
+.env.*bak
 # env-sync 分層（settings/env/README.md）：解密暫存與明文 staging 絕不進版控。
 # 注意：settings/env/secrets.*.enc.env 是「加密後」要追蹤的，故不在此列；
 # settings/env/hosts.shared.env 是 per-host 值的唯一真相（追蹤、明文、無憑證）。
