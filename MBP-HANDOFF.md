@@ -15,7 +15,7 @@ python3 scripts/env-relayout.py
 python3 scripts/env-prune.py --dry-run         # 會自動刪「值＝compose 預設」
 python3 scripts/env-prune.py
 bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
-bash scripts/env-sync.sh --check | head -1     # 指紋必須 = cce81000280f
+bash scripts/env-sync.sh --check | head -1     # 指紋必須 = eab0ab8f9d4e
 ```
 
 ⚠️ **那個指紋是唯一的驗收。** 不同就是規格沒達成，把差異回報上來。

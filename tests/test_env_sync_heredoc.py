@@ -120,6 +120,61 @@ def test_bash_n_passes_too():
     assert r.returncode == 0, r.stderr
 
 
+def test_layout_fingerprint_is_invariant_to_the_host_id():
+    """⚠️ **版面指紋不可含本機的 HOST_ID** —— 否則三台永遠不可能相同。
+
+    Friction 點（2026-10-02 實測，這是三機規格卡了兩天的最後一個原因）：
+    三台都遷移完版之後，wsl 是 `27 keys, cce81000280f`、mbp 是
+    `27 keys, 8afdb3d155b6` —— **鍵數一模一樣**，只有 12 個字元不同。
+
+    差在 `# ══ HOST: wsl ══` 這個**區段標題**：它嵌著本機的 HOST_ID，而指紋
+    把區段標題也算進去。於是「三台的結構必須相同」這句話**不可能成立** ——
+    而它正是這個指紋唯一的用途，也正是我派給另外兩台的驗收標準。
+
+    要驗的是「HOST 區塊**有沒有**、**在哪個位置**」，不是「這台叫什麼」——
+    後者三台本來就該不同（x570/mbp/wsl），那是 `HOST_ID=` 的**值**比較該管的
+    事，不是版面。
+
+    這條測試用三份只差 HOST_ID 的 `.env` 驗證指紋相同。沒有它，正規化那行
+    會在某次「簡化」時被刪掉，而症狀是**所有驗收都失敗但沒有人知道為什麼**。
+    """
+    import os
+    import re
+    import shutil
+    import tempfile
+
+    env_file = ROOT / ".env"
+    if not env_file.is_file():
+        import pytest
+        pytest.skip("無 .env：版面指紋無從驗證")
+    text = env_file.read_text(encoding="utf-8")
+    assert "# ══ HOST: " in text, (
+        "`.env` 裡沒有 `# ══ HOST: <id> ══` 區段標題 —— "
+        "若那段格式已改，這條測試就測不到它原本要守的東西了")
+
+    fps = {}
+    for hid in ("wsl", "x570", "mbp"):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            shutil.copytree(ROOT / "scripts", tmp / "scripts")
+            shutil.copy(ROOT / "compose.yaml", tmp / "compose.yaml")
+            shutil.copytree(ROOT / "settings", tmp / "settings")
+            body = text.replace("# ══ HOST: wsl ══", f"# ══ HOST: {hid} ══")
+            body = re.sub(r"(?m)^HOST_ID=.*$", f"HOST_ID={hid}", body)
+            (tmp / ".env").write_text(body, encoding="utf-8")
+            r = subprocess.run(["bash", "scripts/env-sync.sh", "--check"],
+                               capture_output=True, text=True, cwd=tmp)
+            m = re.search(r"版面 (\d+ keys, layout sha12=[0-9a-f]+)", r.stdout)
+            assert m, f"HOST_ID={hid} 時指紋沒印出來：{r.stdout}\n{r.stderr}"
+            fps[hid] = m.group(1)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    assert len(set(fps.values())) == 1, (
+        f"版面指紋隨 HOST_ID 變了 → 三台**永遠不可能相同**，"
+        f"而那正是這個指紋唯一的用途：{fps}")
+
+
 def test_check_output_is_clean_when_piped_to_head():
     """端到端：`--check | head -1` 的 stderr 必須是空的。
 

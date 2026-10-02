@@ -119,7 +119,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `ZEN_API_KEY` | compose.yaml:151, backend/app/rag.py:60 | **compose／backend** — 憑證 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `ZEN_BASE_URL` | compose.yaml:150, backend/app/rag.py:59 | **compose／backend** — 必填；預設 https://opencode.ai/zen/v1 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 https://opencode.ai/zen/v1） |
 | `ZEN_FREE_MODELS` | compose.yaml:152 | **compose** — 預設 deepseek-v4-flash-free,muse-spark-1.3-co | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 deepseek-v4-flash-free,muse-spark-1.） |
-| `layout_fp` | scripts/env-sync.sh:611 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `layout_fp` | scripts/env-sync.sh:626 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 
 ## ⚠️ 幽靈鍵（`.env` 裡有，但**程式碼沒讀它**）
 

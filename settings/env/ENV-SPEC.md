@@ -166,7 +166,7 @@ registry    71 → 70 個變數（去掉幽靈 VAR，見下）
 版面指紋    71 keys c2accd53873f
             42 keys ada1db689ed3
             34 keys 00a9eae29228
-            27 keys cce81000280f   ← 現況，三台的目標
+            27 keys eab0ab8f9d4e   ← 現況，三台的目標
 ```
 
 * **幽靈變數 `VAR` 已移除。** 它的唯一「讀取點」是 `env-sync.sh` 裡
@@ -197,13 +197,66 @@ python3 scripts/env-prune.py
 bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
 
 # 5. 驗收 —— 這是唯一的驗收
-bash scripts/env-sync.sh --check | head -1     # 指紋必須 = cce81000280f
+bash scripts/env-sync.sh --check | head -1     # 指紋必須 = eab0ab8f9d4e
 ```
 
 ⚠️ **第 5 步是指紋不同就規格沒達成。** 若不同，把該台的差異回報上來 ——
 多半是某個鍵在該台有值而這台沒有，那是需要決定的差異，不是 bug。
 
-## 六、還在等回覆的兩件事
+## 六、指紋 bug：三台的指紋**本來就永遠不可能相同**（2026-10-02 19:20 解決）
+
+這是整個三機規格卡了兩天的**最後一個**原因，而且它讓前面每一次「指紋不同」
+的結論都不可信。
+
+### 症狀
+
+三台都遷移完版之後：
+
+```
+wsl  27 keys, layout sha12=cce81000280f
+mbp  27 keys, layout sha12=8afdb3d155b6
+x570 27 keys, layout sha12=030dbad4334d
+```
+
+**鍵數一模一樣**，而且 mbp 的 `8afdb3d155b6` 與 wsl 的鍵集合**完全相同**
+（逐鍵比對過）。只有 12 個字元不同。
+
+### 根因
+
+指紋的計算式把**區段標題**也算進去，而其中一行是
+
+```
+# ══ HOST: wsl ══
+```
+
+`render` 會把本機的 `HOST_ID` 填進那個標題 —— 所以三台的這一行**本來就該
+不同**，而指紋把它原樣算進哈希。
+
+**於是「三台的結構必須相同」這句話不可能成立**，而它正是這個指紋唯一的用途、
+也是我派給另外兩台的驗收標準。也就是說：這個專案裡沒有任何一道檢查**曾經**
+能證明三機同規格。
+
+### 修法
+
+把主機名從那個標題裡正規化掉再算哈希：
+
+```python
+seq.append(re.sub(r"^# ══ HOST: .*? ══", "# ══ HOST: <id> ══", line.rstrip()))
+```
+
+要驗的是「HOST 區塊**有沒有**、**在哪個位置**」，不是「這台叫什麼」——
+後者是三台**本來就該不同**的東西，而那是 `HOST_ID=` 的**值**比較該管的事
+（`--fingerprints`），不是版面。
+
+**新指紋（三台的目標）：`27 keys, layout sha12=eab0ab8f9d4e`**
+
+守衛在 `tests/test_env_sync_heredoc.py::test_layout_fingerprint_is_invariant_to_the_host_id`
+—— 用三份只差 `HOST_ID` 的 `.env` 驗證指紋相同。沒有它，正規化那行會在某次
+「簡化」時被刪掉，而症狀是**所有驗收都失敗但沒有人知道為什麼**。
+
+---
+
+## 七、還在等回覆的兩件事
 
 | # | 問題 | 誰能答 | 在哪一節 |
 |---|---|---|---|

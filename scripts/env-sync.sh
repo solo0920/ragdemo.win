@@ -600,7 +600,17 @@ for line in open(sys.argv[1], encoding="utf-8"):
     if m:
         seq.append(m.group(1))
     elif line.startswith("# ══ 共用") or line.startswith("# ══ HOST"):
-        seq.append(line.rstrip())
+        # ⚠️ 區段標題裡嵌著**本機的 HOST_ID**（`# ══ HOST: wsl ══`）。若原樣
+        # 算進指紋，三台的指數**永遠不可能相同** —— 而那正是這個指紋唯一的用途。
+        #
+        # 2026-10-02 實測踩到：三台遷移完版之後，wsl 是
+        # `27 keys, cce81000280f`、mbp 是 `27 keys, 8afdb3d155b6` ——
+        # **鍵數一模一樣**，只有這 12 個字元不同。查下去就是這行。
+        #
+        # 正規化掉主機名：這一段要驗的是「HOST 區塊**有沒有**、**在哪個位置**」，
+        # 不是「這台的 HOST_ID 叫什麼」—— 後者是三台**本來就該不同**的東西，
+        # 而且那是 `HOST_ID=` 自己的值比較該管的事。
+        seq.append(re.sub(r"^# ══ HOST: .*? ══", "# ══ HOST: <id> ══", line.rstrip()))
 print(f"{len(seq)} keys, layout sha12="
       f"{hashlib.sha256(chr(10).join(seq).encode()).hexdigest()[:12]}")
 PY
@@ -608,6 +618,11 @@ PY
   # 指後面要指明「這不是值的一致性」—— 否則使用者會把「指紋相同」��成
   # 「三台環境一樣」。那是兩件事：值會漂移而結構不變（而結構漂移才是這裡
   # 要抓的），反過來也會。
+  # ⚠️ **「三台的結構必須相同」這句話只有在指紋不含主機名時才成立。**
+  # 版面指紋裡的 `# ══ HOST: <HOST_ID> ══` 已正規化成 `# ══ HOST: <id> ══`
+  # （見上面那段 Python 的說明）—— 原本它原樣入哈希，於是三台指紋**永遠**
+  # 不可能相同，卻被拿來當「三機同規格」的驗收。HOST_ID 的**值**本來就該
+  # 不同（三台各是 x570/mbp/wsl），那是值的一致性比較該管的事，不是版面。
   echo "env-sync --check: 版面 ${layout_fp}（三台的**結構**必須相同；值請用 --fingerprints 比）"
   # 鍵覆蓋率要把三層都算進去：共用憑證範本、per-host 機密範本、共用非敏感。
   # 漏算 per-host 機密層＝「該機根本沒有這兩個鍵」沒人管，而症狀是本機
