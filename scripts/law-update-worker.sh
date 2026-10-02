@@ -61,7 +61,28 @@ LOCK_HELD=0
 #    又是「另一個實例執行中」，症狀與上面那個 bug 幾乎一樣難查。
 _worker_cleanup() {
   [ -n "${RUN:-}" ] && rm -f "$RUN"
-  [ "$LOCK_HELD" = 1 ] && rmdir "$LOCKDIR" 2>/dev/null
+  # ⚠️ `rm -f pid` **不能省** —— 這是 2026-10-02 mbp 實測踩到的真 bug。
+  #
+  #    pid 寫在鎖目錄裡面（:89），所以目錄**非空**；而 `rmdir` 只能刪空目錄
+  #    → 必然失敗 → 加上 `2>/dev/null` 把錯誤吞掉 → 沒有任何症狀。
+  #    連鎖反應是每分鐘一次：
+  #      取得鎖 → 寫 pid → :92「沒請求」→ EXIT trap 裡 rmdir 失敗
+  #      → 鎖目錄殘留 → 下一分鐘 mkdir 失敗 → 讀到已死的 pid
+  #      → :84 記「清除殘留鎖」→ rm -rf ＋ mkdir → **目錄被刪掉重建**
+  #    症狀是 `data/.ops/.worker.lock.d/` 每 60 秒換一次 inode，
+  #    而 worker.log 長到 406KB、幾乎全是「清除殘留鎖」。
+  #    真的在互斥時，inode 變化本來就該是「沒有互斥」的證據 ——
+  #    mbp 是靠比對 inode 才发现，症狀完全不像鎖有問題。
+  #
+  #    :58-61 的註解其實**預見了洩漏**（「鎖就會每分鐘洩漏一次」），
+  #    當時只把 trap 的位置修對了，沒發現 rmdir 根本刪不掉有 pid 的目錄。
+  #
+  #    `2>/dev/null` 留著是刻意的：rmdir 失敗的合理情境只剩「別人已經拿掉它」
+  #    （pid 檔與目錄之間有極短的競態窗口），那不是錯誤、只是我們沒搶到。
+  #    真正的錯誤（pid 刪不掉、目錄裡有別的東西）會讓 rmdir 失敗，而那種情況
+  #    同樣是無聲的 —— 但把它 log 出來的代價是每分鐘可能多一行噪音，
+  #    而 `rm -f pid` 已經讓「非空」不可能發生。
+  [ "$LOCK_HELD" = 1 ] && { rm -f "$LOCKDIR/pid"; rmdir "$LOCKDIR" 2>/dev/null; }
   return 0
 }
 trap _worker_cleanup EXIT

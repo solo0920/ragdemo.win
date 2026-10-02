@@ -202,6 +202,12 @@ _LAW_VERSION_CACHE: tuple[float, dict] = (0.0, {})
 _LAW_VERSION_TTL = 30.0  # 秒；避免 /status 每次都碰磁碟（前端會定期輪詢）
 # 候選基底路徑：原生執行時是 repo 的 data/laws，容器內掛在 /app/data/laws。
 # 提成常數是為了讓測試能乾淨地改掉它，而不必改寫整個函式。
+#
+# ⚠️ 這裡的相對路徑 `data/laws` 在容器裡解析成 `/app/data/laws`，
+# **剛好就是掛載點**（compose 掛 ./data/laws:/app/data/laws），所以
+# 「第一個 is_dir() 成立的」這個寫法在這裡是無害的。
+# 下方 `_ops_dir()` 的相對路徑則**不**剛好命中 —— 那個才是真的陷阱，
+# 別把兩種寫法當成等價的。差異的原因：ops 掛在 `/app/ops`（不在 /app/data 底下）。
 _LAW_VERSION_DIRS = (Path("data/laws"), Path("/app/data/laws"))
 
 # ── law-update：請求/狀態檔案通道 ────────────────────────────────────────
@@ -210,16 +216,66 @@ _LAW_VERSION_DIRS = (Path("data/laws"), Path("/app/data/laws"))
 # 實際動作交給 host 端 scripts/law-update-worker.sh 執行。
 # 三個檔案都在 data/.ops/（host 與容器共用）：request（api 寫）、
 # running（worker 寫）、status（worker 寫）。
-_OPS_DIRS = (Path("data/.ops"), Path("/app/ops"))
+# ── law-update：請求/狀態檔案通道 ────────────────────────────────────────
+# 容器無法執行 ingest 管線（image 沒有 ingest/、data/laws 唯讀、沒裝 duckdb），
+# 管線是 host 端的 uv 工具鏈。所以容器只「記錄請求」＋「回報狀態」，
+# 實際動作交給 host 端 scripts/law-update-worker.sh 執行。
+# 三個檔案都在 data/.ops/（host 與容器共用）：request（api 寫）、
+# running（worker 寫）、status（worker 寫）。
+#
+# ⚠️⚠️ 容器裡 `data/.ops` 掛在 **`/app/ops`**，不是 `/app/data/.ops`。
+# 而 cwd 是 `/app`，所以相對路徑 `data/.ops` 會解析成 `/app/data/.ops`
+# —— **那不是掛載點**。compose 只掛了 `/app/data/laws` 與 `/app/data/rules`
+# （那兩個是為了能落在 `/app/data` 底下），`data/.ops` 掛在 `/app/ops`。
+#
+# 舊版用「第一個 `p.parent.is_dir()` 成立的」，所以**運氣好才沒出事**：
+# `/app/data/.ops` 今天不存在 → 正確 fallback 到 `/app/ops`。但只要它哪天
+# 出現（Dockerfile 多 COPY 一層、有人在 image 裡放了個 data/.ops、
+# 或有人加一個 ./data 全目錄的掛載），就會**靜默**選到錯的那個：
+#   _ops_write 回 True（寫成功）　can_update 回 True（按鈕亮著）
+#   而 host 端 worker 讀的是 /app/ops → **永遠收不到請求**
+#   → 前端「更新」按鈕按下沒反應，且沒有任何錯誤。
+# 那是「看起來正常但功能是死的」的故障，所以判準不能是「目錄在不在」。
+#
+# 2026-10-02 mbp 查到這個潛在風險（實測讓 /app/data/.ops 出現過一次，
+# 確認會選錯），改成明確判斷自己在不在容器裡。
+# 判據用 `/app/app`：Dockerfile 是 WORKDIR /app ＋ COPY app ./app，
+# 所以容器裡必然有 /app/app；host 端執行時程式在 backend/app/，不會有。
+# 對照 `_LAW_VERSION_DIRS`（:205）—— 那個相對路徑 `data/laws` 在容器裡
+# 解析成 `/app/data/laws` **剛好就是掛載點**，所以那個寫法是無害的。
+# 兩個清單看起來一樣、語意卻不同，這就是為什麼這裡要註解清楚。
+_OPS_DIR_HOST = Path("data/.ops")
+_OPS_DIR_CONTAINER = Path("/app/ops")
 OPS_NAME = "law-update"
 
 
+def _in_container() -> bool:
+    """「我在容器裡嗎」—— 判據是**程式碼自己的位置**，不是 cwd。
+
+    Dockerfile 是 `WORKDIR /app` ＋ `COPY app ./app`（app.main 由 uvicorn 載入），
+    所以容器裡必然有 `/app/app`；host 端執行時程式在 `backend/app/`，
+    `/app/app` 不存在（實測 wsl／mbp／x570 三台都不存在）。
+
+    刻意**不**用 cwd 或 `/app/ops` 判斷：前者會讓「從哪個目錄啟動」變成
+    隱藏輸入，後者就是待判斷的對象本身（拿它判斷等於假設結論）。
+    """
+    return Path("/app/app").is_dir()
+
+
+def _ops_dir() -> Path | None:
+    """容器裡只認 `/app/ops`；掛載掉了就回 None（讓 can_update 變 False）。
+
+    回 None 而不是 fallback 到別處，是刻意的：`law_update_state()` 的
+    `can_update` 會因此變成 False，前端把按鈕 disable 掉 —— 那是「看得見的
+    壞掉」。fallback 的話按鈕亮著但按了沒反應，那看不見。
+    """
+    d = _OPS_DIR_CONTAINER if _in_container() else _OPS_DIR_HOST
+    return d if d.is_dir() else None
+
+
 def _ops_path(name: str) -> Path | None:
-    for d in _OPS_DIRS:
-        p = d / name
-        if p.parent.is_dir():
-            return p
-    return None
+    d = _ops_dir()
+    return d / name if d else None
 
 
 def _ops_read(name: str) -> dict:

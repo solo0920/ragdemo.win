@@ -4,7 +4,9 @@
 ops 狀態機、keep_alive 型別轉換。全部不碰網路（`_req` / `embed` / `_pick` 都被
 換掉），符合 pre-push「純函式不需外部服務」的限制。
 """
+import ast
 import json
+from pathlib import Path
 
 import pytest
 
@@ -139,11 +141,17 @@ def test_active_llm_source_after_pick(monkeypatch):
 
 @pytest.fixture
 def ops_dir(monkeypatch, tmp_path):
-    """把 ops 目錄指到 tmp，並造一個 probe 檔讓 `_ops_path("probe")` 判定可用。"""
+    """把 ops 目錄指到 tmp，並造一個 probe 檔讓 `_ops_path("probe")` 判定可用。
+
+    ⚠️ 2026-10-02：這裡原本 monkeypatch `_OPS_DIRS`（一個候選清單）。
+    `_OPS_DIRS` 已被移除 —— 改成明確的 `_ops_dir()`，因為候選清單「第一個
+    is_dir() 成立的」在容器裡會靜默選到 `/app/data/.ops`（那不是掛載點，
+    詳見 rag.py 的註解）。測試要 patch 的 seam 跟著走。
+    """
     d = tmp_path / ".ops"
     d.mkdir()
     (d / "probe").write_text("", encoding="utf-8")
-    monkeypatch.setattr(rag, "_OPS_DIRS", (d,))
+    monkeypatch.setattr(rag, "_ops_dir", lambda: d)
     monkeypatch.setattr(rag, "_LAW_VERSION_CACHE", (0, {}))
     return d
 
@@ -193,8 +201,12 @@ def test_law_update_state_empty_running_file_reads_as_not_running(ops_dir):
 
 
 def test_law_update_state_when_ops_unmounted(monkeypatch, tmp_path):
-    """容器沒掛 data/.ops 時要回 can_update=False，而不是拋例外。"""
-    monkeypatch.setattr(rag, "_OPS_DIRS", (tmp_path / "nope",))
+    """容器沒掛 data/.ops 時要回 can_update=False，而不是拋例外。
+
+    `_ops_dir()` 回 None 是**刻意**的：讓按鈕 disable 掉（看得見的壞掉），
+    而不是 fallback 到某個錯的目錄（看不見的壞掉）。
+    """
+    monkeypatch.setattr(rag, "_ops_dir", lambda: None)
     s = rag.law_update_state()
     assert s["can_update"] is False
 
@@ -223,8 +235,8 @@ def test_request_law_update_refuses_when_running(ops_dir):
     assert "執行中" in r["reason"]
 
 
-def test_request_law_update_refuses_when_ops_unmounted(monkeypatch, tmp_path):
-    monkeypatch.setattr(rag, "_OPS_DIRS", (tmp_path / "nope",))
+def test_request_law_update_refuses_when_ops_unmounted(monkeypatch):
+    monkeypatch.setattr(rag, "_ops_dir", lambda: None)
     r = rag.request_law_update("a")
     assert r["ok"] is False
     assert "ops" in r["reason"]
@@ -390,3 +402,81 @@ def test_builtin_catalog_threads_sample_law_through(monkeypatch):
     assert seen, "_rule_answer 應被呼叫"
     assert all(law == "勞動基準法" for _intent, law in seen)
     assert all(row["sample_answer"].startswith("勞動基準法／") for row in cat)
+
+
+# ── ops 通道的容器陷阱（2026-10-02 mbp 查到）─────────────────────────────
+#
+# `data/.ops` 在容器裡掛在 **`/app/ops`**，不是 `/app/data/.ops`。
+# 而 cwd 是 `/app`，所以相對路徑 `data/.ops` 解析成 `/app/data/.ops` ——
+# **那不是掛載點**。舊版用「第一個 `p.parent.is_dir()` 成立的」，
+# 靠著「`/app/data/.ops` 恰好不存在」才沒出事。
+#
+# 一旦它出現（Dockerfile 多 COPY 一層、或有人加 ./data 全目錄掛載），
+# 症狀是「看起來完全正常但功能是死的」：
+#   _ops_write 回 True（寫成功）、can_update 回 True（按鈕亮著）、
+#   而 host 端 worker 讀 `/app/ops` → 永遠收不到請求 → 按了沒反應、沒有錯誤。
+
+
+def test_ops_dir_never_picks_a_relative_path_inside_the_container(monkeypatch, tmp_path):
+    """容器裡即使 `data/.ops` 存在，也**不可以**選它 —— 那是陷阱的重現。
+
+    測試同時把兩個目錄都做出來。舊版在這個狀態下會選中 `data/.ops`
+    （第一個 `is_dir()` 成立），新版必須選 `/app/ops`。
+    """
+    container = tmp_path / "app" / "ops"
+    container.mkdir(parents=True)
+    trap = tmp_path / "app" / "data" / ".ops"      # ← 掛載點不是這個
+    trap.mkdir(parents=True)
+    monkeypatch.setattr(rag, "_in_container", lambda: True)
+    monkeypatch.setattr(rag, "_OPS_DIR_CONTAINER", container)
+    monkeypatch.setattr(rag, "_OPS_DIR_HOST", trap)
+    assert rag._ops_dir() == container, (
+        "選到了 data/.ops —— 那不是掛載點，請求會寫進容器本地目錄，"
+        "host 端 worker 永遠收不到"
+    )
+
+
+def test_ops_dir_returns_none_when_container_mount_is_missing(monkeypatch, tmp_path):
+    """容器裡掛載掉了要回 None（讓按鈕 disable），**不可** fallback。
+
+    fallback 是那個看不見的壞掉：按鈕亮著、按了沒反應、沒有錯誤。
+    """
+    monkeypatch.setattr(rag, "_in_container", lambda: True)
+    monkeypatch.setattr(rag, "_OPS_DIR_CONTAINER", tmp_path / "gone")
+    monkeypatch.setattr(rag, "_OPS_DIR_HOST", tmp_path / "data" / ".ops")
+    (tmp_path / "data" / ".ops").mkdir(parents=True)   # 這個存在，但**不可**用
+    assert rag._ops_dir() is None
+    assert rag.law_update_state()["can_update"] is False, (
+        "按鈕應該 disable，而不是指向一個錯的目錄"
+    )
+
+
+def test_ops_dir_uses_the_relative_path_on_the_host(monkeypatch, tmp_path):
+    """host 端執行時要用 `data/.ops` —— 那才是 worker 讀的位置。"""
+    host = tmp_path / "data" / ".ops"
+    host.mkdir(parents=True)
+    monkeypatch.setattr(rag, "_in_container", lambda: False)
+    monkeypatch.setattr(rag, "_OPS_DIR_HOST", host)
+    assert rag._ops_dir() == host
+
+
+def test_in_container_probe_is_the_code_location_not_the_cwd():
+    """`_in_container()` 只該看 `/app/app`，不該看 cwd 或待判斷的 `/app/ops`。
+
+    拿 cwd 當判據會讓「從哪個目錄啟動」變成隱藏輸入；拿 `/app/ops` 判斷
+    等於假設結論（那正是要判斷的對象）。
+    """
+    # ⚠️ 用 AST 而不是字串比對：`_in_container` 的 docstring 會**提到**
+    # `/app/ops`（解釋「為什麼不拿它判斷」），子字串比對會誤判成違規。
+    # 那是第一版的寫法，而它自己寫的說明文字讓自己紅了 —— 測試抓錯對象。
+    tree = ast.parse(Path(rag.__file__).read_text(encoding="utf-8"))
+    fn = next(n for n in tree.body
+              if isinstance(n, ast.FunctionDef) and n.name == "_in_container")
+    body = fn.body
+    if (isinstance(body[0], ast.Expr)                 # 去掉 docstring
+            and isinstance(body[0].value, ast.Constant)):
+        body = body[1:]
+    code = "\n".join(ast.unparse(st) for st in body)
+    assert "app/app" in code, "判據應該是程式碼自己的位置 /app/app"
+    assert "getcwd" not in code, "不該用 cwd 當判據（會讓啟動目錄變成隱藏輸入）"
+    assert "/app/ops" not in code, "不該拿待判斷的掛載點當判據（等於假設結論）"
