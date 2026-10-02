@@ -125,7 +125,17 @@ fingerprints() {
   local f="${1:-$DOTENV}"
   [ -f "$f" ] || { echo "env-sync: no such file: $f" >&2; exit 1; }
   python3 - "$f" "$SHARED_SECRETS" "$PER_HOST_SECRETS" <<'PY'
-import re, sys, hashlib
+import re, sys, hashlib, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 vals = {}
 for line in open(sys.argv[1], encoding="utf-8").read().splitlines():
     m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())
@@ -164,7 +174,17 @@ PY
 # 照樣分發到三台，而症狀要等下次輪換才浮現（別台的 key 被別台換掉）。
 py_apply() {
   python3 - "$DOTENV" "$1" "$2" "$3" "$4" "$5" "$MANAGED_MARK" "$PER_HOST_SECRETS" <<'PY'
-import os, re, sys
+import os, re, sys, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 env_path, mode, action, source, host, expand, mark, perhost = sys.argv[1:9]
 expand = expand == "1"
@@ -412,7 +432,17 @@ cmd_render() {
   # 前綴若寫在 .env，LLM_MODEL 會掉回原始碼預設、TS_IP 會讓 docker 啟動失敗）。
   if [ "$action" = apply ]; then
     python3 - "$DOTENV" "$host" <<'PY'
-import re, sys
+import re, sys, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 path, host = sys.argv[1], sys.argv[2]
 try:
     lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
@@ -468,7 +498,17 @@ cmd_pull() {
 cmd_hosts_table() {
   [ -f "$TABLE" ] || { echo "env-sync: 找不到 $TABLE" >&2; exit 1; }
   python3 - "$TABLE" <<'PY'
-import re, sys
+import re, sys, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
 rows, hosts = {}, []
 for raw in open(sys.argv[1], encoding="utf-8"):
@@ -543,7 +583,17 @@ cmd_check() {
   #    值的一致性是 --fingerprints 的工作。兩者不可互相取代。
   local layout_fp
   layout_fp="$(python3 - "$DOTENV" <<'PY'
-import hashlib, re, sys
+import hashlib, re, sys, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 seq = []
 for line in open(sys.argv[1], encoding="utf-8"):
     m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=", line)
@@ -576,7 +626,17 @@ PY
   #   「空＝沿用」，漏了就是 401／心跳失敗，必須報 fail。實測兩把在範本裡都有值。
   python3 - "$DOTENV" "$ENV_DIR/secrets.common.env.example" \
       "$ENV_DIR/secrets.host.env.example" "$ENV_DIR/common.env" <<'PY'
-import os, re, sys
+import os, re, sys, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 def keys(p):
     out, withval = set(), set()
     if not os.path.exists(p):     # 範本檔缺了就當空集；存在性另有專門檢查
@@ -701,7 +761,17 @@ cmd_init_secrets() {
   tmp="$(mktemp "$ENV_DIR/.init-secrets.XXXXXX")"
   trap "shred -u \"$tmp\" 2>/dev/null || rm -f \"$tmp\"" EXIT
   python3 - "$DOTENV" "$tmp" "$SHARED_SECRETS" <<'PY'
-import re, sys
+import re, sys, signal
+# 恢復 SIGPIPE 的預設行為（2026-10-02）。`… | head -1` 是本專案印指紋的
+# 標準寫法：head 讀完第一行就退出 → 管道寫入端關閉。Python **預設忽略
+# SIGPIPE**（所以不會被訊號打死，而是變成 BrokenPipeError，在收尾 flush
+# 時印出一段沒人看得懂的 traceback）。症狀是指紋那行完全正常、底下跟著
+# 紅字，看起來像指令壞了 —— 而它其實沒壞。
+#
+# 這必須插在**任何輸出之前**，而且縮排要對齊 heredoc 的模��層級。
+# ⚠️ `bash -n` **不會**檢查 heredoc 內容 —— 插錯縮排它照樣回 0。
+# 守衛在 tests/test_env_sync.py::test_heredoc_python_blocks_are_valid。
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 vals = {}
 for line in open(sys.argv[1], encoding="utf-8").read().splitlines():
     m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", line.strip())

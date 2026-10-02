@@ -166,7 +166,7 @@ registry    71 → 70 個變數（去掉幽靈 VAR，見下）
 版面指紋    71 keys c2accd53873f
             42 keys ada1db689ed3
             34 keys 00a9eae29228
-            33 keys 152822bac747   ← 現況，三台的目標
+            27 keys cce81000280f   ← 現況，三台的目標
 ```
 
 * **幽靈變數 `VAR` 已移除。** 它的唯一「讀取點」是 `env-sync.sh` 裡
@@ -197,7 +197,7 @@ python3 scripts/env-prune.py
 bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
 
 # 5. 驗收 —— 這是唯一的驗收
-bash scripts/env-sync.sh --check | head -1     # 指紋必須 = 152822bac747
+bash scripts/env-sync.sh --check | head -1     # 指紋必須 = cce81000280f
 ```
 
 ⚠️ **第 5 步是指紋不同就規格沒達成。** 若不同，把該台的差異回報上來 ——

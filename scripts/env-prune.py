@@ -246,6 +246,24 @@ def in_place(lines: list[str]) -> tuple[list[str], dict[str, str]]:
             i += 1
             continue
 
+        # ── 規則 1b：空值 ＋ compose 預設**非空** → 刪（零行為變更）────────
+        # 這是 `DELETE` 那份手寫清單的**通則**。清單裡每一條的理由都是同一句話
+        # （「compose.yaml 有預設 X」），但只列了 17 個鍵名 —— 而「空值 ＋ 有預設」
+        # 這個判準**可以從 compose 推導**，不必手寫。手寫清單就是會漂移的東西。
+        #
+        # 為什麼會漏（2026-10-02 三機比對）：mbp 比 wsl 多一個 `ZEN_BASE_URL=`
+        # （空值行）。wsl 當初是**有值且等於預設** → 被規則 1 刪掉；mbp 是空值 →
+        # 規則 1 不適用（`'' != 'https://…'`）→ 留下。同一件事的兩種寫法，
+        # 造成三台版面指紋對不上。
+        #
+        # 空值 ＋ 非空預設 ＝ 純雜訊：`${KEY:-預設}` 本來就會給預設，刪不刪一樣。
+        # `KEEP_EMPTY_NOTE` 裡的鍵**刻意留著空行並附理由**，所以要排除。
+        if (val.strip() == "" and dflt and key not in KEEP_EMPTY_NOTE
+                and not _managed_elsewhere(key)):
+            acted[key] = f"刪（空值，而 compose 預設非空 len={len(dflt)} → 吃預設）"
+            i += 1
+            continue
+
         # ── 新規則：被更高優先的來源取代，且**那個來源在 .env 有值** → 刪 ──
         # 2026-10-02 三機比對發現的指紋分歧來源之一：mbp 的
         # `OLLAMA_BASE_URL` **有值**，而 `OLLAMA_URLS` 也有值 → 程式永遠讀不到
