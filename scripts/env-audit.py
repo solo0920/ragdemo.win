@@ -682,6 +682,62 @@ def declared_hosts() -> list[str]:
     return []
 
 
+# ── .env 版面分類（shared 在前、per-host 在最後）────────────────────────
+#
+# 為什麼需要這個分類：`.env.example` 原本依**設定類別**分節（必填／憑��／
+# 選填／寫死），而 per-host 的鍵因此散落全檔 —— 實測 `HOST_ID` 在最前面、
+# `POSTGRES_PASSWORD`（per-host 機密）在第 63 行、`OLLAMA_URLS` 在第 294 行，
+# 而共用憑證 `QDRANT_PEER_API_KEY` 在第 260 行。三台的 .env 長得都不一樣，
+# 要人眼比對才知道哪個鍵該跟著共用值更新。
+#
+# 分類的**三個來源，全部是資料不是程式**（寫死在這裡就會漂移）：
+#   1. `hosts.shared.env` 的 `<機台>_<鍵>=` 列 → per-host（單一真相）
+#   2. `env-sync.sh` 的 `PER_HOST_SECRETS`   → per-host 機密（單一真相）
+#   3. 總表裡那行註解 `# LOCAL_ONLY: …`      → 刻意不進表、但仍是 per-host
+#      的鍵（TS_IP／HOST_ID）。**必須是註解** —— 非註解的行會被 py_apply
+#      讀成 layer 而報「非 <機台>_<鍵> 的行」（2026-10-02 第一版就踩到）。
+#
+# 為什麼前綴不寫進 .env：compose 只認 ${VAR} 插值，沒有依 HOST_ID 動態選欄的
+# 能力。前綴若寫在 .env，`LLM_MODEL` 會掉回原始碼預設（**靜默**劣化）、
+# `TS_IP` 會讓 docker 綁錯而啟動失敗。所以 per-host 的識別寫在**區段標題**，
+# 識別力與前綴相同，契約不動。完整論證見 settings/env/README.md §9。
+_LOCAL_ONLY_RE = re.compile(r"^#\s*LOCAL_ONLY:\s*(.+)$", re.M)
+
+
+def per_host_keys() -> set[str]:
+    """回傳「只屬於某一台」的鍵名集合。
+
+    讀三個來源，任一缺失就少一類（呼叫端要能分辨「沒有 per-host 鍵」與
+    「讀不到來源」—— 後者是壞掉的 repo，不是沒有差異）。
+    """
+    out: set[str] = set()
+    hosts = declared_hosts()
+    table = ROOT / "settings" / "env" / "hosts.shared.env"
+    if hosts and table.exists():
+        text = table.read_text(encoding="utf-8")
+        # ⚠️ 鍵名那段必須用 [A-Za-z_][A-Za-z_0-9]* 而**不是** `.+`：
+        # `.+` 會連 `=值` 一起吃掉，於是 out 裡出現
+        # 「HOST_NAME=wsl」這種整行 —— 分類看起來成功但一個鍵都對不上。
+        # 第一版就是這樣：23 個「鍵」裡 13 個帶著 `=值`。
+        pref = re.compile(r"^(" + "|".join(re.escape(h) for h in hosts)
+                          + r")_([A-Za-z_][A-Za-z_0-9]*)=")
+        for raw in text.splitlines():
+            m = pref.match(raw)
+            if m:
+                out.add(m.group(2))
+    sync = ROOT / "scripts" / "env-sync.sh"
+    if sync.exists():
+        m = re.search(r'^PER_HOST_SECRETS="([^"]+)"',
+                      sync.read_text(encoding="utf-8"), re.M)
+        if m:
+            out.update(m.group(1).split())
+    if table.exists():
+        m = _LOCAL_ONLY_RE.search(table.read_text(encoding="utf-8"))
+        if m:
+            out.update(x.strip() for x in m.group(1).split(",") if x.strip())
+    return out
+
+
 def _is_machine_scoped(key: str) -> bool:
     """這個鍵名是否帶了機台前綴（`wsl_OLLAMA_URLS` 這種）。
 
@@ -940,13 +996,35 @@ def print_template(reg: dict[str, Ref]) -> None:
             kind = "設定（選填）"
         buckets.setdefault(kind, []).append(r)
 
-    for kind in ("必填", "必填（含憑證）", "設定（選填）", "憑證（選填）",
-                 "未傳入容器（要加進 compose）", "host 端（容器拿不到）",
-                 "compose 寫死（.env 設了無效）"):
-        items = buckets.get(kind)
+    # 版面：shared 在前、per-host 在最後。分類來自 per_host_keys()（三個資料
+    # 來源），不在這裡寫死任何鍵名。
+    #
+    # 這一段取代原本「依設定類別分節」的排法 —— 那個排法對「這台怎麼跑」
+    # 有意義（哪些必填），但對「三台的檔案能不能一致」沒有。
+    ph = per_host_keys()
+
+    # 區段標題帶機器代號的話 .env.example 就不能跨機共用（它是同一份檔）。
+    # 所以範本寫佔位，由 `env-sync.sh render` 依本機 HOST_ID 填成
+    # `# ══ HOST: wsl ══`。**識別力與前綴相同，而 compose 的契約不動。**
+    banner = "══ HOST: <本機 HOST_ID> ══"
+    printed_scope: set[str] = set()
+
+    def emit(kind: str, label: str, scope: str) -> None:
+        # scope: "shared"（三台共用）｜"host"（只屬本機）
+        # 用 (r.name in ph) == (scope == "host") 一次過濾掉兩邊 ——
+        # 寫兩個迴圈會有「某一邊漏掉」的中間狀態，而那正是版面漂移的來源。
+        items = [r for r in buckets.get(kind, [])
+                 if (r.name in ph) is (scope == "host")]
         if not items:
-            continue
-        print(f"\n# ══ {kind} ══")
+            return
+        # 區塊標題只在**該區塊第一個有內容的類別**印一次。
+        # 若無條件印，會出現「有標題但底下沒東西」的空區塊 —— 那正是版面
+        # 漂移最難查的形狀（人會以為那一類真的沒有鍵）。
+        if scope not in printed_scope:
+            printed_scope.add(scope)
+            print(f"\n# {banner}" if scope == "host"
+                  else f"\n# ══ 共用（三台應該相同）══")
+        print(f"\n# ══ {label} ══")
         for r in sorted(items, key=lambda x: x.name):
             print(f"# {r.name}  —  消費者：{r.readers_label}")
             # 憑證永遠不印預設值
@@ -980,6 +1058,14 @@ def print_template(reg: dict[str, Ref]) -> None:
                 print(f"#   讀取處：{shown}{more}")
             print(f"{r.name}=")
             print()
+
+    KINDS = ("必填", "必填（含憑證）", "設定（選填）", "憑證（選填）",
+             "未傳入容器（要加進 compose）", "host 端（容器拿不到）",
+             "compose 寫死（.env 設了無效）")
+    for scope, title in (("shared", "共用（三台應該相同）"),
+                         ("host", banner)):
+        for kind in KINDS:
+            emit(kind, kind, scope)
 
     # 政策性停用的變數：**刻意不**印 `NAME=` 行。
     # .githooks/pre-push:31 與 .github/workflows/ci.yml 都會擋 `^LAN_IP=`，

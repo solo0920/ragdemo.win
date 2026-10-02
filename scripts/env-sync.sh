@@ -106,6 +106,7 @@ usage: env-sync.sh <command> [options]
   render [--host ID]       只做 per-host render（不需 sops）
   render --dry-run         只印「會動哪幾個鍵」，不寫檔、不印值
   --check                  鍵覆蓋率、總表 schema、per-host 漂移、版控衛生（不需 sops）
+  --hosts-table            三台 per-host 值並排的表格（讀總表，不需 sops、不需 .env）
   --fingerprints [FILE]    8 把共用憑證（跨機比對用）＋2 把 per-host 機密的長度＋sha12
   --init-secrets [--force] 從本機 .env 抽出 8 把共用憑證建加密檔（只在第一台跑一次）
 EOF
@@ -378,7 +379,35 @@ cmd_render() {
   fi
   # expand=1：總表裡 ${POSTGRES_PASSWORD} 這類佔位要在 render 時注入真值。
   py_apply table "$action" "$TABLE" "$host" 1
-  [ "$action" = apply ] && chmod 600 "$DOTENV"
+  # 把 .env 裡的區段標題佔位換成實際機台代號：
+  #     # ══ HOST: <本機 HOST_ID> ══  →  # ══ HOST: wsl ══
+  #
+  # 為什麼佔位在 .env.example、而這裡才填：範本是**同一份檔三台共用**的
+  # （追蹤、無憑證），寫死 `HOST: wsl` 會讓另外兩台的 .env 帶著別人的代號。
+  # 而 .env 是 per-machine 的，所以由知道 host 是誰的這裡填。
+  #
+  # 這就是「per-host 用區段標題識別、而不用前綴」的折衷：識別力等同前綴，
+  # 但鍵名不變 → compose 的 ${VAR} 契約不動（見 settings/env/README.md §9：
+  # 前綴若寫在 .env，LLM_MODEL 會掉回原始碼預設、TS_IP 會讓 docker 啟動失敗）。
+  if [ "$action" = apply ]; then
+    python3 - "$DOTENV" "$host" <<'PY'
+import re, sys
+path, host = sys.argv[1], sys.argv[2]
+try:
+    lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
+except FileNotFoundError:
+    sys.exit(0)
+n = 0
+for i, l in enumerate(lines):
+    if "HOST: <本機 HOST_ID>" in l:
+        lines[i] = l.replace("<本機 HOST_ID>", host); n += 1
+if n:
+    open(path, "w", encoding="utf-8").write("".join(lines))
+# 沒找到不算錯：.env 可能是舊格式（還沒遷到新版面），那是遷移前的正常狀態。
+# 刻意不 exit 1 —— 否則三台升級順序會變成「必須先改範本才能 pull」。
+PY
+    chmod 600 "$DOTENV"
+  fi
   return 0
 }
 
@@ -405,9 +434,110 @@ cmd_pull() {
   chmod 600 "$DOTENV"
 }
 
+# 三欄並排的 per-host 視圖（<機台>_<鍵>=<值> 對齊成表格）。
+#
+# 為什麼需要：`.env` 裡的 per-host 鍵**不能**加前綴（compose 只認 ${VAR}，
+# 見 settings/env/README.md §9）。所以「哪個鍵屬哪台」在執行期檔案裡靠
+# 區段標題辨識，而要看三台並排比較就得回來看這張總表 —— 它本來就有前綴，
+# 但是一行一個 `x570_TS_IP=` 形式，不適合人眼橫向比較。這支把它排成表格。
+#
+# 值可以直接印：總表是**追蹤檔且不含任何憑證**（該檔自己的規則），
+# `${VAR}` 佔位也會原樣顯示（不展開 —— 展開需要該機 .env，會把別台的
+# 密碼混進來）。
+cmd_hosts_table() {
+  [ -f "$TABLE" ] || { echo "env-sync: 找不到 $TABLE" >&2; exit 1; }
+  python3 - "$TABLE" <<'PY'
+import re, sys
+ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
+rows, hosts = {}, []
+for raw in open(sys.argv[1], encoding="utf-8"):
+    if raw.lstrip().startswith("#"):
+        continue
+    m = ASSIGN.match(raw.rstrip("\n"))
+    if not m:
+        continue
+    k, v = m.group(1), m.group(2)
+    if k == "HOSTS":
+        hosts = [h.strip() for h in v.split(",") if h.strip()]
+        continue
+    pref = k.split("_", 1)[0]
+    if pref in hosts:
+        rows.setdefault(k.split("_", 1)[1], {})[pref] = v
+if not hosts:
+    sys.exit("總表缺少 HOSTS= 宣告")
+# 欄寬：至少容得下機台名，但**有上限**。第一版沒有上限，於是
+# HOST_API_URLS（97 字元）把整張表撐成一行 —— 而那正是最需要橫向比較的
+# 一列（「三台的 peer 清單是不是同一份」），撐爆等於看不到。
+MAXW = 40
+
+
+def dw(t: str) -> int:
+    """顯示寬度：中文字元佔兩格。否則中文欄位會比英文欄位短。"""
+    return sum(2 if ord(c) > 0x2E80 else 1 for c in t)
+
+
+def cell(v: str, width: int) -> str:
+    if dw(v) > width:
+        out = ""
+        for c in v:
+            if dw(out + c) > width - 1:
+                break
+            out += c
+        v = out + "…"
+    pad = width - dw(v)
+    return v + " " * max(0, pad)
+
+
+w = max([dw(h) for h in hosts] + [dw(k) for k in rows])
+cols = [max(dw(h), 12) for h in hosts]
+print(cell("鍵", w) + "  " + "  ".join(cell(h, c) for h, c in zip(hosts, cols)))
+print("─" * (w + 2 + sum(c + 2 for c in cols)))
+for k in sorted(rows):
+    out = [cell(k, w)]
+    for h, c in zip(hosts, cols):
+        v = rows[k].get(h)
+        if v is None:
+            v = "（缺列）"
+        elif v == "":
+            v = "（空）"
+        out.append(cell(v, c))
+    print("  ".join(out))
+print()
+print("「（空）」不是待辦 —— 語意是「該機沿用自己 .env 現值」。")
+print("「…」是截斷（欄寬上限）；要看完整值直接讀 settings/env/hosts.shared.env。")
+print("總表不得含憑證值；需要內嵌密碼時寫 ${VAR} 佔位由 render 展開。")
+PY
+}
+
 cmd_check() {
   # 不需 sops：只核對鍵名覆蓋率、總表 schema、per-host 漂移與版控衛生。值一律不印。
   [ -f "$DOTENV" ] || { echo "env-sync --check: MISSING .env" >&2; exit 1; }
+  # 版面指紋：鍵名序列 ＋ 區段標題的 sha12。**不含任何值。**
+  #
+  # 為什麼需要：三台的 .env 在不同機器上，不能直接 diff；而要驗「三台格式
+  # 一致」又不能把 .env 拿去做版本控制或貼進聊天（裡面有 8 份憑證）。
+  # 指紋是唯一能在不曝露任何值的前提下跨機比對「結構」的方法。
+  #
+  # ⚠️ 這只證明**結構**一致（鍵集合、順序、區塊劃分），不證明值一致 ——
+  #    值的一致性是 --fingerprints 的工作。兩者不可互相取代。
+  local layout_fp
+  layout_fp="$(python3 - "$DOTENV" <<'PY'
+import hashlib, re, sys
+seq = []
+for line in open(sys.argv[1], encoding="utf-8"):
+    m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=", line)
+    if m:
+        seq.append(m.group(1))
+    elif line.startswith("# ══ 共用") or line.startswith("# ══ HOST"):
+        seq.append(line.rstrip())
+print(f"{len(seq)} keys, layout sha12="
+      f"{hashlib.sha256(chr(10).join(seq).encode()).hexdigest()[:12]}")
+PY
+)"
+  # 指後面要指明「這不是值的一致性」—— 否則使用者會把「指紋相同」��成
+  # 「三台環境一樣」。那是兩件事：值會漂移而結構不變（而結構漂移才是這裡
+  # 要抓的），反過來也會。
+  echo "env-sync --check: 版面 $layout_fp（三台的**結構**必須相同；值請用 --fingerprints 比）"
   # 鍵覆蓋率要把三層都算進去：共用憑證範本、per-host 機密範本、共用非敏感。
   # 漏算 per-host 機密層＝「該機根本沒有這兩個鍵」沒人管，而症狀是本機
   # qdrant/pg 認證失敗（401／心跳失敗），極難回推到是環境變數缺了。
@@ -582,6 +712,7 @@ case "${1:-pull}" in
   pull) shift; cmd_pull "$@" ;;
   render) shift; cmd_render "$@" ;;
   --check) cmd_check ;;
+  --hosts-table) cmd_hosts_table ;;
   --fingerprints) fingerprints "${2:-$DOTENV}" ;;
   --init-secrets) cmd_init_secrets "${2:-}" ;;
   -h|--help|help) usage ;;

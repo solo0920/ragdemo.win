@@ -292,6 +292,99 @@ M2 先加 `alt_api_key` 並在三台部署 → 才輪換 peer 那把。反過來
 * `secrets.host.env`（明文）不得被追蹤
 
 
+## 8b. `.env` 的版面（2026-10-02 定案）
+
+`.env` 分**兩個大區塊**，各區塊內仍保留原本的子類別（必填／選填…）：
+
+```
+# ══ 共用（三台應該相同）══
+    … 8 把共用憑證 + 共用非敏感設定（55 鍵）
+
+# ══ HOST: wsl ══
+    … 只屬於本機的設定與 2 把 per-host 機密（14 鍵）
+```
+
+**為什麼要這樣** —— 原版依**設定類別**分七段，對「這台怎麼跑」有意義，
+對「三台的檔案能不能一致」沒有意義。實測 per-host 的鍵因此散落全檔：
+
+```
+L44   HOST_ID              per-host
+L63   POSTGRES_PASSWORD    per-host 機密
+L82   HOST_API_URLS        per-host
+L260  QDRANT_PEER_API_KEY   共用
+L294  OLLAMA_URLS          per-host
+```
+
+要人眼掃過才知道哪個鍵該跟著共用值更新，而三台長得又不一樣。
+
+### per-host 用「區段標題」而不是前綴
+
+見 §9：前綴寫進 `.env` 會讓 `LLM_MODEL` 掉回原始碼預設（**靜默**）、
+`TS_IP` 讓 docker 啟動失敗。所以鍵名不變，識別寫在**區段標題** ——
+`# ══ HOST: wsl ══`，識別力與前綴相同。
+
+**要看三台並排**：`bash scripts/env-sync.sh --hosts-table`。那印的是
+`settings/env/hosts.shared.env`（被追蹤、不含憑證）的對齊表格，值不展開
+（展開需要該機 `.env`，會把別台的密碼混進來）。
+
+### 分類的來源是資料，不是程式
+
+`env-audit.py` 的 `per_host_keys()` 讀三個來源，**沒有任何鍵名寫死在程式裡**：
+
+| 來源 | 內容 |
+|---|---|
+| `hosts.shared.env` 的 `<機台>_<鍵>=` 列 | 10 個 per-host 設定鍵 |
+| `env-sync.sh` 的 `PER_HOST_SECRETS` | 2 把 per-host 機密 |
+| 總表裡那行註解 `# LOCAL_ONLY: TS_IP, HOST_ID` | 刻意不進表、但仍是 per-host 的 |
+
+第三個來源解釋一個容易誤判的情況：`TS_IP` 與 `HOST_ID` **不在**總表裡，
+但它們**仍然是 per-host 的**。「不進這張表」≠「不是 per-host」——
+`TS_IP` 不進表是因為 2026-09-30 的實測事故（表裡有 `x570_TS_IP=` 空值 →
+`pull` 每次抹空該機的值 → qdrant/pg 重綁 → 快照同步**靜默失效**）。
+
+> ⚠️ **`# LOCAL_ONLY:` 那行必須是註解。** 第一版寫成 `LOCAL_ONLY=TS_IP,HOST_ID`
+> （漏了 `#`），被 `py_apply` 讀成 layer 的一列 → `env-sync.sh render` 報
+> 「總表有非 `<機台>_<鍵>` 的行: LOCAL_ONLY」並退出。
+> 那是好結果（錯在推、第一秒被抓到、沒寫壞東西），但記在這裡因為
+> **這個檔裡任何非註解的行都會被當資料，沒有第三種狀態**。
+
+### 三台的結構怎麼驗：版面指紋
+
+```bash
+bash scripts/env-sync.sh --check | head -1
+# env-sync --check: 版面 71 keys, layout sha12=c2accd53873f（三台的**結構**必須相同；值請用 --fingerprints 比）
+```
+
+指紋是**鍵名序列 ＋ 區段標題**的 sha12，**不含任何值**。三台指紋相同 =
+鍵集合、順序、區塊劃分都一樣。
+
+**為什麼需要它**：三台的 `.env` 在不同機器上，不能直接 diff；而要驗
+「格式一致」又不能把 `.env` 拿去版本控制或貼進聊天（裡面有 8 份憑證）。
+指紋是唯一能在不曝露任何值的前提下跨機比對**結構**的方法。
+
+⚠️ **它只證明結構一致，不證明值一致。** 值的一致性是 `--fingerprints`
+的工作，兩者不可互相取代 —— 值會漂移而結構不變（那不是版面問題），
+反過來結構會變而值全對（那才是版面問題）。
+
+### 遷移已遷移的機器
+
+```bash
+git pull
+python3 scripts/env-audit.py --template > .env.example     # 確認範本是新版面
+python3 scripts/env-relayout.py --dry-run                   # 先看會發生什麼
+python3 scripts/env-relayout.py                             # 備份 + 以新骨架填舊值
+bash scripts/env-sync.sh pull                               # 共用層
+bash scripts/env-sync.sh render                             # per-host 層（填區段標題）
+bash scripts/env-sync.sh --check                            # 版面指紋要與其他台相同
+# 確認無誤後刪掉 .env.relayout.bak（整份 .env 的明文副本）
+```
+
+`env-relayout.py` 用**鍵名**搬值（不是行號），所以版面改變不會對錯行。
+它會在**舊 `.env` 有新範本沒有的鍵**時中止 —— 那代表程式碼新增了讀取點而
+`.env.example` 過期，先重產範本。
+
+---
+
 ## 9. 為什麼前綴不在 `.env` 裡
 
 `docker compose` 只認 `${VAR}` 插值，沒有「依 `HOST_ID` 動態選 `msi_`／`x570_`」
