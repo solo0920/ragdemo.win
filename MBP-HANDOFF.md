@@ -2,143 +2,64 @@
 
 給 **mbp 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
-## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 18:20）
+## ☆☆ 最優先：`OLLAMA_URLS` 清空（2026-10-02 20:10，使用者決定：選 (b)）
 
-規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §五（執行步驟）與 §一 A
-（有一件只有你能查的事）。摘要：
-
-```bash
-git pull
-python3 scripts/env-audit.py --template > .env.example
-python3 scripts/env-relayout.py --dry-run      # 先看數字
-python3 scripts/env-relayout.py
-python3 scripts/env-prune.py --dry-run         # 會自動刪「值＝compose 預設」
-python3 scripts/env-prune.py
-bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
-bash scripts/env-sync.sh --check | head -1     # 指紋必須 = eab0ab8f9d4e
-```
-
-⚠️ **那個指紋是唯一的驗收。** 不同就是規格沒達成，把差異回報上來。
-
-### 順便回答一個只有你能查的問題（§一 A）
-
-比對三台的欄位發現：**mbp 的 `OLLAMA_URLS` 有值，但總表
-`settings/env/hosts.shared.env` 的 `mbp_OLLAMA_URLS` 那列是空的。**
-`render` 只會寫入總表裡該機有值的列 —— 所以你那個值**不是 render 來的**。
+**一行的事。把那個值清空就好，不要刪掉那一行。**
 
 ```bash
-bash scripts/env-sync.sh --check 2>&1 | grep -i "per-host\|不一致\|mismatch"
+sed -i.bak 's|^OLLAMA_URLS=.*|OLLAMA_URLS=|' .env && rm -f .env.bak
+bash scripts/env-sync.sh --check
 ```
 
-* 若**報紅** → 真實漂移。處分方式取決於 mbp 是否真的要用本機 ollama：
-  要用就在總表補上 `mbp_OLLAMA_URLS=`（值＝你那個，**不要貼進聊天**），
-  不用就刪掉 `.env` 那一行。**先回報 `--check` 的結果，不要先改。**
-* 若**綠燈** → 那 `render` 有個我們不知道的行為，回報這個事實本身。
+**為什麼是「清空」而不是「刪除」**：使用者原本指示「三台統一全刪」，但我在 wsl
+做了 A/B 實測（同一台機、同一個問題、只差這個鍵）：
 
-### 另一個：DSN 裡的密碼對不對（§一 B）
+| | 結果 |
+|---|---|
+| 刪掉 `OLLAMA_URLS` | 查詢 **HTTP 500**，`httpx.ConnectError: ollama unreachable`，掛在 **`/api/embed`** |
+| 放回去 | 查詢 **HTTP 200**（2.9s）|
 
-`POSTGRES_DSN` 裡的密碼必須等於 `.env` 的 `POSTGRES_PASSWORD`。**這件事沒有
-任何測試在查**，而症狀是「那台的 ingest 失敗、查詢正常」。只印是否相符，
-不要印值：
+`EMBED_MODEL=bge-m3:latest` 是 **ollama 模型**，所以每次查詢都要先算嵌入 ——
+**沒有 ollama 位址＝整條 RAG 斷掉**，而 `/health` 全程 200 抓不到。
+
+而「全刪」會讓規格一致嗎？**會，而且更糟**：`OLLAMA_URLS` 是 per-host 鍵，
+刪掉之後連鍵都不在三台的 `.env` 裡，但 wsl 需要它有值。
+
+**清空同時達成兩件事**：
+
+* 三台的 `.env` 都有 `OLLAMA_URLS=` 這一行 → **鍵集合相同 → 指紋相同**
+* 你那個值是「總表 `mbp_OLLAMA_URLS` 是空的、你卻有值」——清空後就與總表一致
+* `--check` 的 `⚠️ 沿用自己的值` **只在有值時觸發**，清空後不再報
+
+wsl 已實測：清空後 `--check` **乾淨**（無 ⚠️），指紋不變。
+
+⚠️ **不要順便跑 relayout 或 prune。** 你已經遷移過了，這一步只改一個值。
+跑完 `--check` 應該是 `27 keys, layout sha12=eab0ab8f9d4e`，把那行貼回來。
+
+### 順手確認：清空後你這台的查詢還正常嗎
+
+`OLLAMA_URLS` 是 gateway 連 ollama 的位址清單。清空後你這台會落到 compose
+預設 `http://host.docker.internal:11434`。你沒有本機 ollama，所以那個位址
+**連不上是預期中的** —— 只要**查詢仍然正常**就不影響你：
 
 ```bash
-python3 - <<'EOF'
-import re, pathlib
-d = {}
-for l in pathlib.Path(".env").read_text(encoding="utf-8").splitlines():
-    m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$", l)
-    if m: d[m.group(1)] = m.group(2)
-dsn, pw = d.get("POSTGRES_DSN",""), d.get("POSTGRES_PASSWORD","")
-m = re.search(r"://[^:]*:([^@]*)@", dsn)
-print("DSN 裡有密碼:", "是" if m else "否")
-if m: print("與 POSTGRES_PASSWORD 相符:", "是 ✓" if m.group(1)==pw else "否 ✗ 要修")
-EOF
+curl -s -o /dev/null -m 150 -w '  /query HTTP %{http_code}\n' \
+  -X POST http://localhost:8000/query -H 'Content-Type: application/json' \
+  -d '{"question":"測試","top_k":2}'
 ```
 
-前置：`git pull`（x570 那份建議用 `host-sync.sh`，那是為 x570 寫的；
-mbp 只要 `git pull`）。想先確認環境用 `bash scripts/host-doctor.sh`。
+⚠️ **那個查詢才是真正的驗收。** `/health` 不會抓 ollama 掛掉 —— 我在 wsl 刪掉
+這個鍵之後 `/health` 一直是 200，是後來手動查了一次才發現 RAG 已經斷了。
 
-⚠️ 指令**只印指紋／長度，不印值**。不要改成 `cat .env`／`env | grep`，
-不要對含憑證的指令加 `bash -x`（2026-09-26 三次憑證外洩都是這樣）。
+## ✅ 已完成：三機 `.env` 標準規格（2026-10-02 19:00）
 
-> 事項編號與 `X570-HANDOFF.md` 對齊（5＝age 公鑰、6＝git hooks），
-> 讓 `SCOPE.md` 的「收 age 公鑰｜x570、mbp」一列指向同一件事。
->
-> **★★★ 照 x570 的教訓：先跑 `host-doctor.sh` 看 `code-drift`，再做任何事。**
-> （2026-10-02 02:20，x570 端回報後追加）
->
-> **為什麼把這條放第一**：x570 照著「唯一還沒做的 = token」那份指示做，
-> 結果發現 **`.env` 裡的 token 本來就在而且指紋正確** —— 真正缺的是
-> `docker compose up -d --build api` 的 `--build`。更嚴重的是那台的映像
-> **比工作區舊 5 天**，容器裡根本沒有 `gateway.py`／`retrieve.py`／
-> `common/`，`rag.py` 是 85KB 舊單體版而工作區是 46KB 拆分版 ——
-> **後端跑的是 2026-09-30 拆分重構之前的架構**，而當時**每一道檢查都是綠的**
-> （`repo-state` 乾淨、`upgrade` 與上游同步、`container:api` running、
-> `env-check` 一致 —— 沒有一道問過「容器裡跑的是不是這個 repo」）。
->
-> 它能回 200 是因為舊版本**自洽**，不是因為健康。
->
-> **mbp 有同樣的風險，而且你 2026-09-30 就回報過「映像落後 4 天」。**
-> 所以：
->
-> ```bash
-> git pull && bash scripts/host-doctor.sh
-> ```
->
-> 先看 `code-drift` 那一條。三種結果：
->
-> | `code-drift` | 意義 | 下一步 |
-> |---|---|---|
-> | `[ ok ]` | 容器裡的程式碼與工作區逐位元相同 | 往下走 token |
-> | `[FAIL]` | **這台在跑舊程式碼** | **先** `docker compose up -d --build api`，跑完再看別的 |
-> | `[skip]` | api 容器沒在跑 | 先 `docker compose up -d`，再重跑 doctor |
->
-> ⚠️ `[FAIL]` 的情況下，**後面的 token 步驟看起來會成功但實際沒用** ——
-> 環境變數換了、程式碼還是舊的。**先修 code-drift。**
->
-> ---
->
-> **★★ 唯一還沒做的：把 Access Service Token 加進本機 `.env`。**
-> （2026-10-02 更新：**步驟變簡單了**，見下；且**`.env` 可能本來就有值** ——
-> 若 `code-drift` 是 `[FAIL]`，那多半是映像問題而不是缺值，用 `--fingerprints`
-> 確認，不要用「.env 裡沒找到」下結論。）
-> 三台的 Access app 都建好了（三台一致 403），但只有 wsl 端確認過。
-> 沒 token 的症狀是：
->
-> - 前端「連線詳細」顯示 **x570／mbp 連線失敗**（查詢正常，走的是 Pages）
-> - `sync.log` 有 `law version: 取不到` → **法規版本凍結**
-> - `host-doctor.sh` 的 `law-version` **warn**
->
-> ### ⭐ 2026-10-02：不用手動貼了，跑 `env-sync.sh pull` 就好
->
-> `CF_ACCESS_CLIENT_ID`／`CF_ACCESS_CLIENT_SECRET` 已納入**共用憑證層**
-> （sops 加密，8 把之一），wsl 端已把值寫進加密檔。所以你那台只要：
->
-> ```bash
-> git pull && bash scripts/env-sync.sh pull
-> ```
->
-> 舊指示（`printf 'CF_ACCESS_CLIENT_ID=<39字元hex>...' >> .env`）**作廢**。
-> 那條路徑有三個實際問題，本文件還記著它就是為了讓你知道為什麼不要照做：
-> ① 值要經過聊天／剪貼簿；② **貼反的症狀與「Access 沒開」完全一樣**（都回 403）；
-> ③ `--fingerprints` 不涵蓋它 → 兩台不一致是無聲的。
->
-> 驗證：`bash scripts/env-sync.sh --fingerprints | grep CF_ACCESS` 應該印出
-> ```
-> CF_ACCESS_CLIENT_ID      len=39   sha12=11cb9bc42f55
-> CF_ACCESS_CLIENT_SECRET  len=54   sha12=f00a6bd62ddc
-> ```
-> **這兩組指紋三台必須相同**。不同 = 沒 pull 成功。
->
-> 然後 **`docker compose up -d --build api`**（`--build` 不能省，見
-> `X570-HANDOFF.md`〈坑二〉）。mbp 照同一份做，`sync-snapshot.sh` 你那台是
-> launchd 排程，記得手動跑一次驗。
->
-> **★ 2026-10-01 更新：事項 5（age 公鑰）已完成，不需要你回報。**
-> `.sops.yaml` 三把公鑰都在（wsl／x570／mbp），`secrets.common.enc.env` 內
-> 也有三筆 recipients —— `sops updatekeys` 確實跑過。
+版面指紋已達成 **`27 keys, layout sha12=eab0ab8f9d4e`**，與 wsl／x570 相同。
+從 422 行、沒有註解、憑證靠手貼 → 27 鍵同規格、10 把共用憑證走 sops 分發、
+never-effective 鍵帶理由註解，`--check` 三層全綠。
 
----
+§一 B（`POSTGRES_DSN`）**已由 x570 回報並實測確認是假警報**：三台的 DSN 都是
+`${POSTGRES_PASSWORD}` 佔位符，每次都從該機自己的密碼重新推導，**沒有靜態憑證、
+沒有漂移風險**。我原本在規格裡把風險方向說反了，已在 `ENV-SPEC.md §一 B` 修正。
 
 ## 現況：三台全綠，Access 已護三台（2026-10-02 wsl 端實測）
 
