@@ -205,9 +205,22 @@ async def query(q: Query):
 #    直接去問／寫每一台就好。
 #
 # ⚠️ **不掛 ADMIN_TOKEN**（與 /rules 的寫入不同）：這是「這台自己的預設」，
-#    沒有跨機影響；而對外路徑已由 Pages worker 的登入 guard ＋ Cloudflare Access
+#    沒有跨機影響。對外路徑由 Pages worker 的登入 guard ＋ Cloudflare Access
 #    收著（ARCHITECTURE.md〈認證〉）。加上 token 會讓前端多一套憑證分發，
 #    換來的只是「能改自己那台預設模型」這件事被擋住。
+#
+#    ⚠️ **2026-10-02 修正**：上面那句「由 worker 的登入 guard 收著」原本是
+#    **不成立的** —— `settings/default-model` 當時不在 worker 的 `SENSITIVE`
+#    清單裡，而 `guard()` 對未列出的路徑直接 `return null`，完全不驗 session。
+#    當時只有 GET 所以看起來無害，但同一輪加入 `export const PUT` 之後同一條
+#    路徑變成**匿名可寫**：任何人都能改掉某台主機的預設聊天模型，症狀是
+#    「查詢突然換模型」而不會有任何錯誤。
+#    現在 `settings/default-model` **已在** `SENSITIVE` 裡，宣告在
+#    `frontend/src/routes/api/[...path]/+server.ts`；守衛是
+#    `tests/test_worker_sensitive_paths.py`（它從「哪些路徑會改變狀態」這個
+#    **獨立**角度算清單再比對，不是讀同一個常數）。
+#    ⚠️ 動 worker 那個清單時，記得同時更新本段與 DESIGN.md ——
+#    `test_the_backend_comment_does_not_overclaim_protection` 會紅。
 class DefaultModelIn(BaseModel):
     model: str | None = None  # null／空字串＝清除，回到 LLM_MODEL
 

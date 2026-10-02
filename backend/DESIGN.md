@@ -138,7 +138,17 @@ host_settings(host_id TEXT PK, default_model TEXT NOT NULL DEFAULT '', updated_a
   「遠端寫入授權」，而需求不需要 —— 前端用 `HOST_API_URLS` 直接問／寫每一台。
   測試從 AST 釘住 PUT 的 body 只有 `model`。
 - **不掛 `ADMIN_TOKEN`**（與 `/rules` 的寫入不同）：這是「自己那台的預設」，
-  對外路徑已由 worker 登入 guard ＋ Cloudflare Access 收著。
+  對外路徑由 worker 的登入 guard（`SENSITIVE` 裡有 `settings/default-model`）
+  ＋ Cloudflare Access 收著。
+
+  ⚠️ **2026-10-02 修正**：這句話原本寫「對外路徑已由 worker 登入 guard 收著」，
+  而**那時 `settings/default-model` 並不在 `SENSITIVE` 裡** —— `guard()` 對未列出
+  的路徑直接 `return null`，完全不驗 session。當時只有 GET 所以看起來無害，
+  但同一輪加入 `export const PUT` 之後它變成**匿名可寫**：任何人都能改掉某台
+  主機的預設聊天模型，症狀是「查詢突然換模型」而不會有任何錯誤。
+  守衛在 `tests/test_worker_sensitive_paths.py` —— 它從「哪些路徑會改變狀態」
+  這個**獨立**角度算清單再比對，不是讀同一個常數（否則會有「測試通過但保護
+  其實不存在」的情形）。
 
 ⚠️ 動 `main.py` 會讓 `scripts/env-audit.py --template` 產生的
 `.env.example`／`settings/env/ENV-VARIABLE-INVENTORY.md` 裡的**行號**失效

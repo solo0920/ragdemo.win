@@ -2,7 +2,25 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { readCookie, verifySession } from '$lib/google';
 
-const SENSITIVE = new Set(['query', 'ingest', 'eval', 'rules']);
+// ⚠️ **這個清單是「什麼被登入保護」的完整定義** —— `guard()` 對不在清單裡的
+// 路徑直接 `return null`，也就是**完全不驗證 session 就轉發出去**。
+// 所以漏一個項目等於該路徑對全網開放。
+//
+// ⚠️ 2026-10-02 加 `settings/default-model`：它原本**不在**這裡，而
+// `backend/app/main.py` 的註解卻宣稱「對外路徑已由 Pages worker 的登入 guard
+// 收著」—— **那句話對這個端點不成立**。那時只有 GET（讀哪台用哪個模型，
+// 敏感性低），但加入 `export const PUT` 之後同一條路徑變成**匿名可寫**：
+// 任何人都能改掉任一台主機的預設聊天模型，而症狀是「查詢突然換模型」，
+// 不會有任何錯誤。
+//
+// 加上之後前端不受影響：設定對話框本來就在 `{#if user}` 裡面，只有登入者看得到。
+const SENSITIVE = new Set([
+  'query',
+  'ingest',
+  'eval',
+  'rules',
+  'settings/default-model',
+]);
 
 interface Host { id: string; url: string }
 
