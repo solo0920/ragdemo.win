@@ -15,7 +15,24 @@
 * **per-host 的鍵集合** → `per_host_keys()`（總表的 `<機台>_<鍵>` 列 ＋
   `PER_HOST_SECRETS` ＋ 總表的 `# LOCAL_ONLY:` 註解）
 * **哪台有設** → 各機自己寫一份 `settings/env/host-inventory/<host>.txt`，
-  每行只有 `KEY=SET|EMPTY|ABSENT`。**沒有值** —— 所以那個檔可以進版控。
+  每行只有 `KEY: SET|EMPTY|ABSENT`。**沒有值** —— 所以那個檔可以進版控。
+
+## 為什麼用冒號而不是等號（`KEY: SET` 而不是 `KEY=SET`）
+
+2026-10-02 實測踩到的：原本用 `KEY=SET`，而 `test_env_sync.py::
+test_no_tracked_secret_values` 是用 `^([A-Za-z_][A-Za-z_0-9]*)=(.*)$` 加
+「右邊非空」來抓憑證明文的 —— 於是 `ADMIN_TOKEN=SET` 被判成**十把憑證的值**，
+pre-push 直接擋下。
+
+那是**誤報**（`SET` 不是值），但重點不在誤報：重點是**這個格式結構上讓人
+分不出它和一個真正的賦值**。而這份欄位檔的正確定義就是「要被 commit」——
+所以正確的修法不是加一份豁免清單，而是讓這類行**永遠不可能**被誤認。
+
+冒號滿足這點：沒有任何護欄（人、CI、grep）會把 `KEY: SET` 讀成賦值。
+代價只是 `cut -d= -f2` 要改成 `cut -d: -f2`，而這裡沒有這種用法。
+
+**一般原則**：一個工具若會產生「要進版控的檔案」，它的輸出格式必須自己
+通過 repo 的護欄 —— 不能靠下游記得放行。
 
 ## 為什麼不直接讓各機把 .env 的鍵丟進版控
 
@@ -51,7 +68,7 @@ OUT = ROOT / "settings" / "env" / "ENV-VARIABLE-INVENTORY.md"
 COL_DIR = ROOT / "settings" / "env" / "host-inventory"
 
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
-COL_RE = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)$")
+COL_RE = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)$")
 
 
 def _load_audit():
@@ -176,7 +193,7 @@ def default_decision(key, reg, ph, per_host_secrets, shared_secrets, local):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--emit-column", action="store_true",
-                    help="印出本機那一欄（KEY=SET|EMPTY|ABSENT），給其他台匯入")
+                    help="印出本機那一欄（KEY: SET|EMPTY|ABSENT），給其他台匯入")
     ap.add_argument("--out", default=str(OUT))
     args = ap.parse_args()
 
@@ -219,11 +236,11 @@ def main() -> int:
         # 這不是「擔心會不會被繞過」，而是**不要讓工具產出自己禁止的東西**。
         excluded = set(getattr(EA, "POLICY_EXCLUDED", {}))
         for k in sorted(set(reg) - excluded):
-            print(f"{k}={col.get(k, 'ABSENT')}")
+            print(f"{k}: {col.get(k, 'ABSENT')}")
         # .env 裡有、但程式碼沒讀到的 —— 那是幽靈鍵，必須一起報，
         # 否則「清單」會漏掉最該被發現的那一類。
         for k in sorted(set(col) - set(reg) - excluded):
-            print(f"{k}={col[k]}  # 幽靈：程式碼沒讀它")
+            print(f"{k}: {col[k]}  # 幽靈：程式碼沒讀它")
         if excluded:
             print(f"# 略過（政策上停用，不可寫入 .env）：{' '.join(sorted(excluded))}",
                   file=sys.stderr)

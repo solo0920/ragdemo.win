@@ -26,8 +26,8 @@ def test_tolerates_pasted_noise():
     問題，是**測試沒有照真實契約寫**。抓不到不是錯，抓到才要抓對。
     """
     noisy = ("好的，結果如下：\n```\n"
-             "ADMIN_TOKEN=SET\nCF_AIG_TOKEN=SET\n"
-             "FOO_BAR=SET  # 幽靈：程式碼沒讀它\n```\n")
+             "ADMIN_TOKEN: SET\nCF_AIG_TOKEN: SET\n"
+             "FOO_BAR: SET  # 幽靈：程式碼沒讀它\n```\n")
     r = run("-", "settings/env/host-inventory/wsl.txt", stdin=noisy)
     assert r.returncode == 0, r.stderr
     assert "FOO_BAR" in r.stdout, "幽靈鍵（程式碼沒讀的）要抓出來，不是忽略"
@@ -44,10 +44,10 @@ def test_shared_secret_divergence_is_red_alert():
     col = {}
     for l in wsl.splitlines():
         if "=" in l:
-            k, v = l.split("=", 1); col[k] = v.strip()
+            k, v = l.split(":", 1); col[k] = v.strip()
     col["CF_AIG_TOKEN"] = "ABSENT"
     Path("/tmp/opencode/broken.txt").write_text(
-        "".join(f"{k}={v}\n" for k, v in sorted(col.items())), encoding="utf-8")
+        "".join(f"{k}: {v}\n" for k, v in sorted(col.items())), encoding="utf-8")
     r = run("/tmp/opencode/broken.txt", "settings/env/host-inventory/wsl.txt")
     assert r.returncode == 0, r.stderr
     assert "🔴" in r.stdout and "CF_AIG_TOKEN" in r.stdout

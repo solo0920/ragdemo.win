@@ -4,7 +4,7 @@
 ## 這是三機往返的第二半
 
 第一半在 `env-inventory.py --emit-column`：每台跑一次，印出自己的
-`KEY=SET|EMPTY|ABSENT` 欄位（71 行、排序過、**不含任何值**），回報上來。
+`KEY: SET|EMPTY|ABSENT` 欄位（70 行、排序過、**不含任何值**），回報上來。
 這支是第二半：吃三份欄位，**逐鍵比對**，並對每個不一致提出一個有理由的
 標準化提案。
 
@@ -49,7 +49,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 COL_DIR = ROOT / "settings" / "env" / "host-inventory"
-COL_RE = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)\b")
+COL_RE = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)\b")
 STATUSES = ("SET", "EMPTY", "ABSENT")
 
 
@@ -132,7 +132,7 @@ def main() -> int:
     for f in args.files:
         name, col = load_col(f)
         if not col:
-            print(f"⚠️  {f}：抓不到任何 `KEY=SET|EMPTY|ABSENT` 行", file=sys.stderr)
+            print(f"⚠️  {f}：抓不到任何 `KEY: SET|EMPTY|ABSENT` 行", file=sys.stderr)
             print("   請在那台跑 python3 scripts/env-inventory.py --emit-column",
                   file=sys.stderr)
             return 1

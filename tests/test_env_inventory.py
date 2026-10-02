@@ -74,7 +74,7 @@ def test_inventory_contains_no_credential_values():
 
 
 def test_emit_column_prints_only_set_empty_absent():
-    """`--emit-column` 的輸出是 `KEY=SET|EMPTY|ABSENT`，不可有值。"""
+    """`--emit-column` 的輸出是 `KEY: SET|EMPTY|ABSENT`，不可有值。"""
     r = _run("--emit-column")
     assert r.returncode == 0, r.stderr
     lines = [l for l in r.stdout.splitlines() if l.strip() and not l.startswith("#")]
@@ -82,7 +82,7 @@ def test_emit_column_prints_only_set_empty_absent():
     bad = []
     for l in lines:
         body = l.split("#")[0].strip()
-        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)$", body)
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)$", body)
         if not m:
             bad.append(body[:60])
     assert not bad, f"這幾行的格式不對（可能夾帶了值）：{bad}"
@@ -116,6 +116,40 @@ def test_emit_column_output_passes_the_repo_own_guards():
                 f"{f.name} 含 `LAN_IP=` —— 這檔是會被 commit 的"
 
 
+def test_column_format_cannot_be_mistaken_for_an_assignment():
+    """**欄位格式必須結構上不可能被誤認成賦值。**
+
+    Friction 點（2026-10-02 實測）：原本用 `ADMIN_TOKEN=SET`，而
+    `test_env_sync.py::test_no_tracked_secret_values` 是用
+    `^([A-Za-z_][A-Za-z_0-9]*)=(.*)$` 加「右邊非空」抓憑證明文的 ——
+    於是 `ADMIN_TOKEN=SET` 被判成**十把憑證的值**，pre-push 直接擋下。
+
+    那是誤報（`SET` 不是值），但重點不在誤報：重點是這個格式**結構上讓人
+    分不出它和一個真正的賦值**，而這份檔的正確定義就是「要被 commit」。
+
+    所以修法不是加一份豁免清單（那只是把問題推到下一個格式），而是讓這類行
+    永遠不可能被誤認。
+
+    這條測試存在的理由是**讓上述理由跟著程式碼走**：換回 `=` 的話，擋下來的
+    是憑證守衛，錯誤訊息會指向「憑證明文」而不是「格式選錯」—— 那是個
+    會讓人查錯方向的訊息。
+    """
+    r = _run("--emit-column")
+    assert r.returncode == 0, r.stderr
+    lines = [l for l in r.stdout.splitlines() if l.strip()]
+    data = [l for l in lines if not l.startswith("#")]
+    assert data, "沒有資料行"
+    for line in data:
+        body = line.split("#")[0].strip()
+        assert not re.match(r"^[A-Za-z_][A-Za-z_0-9]*=", body), (
+            f"這行看起來像賦值，會被憑證守衛當成明文：{body!r}\n"
+            f"   請用 `KEY: STATUS`（冒號），不要用等號 —— "
+            f"見 env-inventory.py 檔頭〈為什麼用冒號而不是等號〉")
+    assert all(re.match(r"^[A-Za-z_][A-Za-z_0-9]*\s*:\s*(SET|EMPTY|ABSENT)$", b)
+               for b in (l.split("#")[0].strip() for l in data)), \
+        "欄位格式不是 `KEY: SET|EMPTY|ABSENT`"
+
+
 def test_emit_column_is_reproducible_against_the_committed_file():
     """已提交的欄位檔必須跟「現在跑出來的」一致 —— 不然那份檔在騙人。
 
@@ -128,12 +162,12 @@ def test_emit_column_is_reproducible_against_the_committed_file():
         return
     stored = {}
     for line in f.read_text(encoding="utf-8").splitlines():
-        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)", line.strip())
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)", line.strip())
         if m:
             stored[m.group(1)] = m.group(2)
     live = {}
     for line in _run("--emit-column").stdout.splitlines():
-        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)=(SET|EMPTY|ABSENT)", line.strip())
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)", line.strip())
         if m:
             live[m.group(1)] = m.group(2)
     stale = {k: (stored[k], live.get(k, "ABSENT"))
