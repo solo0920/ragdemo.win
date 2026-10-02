@@ -53,12 +53,11 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `HOST_NAME` | compose.yaml:104, backend/app/registry.py:15 | 選填 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `LLM_MODEL` | compose.yaml:93, compose.yaml:119 | 必填；預設 qwen3:14b} | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `OLLAMA` | ingest/laws/qdrant_load.py:29 | 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
-| `OLLAMA_MODELS` | compose.yaml:93, backend/app/gateway.py:79 | 選填 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `OLLAMA_URLS` | compose.yaml:84, backend/app/gateway.py:72 | 預設 http://host.docker.internal:11434 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `POSTGRES_DSN` | compose.yaml:74, backend/app/common/pg.py:24 | 必填 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 | `QDRANT_URLS` | backend/app/gateway.py:74 | compose 沒列 environment → 容器讀不到，只吃原始碼預設 | 待填 | 待填 | 待填 | **待確認** — compose 沒傳入容器 → 現在設了無效；若日後要傳入，值要重新填 |
 | `SRC_API_URL` | scripts/sync-snapshot.sh:146, scripts/sync-snapshot.sh:147 | 只有 host 端的腳本／ingest 讀得到，容器拿不到 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
-| `TS_IP` | compose.yaml:12, compose.yaml:48 | 預設 127.0.0.1 | 待填 | 待填 | EMPTY | **留** — per-host 設定，render 依 HOST_ID 挑列 |
+| `TS_IP` | compose.yaml:12, compose.yaml:48 | 預設 127.0.0.1 | 待填 | 待填 | SET | **留** — per-host 設定，render 依 HOST_ID 挑列 |
 
 ## 其餘變數（共用非敏感設定）
 
@@ -98,6 +97,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `NVIDIA_BASE_URL` | compose.yaml:153, backend/app/rag.py:70 | **compose／backend** — 必填；預設 https://integrate.api.nvidia.com/v1 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 https://integrate.api.nvidia.com/v1） |
 | `NVIDIA_MODELS` | compose.yaml:155 | **compose** — 預設 nvidia/nemotron-3.5-lightning-30b-a3b,nv | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 nvidia/nemotron-3.5-lightning-30b-a3） |
 | `OLLAMA_BASE_URL` | compose.yaml:83, backend/app/gateway.py:31 | **低優先** — 高優先的 OLLAMA_URLS 設了有效值時用不到它 | 待填 | 待填 | 待填 | **清空** — 低優先：有更高優先的來源（OLLAMA_URLS） |
+| `OLLAMA_MODELS` | compose.yaml:93, backend/app/gateway.py:79 | **compose／backend** — 選填 | 待填 | 待填 | 待填 | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `OPENROUTER_GATEWAY_URL` | compose.yaml:135, backend/app/rag.py:42 | **compose／backend** — 選填 | 待填 | 待填 | SET | **留** — 有值且被讀 |
 | `OPENROUTER_MODELS` | compose.yaml:149 | **compose** — 預設 cohere/north-mini-code:free,dots-studio/ | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 cohere/north-mini-code:free,dots-stu） |
 | `PG_CONNECT_TIMEOUT` | compose.yaml:80, backend/app/common/pg.py:37 | **compose／backend** — 必填；預設 3 | 待填 | 待填 | 待填 | **留** — 空值但有預設值 —— 留著是文件（預設 3） |

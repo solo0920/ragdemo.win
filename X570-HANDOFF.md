@@ -4,7 +4,7 @@
 
 ## ☆☆ 最優先：套用三機 `.env` 標準規格（2026-10-02 18:20）
 
-規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §四（執行步驟）。摘要：
+規格全文在 **`settings/env/ENV-SPEC.md`**，先讀 §五（執行步驟）。摘要：
 
 ```bash
 git pull
@@ -14,7 +14,7 @@ python3 scripts/env-relayout.py
 python3 scripts/env-prune.py --dry-run         # 會自動刪「值＝compose 預設」
 python3 scripts/env-prune.py
 bash scripts/env-sync.sh pull && bash scripts/env-sync.sh render
-bash scripts/env-sync.sh --check | head -1     # 指紋必須 = 00a9eae29228
+bash scripts/env-sync.sh --check | head -1     # 指紋必須 = 152822bac747
 ```
 
 ⚠️ **那個指紋是唯一的驗收。** 不同就是規格沒達成，把差異回報上來。

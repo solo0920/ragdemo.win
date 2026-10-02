@@ -158,7 +158,9 @@ def _registry():
             return set(m.group(1).split()) if m else set()
 
         reg = {k: v.compose_default for k, v in ea.build_registry().items()}
-        _REGISTRY = (reg, names("SHARED_SECRETS"), names("PER_HOST_SECRETS"))
+        # 第三個元素是**全部** per-host 鍵，不是只有機密 —— 理由見
+        # _managed_elsewhere() 的說明（規格決定 per-host 鍵該不該存在）。
+        _REGISTRY = (reg, names("SHARED_SECRETS"), ea.per_host_keys())
     return _REGISTRY
 
 
@@ -168,11 +170,22 @@ def _compose_default(key: str) -> str | None:
 
 
 def _managed_elsewhere(key: str) -> bool:
-    """這個鍵的**生命週期**由 env-sync 管理嗎（共用憑證／per-host 機密）？
+    """這個鍵的**存在與否**由 env-sync／規格決定，而不是由 prune 決定嗎？
 
-    那些鍵不該由 prune 動：刪了之後要等 `render` 才有機會寫回來，而在那之前
-    該機就是壞的。而且共用憑證的值若碰巧等於某個預設（不太可能，但後果
-    **不可逆**），刪掉就是永久損失 —— 沒有任何來源能重建那 10 把。
+    覆蓋兩類：
+    * **共用憑證** —— 值若碰巧等於某個預設（不太可能，但後果**不可逆**），
+      刪掉就是永久損失：沒有任何來源能重建那 10 把。
+    * **所有 per-host 鍵**（不只是機密）—— ⚠️ 2026-10-02 修的 bug。
+
+      原版這裡只擋 `PER_HOST_SECRETS`，於是「值＝compose 預設」那條新規則
+      會去刪 per-host 設定鍵的**空行**。那與規格直接衝突：三機同規格的前提是
+      「每個 per-host 鍵在三台都有一行，值可以不同」—— 例如 `OLLAMA` 只有
+      wsl 有值（實測 msi 的 ollama 只能從 wsl 經 tailscale reach，
+      `127.0.0.1:11434` 在 WSL 裡連不上），但那一行**必須存在**，
+      否則三台的鍵集合不同 → 版面指紋永遠對不上。
+
+      判準是「誰決定這行該不該在」：per-host 鍵的存在是**規格**決定的
+      （總表有列就三台都有），prune 無權判斷。
     """
     _, shared, per_host = _registry()
     return key in shared or key in per_host
