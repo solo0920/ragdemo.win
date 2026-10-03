@@ -167,7 +167,12 @@ sync_law_version() {
     #   host-doctor.sh 的 `_api_port()` **寫法完全相同**，避免兩處漂移。
     _api_url="${HOST_API_LOCAL:-http://127.0.0.1:920}"
     _api_port="$(printf '%s' "${_api_url##*:}" | tr -dc '0-9')"
-    [ -n "$_api_port" ] || _api_port=8000
+    # ⚠️ 2026-10-03：原本是 `|| _api_port=8000`。上游的
+    #   `${HOST_API_LOCAL:-http://127.0.0.1:920}` 已帶預設，所以這行**走不到** ——
+    #   但萬一 `HOST_API_LOCAL` 被設成沒有埠的網址，它會**靜默**用舊埠。
+    #   改成與 compose 的 `${API_PORT:-920}` 同一個值，並由
+    #   tests/test_api_port_single_source.py 的「預設值必須與源頭一致」守住。
+    [ -n "$_api_port" ] || _api_port=920
     case "$SOURCE" in
       *:[0-9]*) SRC_API="${SOURCE%:*}:${_api_port}" ;;
       *)        SRC_API="$SOURCE:${_api_port}" ;;

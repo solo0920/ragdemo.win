@@ -312,7 +312,10 @@ step_verify() {
   done
   if [ -z "$body" ]; then
     warn "verify: $API_URL/health 沒有回應（等滿 ${VERIFY_TRIES}×${VERIFY_WAIT}s）"
-    warn "verify: 容器沒起來，或 api 沒綁在 127.0.0.1:8000（compose 只綁本機）"
+    # ⚠️ 原本寫「沒綁在 127.0.0.1:8000」。**刻意不再指名埠** —— 埠會變，
+    #    而這句話是給人看的處置指引，寫死一個數字只會在換埠後變成**謊報**
+    #    （人會去查一個早就沒人用的埠）。要查實際埠：`docker compose ps api`。
+    warn "verify: 容器沒起來，或 api 沒綁在 127.0.0.1（compose 只綁本機；實際埠看 docker compose ps api）"
     return 1
   fi
   # host_id 必須是本機宣告的身分。這是「靜默裝錯角色」的唯一攔截點：

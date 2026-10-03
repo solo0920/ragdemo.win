@@ -545,7 +545,12 @@ API_IDENTITY_FIELDS='collection|host_id|"host"'
 _api_port() {
   # 從 API_URL 取 port（預設 8000）。不用複雜解析 —— 這只是要一個數字。
   printf '%s' "${API_URL##*:}" | tr -dc '0-9' | head -c 5
-  [ -n "$(printf '%s' "${API_URL##*:}" | tr -dc '0-9' | head -c 5)" ] || printf '8000'
+  # ⚠️ 2026-10-03：原本 fallback 是 `8000`。上游 API_URL 已帶
+  #   `${HOST_API_LOCAL:-http://127.0.0.1:920}` 的預設，所以走不到 —— 但一旦
+  #   HOST_API_LOCAL 設成沒有埠的網址，它會**靜默**探舊埠（症狀是 api-port-owner
+  #   報「埠沒人用」而實際上是**探錯埠**）。改成與 compose 的 `${API_PORT:-920}`
+  #   同一個值，由 tests/test_api_port_single_source.py 守住不會漂。
+  [ -n "$(printf '%s' "${API_URL##*:}" | tr -dc '0-9' | head -c 5)" ] || printf '920'
 }
 
 ch_api_identity() {
@@ -569,6 +574,85 @@ ch_api_identity() {
   peek="$(head -c 160 "/tmp/.id.$$" 2>/dev/null | tr -d '\n' | tr -s ' ')"
   bump api-identity fail "HTTP ${body}，但**回應裡沒有本專案的欄位** → 這個 port 上**不是** ragdemo 的 API。看到的內容：${peek:-（空）}　處置：看下一項 api-port-owner 是誰佔著"
   rm -f "/tmp/.id.$$"
+}
+
+ch_tunnel() {
+  # **对外那條路徑指向哪裡。** 這是本專案唯一**兩層失效方式不同**的東西：
+  #
+  #   · compose 層在**版控裡**，`up -d` 會重讀 → 換埠自動生效
+  #   · tunnel 層在**版控外**（`~/.cloudflared/config.yml`），而且
+  #     **設定檔存檔不會重載**（2026.9.3 實測：`tunnel run` 沒有 reload／watch／
+  #     sighup 選項，systemd unit 也沒有 ExecReload）
+  #
+  # 2026-10-03 實測（wsl）：把 config.yml 存成 920 之後**對外仍是 502**，
+  # 因為跑中的行程是 13:58 起的、還拿著舊設定（8000），要重載才生效。
+  # 而那時 pre-push 的 smoke 只探本機、**完全看不到這一層**。
+  #
+  # 所以分開報兩件事 —— 它們的處置完全不同：
+  #   · 靜態：設定檔的 `service:` 埠 vs api 實際發布的埠 → 抓「改錯」
+  #   · 執行期：對外 hostname 的回應碼 → 抓「改了**沒重載**」
+  #       502 = tunnel 指向沒人監聽的埠；403 = Cloudflare Access 在邊緣擋的，
+  #       **說明不了 tunnel 狀態**（Access 在 tunnel 之前）。
+  local cfg="" hn="" url="" want="" svc_port="" code="" cid="" csec=""
+  for c in "$HOME/.cloudflared/config.yml" /etc/cloudflared/config.yml; do
+    [ -f "$c" ] && { cfg="$c"; break; }
+  done
+  if [ -z "$cfg" ]; then
+    bump tunnel skip "沒有 cloudflared 設定檔 → 這台不對外服務"
+    return 0
+  fi
+  # api 實際發布的埠：**從現實反查**（docker），拿不到才用 _api_port()
+  if command -v docker >/dev/null 2>&1; then
+    want="$(docker compose ps --format '{{.Publishers}}' api 2>/dev/null \
+      | grep -oE '[0-9]+ +[0-9]+ +tcp' | head -1 | awk '{print $1}' || true)"
+  fi
+  [ -n "$want" ] || want="$(_api_port)"
+  # 哪個 hostname 是「本機的」：HOST_API_URLS 是權威映射
+  [ -f "$ROOT/.env" ] || { bump tunnel skip "沒有 .env → 判斷不了本機 hostname"; return 0; }
+  local hid urls
+  hid="$(grep -m1 -E '^HOST_ID=' "$ROOT/.env" 2>/dev/null | cut -d= -f2- || true)"
+  urls="$(grep -m1 -E '^HOST_API_URLS=' "$ROOT/.env" 2>/dev/null | cut -d= -f2- || true)"
+  url="$(printf '%s' "$urls" | tr ',' '\n' | grep -E "^${hid}=" | head -1 | cut -d= -f2- || true)"
+  if [ -z "$url" ]; then
+    bump tunnel skip "HOST_API_URLS 裡沒有 ${hid} → 判斷不了本機對外 hostname"
+    return 0
+  fi
+  # ⚠️ 設定檔裡的 hostname **不帶 scheme**（`api-wsl.ragdemo.win`），而
+  #    HOST_API_URLS 的是完整 URL（`https://api-wsl.ragdemo.win`）。直接比會
+  #    永遠不相等 —— 而症狀是「跳過比對、看起來像沒問題」。
+  local hn="${url#*://}"; hn="${hn%%/*}"
+  svc_port="$(awk -v hn="$hn" '
+    $1=="-" && $2=="hostname:" { cur=$3; next }
+    $1=="service:" && cur==hn && match($2, /:[0-9]+/) {
+      print substr($2, RSTART+1, RLENGTH-1); found=1; exit
+    }
+    END { if (!found) exit 0 }' "$cfg" 2>/dev/null || true)"
+  if [ -z "$svc_port" ]; then
+    bump tunnel warn "設定檔（${cfg}）裡找不到 ${hn} 的 service: → 確認這條 hostname 是不是歸這台管"
+    return 0
+  fi
+  if [ "$svc_port" != "$want" ]; then
+    bump tunnel fail "設定檔指向 localhost:${svc_port}，但 api 實際發布在 :${want} → 對外會 502。修完必須重載（不會自動）"
+    return 0
+  fi
+  bump tunnel ok "設定檔指向 localhost:${svc_port}，與 api 實際發布的埠一致"
+  # 執行期：改了但沒重載，只有這一條抓得到
+  cid="$(grep -m1 -E '^CF_ACCESS_CLIENT_ID=' "$ROOT/.env" 2>/dev/null | cut -d= -f2- || true)"
+  csec="$(grep -m1 -E '^CF_ACCESS_CLIENT_SECRET=' "$ROOT/.env" 2>/dev/null | cut -d= -f2- || true)"
+  if [ -z "$cid" ] || [ -z "$csec" ]; then
+    bump tunnel-live skip "沒有 CF_ACCESS_CLIENT_* → 判斷不了對外狀態（403 會被誤認為通）"
+    return 0
+  fi
+  code="$(curl -s -o /dev/null -w '%{http_code}' -m 20 \
+    -H "CF-Access-Client-Id: $cid" -H "CF-Access-Client-Secret: $csec" \
+    "$url/health" 2>/dev/null || echo 000)"
+  case "$code" in
+    200) bump tunnel-live ok "${url}/health 200 → tunnel 與重載都到位" ;;
+    502) bump tunnel-live fail "${url} 回 **502** → tunnel 指向沒人監聽的埠。設定檔存檔**不會**重載，必須 systemctl --user restart cloudflared.service（或你那台的等價指令）" ;;
+    403) bump tunnel-live warn "${url} 回 403 → Cloudflare Access 在邊緣擋的，**說明不了 tunnel 狀態**（Access 在 tunnel 之前）。不要拿它當通過" ;;
+    000) bump tunnel-live warn "${url} 連不上（000）→ 可能是 DNS／網路，不是 tunnel" ;;
+    *)   bump tunnel-live warn "${url} 回 ${code} → 看一下是什麼" ;;
+  esac
 }
 
 ch_api_port_owner() {
@@ -1135,6 +1219,7 @@ ch_code_drift
 ch_sops
 ch_qdrant_keys
 ch_api_port_owner
+ch_tunnel
 ch_api_identity
 ch_readiness
 ch_query

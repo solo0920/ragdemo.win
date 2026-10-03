@@ -57,12 +57,12 @@ SCANNED_GLOBS = (
 # ⚠️ **散文型**的 8000：出現在**給人看的訊息字串**裡，不是請求端點。
 #    以「行內子字串」比對（不用行號 —— 行號會隨檔案編輯漂移）。
 #    每筆都要有理由；空白理由等於沒有依據，而沒有依據的例外就是這個缺陷的形狀。
-PROSE_ALLOWED = {
-    "沒綁在 127.0.0.1:8000":
-        "host-sync.sh 的 warn **訊息字串**，是給人看的說明，不是請求端點；"
-        "而且它描述的是 compose 的綁定（由 compose.yaml 的變數決定），"
-        "改埠時這段文案會一起需要更新 —— 但它不是行為。",
-}
+# ⚠️ 2026-10-03 起**是空的**，而且應該保持是空的。
+#    原本有一筆「沒綁在 127.0.0.1:8000」是 host-sync.sh 的 warn 訊息字串。
+#    換埠後它變成**謊報**（人會去查一個早就沒人用的埠），所以把那句話改成
+#    不指名埠 —— 一旦不寫數字就不可能過期，例外也就沒有存在的理由了。
+#    **空白理由等於沒有依據，而沒有依據的例外就是這個缺陷的形狀。**
+PROSE_ALLOWED: dict[str, str] = {}
 
 
 def _strip_comment(line: str) -> str:
@@ -236,3 +236,124 @@ def test_the_port_is_extracted_the_same_way_everywhere():
                 f"{f}:{i} 取埠時用了 `tr -dc 0-9`，但沒有先 `##*:` ——\n"
                 f"  {line.strip()[:90]}\n"
                 "  那會把整個 URL 的數字串起來（127.0.0.1:8000 → 1270018000）。")
+
+# ── 預設值（default）也必須與源頭一致 ─────────────────────────────────────
+#
+# 為什麼要另外一條：上面的 `HARDCODED` 只抓**寫死**，並且**刻意排除預設值**
+# （`${VAR:-N}`／`?? N`／`|| N`），理由寫得很清楚：「改了變數仍然生效，所以
+# 不算違規」。
+#
+# 那個理由**在功能上對、在漂移上錯**：
+#
+#   · 寫死  → 症狀是「改了變數也沒用」，**會喊**
+#   · 預設值過期 → 症狀是「變數有設時正常、沒設時指向舊埠」，**不喊**
+#
+# 而實際踩到的就是後者（2026-10-03，8000 → 920）：
+#   · `frontend/vite.config.ts` 的 `?? 'http://127.0.0.1:8000'` 換埠後指向死埠，
+#     症狀是 dev proxy 500／連不上 —— 很容易誤判成前端壞了
+#   · `sync-snapshot.sh` 與 `host-doctor.sh` 的 `|| 8000` 是**睡著的地雷**
+#     （上游已帶預設所以走不到，但上游一旦被設成沒埠的值就會靜默用舊埠）
+#
+# 三個都是靠人手發現的。這條就是讓它們不可能再發生。
+
+def _compose_api_port() -> str:
+    compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+    m = re.search(r"\$\{API_PORT:-(\d+)\}", compose)
+    assert m, (
+        "compose.yaml 裡找不到 `${API_PORT:-N}` —— 那是 api **主機埠**的源頭。"
+        "這條守衛的所有比對都以它為準；找不到就無法判斷誰過期了。")
+    return m.group(1)
+
+
+def _exec_lines(path: Path) -> list[tuple[int, str]]:
+    out = []
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if _strip_comment(line).strip():
+            out.append((i, line))
+    return out
+
+
+def test_fallback_urls_agree_with_compose():
+    """`HOST_API_LOCAL` 沒設時的預設 URL 必須與 compose 的源頭一致。
+
+    比對的是**完整 URL**（含主機），不只是埠 —— 因為連主機名都可能不同步
+    （`localhost` vs `127.0.0.1` 在 docker 的 port 轉發下不等價）。
+    """
+    want_port = _compose_api_port()
+    want_url = f"http://127.0.0.1:{want_port}"
+    bad = []
+    for pat in SCANNED_GLOBS:
+        for f in sorted(ROOT.glob(pat)):
+            for i, line in _exec_lines(f):
+                for m in re.finditer(r"\$\{HOST_API_LOCAL:-([^}]*)\}", line):
+                    if m.group(1) != want_url:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  {m.group(0)}")
+                for m in re.finditer(r"HOST_API_LOCAL\s*\?\?\s*'([^']*)'", line):
+                    if m.group(1) != want_url:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  ?? {m.group(1)!r}")
+    assert not bad, (
+        f"HOST_API_LOCAL 的預設值必須是 {want_url}（與 compose 的 "
+        f"`${{API_PORT:-{want_port}}}` 同源）。以下過期了：\n  "
+        + "\n  ".join(bad)
+        + "\n  ⚠️ 預設值過期**不會喊** —— 變數有設時正常、沒設時指向舊埠，"
+          "症狀是『換了埠但那條路徑沒換』。")
+
+
+# 可執行行裡**允許出現**的埠。每筆都要有理由；空白理由等於沒有依據，
+# 而沒有依據的例外就是這個缺陷的形狀（同 PROSE_ALLOWED 的道理）。
+# `None` 不是自由值 —— 它代表「必須等於 compose 的 `${API_PORT:-N}`」。
+ALLOWED_PORTS: dict[str | None, str] = {
+    None: "api 主機埠 —— 必須等於 compose 的 `${API_PORT:-N}`，不是自由值",
+    "6333": "qdrant HTTP（compose 有宣告）",
+    "6334": "qdrant gRPC（compose 有宣告）",
+    "5432": "postgres（compose 有宣告）",
+    "11434": "ollama —— **不是** compose 服務（是外部服務），compose 不會宣告它",
+}
+
+
+def test_no_port_literal_outside_the_allowlist():
+    """可執行行裡的埠必須在允許清單內，且 api 的那一個必須等於 compose 源頭。
+
+    抓的是**任何**不在清單裡的埠，不是寫死某個數字 —— 所以下次換埠忘了改
+    某一處，它會紅；而且不需要為那個數字新增一條規則。
+    """
+    want_port = _compose_api_port()
+    allowed = {p for p in ALLOWED_PORTS if p is not None} | {want_port}
+    bad = []
+    for pat in SCANNED_GLOBS:
+        for f in sorted(ROOT.glob(pat)):
+            for i, line in _exec_lines(f):
+                # 只抓「像埠」的數字：URL 裡的、或 `|| 8000`／`printf '8000'`
+                # 這種明確的預設值位置。抓不到 `head -c 5`、`--max-time 20`。
+                for m in re.finditer(r"(?:localhost|127\.0\.0\.1):(\d{2,5})\b", line):
+                    if m.group(1) not in allowed:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  埠 {m.group(1)}")
+                for m in re.finditer(r"\|\|\s*(\d{2,5})\b", line):
+                    if m.group(1) not in allowed:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  `|| {m.group(1)}`")
+                # ⚠️ `|| 8000` 那個 pattern 只認「`||` 後面直接是數字」。實際寫法
+                #    常是 `|| _api_port=8000`（數字在 `=` 之後）—— 第一版就是
+                #    在這裡漏掉 `sync-snapshot.sh` 的真實案例。
+                for m in re.finditer(r"\|\|\s*([A-Za-z_][A-Za-z_0-9]*)=(\d{2,5})\b", line):
+                    if "port" in m.group(1).lower() and m.group(2) not in allowed:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  `|| …={m.group(2)}`")
+                for m in re.finditer(r"printf\s+'(\d{2,5})'", line):
+                    if m.group(1) not in allowed:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  `printf '{m.group(1)}'`")
+                # 任何 `${VAR:-NNNN}`（NNNN 像个埠）都要在清單內。不只
+                # HOST_API_LOCAL —— 那個只是**已知會用到 api 埠**的那一個。
+                #
+                # ⚠️ **變數名必須看起來像埠。** 第一版寫成 `\$\{VAR:-(\d{2,5})\}`，
+                # 結果抓到 `ensure-stack.sh` 的 `${VAR:-60}`（curl timeout）與
+                # compose 兩個 healthcheck 的 `${VAR:-30}` —— **timeout 不是埠**。
+                # 症狀是「守衛紅，而紅的原因與它要守的東西無關」，那比沒有守衛更糟：
+                # 久了就會被人無脑加進允許清單。
+                for m in re.finditer(r"\$\{([A-Za-z_][A-Za-z_0-9]*):-(\d{2,5})\}", line):
+                    if "port" in m.group(1).lower() and m.group(2) not in allowed:
+                        bad.append(f"{f.relative_to(ROOT)}:{i}  `${{{m.group(1)}:-{m.group(2)}}}`")
+    assert not bad, (
+        f"可執行行裡出現不在允許清單內的埠。允許的：{sorted(allowed)}"
+        f"（api 那一個必須等於 compose 的 ${{API_PORT:-{want_port}}}）。\n  "
+        + "\n  ".join(bad)
+        + "\n  每個允許的埠都要在 ALLOWED_PORTS 裡有理由 —— 空白理由等於"
+          "沒有依據，而沒有依據的例外就是這個缺陷的形狀。")
