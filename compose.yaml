@@ -61,17 +61,25 @@ services:
   api:
     build: ./backend
     # 僅本機（frontend dev / cloudflared 都走 localhost）。
-    # ⚠️ 2026-10-03：主機側改成 `${API_PORT:-8000}`。
     #
-    # 為什麼：主機側的埠決定了**誰能看到 api**（容器側固定 8000 不可動，那是
-    # 服務本身的 listening port）。而它原本寫死 —— 就算腳本都讀了
-    # `HOST_API_LOCAL`，**這裡不改就等於沒改**：docker 仍然 publish 在 8000，
-    # 症狀是「設定改了但行為沒變」，而且沒有任何錯誤。
+    # ⚠️ 2026-10-03：8000 → **920**（三機統一）。
     #
-    # 這是「一個值散在七處、其中一處寫死」的那一類；2026-10-03 已把七處統一。
-    # `API_PORT` 不在 `.env` 時預設 8000 —— **不改 `compose.yaml` 就不需要動 `.env`**，
-    # 所以這一步對三台的現況零影響（仍 publish 在 8000）。
-    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
+    # 為什麼換掉 8000：8000 是 OpenAI 相容 API / vLLM / ollama 的慣例埠，本機很容易
+    # 被別的推論服務先綁走。**實測踩到**：Homebrew 的 `omlx-server` 在 08:03:56 搶先
+    # 綁定 `127.0.0.1:8000`，我們的 api 容器 08:06:14 才啟動，publish **沒有報錯但被
+    # 遮蔽**（OrbStack 的 port 轉發是 userspace proxy，搶輸不報錯）。後果是
+    # `api-mbp.ragdemo.win` 對外服務到 omlx —— **HTTP 200 但內容是別的程式**，
+    # 比 502 更難查。而 mbp 在 Pages worker 的 `API_ORIGINS` 輪詢清單裡。
+    #
+    # 左右兩側的語意不同，別搞混：
+    #   左側 = 主機埠 → `${API_PORT}`（可變，唯一該由 .env 決定的東西）
+    #   右側 = 容器埠 → **920 固定**，與 backend/Dockerfile 的 EXPOSE/CMD 烤進去的
+    #          920 必須一致。改這裡要連 Dockerfile 一起改，只改一邊會 publish 到
+    #          沒人 listening 的埠（症狀：主機 curl 連不上，容器內 curl 正常）。
+    #
+    # ⚠️ 換埠後必須同步換掉 `~/.cloudflared/config.yml` 的 `service:` —— 它是
+    #    repo 外的靜態 YAML、不讀環境變數。忘了就是公開路徑 502。
+    ports: ["127.0.0.1:${API_PORT:-920}:920"]
     # 讓容器內的程式碼能用 host.docker.internal 連到宿主機的 ollama。
     # Docker Desktop 本身就提供這個名稱，這行是給 **原生 Linux Docker** 補上
     # host-gateway 對應（沒有這行，Linux 上會 DNS 解析失敗）。

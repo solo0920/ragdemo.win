@@ -44,7 +44,7 @@ esac
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # 本機 api。compose 把 api 綁在 127.0.0.1:8000（不是 TS_IP —— 公網只經 cloudflared），
 # 所以驗收一定走 127.0.0.1。可用 HOST_API_LOCAL 覆寫給 tunnel 情境。
-API_URL="${HOST_API_LOCAL:-http://127.0.0.1:8000}"
+API_URL="${HOST_API_LOCAL:-http://127.0.0.1:920}"
 # 驗收等容器的重試：秒數 × 次數。剛 up -d 完 api 還沒起來，單次 curl 會產生
 # 假失敗，而「部署失敗要看得見」最怕的就是這種自己嚇自己的失敗。
 VERIFY_TRIES=12

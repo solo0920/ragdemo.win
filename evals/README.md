@@ -75,7 +75,7 @@ print('expect_case',sum(1 for q in d if q.get('expect_case')));\
 print('expect_none',sum(1 for q in d if q.get('expect_none')))"
 
 # 完整評測（需服務在跑，會實際呼叫 LLM）
-curl -s -X POST http://localhost:8000/eval | python3 -m json.tool
+curl -s -X POST http://localhost:920/eval | python3 -m json.tool
 
 pytest -q tests/          # 165 條，動到 backend 時不得 regression
 ```
