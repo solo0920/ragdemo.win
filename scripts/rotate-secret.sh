@@ -333,7 +333,7 @@ cat <<EOF
        bash scripts/env-sync.sh pull
 
   3. 其他兩台 pull ＋ 重建容器（憑證是啟動參數，不重啟不生效）：
-       git pull && bash scripts/env-sync.sh pull && docker compose up -d
+       git pull --ff-only && bash scripts/env-sync.sh pull && docker compose up -d
 
   4. 三台驗證一致（不印值）：
        bash scripts/env-sync.sh --fingerprints
@@ -349,7 +349,7 @@ cat <<EOF
   換好了，但**還沒生效**。剩下三步：
 
   1. 本機（以及其他兩台）pull：
-       git pull && bash scripts/env-sync.sh pull
+       git pull --ff-only && bash scripts/env-sync.sh pull
   2. 重建容器 —— 憑證是啟動參數，不重啟不生效：
        docker compose up -d
   3. 驗證三台一致（不印值）：

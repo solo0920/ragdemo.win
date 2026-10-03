@@ -148,8 +148,13 @@ if [ "${fail}" -ne 0 ]; then
 fi
 
 echo
+# ⚠️ 2026-10-03：原本印的是**裸 `git commit`**，而那會**開啟編輯器**等人寫訊息。
+#   2026-10-03 實測：有人照著 repo 印出的指令執行，結果卡在編輯器畫面。
+#   **指令被印出來就是會被照著跑**，所以它必須假設自己跑在**沒有人互動**的環境裡
+#   （cron、貼進聊天、貼進 issue）。所以：`git commit` 一律帶 `-m`，
+#   `git pull` 一律帶 `--ff-only`（那按定義不會生出 merge commit，也不會開編輯器）。
 echo "⚠️  如果這是第一次執行，記得 commit 總表的改動："
-echo "     git add settings/env/hosts.shared.env && git commit"
+echo "     git add settings/env/hosts.shared.env && git commit -m 'wsl: 更新 hosts.shared.env'"
 echo
 echo "接著："
 echo "  python3 scripts/env-prune.py          # 清掉其它機器可能殘留的空行"
