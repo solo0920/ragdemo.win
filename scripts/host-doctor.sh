@@ -1097,6 +1097,29 @@ except Exception: print("")' "$LAW_SYNC_FILE" 2>/dev/null)"
 }
 
 ch_law_version() {
+  # ⚠️ 2026-10-03：**source 機整條跳過**，不只「沒有 .law_version 時」才分角色。
+  #
+  # 原本只有 `if [ ! -f "$LAW_VERSION_FILE" ]` 那個分支會看角色，所以一台
+  # source 機**只要 .law_version 存在**（例如它早期當過備援、或被手動跑過
+  # 一次 sync-snapshot.sh），後面就會走「快照多久沒更新」的判斷。source 機
+  # 不跑 sync-snapshot.sh，那個判斷對它**永遠不成立** → 幾小時後開始報
+  # 「快照已 N 小時沒成功更新」，而真相是「這台根本不該有快照」。
+  #
+  # 這是「報告沒有分角色」家族的第三例（前兩例：code-drift 問錯對象、
+  # 沒有 .law_version 時的訊息）。同一個家族第三次，所以改成**在最前面就擋**，
+  # 不再依賴「某個檔在不在」這種間接訊號。
+  if [ -f "$LAW_SYNC_FILE" ]; then
+    local _dv=""
+    [ -f "$LAW_SYNC_FILE" ] && _dv="$(python3 -c "
+import json,sys
+try:
+    d=json.load(open('$LAW_SYNC_FILE'))
+    print((d.get('update_date') or d.get('last_checked') or '')) 
+except Exception:
+    print('')" 2>/dev/null || true)"
+    bump law-version ok "這台是 source 機（角色判斷依 .law_sync.json），法規由 sync_daily 直接產生 → 快照新鮮度不適用${_dv:+（.law_sync.json: ${_dv}）}"
+    return 0
+  fi
   if [ ! -f "$LAW_VERSION_FILE" ]; then
     # 2026-10-02：這台是 **source 機**（有 .law_sync.json）還是備援機？
     #

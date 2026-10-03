@@ -51,6 +51,7 @@ HTTP 狀態碼回答的是「現在該不該把流量送來」→ 任一**必要
 import asyncio
 import copy
 import logging
+import os
 import re
 import time
 
@@ -63,6 +64,27 @@ logger = logging.getLogger("ragdemo")
 TTL = 15.0
 # 每項檢查的逾時上限。3–5s：足以容忍容器剛起來的慢啟動，又不會讓輪詢者乾等。
 PER_CHECK = 5.0
+
+# 檢索集合的**點數門檻**（`QDRANT_MIN_POINTS`，可由 .env 覆寫）。
+# 預設 1：只抓「空／壞」。抓「少了一截」是 host-doctor 的 `ch_law_version` 的事 ——
+# 那邊有 law_version 與 synced_at 可比，這個模組沒有。
+# ⚠️ 讀取時不容錯：寫壞的值不該讓整個 readiness 在 import 時就死掉，那會讓
+#   「設定寫錯」變成「服務起不來」，症狀完全對不上原因。
+# 檢索集合的**點數門檻**。預設 1：只抓「空／壞」。
+#
+# 抓「少了一截」（例如重建到一半）是 host-doctor 的 `ch_law_version` 的事 ——
+# 那邊有 law_version 與 synced_at 可比，這個模組沒有。分工要清楚，否則兩邊
+# 都做一半、兩邊都抓不到。
+#
+# ⚠️ **刻意不是環境變數**（2026-10-03 實測踩過）：先做成了
+#   `QDRANT_MIN_POINTS`，而 `env-audit.py` 反查原始碼時只認
+#   `NAME = os.getenv("NAME", 預設)` 那一形（`PY_IDENT_ENV`），所以它把這個
+#   判成「**必填**」寫進 `.env.example`，還附上一句
+#   「⚠️ compose 沒列入 environment，**這裡設的值到不了容器**」——
+#   而那第二句是**真的**：設定了也不生效。那是主動誤導人設一個沒用的變數。
+#   門檻不需要按機器調（1 = 抓空），所以用模組常值。
+#   日後真的要調，必須**連 compose 的 environment 一起加**，否則重演上面。
+QDRANT_MIN_POINTS = 1
 # 整體上限（安全網）。各項已各自有 PER_CHECK 且並行跑，正常情況用不到這條。
 TOTAL = 15.0
 # 回應裡列「該機有的模型」時最多顯示幾個 —— /ready 的 body 不該無上限。
@@ -117,8 +139,20 @@ async def _check_postgres() -> dict:
 
 async def _check_qdrant() -> dict:
     """檢索全靠它。用 `gateway._req`（自帶認證 header 與候選降級），並確認
-    `retrieve.COLLECTION` **真的讀得到** —— 只探 `/` 會回 200 卻沒有 collection，
-    那種「探測通過但查詢全滅」正是這個專案踩過的形狀。"""
+    `retrieve.COLLECTION` **真的讀得到、而且裡面真的有東西**。
+
+    ⚠️ **存在性不等於內容**（2026-10-03 加點數門檻，因為踩到真實事故）：
+    這裡原本只驗「可讀」，而 `qdrant_load` 的流程是**先刪掉本機集合再重建** ——
+    中途被中斷就留下一個**存在但空**的集合，`GET /collections/laws` 照樣回 200，
+    readiness 因此報綠。實測：備援機的laws 歸零（39879 → 0）、
+    `/query` 回 `hits=0 no_match=true`，而 `/ready` 說
+    `collection laws 可讀`、`ok=True`。**那個狀態只有問點數才看得出來。**
+
+    門檻刻意預設 1，不抓「少了一截」：那要看**上次同步了多少**，
+    而這個模組沒有那個狀態 —— 那是 host-doctor 的
+    `ch_law_version`（它有 law_version 與 synced_at 可比）。分工要清楚，
+    否則兩邊都做一半、兩邊都抓不到。
+    """
     coll = retrieve.COLLECTION
     r = await gateway._req("qdrant", gateway.QDRANT_URLS, "get",
                            f"/collections/{coll}", timeout=PER_CHECK)
@@ -126,7 +160,29 @@ async def _check_qdrant() -> dict:
         raise RuntimeError(f"collection {coll!r} 不存在（檢索會全滅）")
     if r.status_code != 200:
         raise RuntimeError(f"GET /collections/{coll} 回 {r.status_code}")
-    return {"detail": f"collection {coll} 可讀"}
+    try:
+        res = (r.json() or {}).get("result") or {}
+    except Exception as e:                       # noqa: BLE001 —— 任何解析失敗都算無從驗證
+        raise Unverifiable(f"GET /collections/{coll} 回的不是 JSON（{type(e).__name__}）—— 無從驗證點數")
+    n = res.get("points_count")
+    if n is None:
+        n = res.get("vectors_count")             # qdrant 舊版的欄位名
+    if n is None:
+        raise Unverifiable(
+            f"回應裡沒有 points_count／vectors_count —— 無從驗證點數。"
+            f"**不要**因為讀不到就當通過：空集合正是這個形狀。"
+            f"（result 的欄位：{sorted(res)[:8]}）")
+    if n < QDRANT_MIN_POINTS:
+        # ⚠️ 訊息要**區分兩種成因** —— 否則它會自己說謊：門檻被設成一個
+        #   不可能的數字時，集合有 39880 點卻被說成「裡面沒東西」，讀表的人
+        #   會去查資料而真正的原因（門檻寫錯）沒人查。
+        why = ("**集合是空的**" if n == 0 else
+               f"只有 {n} 點、門檻 {QDRANT_MIN_POINTS} —— 可能是重建到一半"
+               f"（`qdrant_load` 的流程是先刪掉本機集合），也可能是門檻本身設錯了")
+        raise RuntimeError(
+            f"collection {coll!r} 點數不足：{n} < {QDRANT_MIN_POINTS} —— {why}。"
+            f"檢索會全滅。")
+    return {"detail": f"collection {coll} 可讀，{n} 點（門檻 {QDRANT_MIN_POINTS}）"}
 
 
 async def _ollama_candidate(url: str, dm: str) -> tuple[bool, str]:

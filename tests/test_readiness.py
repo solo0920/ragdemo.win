@@ -33,11 +33,14 @@ HOST = "http://ollama-under-test:11434"
 # ── 假的四個依賴 ───────────────────────────────────────────────────────────
 
 class _Resp:
-    def __init__(self, status_code=200, payload=None):
+    def __init__(self, status_code=200, payload=None, bad_json=False):
         self.status_code = status_code
         self._payload = payload or {}
+        self._bad_json = bad_json
 
     def json(self):
+        if self._bad_json:
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
         return self._payload
 
 
@@ -89,6 +92,9 @@ class World:
         # qdrant
         self.qdrant_status = 200
         self.qdrant_raises: Exception | None = None
+        # 2026-10-03：檢索集合的點數。None = 欄位不存在（→ Unverifiable）
+        self.qdrant_points: int | None = 1234
+        self.qdrant_bad_json = False
         # ollama
         self.tags = {EMBED, gateway.LLM_MODEL}
         self.tcp = True
@@ -114,7 +120,18 @@ class World:
             w.calls.append((kind, path))
             if w.qdrant_raises:
                 raise w.qdrant_raises
-            return _Resp(w.qdrant_status)
+            # ⚠️ 2026-10-03：預設必須**有** points_count。
+            #   `_check_qdrant` 現在會驗點數門檻，而「讀不到點數」是
+            #   `Unverifiable`（不得當通過）—— 若這裡回 `{}`，五條既有測試
+            #   會因為「假物太假」而紅，那不是被測邏輯的問題。
+            #   真實的 qdrant 一定會回 points_count。
+            payload = {"result": {"status": "green",
+                                  "points_count": w.qdrant_points}}
+            if w.qdrant_points is None:          # 模擬「欄位不存在」
+                payload = {"result": {"status": "green"}}
+            if w.qdrant_bad_json:
+                return _Resp(w.qdrant_status, payload, bad_json=True)
+            return _Resp(w.qdrant_status, payload)
 
         async def _tcp_open(url, timeout=2.0):
             w.calls.append(("tcp_open", url))
@@ -504,3 +521,88 @@ def test_cloud_prefixes_match_generate_routing():
     assert used == set(rag.CLOUD_MODEL_PREFIXES), (
         f"generate() 的前綴 {sorted(used)} 與 CLOUD_MODEL_PREFIXES "
         f"{sorted(rag.CLOUD_MODEL_PREFIXES)} 不一致")
+
+# ── 檢索集合的點數門檻 ────────────────────────────────────────────────────
+#
+# ⚠️ 2026-10-03 加，因為踩到真實事故：`qdrant_load` 的流程是**先刪掉本機
+# 集合再重建**，中途被中斷就留下一個**存在但空**的集合。而 `_check_qdrant`
+# 原本只驗「可讀」，`GET /collections/laws` 對空集合照樣回 200 → readiness
+# 報綠。實測：備援機 laws 39879 → 0 點、`/query` 回 hits=0，而 `/ready` 說
+# 「collection laws 可讀」「ok=True」。
+#
+# **存在性不等於內容。** 那個狀態只有問點數才看得出來。
+
+@pytest.mark.asyncio
+async def test_qdrant_collection_that_exists_but_is_empty_is_not_ready(monkeypatch):
+    """集合**存在但空** → qdrant 檢查必須紅，且訊息要點名「空」。
+
+    這是本次事故的**原樣**。症狀最惡劣之處是它看起來像好的：HTTP 200、
+    集合名存在、唯讀得到 —— 檢索卻全滅。
+    """
+    w = _ready(monkeypatch)
+    w.qdrant_points = 0
+    body = await readiness.report()
+    q = body["checks"]["qdrant"]
+    assert q["verdict"] != "up", f"空集合不該算 up：{q}"
+    assert body["ok"] is False
+    assert "點數不足" in (q.get("detail") or ""), q
+    assert "空" in (q.get("detail") or ""), q
+
+
+@pytest.mark.asyncio
+async def test_qdrant_below_threshold_says_it_might_be_the_threshold(monkeypatch):
+    """低於門檻但**非零** → 也要紅，且訊息要提到「門檻本身可能設錯」。
+
+    否則一個寫壞的 `QDRANT_MIN_POINTS` 會讓訊息說「集合是空的」，
+    而實際有 39880 點 —— 讀表的人會去查資料，真正的原因沒人查。
+    """
+    w = _ready(monkeypatch)
+    w.qdrant_points = 50
+    monkeypatch.setattr(readiness, "QDRANT_MIN_POINTS", 1000)
+    body = await readiness.report()
+    q = body["checks"]["qdrant"]
+    assert q["verdict"] != "up", q
+    detail = q.get("detail") or ""
+    assert "門檻" in detail and "設錯" in detail, detail
+    assert "集合是空的" not in detail, f"非零卻說是空 —— 訊息在說謊：{detail}"
+
+
+@pytest.mark.asyncio
+async def test_qdrant_reports_the_actual_point_count(monkeypatch):
+    """通過時也要報出**實際點數** —— 否則門檻調整後無法從日誌對照現況。"""
+    w = _ready(monkeypatch)
+    w.qdrant_points = 39880
+    body = await readiness.report()
+    q = body["checks"]["qdrant"]
+    assert q["verdict"] == "up", q
+    assert "39880" in (q.get("detail") or ""), q
+
+
+@pytest.mark.asyncio
+async def test_qdrant_without_a_point_count_is_unverifiable_not_ok(monkeypatch):
+    """讀不到點數 → **不得當通過**。
+
+    這是「無法驗證」與「驗證失敗」的分界：空集合正是這個形狀，所以
+    「讀不到欄位」不能被當成「沒問題」。
+    """
+    w = _ready(monkeypatch)
+    w.qdrant_points = None               # 回應裡沒有 points_count
+    body = await readiness.report()
+    q = body["checks"]["qdrant"]
+    assert q["verdict"] != "up", f"讀不到點數不該算 up：{q}"
+    assert body["ok"] is False
+
+
+@pytest.mark.asyncio
+async def test_qdrant_non_json_response_is_unverifiable_not_ok(monkeypatch):
+    """回的不是 JSON → 一樣不算 up。
+
+    代理／閘道插了一頁 HTML 是現實會遇到的狀況，而 `r.json()` 會拋例外 ——
+    那個例外若沒被接住，會變成「看起來像故障但沒說是什麼」。
+    """
+    w = _ready(monkeypatch)
+    w.qdrant_bad_json = True
+    body = await readiness.report()
+    q = body["checks"]["qdrant"]
+    assert q["verdict"] != "up", f"非 JSON 不該算 up：{q}"
+    assert body["ok"] is False

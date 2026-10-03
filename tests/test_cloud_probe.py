@@ -147,6 +147,11 @@ def _ok_deps(monkeypatch):
 
     class _Resp:
         status_code = 200
+        # ⚠️ 2026-10-03：`_check_qdrant` 會問**點數**（存在性不等於內容 ——
+        #   空集合也回 200）。原本這裡的假物只有 `status_code`，於是三條測試
+        #   因為「假物太假」而紅，那不是被測邏輯的問題。
+        def json(self):
+            return {"result": {"status": "green", "points_count": 1234}}
 
     async def pool_get():
         class _Con:
