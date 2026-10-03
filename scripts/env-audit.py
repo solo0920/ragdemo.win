@@ -803,6 +803,32 @@ def _is_machine_scoped(key: str) -> bool:
     return prefix.lower() in {h.lower() for h in hosts}
 
 
+def _default_looks_like_host(r) -> bool:
+    """`ports:` 裡的變數，其**預設值是否像一台機器的身分**（IP 或主機名）。
+
+    為什麼需要這個判準：2026-10-03 之前，`in_ports` 就足以要求「本機必須覆蓋」
+    —— 那時 `ports:` 裡的變數只有 `TS_IP`，而它的預設值**是另一台機器的 tailscale
+    IP**，不改就會去 bind 那個 IP。
+
+    但加了 `${API_PORT:-8000}`（主機側發布埠）之後，**埠碼不是身分** —— 三台都該
+    是 8000，沒設才是對的。要求覆蓋會讓每台都被報「機台身份必須覆蓋」，而那個
+    判斷是錯的。
+
+    所以：**看預設值像不像 host**，而不是看它出現在 `ports:` 裡。
+    """
+    d = (getattr(r, "compose_default", "") or "").strip()
+    if not d:
+        return False
+    import ipaddress
+    try:
+        ipaddress.ip_address(d)
+        return True
+    except ValueError:
+        pass
+    # 像主機名：有字點或至少兩個字元、不是純數字（埠碼）、不是布林
+    return bool(re.match(r"^[A-Za-z][A-Za-z0-9.-]*$", d)) and not d.isdigit()
+
+
 def check_hosts_table(reg: dict[str, Ref], env: dict[str, str]) -> int:
     """settings/env/hosts.shared.env 的每個 base 鍵都必須真的有程式讀取。
 
@@ -881,7 +907,20 @@ def audit(env: dict[str, str], reg: dict[str, Ref], label: str) -> int:
             # （rag.py:33-34：設了 OLLAMA_URLS，OLLAMA_BASE_URL 就用不到）
             if r.superseded_by and env.get(r.superseded_by):
                 continue
-            if r.in_ports or r.has_identity_default():
+            # ⚠️ 2026-10-03：`in_ports` **不能單獨**就要求覆蓋。
+            #
+            # 原本是 `if r.in_ports or r.has_identity_default()`，那是為了擋
+            # `${TS_IP:-100.119.83.111}` —— 它的預設值**是另一台機器的身份**，
+            # 在別的機器上綁那個 IP 會 docker 啟動即失敗。
+            #
+            # 但 2026-10-03 加了 `${API_PORT:-8000}`（主機側發布埠）之後，
+            # 任何用在 `ports:` 的變數都被要求「本機必須覆蓋」—— 而 `8000`
+            # **不是身份**，三台都該是 8000。於是每台都會被報
+            # 「機台身份必須覆蓋」，而它其實是正確的。
+            #
+            # 所以判準收斂成：**預設值是身份**（`has_identity_default()`）
+            # **或**（用在 ports 且預設值看起來像 IP／主機名）。
+            if r.has_identity_default() or (r.in_ports and _default_looks_like_host(r)):
                 wrong.append(name)
         if wrong:
             print(f"  [{label}] 機台身份必須覆蓋（本機 HOST_ID={my_host}，"

@@ -112,8 +112,18 @@ def test_readiness_and_query_are_separate_checks():
     """
     fns = _fns()
     readiness, query = fns["ch_readiness"], fns["ch_query"]
-    assert "/ready" in readiness and "8000/ready" in readiness
-    assert "/query" in query and "8000/query" in query
+    # ⚠️ 2026-10-03：原本斷言 `"8000/ready" in readiness` —— **那等於把「寫死
+    # 埠碼」當成正確行為釘住**。2026-10-03 把 ch_readiness／ch_query 改成讀
+    # `$API_URL`（可用 HOST_API_LOCAL 覆寫）之後，這條斷言擋住了正確的改法。
+    #
+    # 那是本專案今天記錄了八次的那一類的**倒過來**版本：守衛不是抓壞的，
+    # 而是**擋住修好的**。而症狀一樣是「測試紅了，但紅的原因指向錯的方向」。
+    assert "/ready" in readiness, "ch_readiness 必須打 /ready"
+    assert "${API_URL}/ready" in readiness, (
+        "ch_readiness 必須打 `${API_URL}/ready` —— 寫死 8000 會讓 "
+        "HOST_API_LOCAL 對這一項失效（改埠之後症狀是「明明改了卻沒生效」）")
+    assert "/query" in query and "${API_URL}/query" in query, \
+        "ch_query 必須打 `${API_URL}/query`（理由同上）"
     assert "/query" not in readiness, \
         "/ready 檢查不該自己去打 /query —— 那會讓它變慢，而它會被輪詢"
     assert "/health" not in readiness, (
@@ -436,3 +446,130 @@ def test_law_version_checks_the_log_before_blaming_synced_at():
     assert log_chk < synced_msg, (
         "先回報 synced_at 才查 log —— **先講錯的那個**，會讓人去查上游而不是排程")
     assert "排程" in body, "必須把「排程」與「版本」分開講"
+
+
+# ── port 被別人佔走（2026-10-03，mbp 回報的真實事故）────────────────────────
+
+def test_api_identity_and_port_owner_exist_and_are_wired():
+    """`api-identity` 與 `api-port-owner` 必須存在**而且被呼叫**。
+
+    事故：mbp 上 Homebrew 的 `omlx-server` 搶先綁 8000，我們的 api 容器之後
+    publish **不報錯但被遮蔽**（OrbStack 的 port 轉發是 userspace proxy）。
+    於是 doctor 報「readiness 404 / query 404」—— **症狀，不是原因**。
+    人會去查「為什麼 /ready 沒了」，而真正的事實是「這個 port 上根本不是
+    本專案的 API」。而 `code-drift` 仍綠，因為它是 docker exec 在容器內比對。
+    """
+    fns = _fns()
+    for name in ("ch_api_identity", "ch_api_port_owner"):
+        assert name in fns, f"缺少 {name}()"
+        assert name in re.findall(r"^ch_[a-z_]+$", SRC, re.M), \
+            f"{name}() 定義了但沒被呼叫 —— 定義了不跑等於沒有"
+
+
+def test_api_identity_checks_content_not_only_the_status_code():
+    """**必須比對回應「內容」，不能只看 HTTP code。**
+
+    ⚠️ 實測：omlx 的 `/health` 回的是 **HTTP 200** —— 所以只查 code 的話，
+    一個佔了 port 的外來程式**完全可以完全隱形**。舊的 `ch_readiness` 查的是
+    `/ready`（那裡是 404），而它**根本沒查 `/health`**。
+
+    我們的 `/health` 一定帶 `collection`／`host_id`／`host`；omlx 回的是
+    `{"status":"healthy","default_model":null,"engine_pool":{…}}`，三個都沒有。
+    """
+    body = _fns()["ch_api_identity"]
+    assert "/health" in body, "要查 /health —— 那是外來程式最可能回 200 的端點"
+    assert "API_IDENTITY_FIELDS" in body, \
+        "必須有一個欄位白名單來認出身分，而不是硬寫在 grep 裡"
+    # 判準必須是「內容裡有沒有那些欄位」，不是「code 是不是 200」
+    assert re.search(r"grep\s+-Eq?\s+\"?\\\$?\{?API_IDENTITY_FIELDS", body) or \
+           'API_IDENTITY_FIELDS' in body and 'grep -Eq' in body, \
+        "放行／擋下的判準必須是 grep 內容，不是 http_code"
+    assert "http_code" in body, "仍需要 http_code（用於回報），但不能只有它"
+
+
+def test_port_owner_does_not_mistake_a_non_process_field_for_a_name():
+    """**`ss -ltnp` 沒有 process 資訊時，不可把別的欄位當成進程名。**
+
+    ⚠️ 2026-10-03 在 wsl 實測：`ss -ltnp` 那一行只有 **5 個欄位**（port 轉發跑在
+    另一個 namespace），而 **`$NF` 會抓到最後一個有值的欄位** —— 也就是 peer
+    address `0.0.0.0:*`。
+
+    第一版就這樣印出「監聽者：0.0.0.0:*」。**症狀是垃圾進 → 看起來很合理的錯
+    輸出**：一句話解釋了 8000 是誰在用，而那是錯的 —— 比報錯更糟，因為人會照著
+    那個錯名字去查。
+
+    有 process 時欄位是 7 個（State/Recv-Q/Send-Q/Local/Peer/Process），
+    所以必須要求 `NF>=7`。
+    """
+    body = _fns()["ch_api_port_owner"]
+    assert re.search(r"NF\s*>=\s*7", body), \
+        "抓 process 欄必須要求 NF>=7 —— 否則沒有 process 資訊時會抓到 peer address"
+    assert not re.search(r"\{print\s+\$NF\}", body), \
+        "不可用 $NF 抓 ss 的 process 欄（沒有 process 資訊時它會回 peer address）"
+
+
+def test_lsof_and_ss_pipelines_cannot_kill_the_script(tmp_path):
+    """**`lsof` 回 1 時，整支腳本必須活著。**
+
+    ⚠️ 2026-10-03 實測：`lsof` 沒有相符時回 **1**，而 `set -o pipefail` 會把那個
+    1 傳成整條管線的結果 → `out="$(…)"` 那行回 1 → **`set -e` 整支腳本死掉**。
+
+    症狀是「stdout 零行、stderr 零行、exit 1」—— 完全看不出是哪一行，而
+    `bash -n` 語法檢查**通過**（因為它語法真的沒錯）。
+
+    ⚠️⚠️ 這一條**第一版是無效的**，而且無效的方式正是本專案今天記錄了七次的
+    那一種：斷言寫成 `assert "|| true" in line or "|| true" in body` ——
+    **第二個分支讓它恆真**。而且 `|| true` 在**續行**上，單行檢查本來就看不到。
+
+    所以改成**真的執行**：造一個回 1 的假 `lsof` 放進 PATH，然後在 `set -euo
+    pipefail` 下呼叫那個函式 —— 斷言它**回得出結論**，而不是把 shell 帶走。
+    """
+    import os
+    import stat
+    import subprocess
+
+    stub = tmp_path / "lsof"
+    stub.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+    stub_ss = tmp_path / "ss"
+    stub_ss.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    stub_ss.chmod(stub_ss.stat().st_mode | stat.S_IEXEC)
+
+    # ⚠️ 用檔案既有的 `_fns()`，不要自己寫 regex。第一版自己寫了
+    #   `^ch_api_port_owner\(\) \{(?:.*\n)*?\n\}`，抓不到（巢狀大括號），
+    #   得到 None → `AttributeError`。而這個檔案裡**早就有一個抽函式的工具**，
+    #   自己重寫一份只會得到不同的行為。
+    # ⚠️ 兩個坑，都要避開：
+    #   · `_fns()` 回的是**函式體**（不含 `name() {` 那一行）→ 要自己補頭，
+    #     否則 body 裡的 `local` 不在函式內 → `local: can only be used in a function`。
+    #   · `_fns()` 的正則只抓 `ch_*`，而 `_api_port` 以 `_` 開頭 → KeyError。
+    #     所以底層那個自己抽（用大括號配對，不用會漏掉巢狀的 regex）。
+    def body_of(name: str) -> str:
+        m = re.search(rf"^{re.escape(name)}\(\) \{{", SRC, re.M)
+        assert m, f"抽不到 {name}()"
+        i, depth = m.end(), 1
+        while i < len(SRC) and depth:
+            if SRC[i] == "{":
+                depth += 1
+            elif SRC[i] == "}":
+                depth -= 1
+            i += 1
+        return SRC[m.end():i - 1].strip("\n")
+
+    fns = "".join(f"{n}() {{\n{body_of(n)}\n}}\n" for n in ("_api_port", "ch_api_port_owner"))
+    script = f"""set -euo pipefail
+API_URL="http://127.0.0.1:8000"
+bump() {{ printf 'RESULT %s %s\\n' "$2" "$1"; }}
+{fns}
+ch_api_port_owner
+echo "SURVIVED"
+"""
+    env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+    r = subprocess.run(["bash", "-c", script], capture_output=True,
+                       text=True, env=env, timeout=60)
+
+    assert "SURVIVED" in r.stdout, (
+        "lsof 回 1 時**整支腳本被 set -e 殺掉**了 —— 症狀是沒有任何輸出、"
+        f"exit {r.returncode}。\n  stdout={r.stdout!r}\n  stderr={r.stderr[-300:]!r}")
+    assert "RESULT" in r.stdout, \
+        f"lsof 回 1 時沒有回出結論：{r.stdout!r}"

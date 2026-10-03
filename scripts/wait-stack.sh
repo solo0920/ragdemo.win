@@ -71,7 +71,7 @@ while :; do
 
   if [ "${containers_ok}" -eq "${total}" ] && [ "${total}" -gt 0 ] \
      && [ "${unhealthy}" -eq 0 ] \
-     && curl -s -o /dev/null -m 3 http://localhost:8000/health; then
+     && curl -s -o /dev/null -m 3 "${HOST_API_LOCAL:-http://127.0.0.1:8000}/health"; then
     echo "  ✓ 就緒，耗 ${elapsed}s"
     exit 0
   fi

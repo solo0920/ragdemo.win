@@ -517,9 +517,120 @@ ch_qdrant_keys() {
 # `/health` 回 200 是**設計如此**（它的語意是「進程活著且可達」，前端同儕探測
 # 依賴那個語意 —— 見 `frontend/src/routes/api/[...path]/+server.ts` 的 guard）。
 # 所以**不能**把依賴探測塞進 `/health`，要另外有 `/ready` 與真查詢。
+# ── API 身分與 port 占用者（2026-10-03，mbp 回報的真實事故）───────────────
+#
+# ⚠️ 為什麼需要：`ch_readiness` 只看 HTTP code。2026-10-03 mbp 上有另一個程式
+# （Homebrew 的 `omlx-server`，MLX 推論伺服器）**搶先綁定 8000**，我們的 api
+# 容器之後 publish **沒有報錯但被遮蔽**（OrbStack 的 port 轉發是 userspace proxy，
+# 搶輸時不報錯）。於是：
+#
+#   · `localhost:8000/ready` → **404**（那是 omlx 的回應）
+#   · `localhost:8000/query`  → **404**
+#   · 而容器內的 api **完全健康**（`code-drift` 仍綠，因為它是 docker exec）
+#
+# doctor 報的是「readiness 404 / query 404」—— **症狀，不是原因**。人會去查
+# 「為什麼 /ready 沒了」，而真正的事實是「這個 port 上根本不是本專案的 API」。
+#
+# 更嚴重的是 blast radius：`cloudflared` 的 `service: http://localhost:8000`
+# 讓 `api-mbp.ragdemo.win` **對外服務的是 omlx**，而 mbp 在 Pages worker 的
+# `API_ORIGINS` 輪詢清單裡 —— worker failover 到它會拿到錯的程式，
+# 症狀是「200 但內容不對」，比 502 更難查。
+#
+# 所以加兩條：**port 是誰的**（指名），以及 ** responding 的是不是我們的**（認身分）。
+
+# 我們的 /health 一定有的欄位 —— 拿來認出身分。omlx 回的是
+# {"status":"healthy","default_model":null,"engine_pool":{…}}，兩個都沒有。
+API_IDENTITY_FIELDS='collection|host_id|"host"'
+
+_api_port() {
+  # 從 API_URL 取 port（預設 8000）。不用複雜解析 —— 這只是要一個數字。
+  printf '%s' "${API_URL##*:}" | tr -dc '0-9' | head -c 5
+  [ -n "$(printf '%s' "${API_URL##*:}" | tr -dc '0-9' | head -c 5)" ] || printf '8000'
+}
+
+ch_api_identity() {
+  # ** responding 的到底是不是本專案的 API。**
+  #
+  # 這不是「多檢查一次」而是**換一個判準**：原來只看 HTTP code，而別的程式
+  # 完全可以回 200（omlx 的 /health 就是 200）。所以要比對**內容**。
+  local port body code
+  port="$(_api_port)"
+  body="$(curl -s -m 15 -o /tmp/.id.$$ -w '%{http_code}' "${API_URL}/health" 2>/dev/null)" || body=""
+  if [ -z "$body" ] || [ "$body" = "000" ]; then
+    bump api-identity skip "打不到 ${API_URL}/health（api 沒起來？）"
+    rm -f "/tmp/.id.$$"; return
+  fi
+  if grep -Eq "$API_IDENTITY_FIELDS" "/tmp/.id.$$" 2>/dev/null; then
+    bump api-identity ok "回應含本專案的欄位（collection／host_id）—— 確認是 ragdemo 的 API"
+    rm -f "/tmp/.id.$$"; return
+  fi
+  # ⚠️ 走到這裡 = port 上是**別的東西**。把它的樣子帶回去（截斷，不整份貼）。
+  local peek=""
+  peek="$(head -c 160 "/tmp/.id.$$" 2>/dev/null | tr -d '\n' | tr -s ' ')"
+  bump api-identity fail "HTTP ${body}，但**回應裡沒有本專案的欄位** → 這個 port 上**不是** ragdemo 的 API。看到的內容：${peek:-（空）}　處置：看下一項 api-port-owner 是誰佔著"
+  rm -f "/tmp/.id.$$"
+}
+
+ch_api_port_owner() {
+  # **誰佔著 API 的 port。** 有了名字才能行動（否則只能猜）。
+  #
+  # 可攜性：macOS 與 Linux 都用 `lsof`；`ss` 只有 Linux 有。這正是本專案踩過的
+  # 「指令存在性」那一類（`timeout` 只有 GNU coreutils 有）—— 所以兩個都試。
+  #
+  # ⚠️ 但還有**第三種情況**別忘了：WSL／Docker 的 port 轉發跑在**另一個
+  # namespace**，所以那台上 `lsof` **跑得掉但看不到任何東西**，
+  # 而 `ss -ltn` 看得到監聽、`ss -ltnp` 的 process 欄卻是空的。
+  # 2026-10-03 在 wsl 實測就是這個樣子。
+  #
+  # 所以**不能把「看不到」都說成「沒有 lsof／ss」** —— 那會讓人去裝工具，
+  # 而真正的事實是「有人在聽，只是這個 namespace 指不到」。
+  local port named="" listeners="" how=""
+  port="$(_api_port)"
+
+  if command -v lsof >/dev/null 2>&1; then
+    how="lsof"
+    # ⚠️ `|| true` 不是多餘的：**lsof 沒有相符時回 1**，`set -o pipefail` 會把
+    # 那個 1 傳成整條管線的結果 → 指派那行回 1 → `set -e` **整支腳本死掉**。
+    # 症狀是「stdout 零行、stderr 零行、exit 1」，完全看不出是哪一行。
+    named="$( { lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true; } \
+               | tail -n +2 | awk '{print $1" (pid "$2")"}' | sort -u | tr '\n' ' ' || true)"
+  fi
+
+  if [ -z "$named" ] && command -v ss >/dev/null 2>&1; then
+    [ -n "$how" ] || how="ss"
+    listeners="$( { ss -ltn 2>/dev/null || true; } \
+                  | awk -v p=":$port\$" '$4 ~ p {print $4}' | sort -u | tr '\n' ' ' || true)"
+    if [ -n "$listeners" ]; then
+      # ⚠️⚠️ **必須要求 NF>=7**。2026-10-03 在 wsl 實測：`ss -ltnp` 那一行只有
+      # **5 個欄位**（沒有 process 資訊，因為 port 轉發在別的 namespace），
+      # 而 `$NF` 會抓到**最後一個有值的欄位** —— 也就是 peer address
+      # `0.0.0.0:*`。於是它被當成「監聽者名字」印出來。
+      #
+      # **症狀是垃圾進 → 看起來很合理的錯輸出**（一句話解釋了 8000 是誰在用，
+      # 而那是錯的）。這比報錯更糟，因為它會讓人照著錯的名字去查。
+      # 有 process 時欄位是 7 個：State/Recv-Q/Send-Q/Local/Peer/Process。
+      named="$( { ss -ltnp 2>/dev/null || true; } \
+                 | awk -v p=":$port\$" '$4 ~ p && NF>=7 {print $7}' | sort -u | tr '\n' ' ' || true)"
+    fi
+  fi
+
+  if [ -n "$named" ]; then
+    bump api-port-owner ok "${port} 的監聽者（${how}）：${named}　⚠️ 若出現**不是**容器／proxy 的程式，它可能遮蔽了 api（見 api-identity）"
+  elif [ -n "$listeners" ]; then
+    bump api-port-owner warn "${port} **有東西在聽**：${listeners} —— 但指不到 process（${how} 在這個 namespace 看不到；WSL/Docker 的 port 轉發常如此）。有人佔用**不等於**有問題；真正的判準在 api-identity 那條。"
+  elif [ -z "$how" ]; then
+    bump api-port-owner skip "這台沒有 lsof／ss，看不到誰佔著 ${port}（手動：ss -ltnp | grep :${port}）"
+  else
+    bump api-port-owner skip "${port} 沒有監聽者 —— api 還沒 publish（或根本沒跑）"
+  fi
+}
+
 ch_readiness() {
   local body rc=0
-  body="$(curl -s -m 20 -o /tmp/.rd.$$ -w '%{http_code}' http://localhost:8000/ready 2>/dev/null)" || rc=1
+  # ⚠️ 2026-10-03：原本寫死 `http://localhost:8000/ready`，而 `API_URL` 是第 38 行
+  #   的變數（可用 `HOST_API_LOCAL` 覆寫）。**寫死等於讓那個覆寫對這一項失效** ——
+  #   改埠之後 doctor 會繼續打舊埠，症狀是「明明改了卻沒生效」。
+  body="$(curl -s -m 20 -o /tmp/.rd.$$ -w '%{http_code}' "${API_URL}/ready" 2>/dev/null)" || rc=1
   if [ "$rc" -ne 0 ] || [ -z "$body" ]; then
     bump readiness skip "打不到 /ready（api 沒起來？）"
     rm -f "/tmp/.rd.$$"; return
@@ -566,8 +677,9 @@ ch_query() {
     return
   fi
   local out code
+  # ⚠️ 2026-10-03：同上，這裡原本也寫死 8000（見 ch_readiness 的說明）。
   out="$(curl -s -m 120 -o /tmp/.qq.$$ -w '%{http_code}' \
-        -X POST http://localhost:8000/query \
+        -X POST "${API_URL}/query" \
         -H 'Content-Type: application/json' \
         -d '{"question":"健康檢查：請用一句話說明民法第18條","top_k":2}' 2>/dev/null)"
   code="$out"
@@ -1016,6 +1128,8 @@ ch_code_drift
 # 後面的結果沒有意义（例如 api 沒起來時 ch_query 必然失敗，那不是新問題）。
 ch_sops
 ch_qdrant_keys
+ch_api_port_owner
+ch_api_identity
 ch_readiness
 ch_query
 ch_env_check

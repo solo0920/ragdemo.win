@@ -70,7 +70,10 @@ healthy() {
   st=$(docker compose ps --format '{{.Name}} {{.State}}' 2>/dev/null | awk '{print $2}')
   echo "$st" | grep -q restarting && return 1
   [ "$(echo "$st" | grep -c running)" -ge 3 ] || return 1
-  curl -sf -m 8 -o /dev/null http://127.0.0.1:8000/health
+  # ⚠️ 2026-10-03：原本寫死 `127.0.0.1:8000`。`HOST_API_LOCAL` 是既有的 per-host
+  #   覆寫變數（`.env` 有、host-doctor.sh:38 與 host-sync.sh:47 都讀），但這裡沒讀 ——
+  #   於是**改埠之後這裡會繼續打舊埠**，症狀是「stack 一直等不到就緒」。
+  curl -sf -m 8 -o /dev/null "${HOST_API_LOCAL:-http://127.0.0.1:8000}/health"
 }
 
 # 3) 先等冷卻期。healthy 一開始就成立時這裡立刻返回，所以對正常狀態

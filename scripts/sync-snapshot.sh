@@ -156,9 +156,21 @@ sync_law_version() {
   if [ -n "${SRC_API_URL:-}" ]; then
     SRC_API="$SRC_API_URL"
   else
+    # ⚠️ 2026-10-03：原本寫死 `:8000`。優先序不變（SRC_API_URL > 這個 fallback），
+    #   但 fallback 的埠跟著 `HOST_API_LOCAL` 走 —— 否則改埠之後**這裡會靜默地
+    #   指向舊埠**，症狀是「快照同步看起來成功但 law_version 不更新」。
+    #
+    # ⚠️ 第一版寫成 `printf '%s' "$URL" | tr -dc '0-9'`，那是**錯的** ——
+    #   它會把整個 URL 的數字都串起來：`http://127.0.0.1:8000` → `1270018000`。
+    #   （我當時還註解說「hostname 裡本來就不該有數字」，而 `127.0.0.1` 全是數字。）
+    #   正確做法是 `${VAR##*:}` 取**最後一個冒號之後**那段 —— 與
+    #   host-doctor.sh 的 `_api_port()` **寫法完全相同**，避免兩處漂移。
+    _api_url="${HOST_API_LOCAL:-http://127.0.0.1:8000}"
+    _api_port="$(printf '%s' "${_api_url##*:}" | tr -dc '0-9')"
+    [ -n "$_api_port" ] || _api_port=8000
     case "$SOURCE" in
-      *:[0-9]*) SRC_API="${SOURCE%:*}:8000" ;;
-      *)        SRC_API="$SOURCE:8000" ;;
+      *:[0-9]*) SRC_API="${SOURCE%:*}:${_api_port}" ;;
+      *)        SRC_API="$SOURCE:${_api_port}" ;;
     esac
   fi
   # ⚠️ 這行的 `|| true` 不能拿掉：pipefail 下 curl 連不上會讓整個賦值回傳非零，
