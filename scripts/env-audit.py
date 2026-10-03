@@ -132,6 +132,10 @@ TOOL_ENV = {
     # .env.example，等於在文件裡邀請人設一個只給測試用的變數 —— 那個變數設錯
     # 會讓腳本操作另一個目錄的加密檔。
     "ROTATE_SECRET_ROOT_OVERRIDE",
+    # 同上：tests/test_env_diff_hosts.py 用它把欄位目錄指到 tmp，避免測試
+    # 依賴「repo 現在有幾份快照」（2026-10-03 x570／mbp 提交自己的快照後
+    #  那兩條測試在兩台都紅，而 wsl 還綠 —— 紅的原因與被測邏輯無關）。
+    "ENV_DIFF_HOSTS_COL_DIR",
     # sops 官方的私鑰路徑變數。同樣是「工具的」不是「專案的」——
     # 它由呼叫者的環境決定，而 .env 是在腳本**內部**被 `set -a; . .env` 讀進來的
     # （rotate-secret.sh 不讀 .env、backup-env.sh 也不讀），所以在 .env 裡設它

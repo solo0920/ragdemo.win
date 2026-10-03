@@ -43,12 +43,31 @@ opencode）看的規格。實際套用是每台各自跑 `env-relayout.py`／手
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-COL_DIR = ROOT / "settings" / "env" / "host-inventory"
+# 測試用的覆寫點（tests/test_env_diff_hosts.py 用它把欄位目錄指到 tmp）。
+#
+# ⚠️ 2026-10-03 為什麼需要：這個腳本會**自動補上 `COL_DIR` 裡已存在的快照**
+#   （見下面 `stored = COL_DIR / f"{h}.txt"`）。而
+#   `test_needs_at_least_two` 與 `test_missing_hosts_are_named_not_silently_skipped`
+#   只傳一個檔、預期腳本拒絕 —— 那個前提**只在 repo 裡恰好只有一份快照時成立**。
+#
+#   實測：x570／mbp 提交自己的 `host-inventory/<host>.txt` 之後，那兩條測試在
+#   **兩台都紅**，而 wsl 還綠（因為 wsl 這裡只有一份）。**症狀是「測試紅，但紅的
+#   原因跟被測的邏輯無關」** —— 它測的是「repo 現在有幾份快照」，不是腳本的行為。
+#   而一旦那兩台的 commit 落地，**wsl 也會跟著紅**。
+#
+#   修法不是放寬斷言，而是**讓測試在 tmp 目錄裡執行** —— 與既有的
+#   `ROTATE_SECRET_ROOT_OVERRIDE`／`ENV_SYNC_DIR` 同一個惯例。
+#   它是**測試專用**，不是給 `.env` 設的（所以不進 .env.example，見 env-audit
+#   的測試 harness 清單）。
+COL_DIR = Path(os.environ["ENV_DIFF_HOSTS_COL_DIR"]) \
+    if os.environ.get("ENV_DIFF_HOSTS_COL_DIR") \
+    else ROOT / "settings" / "env" / "host-inventory"
 COL_RE = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)\b")
 STATUSES = ("SET", "EMPTY", "ABSENT")
 

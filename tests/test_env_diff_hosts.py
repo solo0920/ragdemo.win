@@ -18,6 +18,7 @@ CI 常見坑：CI 是乾淨 clone、**沒有 `.env`**，於是測試在這台全
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -30,9 +31,35 @@ WSL_COL = ROOT / "settings" / "env" / "host-inventory" / "wsl.txt"
 COL_RE = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)\b")
 
 
-def run(*args, stdin=None):
+def run(*args, stdin=None, col_dir=None):
+    """跑 `env-diff-hosts.py`。`col_dir` 指定「repo 裡已存在的快照目錄」。
+
+    ⚠️ 2026-10-03：**預設必須指向一個 tmp 目錄，不能用 repo 真的那個。**
+
+    那個腳本會**自動補上 `host-inventory/` 裡已存在的快照**，所以「只傳一個檔」
+    這個前提**只在 repo 恰好只有一份快照時成立**。實測：x570／mbp 提交自己的
+    `host-inventory/<host>.txt` 之後，依賴那個前提的兩條測試**在兩台都紅**，
+    而 wsl 還綠 —— **症狀是「測試紅，但紅的原因與被測的邏輯無關」**。
+
+    而這不是那兩台造成的：一旦它們的 commit 落地，**wsl 也會跟著紅**。
+    所以預設用 tmp（空的），讓「只有一台」這個情境由測試自己建立，
+    而不是我碰巧處在只有一份快照的 repo 裡。
+    """
+    env = dict(os.environ)
+    if col_dir is not None:
+        env["ENV_DIFF_HOSTS_COL_DIR"] = str(col_dir)
+    else:
+        env.pop("ENV_DIFF_HOSTS_COL_DIR", None)
     return subprocess.run([sys.executable, str(SCRIPT), *args],
-                          capture_output=True, text=True, cwd=ROOT, input=stdin)
+                          capture_output=True, text=True, cwd=ROOT,
+                          input=stdin, env=env)
+
+
+def _isolated_col_dir(tmp_path: Path) -> Path:
+    """一個**空的**欄位目錄 —— 模擬「repo 只有傳進來的那一份」。"""
+    d = tmp_path / "host-inventory"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def base_column() -> dict[str, str]:
@@ -56,9 +83,15 @@ def write_col(path: Path, col: dict[str, str]) -> Path:
     return path
 
 
-def test_needs_at_least_two():
-    """只有一台時要明確拒絕 —— 產出「全部一致」的表會讓人以為比對過了。"""
-    r = run("settings/env/host-inventory/wsl.txt")
+def test_needs_at_least_two(tmp_path):
+    """只有一台時要明確拒絕 —— 產出「全部一致」的表會讓人以為比對過了。
+
+    ⚠️ 2026-10-03：原本**沒有** `col_dir`，所以它測的是「repo 現在只有一份快照」。
+      x570／mbp 提交自己的快照後這條在兩台都紅 —— 而紅的原因與腳本無關。
+      現在用 tmp 的空目錄，讓情境由測試自己建立。
+    """
+    r = run("settings/env/host-inventory/wsl.txt",
+            col_dir=_isolated_col_dir(tmp_path))
     assert r.returncode != 0, "只有一台時應該失敗"
     assert "至少要有兩台" in r.stderr, r.stderr
 
@@ -140,7 +173,7 @@ def test_prints_the_verification_step(tmp_path):
         "要說明怎麼驗收（三台版面指紋相同）"
 
 
-def test_missing_hosts_are_named_not_silently_skipped():
+def test_missing_hosts_are_named_not_silently_skipped(tmp_path):
     """少一台時要**指名**缺哪台，並給出取得它的指令。
 
     靜默跳過的後果：比對表看起來完整（三欄），但其中一欄其實是「沒資料」——
@@ -149,8 +182,12 @@ def test_missing_hosts_are_named_not_silently_skipped():
     ⚠️ 這條只給一台，卻預期它在**報缺哪幾台**之後才拒絕。所以順序很重要：
     先指名缺口，再說「至少兩台」—— 反過來的話，使用者只看到「給兩台」，
     不知道該去問誰。
+
+    ⚠️ 2026-10-03：同 `test_needs_at_least_two` —— 必須用 tmp 的空目錄，否則
+      這條測的是「repo 有幾份快照」。它在 x570／mbp 上紅、wsl 上綠。
     """
-    r = run("settings/env/host-inventory/wsl.txt")
+    r = run("settings/env/host-inventory/wsl.txt",
+            col_dir=_isolated_col_dir(tmp_path))
     assert r.returncode != 0
     assert "x570" in r.stderr and "mbp" in r.stderr, \
         f"要指名缺哪幾台，實際：{r.stderr}"
