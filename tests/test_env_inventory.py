@@ -37,7 +37,7 @@ def _gen():
 
 # ── 不含值 ─────────────────────────────────────────────────────────────
 
-def test_inventory_contains_no_credential_values():
+def test_inventory_contains_no_credential_values(tmp_path):
     """產出的檔不得含任何憑證值。
 
     檢查方式是「逐鍵比對 `.env` 的實際值」—— 比掃描長字串可靠，後者會
@@ -48,9 +48,18 @@ def test_inventory_contains_no_credential_values():
     那不是洩漏，是文件。第一版檢查所有鍵，於是 `ZEN_BASE_URL` 被報出來，
     而那是**誤報**：清單裡出現它只是因為 env-audit 反查到了它的預設值。
     """
-    r = _run()
+    # ⚠️ 2026-10-03：這裡**必須**用 `--out` 指到 tmp。
+    #   完整模式會寫檔，而這裡寫的是**版控中的** ENV-VARIABLE-INVENTORY.md ——
+    #   於是「跑測試」本身會弄髒 working tree，接著 `git add -A` 就把副作用
+    #   掃進 commit。實測：mbp 提交的 `3897308`／`caf9595` 訊息寫「提交本機
+    #   欄位快照」，內容其實是 pytest 的副作用（47～78 行），而且把**別機**
+    #   的欄位洗成「待填」。
+    #
+    #   `--out` 不是新加的旗標 —— 它本來就存在（第 197 行），只是沒人用。
+    out = tmp_path / "ENV-VARIABLE-INVENTORY.md"
+    r = _run("--out", str(out))
     assert r.returncode == 0, r.stderr
-    text = INVENTORY.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8")
     env = ROOT / ".env"
     if not env.is_file():
         return          # CI 乾淨 clone 沒有 .env，無可檢
@@ -399,3 +408,84 @@ def test_hosts_table_is_documented_and_runnable():
                        cwd=ROOT)
     assert r.returncode == 0, r.stderr
     assert "LLM_MODEL" in r.stdout
+
+
+# ── 兩個生產者必須覆蓋同一組鍵 ──────────────────────────────────────────
+
+def _table_of(out: Path, host: str) -> dict[str, str]:
+    """從總表抽出 `host` 那一欄的「鍵 → 儲存格文字」，**跨所有表格**。
+
+    ⚠️ 2026-10-03：第一版只讀**第一張表**（共享憑證那張），於是幾乎沒抓到
+    東西 —— 因為 wsl 在那張表裡的鍵**全都是 SET**，而真正會被印成「待填」的
+    是 `API_PORT`／`QDRANT_URLS` 這些在**別的表**裡的鍵。
+
+    **症狀是「測試綠，但綠的時候它其實沒在測東西」** —— 那正是這次要抓的病，
+    我自己第一版就染上了。
+    """
+    lines = out.read_text(encoding="utf-8").splitlines()
+    cells: dict[str, str] = {}
+    seen_header = False
+    idx: int | None = None
+    for ln in lines:
+        if ln.startswith("| 變數") and "決策" in ln:
+            hdr = [c.strip() for c in ln.strip().strip("|").split("|")]
+            assert host in hdr, f"表頭沒有 {host} 那一欄：{hdr}"
+            idx = hdr.index(host)
+            seen_header = True
+            continue
+        if ln.startswith("##"):
+            idx = None          # 換段落 → 表格結束
+            continue
+        if idx is None:
+            continue
+        if not ln.startswith("|"):
+            idx = None          # 表格結束（下一段文字）
+            continue
+        if not ln.startswith("| `"):
+            continue            # 分隔線 `|---|---|` —— **不可**在這裡收掉 idx
+        parts = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(parts) <= idx:
+            continue
+        cells[parts[0].strip("`")] = parts[idx]
+    assert seen_header, f"{out} 裡找不到任何總表表頭"
+    return cells
+
+
+def test_local_machine_column_says_absent_not_unfilled(tmp_path):
+    """本機沒設的鍵，總表裡要寫 ABSENT，**不是「待填」**。
+
+    「待填」的語意是「**還沒人填**」。拿它代表「本機確定沒設」，會讓讀表的人
+    以為還有資料要補 —— 而實際上那 47 個鍵本來就不該存在於本機。
+
+    ⚠️ 這是「守衛存在但看不見現實」的第 11 次（2026-10-03）。`local_column()`
+      只回報 `.env` 裡**有**的鍵，`--emit-column` 卻為 72 個鍵都補 ABSENT；
+      兩個生產同一種東西的函式**格式不對稱**。連帶的實測傷害：完整模式被
+      測試呼叫 → 每台跑一次 pytest 就改寫版控檔一次。
+    """
+    env = ROOT / ".env"
+    if not env.is_file():
+        return          # CI 乾淨 clone：沒有本機欄位可講
+    my_id = next((ln.split("=", 1)[1].strip() for ln in
+                  env.read_text(encoding="utf-8").splitlines()
+                  if ln.startswith("HOST_ID=")), "")
+    if not my_id:
+        return
+
+    out = tmp_path / "inv.md"
+    r = _run("--out", str(out))
+    assert r.returncode == 0, r.stderr
+
+    emitted: dict[str, str] = {}
+    for ln in _run("--emit-column").stdout.splitlines():
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)", ln.strip())
+        if m:
+            emitted[m.group(1)] = m.group(2)
+    assert emitted, "--emit-column 沒有輸出，無法比對"
+
+    col = _table_of(out, my_id)
+    bad = [f"{k}：總表寫 {col[k]!r}，但本機其實是 {emitted[k]}"
+           for k in sorted(set(emitted) & set(col))
+           if emitted[k] == "ABSENT" and col[k] != "ABSENT"]
+    assert not bad, (
+        "本機沒設的鍵被印成「待填」，等於對讀表的人說「還沒人填」：\n  "
+        + "\n  ".join(bad[:8]))

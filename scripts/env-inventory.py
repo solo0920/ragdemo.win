@@ -79,16 +79,36 @@ def _load_audit():
     return mod
 
 
-def local_column() -> dict[str, str]:
-    """本機 `.env` 每個鍵是 SET / EMPTY / ABSENT。**不讀值以外的任何東西。**"""
+def local_column(universe: set[str] | None = None) -> dict[str, str]:
+    """本機 `.env` 每個鍵是 SET / EMPTY / ABSENT。**不讀值以外的任何東西。**
+
+    ⚠️ 2026-10-03：`universe` 是**必填**的。之前沒有它，而這裡就是「守衛存在
+    但看不見現實」的第 11 次 —— 兩個**生產同一種東西**的函式格式不對稱：
+
+    | 生產者 | 鍵數 | 本機沒設的鍵 |
+    |---|---|---|
+    | `local_column()`（舊） | 25 | **不列出** |
+    | `--emit-column` | 72 | `ABSENT` |
+
+    而版控快照 `host-inventory/<host>.txt` 是 `--emit-column` 產的，所以總表裡
+    **別機的欄位有 ABSENT、本機的欄位沒有**。表格於是把「本機沒設」印成
+    「待填」—— 而「待填」的語意是「**還沒人填**」。表格**對本機說謊**。
+
+    連帶的傷害是實測的，不是推論：`tests/test_env_inventory.py` 會呼叫完整
+    模式，於是**每台跑一次 pytest 就改寫版控檔一次**（在 wsl 上跑一次
+    `pytest tests/test_env_inventory.py` = **47 行** churn）。而且 mbp 提交的
+    那兩筆 commit（`3897308`、`caf9595`）就是這樣來的 —— 訊息寫「提交本機
+    欄位快照」，實際內容是 pytest 的副作用把**別機的欄位洗掉**。
+    """
     env = ROOT / ".env"
     out: dict[str, str] = {}
-    if not env.is_file():
-        return out
-    for line in env.read_text(encoding="utf-8").splitlines():
-        m = ASSIGN.match(line)
-        if m:
-            out[m.group(1)] = "SET" if m.group(2) != "" else "EMPTY"
+    if env.is_file():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            m = ASSIGN.match(line)
+            if m:
+                out[m.group(1)] = "SET" if m.group(2) != "" else "EMPTY"
+    for k in (universe or set()) - out.keys():
+        out[k] = "ABSENT"
     return out
 
 
@@ -224,8 +244,13 @@ def main() -> int:
                 my_id = mm.group(1).strip()
                 break
 
+    # 兩個生產者（總表欄位、`--emit-column`）**必須用同一組鍵**，否則一個有
+    # ABSENT、另一個沒有 —— 那正是上面 `local_column` docstring 描述的病。
+    excluded = set(getattr(EA, "POLICY_EXCLUDED", {}))
+    universe = set(reg) - excluded
+
     if args.emit_column:
-        col = local_column()
+        col = local_column(universe)
         # ⚠️ POLICY_EXCLUDED 的鍵**不可**印成 `NAME=…`（2026-10-02 修正）。
         # 這個分支的輸出有兩個下游客戶：(a) 貼進聊天回報、(b) 存成
         # `settings/env/host-inventory/<host>.txt` 後 **commit**。
@@ -234,8 +259,7 @@ def main() -> int:
         # 守衛擋下。症狀很難查：指令成功、輸出看起來正常、然後 push 被拒。
         #
         # 這不是「擔心會不會被繞過」，而是**不要讓工具產出自己禁止的東西**。
-        excluded = set(getattr(EA, "POLICY_EXCLUDED", {}))
-        for k in sorted(set(reg) - excluded):
+        for k in sorted(universe):
             print(f"{k}: {col.get(k, 'ABSENT')}")
         # .env 裡有、但程式碼沒讀到的 —— 那是幽靈鍵，必須一起報，
         # 否則「清單」會漏掉最該被發現的那一類。
@@ -249,11 +273,11 @@ def main() -> int:
     cols: dict[str, dict[str, str] | None] = {}
     for h in hosts:
         if h == my_id:
-            cols[h] = local_column()
+            cols[h] = local_column(universe)
         else:
             cols[h] = stored_column(h)
     if my_id and my_id not in cols:
-        cols[my_id] = local_column()
+        cols[my_id] = local_column(universe)
 
     lines: list[str] = []
     A = lines.append
