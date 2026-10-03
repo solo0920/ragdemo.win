@@ -90,7 +90,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 | `JEV_MODEL` | compose.yaml:192, backend/app/rag.py:133 | **compose／backend** — 必填；預設 jev-latest | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 jev-latest） |
 | `JEV_VERIFY_MIN` | compose.yaml:199, backend/app/rag.py:136 | **compose／backend** — 必填；預設 0.4 | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 0.4） |
 | `KEEP_ALIVE` | compose.yaml:138, backend/app/gateway.py:89 | **compose／backend** — 必填；預設 -1 | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 -1） |
-| `LAW_SYNC_SOURCE` | scripts/law-update-worker.sh:120, scripts/sync-snapshot.sh:131 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | ABSENT | SET | ABSENT | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
+| `LAW_SYNC_SOURCE` | scripts/law-update-worker.sh:120, scripts/sync-snapshot.sh:131 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | ABSENT | SET | SET | **留** — 有值且被讀 |
 | `LIMIT` | ingest/laws/qdrant_load.py:304 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | ABSENT | ABSENT | ABSENT | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `MISTRAL_GATEWAY_URL` | compose.yaml:183, backend/app/rag.py:121 | **compose／backend** — 選填 | ABSENT | ABSENT | ABSENT | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `MISTRAL_MODELS` | compose.yaml:184 | **compose** — 預設 ministral-8b-latest,codestral-latest | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 ministral-8b-latest,codestral-latest） |
