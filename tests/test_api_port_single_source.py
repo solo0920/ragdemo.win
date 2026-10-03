@@ -35,10 +35,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 # 這些檔案裡的 8000 會被視為違規（可執行行）
+#
+# ⚠️ 2026-10-03 補 `.githooks/*` 的原因（實測事故）：換埠到 920 之後，
+#    `.githooks/pre-push` 裡 4 處 `localhost:8000` **完全沒被這條守衛看到**，
+#    症狀是 `RAGDEMO_SMOKE=1` 永遠報「api 不在線」而中止 push —— 等於
+#    「驗證答案非空」那道檢查從此沒跑過。另一個症狀更隱晦：非 smoke 分支
+#    在 mbp 上會替搶走 8000 的 omlx 印「✓ 本機 api OK」。
+#
+#    為什麼漏掉：**副檔名**。`.githooks/pre-push` 沒有副檔名，而當時清單是
+#    手列的（`scripts/*.sh`、`frontend/vite.config.ts`、`compose.yaml`）。
+#    我自己用 `grep --include='*.sh'` 找同一個問題時也漏了它 —— **同一個形狀**：
+#    以為自己找全了，其實篩選條件把它排除在外。
 SCANNED_GLOBS = (
     "scripts/*.sh",
     "frontend/vite.config.ts",
     "compose.yaml",
+    # 沒有副檔名的可執行檔。`Path.glob("*")` 不含隱藏目錄，所以用明確列舉。
+    ".githooks/pre-push",
 )
 
 # ⚠️ **散文型**的 8000：出現在**給人看的訊息字串**裡，不是請求端點。

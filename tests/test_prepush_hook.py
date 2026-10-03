@@ -102,16 +102,28 @@ def test_compose_check_uses_quiet_flag():
     （`invalid IP address: …`），**32 字元的真實密碼出現 0 次**。
     """
     text = _hook()
-    # 只比對「真的在執行」的呼叫（`if out="$(docker compose ...)"`），
-    # 不要匹配到錯誤訊息裡那個字串 —— `echo "✗ docker compose config 失敗"`
-    # 裡也有這五個字，但它不是執行（第一版就踩到這個：negation lookahead
-    # 跨過了換行才發現已經太晚）。
-    for m in re.finditer(r'\$\(\s*(docker compose [a-z]+(?: -q)?)', text):
-        call = m.group(1)
-        assert call.endswith(" -q"), (
-            f"實際執行的呼叫沒帶 -q: {call!r} —— "
-            f"沒有 -q 會把展開後的設定（含明文密碼）印出來"
-        )
+    # ⚠️ 2026-10-03 收窄：**威脅模型是「展開設定、把明文密碼印出來」**，那只有
+    #    `docker compose config` 做得到。原本這條對**任何**子命令都要求 `-q`，
+    #    於是 `docker compose ps` 也被綁住 —— 而 `ps -q` 只印容器 ID，
+    #    **答不出「發布在哪個埠」**，逼人用 `--format json` 繞（實測 json 會帶出
+    #    `Command` 欄位，argv 在別的设置裡可能帶明文密碼）。守衛把它推成一條
+    #    有害的路。
+    #
+    #    所以拆成兩條，各對應自己的洩漏面：
+    for m in re.finditer(r'\$\(\s*(docker compose config(?: -q)?)', text):
+        assert m.group(1).endswith(" -q"), (
+            f"實際執行的 config 呼叫沒帶 -q: {m.group(1)!r} —— "
+            f"沒有 -q 會把展開後的設定（含明文密碼）印出來")
+    # `ps` 要的是**欄位受限**的 --format，不是 `-q`、也不是 json
+    for m in re.finditer(r'\$\(\s*docker compose ps\b([^)]*)\)', text):
+        args = m.group(1)
+        assert "--format" in args, (
+            f"docker compose ps 沒有 --format：{args.strip()!r} —— "
+            f"裸的 ps 會印表格，欄位不受限")
+        assert "json" not in args, (
+            f"docker compose ps 用了 --format json：{args.strip()!r} —— "
+            f"實測它會帶出 `Command` 欄位，argv 可能含明文密碼。"
+            f"用欄位受限的格式（如 `--format '{{{{.Publishers}}}}'`）。")
     # 至少要有一個真的呼叫
     assert re.search(r'\$\(\s*docker compose', text), "沒找到 docker compose 的執行呼叫"
 

@@ -145,25 +145,68 @@ else
 fi
 
 # 5) 可選完整 HTTP smoke
+#
+# ⚠️ 2026-10-03：這裡原本**寫死 `localhost:8000`**（4 處）。換埠到 920 之後
+#    症狀是**假陰性**：`RAGDEMO_SMOKE=1` 永遠報「api 不在線」而中止 push ——
+#    等於「驗證答案非空」那道檢查**從此沒跑過**。
+#    而在 mbp 上它會變成**假陽性**：omlx 搶先綁 8000 時，`/health` 會回 200，
+#    於是印「✓ 本機 api OK」—— 那正是 `api-identity` 那個病（比報錯更糟）。
+#
+#    ⚠️ 這裡**刻意不寫預設埠**。寫死就會是第三份副本（compose 已經有一份），
+#    而換埠時它就是「靜默指向舊埠」的來源。取不到就**明確失敗**。
 if [ "${RAGDEMO_SMOKE:-0}" = "1" ]; then
-  if ! curl -sf -m 5 http://localhost:8000/health >/dev/null 2>&1; then
-    echo "✗ RAGDEMO_SMOKE=1 但本機 api(localhost:8000) 不在線，中止 push" >&2
+  _smoke_port=""
+  if [ -f .env ]; then
+    _smoke_port="$(sed -n 's/^API_PORT=//p' .env | tail -1 | tr -d ' \r')"
+  fi
+  if [ -z "$_smoke_port" ] && command -v docker >/dev/null 2>&1; then
+    # 從**現實**反查（不是從常數）：compose 實際發布的那個埠。
+    # ⚠️ 只用 `--format '{{.Publishers}}'`（**欄位受限**，只印一個欄位）。
+    #    別改成 `--format json` —— 實測它會帶出 `Command` 欄位，而 argv 在
+    #    別的设置裡可能帶明文密碼。那正是 `docker compose config -q` 那條
+    #    守衛要防的事，`ps` 也一樣。
+    _smoke_port="$(docker compose ps --format '{{.Publishers}}' api 2>/dev/null \
+      | grep -oE '[0-9]+ +[0-9]+ +tcp' | head -1 | awk '{print $1}')"
+  fi
+  if [ -z "$_smoke_port" ]; then
+    echo "✗ 拿不到本機 api 的主機埠 —— 中止 push（不猜預設值）" >&2
+    echo "  取值順序：.env 的 API_PORT → docker compose ps 實際發布的埠。" >&2
+    echo "  兩個都拿不到通常是 api 容器沒起來；**不要**在這裡加預設埠 ——" >&2
+    echo "  那會是第三份副本，換埠時就會靜默指向舊埠。" >&2
     exit 1
   fi
-  ans="$(curl -s -m 120 http://localhost:8000/query -H 'content-type: application/json' \
+  _smoke_base="http://127.0.0.1:${_smoke_port}"
+  if ! curl -sf -m 5 "$_smoke_base/health" >/dev/null 2>&1; then
+    echo "✗ RAGDEMO_SMOKE=1 但本機 api(${_smoke_base}) 不在線，中止 push" >&2
+    exit 1
+  fi
+  ans="$(curl -s -m 120 "$_smoke_base/query" -H 'content-type: application/json' \
     -d '{"question":"契約解除後雙方有何回復原狀義務？"}' \
     | python3 -c 'import sys,json; d=json.load(sys.stdin); print(len(d.get("answer","")))' 2>/dev/null || echo 0)"
   if [ "${ans:-0}" -gt 0 ]; then
-    echo "✓ HTTP smoke: /query 答案 ${ans} chars"
+    echo "✓ HTTP smoke(${_smoke_base}): /query 答案 ${ans} chars"
   else
     echo "✗ HTTP smoke: /query 回空/異常，中止 push" >&2
     exit 1
   fi
 else
-  if curl -sf -m 3 http://localhost:8000/health >/dev/null 2>&1; then
-    echo "✓ 本機 api OK（完整 smoke 可加 RAGDEMO_SMOKE=1 跑 /query）"
+  # 一樣不寫死：非 smoke 分支只做「在不在線」的低成本檢查。它若寫死 8000，
+  # 在 mbp 上會替 omlx 開綠燈 —— 那是比報錯更糟的失敗。
+  _probe_port=""
+  if [ -f .env ]; then
+    _probe_port="$(sed -n 's/^API_PORT=//p' .env | tail -1 | tr -d ' \r')"
+  fi
+  if [ -z "$_probe_port" ] && command -v docker >/dev/null 2>&1; then
+    # 一樣欄位受限（見上面 smoke 分支的說明）：不用 `--format json`。
+    _probe_port="$(docker compose ps --format '{{.Publishers}}' api 2>/dev/null \
+      | grep -oE '[0-9]+ +[0-9]+ +tcp' | head -1 | awk '{print $1}')"
+  fi
+  if [ -z "$_probe_port" ]; then
+    echo "⚠ 拿不到本機 api 的主機埠（.env 的 API_PORT 未設且讀不到 docker）→ 跳過"
+  elif curl -sf -m 3 "http://127.0.0.1:${_probe_port}/health" >/dev/null 2>&1; then
+    echo "✓ 本機 api OK（:${_probe_port}，完整 smoke 可加 RAGDEMO_SMOKE=1 跑 /query）"
   else
-    echo "⚠ 本機 api 不在線，跳過 HTTP smoke（push 照常）"
+    echo "⚠ 本機 api(:${_probe_port}) 不在線，跳過 HTTP smoke（push 照常）"
   fi
 fi
 
