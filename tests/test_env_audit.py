@@ -709,3 +709,47 @@ def test_env_example_carries_no_source_line_numbers():
     assert multi or len(reader_lines) == len(set(reader_lines)), (
         "去行號後每個變數只剩一行讀取處 —— 多處讀取被併掉了，"
         "計數（…等 N 處）應該保留才對")
+
+
+# ── 角色限定的鍵必須被標明 ──────────────────────────────────────────────
+
+def test_role_scoped_keys_are_annotated_in_the_template():
+    """`ROLE_SCOPED` 裡的每個鍵，`.env.example` 都必須標明「哪種角色要填」。
+
+    ⚠️ 2026-10-03 實測的認知缺口：`LAW_SYNC_SOURCE` **只有備援機**設
+    （`law-update-worker.sh` 的角色判斷看 `data/laws/.law_sync.json`，
+    來源機那條分支完全不讀它），但模板只寫「消費者：scripts」。於是
+    **連續兩輪**有人（含我在內）拿「各機鍵集合」比對，把來源機 x570 判成
+    「缺一個必要鍵」而追錯方向 —— 正確的說法是「這個鍵**不該**存在於來源機」。
+
+    **為什麼需要這條測試**：template 一致性測試**抓不到**這個問題。
+    把 `ROLE_SCOPED` 整個刪掉、重生 `.env.example`，`tracked == body` 依然
+    成立 —— 少一段說明不會讓任何東西變紅。所以要有獨立的一條。
+    """
+    assert ea.ROLE_SCOPED, \
+        "ROLE_SCOPED 是空的 —— 若確實沒有角色限定的鍵，請把這條測試刪掉，" \
+        "不要留一個不會紅的守衛"
+
+    body = subprocess.run(["python3", str(AUDIT), "--template"],
+                          cwd=ROOT, capture_output=True, text=True,
+                          check=True).stdout
+    lines = body.splitlines()
+    for key, note in ea.ROLE_SCOPED.items():
+        try:
+            i = next(n for n, ln in enumerate(lines) if ln == f"{key}=")
+        except StopIteration:
+            pytest.fail(f"{key} 不在 template 裡 —— ROLE_SCOPED 寫了不存在的鍵")
+        # 往上找它自己的註解區塊（到前一個空行為止）
+        block = []
+        for ln in reversed(lines[:i]):
+            if not ln.strip():
+                break
+            block.append(ln)
+        block = "\n".join(reversed(block))
+        assert "⚠️" in block, (
+            f"{key} 在 ROLE_SCOPED 卻沒被標 ⚠️ —— 讀模板的人會以為三台都該填。"
+            f"實際區塊：\n{block}")
+        head = note.strip().split("；")[0].split("。")[0][:12]
+        assert head in block, (
+            f"{key} 的角色說明沒被渲染進模板（找得到 {head!r} 嗎？）"
+            f"\n實際區塊：\n{block}")

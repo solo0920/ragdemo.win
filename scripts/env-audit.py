@@ -169,6 +169,32 @@ ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z_0-9]*)=(.*)$")
 #
 # 所以 .env.example 不能印 `LAN_IP=` 那一行（會擋住 push），
 # 但要以註解形式保留說明，讓人知道有這號變數以及為何不填。
+# ── 角色限定的鍵 ────────────────────────────────────────────────────────
+# 某些鍵**只有特定角色的機器要填**，而那個角色**不在這份模板裡**。所以
+# .env.example 只印「消費者／讀取處」時，讀的人會以為三台都該填。
+#
+# 與 `POLICY_EXCLUDED` 同一個機制（per-key 的說明文字 → 渲染進模板註解），
+# 不是另一套。
+#
+# ⚠️ 為什麼需要（2026-10-03 實測）：`LAW_SYNC_SOURCE` 只有**備援機**設 ——
+#   `scripts/law-update-worker.sh` 的角色判斷看 `data/laws/.law_sync.json`，
+#   來源機那條分支**完全不讀這個變數**（填了也不生效）。而各機快照
+#   （`settings/env/host-inventory/*.txt`）如實記錄：mbp／wsl 是 `SET`，
+#   來源機 x570 乾淨地沒有這個鍵。
+#
+#   缺了這段說明，**連續兩輪**有人（含我在內）拿「各機鍵集合」比對，把
+#   來源機判成「缺一個必要鍵」而追錯方向。正確的比對工具是
+#   `scripts/env-diff-hosts.py`，它把這類鍵歸為「視是否要用」、**不報分歧**。
+#   別用臨時腳本比原始鍵集合 —— 那是把「選填槽位」和「缺必要鍵」混成一件。
+ROLE_SCOPED: dict[str, str] = {
+    "LAW_SYNC_SOURCE": (
+        "只有**備援機**要填；來源機（x570）**不要**填，填了不生效。"
+        "角色判斷看 `data/laws/.law_sync.json`：有該檔 → 來源機，"
+        "跑 `sync_daily.py --apply` 且完全不讀本變數；無該檔 + 有本變數 → "
+        "備援機，抓來源機的快照；兩者皆無 → 明確失敗並寫出缺什麼。"
+    ),
+}
+
 POLICY_EXCLUDED: dict[str, str] = {
     "LAN_IP": "IP 準則（2026-09-22 定案）：一律 tailscale IP（100.64.0.0/10），"
               "停用 LAN_IP。192.168.x 一律不寫入 .env、不進 registry。"
@@ -1152,6 +1178,12 @@ def print_template(reg: dict[str, Ref]) -> None:
                 shown = ", ".join(paths[:3])
                 more = f" …等 {len(r.readers)} 處" if len(r.readers) > 3 else ""
                 print(f"#   讀取處：{shown}{more}")
+            if r.name in ROLE_SCOPED:
+                # 只有**第一行**掛 ⚠️ —— 續行也掛的話，每行看起來都像
+                # 一條新的警告，讀的人會以為中間斷開了。
+                for i, chunk in enumerate(_wrap(ROLE_SCOPED[r.name], 70)):
+                    print(f"#   {'⚠️ ' if i == 0 else '  '}{chunk}")
+                print("#   比對各機鍵集合時別把它當必要鍵 —— 用 scripts/env-diff-hosts.py")
             print(f"{r.name}=")
             print()
 
