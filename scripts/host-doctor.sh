@@ -730,12 +730,17 @@ ch_rotate() {
   #   MISSING／EMPTY  → 該鍵這台沒有，症狀是 401／心跳失敗，且極難回推是環境變數缺了
   #   peer == self     → 兩把同值即三台鎖步，而 QDRANT_PEER_API_KEY 的值已知外洩
   #                      （ARCHITECTURE.md〈密鑰管理〉／SCOPE.md〈待套用〉）→ 建議輪換
-  # ⚠️ 2026-10-01：這條 warn 的建議**不完整，照字面做會讓兩台備援機永久 401**。
-  #    這裡只比對指紋、看不到那把 key 的語意：`QDRANT_PEER_API_KEY` 的定義就是
-  #    「能認證到來源機（x570）qdrant 的 key」，而 x570 只認 compose.yaml:12 的
-  #    QDRANT__SERVICE__API_KEY —— 同值是結構性必然。要拆開必須先有
-  #    QDRANT__SERVICE__ALT_API_KEY（M2 範圍，qdrant v1.19.1 的第二個讀寫槽）。
-  #    完整分析見 settings/env/README.md §7〈peer 那把的語意〉。
+  # ⚠️ 2026-10-01 補的建議**已於 2026-10-02 過時**（當時寫「拆開必須先有
+  #    QDRANT__SERVICE__ALT_API_KEY，否則兩台備援機永久 401」）。實況：
+  #    · ALT 槽**已經存在** —— compose.yaml 有
+  #      `QDRANT__SERVICE__ALT_API_KEY: ${QDRANT_PEER_API_KEY:-}`（qdrant v1.19.1
+  #      的第二個讀寫槽），拆開**不再需要**先改 compose。
+  #    · 輪換**三台都已完成**：外洩值在來源機與 wsl 都已 401；槽 2 三台同為
+  #      新分發值，槽 1 各台不同（per-host）。所以現在這條 warn 轉綠是**正常狀態**。
+  #    · 這條 warn 仍在，是因為它擋的是**倒退**：若哪台又設成同值，後果是
+  #      三台再度鎖步。要修就照 runbook 走，順序錯了會永久 401。
+  #    完整語意見 settings/env/README.md §7；**處置順序見
+  #    settings/env/QDRANT-KEY-ROTATION-RUNBOOK.md S0–S7（不可回頭點＝S4）**。
   #    另一件事：那個外洩值同時是來源機自己的 api_key，只輪換 peer **不會吊銷它**，
   #    這條 warn 轉綠只代表指紋不同。
   local MISS="" EMPTY="" SAME=""
@@ -778,10 +783,11 @@ ch_rotate() {
     bump rotate-empty warn "這些鍵是空值（未設定）:${EMPTY}；共用層空值不合併，各機沿用自己現值"
   fi
   if [ "$SAME" = "yes" ]; then
-    bump rotate-hint warn "QDRANT_PEER_API_KEY 與 QDRANT_API_KEY 同值 → 三台鎖步，該值已知外洩
-   ⚠️ 但不要直接輪換 peer 那把：同值是結構性必然，拆開需要 compose.yaml 先有
-      QDRANT__SERVICE__ALT_API_KEY（M2 範圍），否則兩台備援機永久 401。
-      順序與驗證見 settings/env/README.md §7〈peer 那把的語意〉。"
+    bump rotate-hint warn "QDRANT_PEER_API_KEY 與 QDRANT_API_KEY 同值 → 三台再度鎖步
+   ⚠️ 這個值在 2026-10-02 已輪換過（三台都做了，ALT 槽也已存在）—— 所以這是
+      **倒退**，不是首次設定。要拆開照 runbook 走，順序錯了會讓兩台備援機永久 401：
+      settings/env/QDRANT-KEY-ROTATION-RUNBOOK.md S0–S7（不可回頭點＝S4）
+      語意見 settings/env/README.md §7〈peer 那把的語意〉。"
   else
     bump rotate-hint ok "peer 與本機 qdrant key 不同值（已拆分，正確）"
   fi
