@@ -147,11 +147,11 @@ def test_compose_publishes_the_host_port_from_a_variable():
     # 找出 api 服務那條（它有 `${API_PORT` 或 8000:8000）
     api = None
     for line in y.splitlines():
-        if re.search(r'"[^"]*:?\$\{API_PORT:-8000\}:8000"', line):
+        if re.search(r'"[^"]*:?\$\{API_PORT:-(\d+)\}:(\d+)"', line):
             api = line.strip()
             break
     assert api, (
-        "compose.yaml 的 api ports 必須是 `\"127.0.0.1:${API_PORT:-8000}:8000\"` ——\n"
+        "compose.yaml 的 api ports 必須是 `\"127.0.0.1:${API_PORT:-<埠>}:<容器埠>\"` ——\n"
         "  主機側寫死的話，改埠會「看起來成功但行為沒變」。\n"
         f"  目前找到的 ports 行：{[l.strip() for l in y.splitlines() if 'ports:' in l]}")
     assert "127.0.0.1" in api, \
@@ -166,6 +166,7 @@ def test_host_api_local_default_and_api_port_default_agree():
     """
     y = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     hd = (ROOT / "scripts" / "host-doctor.sh").read_text(encoding="utf-8")
+    df = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
     m1 = re.search(r"\$\{API_PORT:-(\d+)\}", y)
     assert m1, "compose 裡找不到 ${API_PORT:-<數字>}"
     m2 = re.search(r'API_URL="\$\{HOST_API_LOCAL:-http://[^"]*?:(\d+)\}"', hd)
@@ -174,6 +175,26 @@ def test_host_api_local_default_and_api_port_default_agree():
         f"兩個變數的預設埠不一致：compose 的 API_PORT={m1.group(1)}、"
         f"HOST_API_LOCAL 的埠={m2.group(1)} —— 它們表達同一件事，"
         "不一致時症狀是「改了一半而且沒報錯」")
+
+    # ── 容器側埠是**烤進 image** 的，必須與 compose 右側一致 ──────────────
+    # 這是 8000→920（2026-10-03）時補上的第三個點：前兩個只保證「主機側」一致，
+    # 但 ports 的**右側**是容器內部的 listening port，而那個值來自 Dockerfile 的
+    # `CMD --port`（建 image 時烤死，compose 改不到）。
+    # 只改 compose 右側而沒 rebuild → 主機 publish 到沒人 listening 的埠，
+    # 症狀是「主機 curl 連不上、容器內 curl 正常」—— 兩邊症狀不同源。
+    # ⚠️ 只抓**含 `${API_PORT` 的那條**（api 服務的）。用第一條 `ports:` 會拿到
+    #    qdrant 的 6333 —— compose 裡 ports 有三條，而 qdrant 那條寫死（`…}:6333`），
+    #    所以靠 `${API_PORT` 這個特徵辨識，比靠行號或「第一條」穩。
+    ports_line = re.search(r'^\s*ports:\s*\["[^"]*:?\$\{API_PORT[^"]*:(\d+)"\]\s*$', y, re.M)
+    assert ports_line, "compose 裡找不到含 ${API_PORT} 的 api ports 行"
+    container_port = ports_line.group(1)
+    m3 = re.search(r'--port",\s*"(\d+)"', df) or re.search(r"--port[= ]\s*(\d+)", df)
+    assert m3, ("backend/Dockerfile 裡找不到 CMD 的 --port —— api 容器實際 listening "
+                "的埠就來自那一行，compose 的右側必須與它一致")
+    assert container_port == m3.group(1), (
+        f"容器埠不一致：compose ports 右側={container_port}、"
+        f"Dockerfile CMD --port={m3.group(1)} —— 只改一邊會 publish 到沒人 "
+        "listening 的埠（主機 curl 連不上、容器內 curl 正常）")
 
 
 def test_the_port_is_extracted_the_same_way_everywhere():

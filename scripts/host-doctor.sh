@@ -35,7 +35,7 @@ case "${SHELLOPTS:-}" in
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-API_URL="${HOST_API_LOCAL:-http://127.0.0.1:8000}"
+API_URL="${HOST_API_LOCAL:-http://127.0.0.1:920}"
 # registry 的 stale 判定門檻，必須與 registry.py:23 的 REGISTRY_STALE_MIN 同值
 # （compose 傳 3）。抄一份在這裡是刻意的：doctor 要在 api 沒起來的時候也能算
 # 「心跳該有多舊」，那時沒有 env 可讀。改 compose 那個預設值時要回來改這裡。

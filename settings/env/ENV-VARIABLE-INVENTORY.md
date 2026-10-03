@@ -65,7 +65,7 @@ python3 scripts/env-inventory.py --emit-column     # 匯入本機那一欄
 |---|---|---|---|---|---|---|
 | `ACCESS_HOSTS` | scripts/access-check.sh:20 | **host 端** — 只有 host 端的腳本／ingest 讀得到，容器拿不到 | ABSENT | ABSENT | ABSENT | **留** — 空值、無預設值 —— 這是給人填的槽位；刪了之後要加回來，得先知道它存在過 |
 | `ADMIN_TOKEN` | compose.yaml:193, backend/app/main.py:282 | **compose／backend** — 憑證 | SET | SET | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
-| `API_PORT` | compose.yaml:74 | **compose** — 預設 8000 | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 8000） |
+| `API_PORT` | compose.yaml:74 | **compose** — 預設 920 | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 920） |
 | `CF_ACCESS_CLIENT_ID` | compose.yaml:153, backend/app/gateway.py:133 | **compose／backend／scripts** — 必填 | SET | SET | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `CF_ACCESS_CLIENT_SECRET` | compose.yaml:154, backend/app/gateway.py:134 | **compose／backend／scripts** — 必填；憑證 | SET | SET | SET | **留** — 共用憑證，sops 分發，三台必須同值 |
 | `CF_AIG_GATEWAY_ID` | compose.yaml:157, backend/app/rag.py:81 | **compose／backend** — 必填；預設 cloudflaregateway | ABSENT | ABSENT | ABSENT | **留** — 空值但有預設值 —— 留著是文件（預設 cloudflaregateway） |

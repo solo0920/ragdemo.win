@@ -121,8 +121,8 @@
         "MSI 為何 qwen3:8b 而非 4b？4b 的 think:false 是 bug，連『1+1』都思考 1000+ token"
       ],
       "acceptance_tests": [
-        "curl localhost:8000/health | grep host_id ✓",
-        "curl -X POST localhost:8000/query -d '{\"q\":\"...\"}' | grep confidence ✓",
+        "curl localhost:920/health | grep host_id ✓",
+        "curl -X POST localhost:920/query -d '{\"q\":\"...\"}' | grep confidence ✓",
         "pytest -q ✓（測試在 repo 根的 tests/，不是 backend/tests/）"
       ],
       "acceptance_tests_correction_2026_09_27": "原寫 pytest backend/tests/ -v —— backend/tests/ 不存在。測試 12 個檔、165 條，統一在 repo 根 tests/，由根 pyproject.toml 的 pytest 執行。",
@@ -166,7 +166,7 @@
         "Ingest 容器跑不了（Python subprocess 限制），只能在 host 端 law-update-worker.sh 跑"
       ],
       "pitfalls": [
-        "SRC_API_URL 是 per-machine 必要設定，但三台 8000 全綁 127.0.0.1",
+        "SRC_API_URL 是 per-machine 必要設定，但三台 920 全綁 127.0.0.1",
         "精簡包還沒完成（目前 3 筆，需 500~1000 筆）",
         "sync-snapshot.sh 要指定 SRC_API_URL，否則無法取版本"
       ],
@@ -261,7 +261,7 @@
         "reranker 不是 stub：rerank() 已實作（本地重排）。RERANK_MODEL 是宣告了但沒接線的旋鈕（無消費者），且被 env-sync.sh 當 SHARED_CONFIG 分發 —— 『能被分發』不等於『在生效』"
       ],
       "acceptance_tests": [
-        "curl -X POST http://localhost:8000/eval | jq .hit_rate",
+        "curl -X POST http://localhost:920/eval | jq .hit_rate",
         "hit_rate >= 0.8 ✓"
       ],
       "status": "active",

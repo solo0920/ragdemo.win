@@ -103,7 +103,7 @@ COMMENT = {
                    "程式仍 os.getenv 它 → 拿不到就讓 _zen_complete 回 false，前端優雅降級。\n"
                    "要復活就重新申請 key，並同時加回 SHARED_SECRETS 與\n"
                    "secrets.common.env.example（tests 會鎖兩者同步）。",
-    "HOST_API_LOCAL": "scripts 有預設（http://127.0.0.1:8000，host-doctor.sh:38／\n"
+    "HOST_API_LOCAL": "scripts 有預設（http://127.0.0.1:920，host-doctor.sh:38／\n"
                       "host-sync.sh:47）。只有要走 tunnel 而不是 127.0.0.1 時才設。",
     "QDRANT": "只 host 端 ingest 讀（qdrant_load.py:30），預設 http://localhost:6333。",
 }

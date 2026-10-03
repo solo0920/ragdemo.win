@@ -165,7 +165,7 @@ sync_law_version() {
     #   （我當時還註解說「hostname 裡本來就不該有數字」，而 `127.0.0.1` 全是數字。）
     #   正確做法是 `${VAR##*:}` 取**最後一個冒號之後**那段 —— 與
     #   host-doctor.sh 的 `_api_port()` **寫法完全相同**，避免兩處漂移。
-    _api_url="${HOST_API_LOCAL:-http://127.0.0.1:8000}"
+    _api_url="${HOST_API_LOCAL:-http://127.0.0.1:920}"
     _api_port="$(printf '%s' "${_api_url##*:}" | tr -dc '0-9')"
     [ -n "$_api_port" ] || _api_port=8000
     case "$SOURCE" in
