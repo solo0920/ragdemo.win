@@ -98,10 +98,24 @@ if [ -x .venv/bin/pytest ]; then
     esac
     exit 1
   fi
-  .venv/bin/pytest -q -p no:cacheprovider >/dev/null 2>&1 \
-    || { echo "✗ pytest 失敗，檢查 tests/ 後再 push" >&2; exit 1; }
-  n=$(.venv/bin/pytest -q -p no:cacheprovider 2>/dev/null | tail -1 | grep -oE '^[0-9]+ passed' | grep -oE '[0-9]+')
-  echo "✓ pytest ${n:-?} passed"
+  # ⚠️ 2026-10-03：這裡原本**跑兩次** pytest —— 第 101 行為了退出碼（輸出丟進
+  #    /dev/null），第 103 行又跑一次只為了數 `passed`。實測 pre-push 要 51 秒，
+  #    其中 48 秒是這兩次。單元測試是這條 hook 最貴的一段，沒有理由付兩倍。
+  #
+  #    順帶修掉一個更煩的：原本失敗時輸出被丟掉，只印「檢查 tests/ 後再 push」。
+  #    那句話把診斷責任推給人，而**失敗訊息就在手邊** —— 印出來才是響亮失敗。
+  #    （不會洩漏憑證：那些測試本身就在斷言產出不含憑證值。）
+  _pt="$(mktemp)"
+  trap 'rm -f "$_pt"' EXIT
+  if .venv/bin/pytest -q -p no:cacheprovider >"$_pt" 2>&1; then
+    n=$(tail -1 "$_pt" | grep -oE '^[0-9]+ passed' | grep -oE '[0-9]+')
+    echo "✓ pytest ${n:-?} passed"
+  else
+    echo "✗ pytest 失敗，以下是尾段（完整輸出：.git/pre-push-pytest.log）" >&2
+    tail -25 "$_pt" | sed 's/^/    /' >&2
+    cp "$_pt" .git/pre-push-pytest.log
+    exit 1
+  fi
 else
   echo "⚠ pytest 未安裝（uv sync --dev 後啟用），跳過單元測試"
 fi
