@@ -31,6 +31,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+# ⚠️ 2026-10-03（x570 回報）：這裡用了 `pytest.skip()` 卻**沒有 import pytest** ——
+# 所以在**沒有 node 的機器**上（x570／mbp）走不到 skip，而是 `NameError`。
+#
+# 症狀方向完全相反：沒有 node 是**正常**的環境，卻讓測試報成「壞掉」。
+# 那會讓人去找一個不存在的問題 —— 而這一類的代價是**讓真正的紅也開始被忽略**。
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 PROXY = ROOT / "frontend" / "src" / "routes" / "api" / "[...path]" / "+server.ts"
 

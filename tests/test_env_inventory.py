@@ -164,13 +164,40 @@ def test_emit_column_is_reproducible_against_the_committed_file():
 
     這正是本專案記錄在案的 CI 坑：**測試依賴真實 `.env` 時，本機全綠、
     CI 紅**。修法是判斷前提，不是放寬斷言。
+
+    ⚠️⚠️ **2026-10-03（x570 回報）：原本這裡硬寫 `wsl.txt`。**
+    那只滿足第一個前提（「有 `.env`」），**卻沒滿足第二個（「是同一台」）** ——
+    於是在 x570／mbp 上，它拿**本機的 `.env`** 去比**wsl 的快照**，然後報
+    「快照過期」。那個結論是**結構性的假警報**，而且是本專案反覆在收的那一類：
+    **守了 A，沒守 B。** 而它的代價是讓「本機紅 = 我搞壞了」這個信號失真 ——
+    x570 因此多花時間去查一個不存在的問題。
+
+    所以改成：**用本機 `.env` 裡的 `HOST_ID` 決定要比哪一份快照**；該機沒有快照
+    就跳過（無從驗證），而不是比別人的。
     """
     if not (ROOT / ".env").is_file():
         import pytest
         pytest.skip("無 .env：欄位快照無從驗證（CI 的乾淨 clone 就是這種情況）")
-    f = ROOT / "settings" / "env" / "host-inventory" / "wsl.txt"
+
+    # 決定「本機是誰」—— 只能問 `.env`，那是執行期唯一真相
+    host = ""
+    for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^HOST_ID\s*=\s*(\S+)", line.strip())
+        if m:
+            host = m.group(1)
+            break
+    if not host:
+        import pytest
+        pytest.skip(".env 沒有 HOST_ID：不知道該比哪一份快照")
+
+    f = ROOT / "settings" / "env" / "host-inventory" / f"{host}.txt"
     if not f.is_file():
-        return
+        import pytest
+        pytest.skip(
+            f"沒有 host-inventory/{host}.txt —— 這台還沒產生過快照。"
+            f"（原本這裡硬寫 wsl.txt，於是在別的機器上會拿本機 .env 去比"
+            f"別人的快照，報出假的「過期」。2026-10-03 x570 回報）"
+            f"　產生方式：python3 scripts/env-inventory.py --emit-column")
     stored = {}
     for line in f.read_text(encoding="utf-8").splitlines():
         m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:\s*(SET|EMPTY|ABSENT)", line.strip())
