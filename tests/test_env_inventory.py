@@ -150,6 +150,75 @@ def test_column_format_cannot_be_mistaken_for_an_assignment():
         "欄位格式不是 `KEY: SET|EMPTY|ABSENT`"
 
 
+def test_committed_snapshot_has_exactly_the_keys_a_fresh_run_produces():
+    """**快照的鍵集合必須與「現在跑出來的」完全一致 —— 多或少都要報。**
+
+    ⚠️ 2026-10-03 實測：既有的
+    `test_emit_column_is_reproducible_against_the_committed_file` 只比對
+    **快照裡有的鍵**（`for k in stored ...`），所以**快照裡缺的鍵完全看不見**。
+
+    而版控的 `wsl.txt` 正是這種情形：重新生成後多了兩個鍵
+
+        + API_PORT: ABSENT          （當天加在 compose.yaml 的）
+        + RAGDEMO_NO_QUERY: ABSENT
+
+    `stale` 算出來是空的 → 測試綠 → **快照過期而沒有任何人被通知**。
+
+    症狀：快照會在不知不覺間持續偏離，而它的作用正是「讓人相信三台長相一樣」。
+    **一份過期的快照比沒有快照更糟** —— 它讓錯誤的結論看起來有證據。
+
+    所以這裡補**反向**的檢查：鍵集合多或少都要報。兩條合起來才完整 ——
+    一條抓「值變了」，一條抓「鍵增減了」。
+    """
+    env = ROOT / ".env"
+    if not env.is_file():
+        import pytest
+        pytest.skip("無 .env：快照無從驗證（CI 的乾淨 clone）")
+
+    host = ""
+    for line in env.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^HOST_ID\s*=\s*(\S+)", line.strip())
+        if m:
+            host = m.group(1)
+            break
+    if not host:
+        import pytest
+        pytest.skip(".env 沒有 HOST_ID")
+
+    snap = ROOT / "settings" / "env" / "host-inventory" / f"{host}.txt"
+    if not snap.is_file():
+        import pytest
+        pytest.skip(f"沒有 host-inventory/{host}.txt")
+
+    stored = set()
+    for line in snap.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:", line.strip())
+        if m:
+            stored.add(m.group(1))
+
+    import subprocess
+    import sys
+    r = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "env-inventory.py"), "--emit-column"],
+        capture_output=True, text=True, timeout=180)
+    assert r.returncode == 0, f"--emit-column 失敗：{r.stderr[:200]}"
+    live = set()
+    for line in r.stdout.splitlines():
+        m = re.match(r"^([A-Za-z_][A-Za-z_0-9]*)\s*:", line.strip())
+        if m:
+            live.add(m.group(1))
+
+    missing = sorted(live - stored)     # 快照缺的（2026-10-03 實際的情況）
+    extra = sorted(stored - live)       # 快照多的
+    assert not missing and not extra, (
+        f"host-inventory/{host}.txt 的**鍵集合**與現在跑出來的不一致：\n"
+        f"  快照缺 {len(missing)} 個：{missing[:8]}\n"
+        f"  快照多 {len(extra)} 個：{extra[:8]}\n"
+        f"  修法：python3 scripts/env-inventory.py --emit-column > "
+        f"settings/env/host-inventory/{host}.txt\n"
+        f"  ⚠️ 過期的快照比沒有快照更糟 —— 它讓錯誤的結論看起來有證據。")
+
+
 def test_emit_column_is_reproducible_against_the_committed_file():
     """已提交的欄位檔必須跟「現在跑出來的」一致 —— 不然那份檔在騙人。
 
