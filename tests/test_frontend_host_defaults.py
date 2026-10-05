@@ -923,8 +923,88 @@ def test_page_renders_each_paragraph_as_an_element() -> None:
     assert "articleRows" in text or "rows" in text, "應該 import articleRows"
     assert text.count('class="law-row"') >= 2, \
         "回答與引用都要逐項渲染（各一個 #each；模板裡是 class=\"law-row\"）"
-    assert ".law-row { position: relative; line-height: 1.7; display: block; }" in text, \
+    # ⚠️ 這裡斷言的是**意圖**不是整條規則的字面值。2026-10-05 為了套用官網的
+    #   `margin-bottom: 0.5em`（項與項之間的留白），`.law-row` 從單行變成多行，
+    #   而舊斷言比對整條規則字串 → 改排版就紅，與它要守的事情無關。
+    #   守的是「每一項是 block 元素」：否則 DOM 上仍是單一節點，複製／選取會黏在一起。
+    m = re.search(r"\.law-row\s*\{(.*?)\}", text, re.S)
+    assert m and "display: block" in m.group(1), \
         "每一項必須是 block 元素，否則 DOM 上仍是單一節點（複製／選取會黏在一起）"
+
+
+def _css_only() -> str:
+    """樣板內容去掉 CSS 註解，只留規則。
+
+    ⚠️ 為什麼必須去：這個檔的 CSS 註解會**提到選擇器名與屬性值**
+    （例：「我們的 .law-no 不是連結…layout.css a{color:#057b7b}」）。
+    不去掉就直接 regex 找 `.law-no {`，會把**註解裡的散文**當成規則開頭 ——
+    實測就這樣讓第一版測試紅掉，而紅的原因跟它要守的事情無關。
+
+    反過來說：註解裡就算寫了正確的值，也不該讓斷言通過。所以兩邊都剝掉。
+    """
+    return re.sub(r"/\*.*?\*/", "", PAGE.read_text(encoding="utf-8"), flags=re.S)
+
+
+# 官網 law.css 的實際值（2026-10-05 從瀏覽器存檔逐字抄下來）。
+# 抄錄來源：law.css 的 .law-article div / div.show-number::before、.col-no，
+# 以及 layout.css 的 `a { color:#057b7b }`（條號是 <a>，所以顏色在那裡）。
+_OFFICIAL_CSS = {
+    #  selector      屬性           官網值
+    ".law-no": [("width", "8em"), ("color", "#057b7b")],
+    ".law-row": [("margin-bottom", "0.5em")],
+    ".law-n": [("font-size", "1.05em"), ("font-style", "italic"),
+               ("color", "#666"), ("width", "3em")],
+}
+
+
+def test_law_css_uses_the_official_values() -> None:
+    """條文排版要等於官網 law.css 的值，不是「看起來差不多」。
+
+    ⚠️ 這組值是 2026-10-05 從**實際 CSS** 抄的，之前的版本是只靠截圖反推，
+       結果有五處是錯的（項次 font-size 寫成 0.85em、少了斜體、欄寬 2em、
+       沒有項間距、條號欄 5.5em）。截圖只看得出「有沒有」，看不出值 ——
+       所以這些常數必須被釘住，否則下一次「簡化」又會悄悄改回去。
+
+    逐字比對整條規則做不到（規則是多行、順序會變），所以只檢查
+    「這個宣告裡有沒有這個屬性值」，且用 regex 綁在同一個選擇器區塊內。
+    """
+    text = _css_only()
+    for sel, decls in _OFFICIAL_CSS.items():
+        # 抓第一個 `<sel> { ... }` 區塊（選擇器含 `.` 需跳脫）
+        m = re.search(re.escape(sel) + r"\s*\{(.*?)\}", text, re.S)
+        assert m, f"樣板裡找不到 {sel} 的規則"
+        body = m.group(1)
+        for prop, val in decls:
+            pat = re.escape(prop) + r"\s*:\s*" + re.escape(val) + r"\s*;"
+            assert re.search(pat, body), (
+                f"{sel} 的 {prop} 應為官網的值 {val}；"
+                f"目前是：{re.findall(re.escape(prop) + r'[^;]*;', body)}"
+            )
+
+
+def test_law_item_gutter_var_is_used_in_both_contexts() -> None:
+    """項次欄靠 `--law-item-gutter` 推算，不可寫死 4em。
+
+    官網的 `::before` 淨向左伸 4em（left:-3em + margin-left:-1em），那個空間
+    是借 `.law-body` 的 2em 內距加 8em 的條號欄。引用清單（.tx > .law-row）
+    **沒有**條號欄可借 —— 寫死 4em 會讓項次溢出到 `<li>` 外面。
+
+    所以文字起點與項次位置必須由同一個變數推導，這樣兩種上下文都成立。
+    """
+    text = _css_only()
+    m = re.search(r"\.law-n\s*\{(.*?)\}", text, re.S)
+    assert m, "樣板裡找不到 .law-n 的規則"
+    body = m.group(1)
+    assert "var(--law-item-gutter)" in body, \
+        ".law-n 的位置必須由 --law-item-gutter 推算，不可寫死 4em"
+    assert "calc(var(--law-item-gutter) - 4em)" in body, \
+        "項次右緣應恆在文字左側 1em（官網 left:-3em + margin-left:-1em 的等效效果）"
+    # 兩種上下文都要宣告這個變數：.law-body 給 2em（官網 padding-left:2em），
+    # .law-row 預設 0em（引用清單沒有條號欄，項次就貼著文字左側伸出）
+    assert re.search(r"\.law-body\s*\{[^}]*--law-item-gutter:\s*2em", text, re.S), \
+        ".law-body 應給 2em 內距（官網 .law-article { padding-left: 2em }）"
+    assert re.search(r"\.law-row\s*\{[^}]*--law-item-gutter:\s*0em", text, re.S), \
+        ".law-row 預設應為 0em，引用清單才不會多留一欄空白"
 
 
 def test_long_citation_is_cut_at_an_item_boundary() -> None:

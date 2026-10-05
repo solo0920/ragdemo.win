@@ -1377,15 +1377,26 @@ const rows = articleRows;
      這裡要 `pre-wrap` 而不是 `pre-line`：條文裡的全形空白（　）有意義
      （部分條文用它縮排項次），折掉會讓讀者誤判段落邊界。 */
   /* ── 法條排版：比照司法院官網 ─────────────────────────────────
- * 官網的實測 CSS（2026-10-05 抓 LawSingle.aspx 的 stylesheet）：
- *   .law-content .row > .col-no { width: 8em; text-align: right;
- *                                padding-right: 8px; white-space: nowrap;
- *                                line-height: 170%; margin-right: 1em; }
- *   .law-article { counter-reset: num 0; padding-left: 2em; }
- *   .law-article div.show-number::before { counter-increment: num 1;
- *     content: counter(num); position: absolute; left: -3em; width: 3em;
- *     text-align: right; font-family: Consolas; }
- *   .law-article div.line-0000 { margin-left: 1em; }
+ * 官網的**實際** CSS（2026-10-05 從瀏覽器存檔的 law.css 逐字抄下來 ——
+ * 之前是只靠截圖反推，所以有五處是錯的，逐條列在下面 ⚠️ 裡）：
+ *   .law-content .row > .col-no { float:left; width:8em; white-space:nowrap;
+ *     padding-right:8px; line-height:170%; text-align:right; margin-right:1em; }
+ *   .law-article { counter-reset: num; padding-left: 2em; width: 90%; }
+ *   .law-article div { position: relative; margin-bottom: 0.5em; }
+ *   .law-article div.show-number::before { counter-increment: num;
+ *     content: counter(num); display:inline-block; position:absolute;
+ *     left:-3em; margin-left:-1em; text-align:right; width:3em;
+ *     font-family:Consolas; font-size:1.05em; font-style:italic; color:#666; }
+ *   條號欄的青綠色**不在 law.css**，是 layout.css 的 `a { color:#057b7b }`
+ *   —— 因為官網的條號是 <a>：<div class="col-no"><a>第 6 條</a></div>。
+ *
+ * ⚠️ 靠截圖猜錯的五處（截圖只看得出「有沒有」，看不出值）：
+ *   · 項次 font-size 是 **1.05em**（比本文**大**），原本寫 0.85em 是反的
+ *   · 項次有 **font-style:italic**（斜體），原本完全沒有
+ *   · 項次 color 是 **#666**、寬度 **3em**（原本 2em）
+ *   · 項與項之間有 **margin-bottom: 0.5em** —— 截圖看得出有留白，但值只有
+ *     CSS 裡有；沒有它就是緊貼的，而那正是「同官網格式」最容易被看穿的一處
+ *   · 條號欄是 **8em**（原本 5.5em）
  *
  * ⚠️ 官網的項次是 CSS counter（`::before`），所以**不在 DOM 裡**：
  *   複製貼上不會帶到、螢幕閱讀器也讀不到。我們改成**真的元素**——
@@ -1393,19 +1404,36 @@ const rows = articleRows;
  *   「引用時要連項次一起貼出來」是實際需求，counter 做不到。
  *   代價是 DOM 節點多一點，對這個頁面的規模無影響。
  */
-  .law { display: flex; align-items: flex-start; gap: var(--sm); }
+  /* ⚠️ gap 改 0：官網沒有 flex gap，是靠 .col-no 的 margin-right:1em 撐開的
+     （另加 padding-right:8px）。留著 gap 會疊成 12px+1em，比官網寬。 */
+  .law { display: flex; align-items: flex-start; gap: 0; }
   .law-no {
-    width: 5.5em; flex: 0 0 auto; text-align: right;
-    white-space: nowrap; color: var(--ink); font: var(--body-sm);
-    line-height: 1.7;
+    /* 條號欄抄官網 .col-no。青綠色來自官網的 <a>（layout.css a{color:#057b7b}），
+       我們的 .law-no 不是連結，所以顏色寫死成同一個值。 */
+    width: 8em; flex: 0 0 auto; text-align: right;
+    white-space: nowrap; color: #057b7b; font: var(--body-sm);
+    line-height: 1.7; padding-right: 8px; margin-right: 1em;
   }
-  .law-body { flex: 1 1 auto; min-width: 0; padding-left: 2.5em; }
-  .law-row { position: relative; line-height: 1.7; display: block; }
-  /* 項次欄：靠 padding 讓出空間，數字右對齊（與官網的 width:3em + right 相同） */
+  /* 官網 .law-article { padding-left: 2em }。這就是「有沒有項次時文字都對齊」
+     的來源：無項次時該欄留白，文字起點不變。 */
+  .law-body { --law-item-gutter: 2em; flex: 1 1 auto; min-width: 0; }
+  .law-row {
+    --law-item-gutter: 0em;
+    position: relative; line-height: 1.7; display: block;
+    padding-left: var(--law-item-gutter);
+    margin-bottom: 0.5em;              /* 官網 .law-article div */
+  }
+  .law-body > .law-row { --law-item-gutter: 2em; }
+  /* 項次欄：3em 寬、右對齊、右緣恆在文字左側 1em —— 那是官網
+     `left:-3em; margin-left:-1em`（淨 4em）的等效效果，但用 gutter 推算。
+     ⚠️ 為什麼不照抄 4em：官網那 4em 是借 .law-body 的 2em 內距加 8em 的
+        條號欄；引用清單裡（.tx > .law-row）**沒有**條號欄可借，照抄就會
+        溢出到 <li> 外面。用變數讓文字起點與項次位置綁在一起才是同構的。 */
   .law-n {
-    position: absolute; left: -2.5em; width: 2em; text-align: right;
+    position: absolute; left: calc(var(--law-item-gutter) - 4em); width: 3em;
+    text-align: right;
     font-family: Consolas, "DejaVu Sans Mono", monospace;
-    font-size: 0.85em; color: var(--muted-text); line-height: inherit;
+    font-size: 1.05em; font-style: italic; color: #666; line-height: inherit;
   }
   .law-t { white-space: pre-wrap; }   /* 保留全形空白的縮排語意 */
 
