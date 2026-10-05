@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import {
-    citationText, fetchHostDefaults, hostUrl, makeOnce, missingModels, modelAvailability,
-    modelOptions, paragraphs as paras, probeClouds, saveHostDefaults, targetRows,
-    verdictLabel, verdictState,
+    articleRows, citationText, fetchHostDefaults, hostUrl, makeOnce, missingModels,
+    modelAvailability, modelOptions, paragraphs as paras, probeClouds, saveHostDefaults,
+    targetRows, verdictLabel, verdictState,
   } from '$lib/hostDefaults';
 
   // 引用條文的展開狀態：key = url||art（同一條可能被引用兩次）。
@@ -17,6 +17,29 @@
     expanded = next;
   }
   const citation = citationText;
+const rows = articleRows;
+
+  /**
+   * 判斷這份回答是不是「逐字引用某一條」，並取出排版所需的資料。
+   *
+   * 為什麼需要區分：司法院官網的排版（條號欄 + 項次欄）是給**原文**用的。
+   * LLM 生成的答案是綜合多條的敘述，若也掛上條號欄，讀者會以為「這一條就是
+   * 答案」—— 在法律上是誤導。所以只有後端明確走「逐字引用」路徑才用那個排版。
+   *
+   * 判斷依據（後端 rag.py 的 exact 分支會同時滿足這兩個）：
+   *   confidence === 'rule'  且  hits[0].exact === true
+   * 條號取自 hits[0]（那條被引用的原文），不是從回答文字反推 —— 反推會在
+   * 「回答開頭是 `x570: ` 前綴」這種情況下出錯。
+   */
+  function verbatimQuote(r) {
+    if (!r || r.confidence !== 'rule') return null;
+    const h0 = (r.hits || [])[0];
+    if (!h0 || !h0.exact) return null;
+    const body = String(r.answer || '').replace(/^[a-z0-9]+: /, '');
+    const rows = articleRows(body);
+    if (!rows.length) return null;
+    return { law: h0.law_name || '', art: h0.art || '', rows };
+  }
 
   // 「實際服務主機」與「是否被 fallback」—— 兩者都可能與下拉選的值不同。
   //
@@ -1077,7 +1100,28 @@
         <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案不對？把這題加入題庫 →</a></p>
       {:else}
         <h2>回答（{result.host}）</h2>
-        <p class="ans">{#each paras(result.answer.replace(/^[a-z0-9]+: /, '')) as para, i}<span class="par">{para}</span>{/each}</p>
+        <!-- 逐字引用條文時比照司法院官網的排版：左欄條號、右欄項次 + 條文。
+             ⚠️ 只在「逐字引用」時用這個排版 —— LLM 生成的答案是綜合敘述，
+                不是某一條的原文，掛上條號欄會讓人以為「這一條就是答案」，
+                那在法律上是誤導。
+             判斷依據：`confidence === 'rule'` 且首筆引用是精準命中（後端
+             `exact` 分支會把 confidence 設成 rule 且逐字引用）。 -->
+        {#if verbatimQuote(result)}
+          {@const q = verbatimQuote(result)}
+          <div class="law">
+            <div class="law-no">{q.law}{q.art}</div>
+            <div class="law-body">
+              {#each q.rows as r, i}
+                <div class="law-row">
+                  <span class="law-n">{r.no ?? ''}</span>
+                  <span class="law-t">{r.text}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <p class="ans">{#each paras(result.answer.replace(/^[a-z0-9]+: /, '')) as para, i}<span class="par">{para}</span>{/each}</p>
+        {/if}
         <p class="hint">信心：{result.confidence}（{result.relevance}）</p>
         <p class="trace">流程：{result.trace}</p>
         <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案有誤或想固定這題答案？加入題庫 →</a></p>
@@ -1090,11 +1134,11 @@
               ｜{#if h.url}<a class="lnk" href={h.url} target="_blank" rel="noreferrer">{h.law_name}{h.art} ↗</a>{:else}{h.law_name}{h.art}{/if}
               ｜{h.item}
               <br /><span class="tx"
-                >{#if !expanded.has(h.url || h.art)}{#each paras(citation(h.payload.text).text) as para, i}<span class="par">{para}</span>{/each}{#if citation(h.payload.text).truncated}<button
+                >{#if !expanded.has(h.url || h.art)}{#each rows(citation(h.payload.text).text) as r, i}<span class="law-row"><span class="law-n">{r.no ?? ''}</span><span class="law-t">{r.text}</span></span>{/each}{#if citation(h.payload.text).truncated}<button
                     class="more"
                     onclick={() => toggleCite(h.url || h.art)}
                     aria-expanded="false"
-                    title="點擊展開法條原文">…</button>{/if}{:else}{#each paras(h.payload.text) as para, i}<span class="par">{para}</span>{/each}<button
+                    title="點擊展開法條原文">…</button>{/if}{:else}{#each rows(h.payload.text) as r, i}<span class="law-row"><span class="law-n">{r.no ?? ''}</span><span class="law-t">{r.text}</span></span>{/each}<button
                     class="more"
                     onclick={() => toggleCite(h.url || h.art)}
                     aria-expanded="true"
@@ -1332,6 +1376,39 @@
      `pre-line`  保留換行但折掉連續空格
      這裡要 `pre-wrap` 而不是 `pre-line`：條文裡的全形空白（　）有意義
      （部分條文用它縮排項次），折掉會讓讀者誤判段落邊界。 */
+  /* ── 法條排版：比照司法院官網 ─────────────────────────────────
+ * 官網的實測 CSS（2026-10-05 抓 LawSingle.aspx 的 stylesheet）：
+ *   .law-content .row > .col-no { width: 8em; text-align: right;
+ *                                padding-right: 8px; white-space: nowrap;
+ *                                line-height: 170%; margin-right: 1em; }
+ *   .law-article { counter-reset: num 0; padding-left: 2em; }
+ *   .law-article div.show-number::before { counter-increment: num 1;
+ *     content: counter(num); position: absolute; left: -3em; width: 3em;
+ *     text-align: right; font-family: Consolas; }
+ *   .law-article div.line-0000 { margin-left: 1em; }
+ *
+ * ⚠️ 官網的項次是 CSS counter（`::before`），所以**不在 DOM 裡**：
+ *   複製貼上不會帶到、螢幕閱讀器也讀不到。我們改成**真的元素**——
+ *   外觀與官網一致，但數字可選取、可被輔助 tech 讀到。在法律場合
+ *   「引用時要連項次一起貼出來」是實際需求，counter 做不到。
+ *   代價是 DOM 節點多一點，對這個頁面的規模無影響。
+ */
+  .law { display: flex; align-items: flex-start; gap: var(--sm); }
+  .law-no {
+    width: 5.5em; flex: 0 0 auto; text-align: right;
+    white-space: nowrap; color: var(--ink); font: var(--body-sm);
+    line-height: 1.7;
+  }
+  .law-body { flex: 1 1 auto; min-width: 0; padding-left: 2.5em; }
+  .law-row { position: relative; line-height: 1.7; display: block; }
+  /* 項次欄：靠 padding 讓出空間，數字右對齊（與官網的 width:3em + right 相同） */
+  .law-n {
+    position: absolute; left: -2.5em; width: 2em; text-align: right;
+    font-family: Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 0.85em; color: var(--muted-text); line-height: inherit;
+  }
+  .law-t { white-space: pre-wrap; }   /* 保留全形空白的縮排語意 */
+
   .tx { color: var(--body); white-space: pre-wrap; }
   /* 一個「項」一個元素（block）。
    *

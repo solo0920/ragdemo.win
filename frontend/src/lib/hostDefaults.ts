@@ -412,6 +412,52 @@ export function paragraphs(text: unknown): string[] {
   return text.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
+/**
+ * 一段條文的排版單元：項（含項次）或款（無項次）。
+ *
+ * `no` 是**項次數字**，只在「項」且「該條有 2 個以上項」時才有值 —— 那是我們
+ * 從司法院官網反推出來的規則（2026-10-05，證券交易法 229 條零反例）：
+ *
+ *   官網 CSS：`.law-article div.show-number::before { counter-increment: num 1;
+ *              content: counter(num) }`
+ *   實測對照：
+ *     第 1 條   項×1                → 不編號
+ *     第 6 條   項×3                → 1 2 3
+ *     第 15 條  項×1 + 款×3         → 全不編號
+ *     第 105 條 項×1 + 款×10 + 目×6 → 全不編號
+ *     第 174 條 項×7 交錯款×11      → 6 個項全部編號，11 個款全不編號
+ *
+ * 規則：**項數 ≥ 2 → 項全部編號；否則全部不編號；款／目永不編號。**
+ * 官網的 counter 只對帶 `show-number` 的累加，所以款不會打斷項的編號。
+ *
+ * ⚠️ 款與項的區分不需要上游的欄位 —— 款以「一、」「（一）」「1.」開頭，
+ *   其餘是項。這與後端 `law_struct._ITEM_RE` 是同一套判斷，所以前端算出的
+ *   「N項M款」與後端的結構統計必然一致。
+ */
+export interface ArticleRow {
+  /** '項' 有項次；'款' 沒有（自帶「一、」等文字標籤） */
+  kind: '項' | '款';
+  text: string;
+  /** 項次數字（1 起算）；不該顯示時為 null */
+  no: number | null;
+}
+
+// 款開頭：一、／（一）／1.／1,（與後端 law_struct._ITEM_RE 同一套）
+const ITEM_LABEL = /^\s*(?:[一二三四五六七八九十百零]+、|（[一二三四五六七八九十百零]+）|\d+[\.、])/;
+
+export function articleRows(text: unknown): ArticleRow[] {
+  const segs = paragraphs(text);
+  const kinds = segs.map((s) => (ITEM_LABEL.test(s) ? '款' : '項'));
+  const nItem = kinds.filter((k) => k === '項').length;
+  const numbered = nItem >= 2;          // 官網規則
+  let n = 0;
+  return segs.map((s, i) => {
+    const isItem = kinds[i] === '項';
+    if (isItem && numbered) n += 1;
+    return { kind: kinds[i], text: s, no: isItem && numbered ? n : null };
+  });
+}
+
 /** 該 provider 有沒有「設了但上游沒有」的 model。 */
 export function missingModels(p: ProviderProbe | undefined): string[] {
   return p && Array.isArray(p.missing) ? p.missing : [];

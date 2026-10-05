@@ -918,8 +918,12 @@ def test_page_renders_each_paragraph_as_an_element() -> None:
     """頁面要用 paragraphs() 逐項渲染，不是把整段字塞進一個節點。"""
     text = PAGE.read_text(encoding="utf-8")
     assert "paragraphs as paras" in text, "頁面應該 import paragraphs"
-    assert text.count("as para, i") >= 2, "回答與引用都要逐項渲染（各一個 #each）"
-    assert ".par { display: block; }" in text.replace("  ", "  "), \
+    # 2026-10-05：回答與引用改用 `rows()`（articleRows，帶項／款與項次），
+    # `paras()` 只留在非逐字引用的 fallback 分支。兩條路徑都必須逐項渲染。
+    assert "articleRows" in text or "rows" in text, "應該 import articleRows"
+    assert text.count('class="law-row"') >= 2, \
+        "回答與引用都要逐項渲染（各一個 #each；模板裡是 class=\"law-row\"）"
+    assert ".law-row { position: relative; line-height: 1.7; display: block; }" in text, \
         "每一項必須是 block 元素，否則 DOM 上仍是單一節點（複製／選取會黏在一起）"
 
 
@@ -1054,6 +1058,100 @@ def test_page_does_not_mix_derived_and_legacy_reactivity() -> None:
         "同一個元件不可混用 runes（$derived／$state／$effect）與 legacy `$:`"
         " —— 只要有一個 rune，編譯器就把整個元件當 runes mode，`$:` 會直接讓 build 失敗。"
     )
+
+
+def _ar(text: str) -> list[dict]:
+    return _pure("articleRows", json.dumps([text]))["result"]
+
+
+# ── articleRows：項次編號（規則來自司法院官網實測）──────────────────────
+
+def test_three_items_get_numbered_1_2_3() -> None:
+    """3 個項 → 編號 1 2 3（官網第 6 條實測）。"""
+    got = _ar("甲\n乙\n丙")
+    assert [r["no"] for r in got] == [1, 2, 3], got
+    assert all(r["kind"] == "項" for r in got), got
+
+
+def test_single_item_is_not_numbered() -> None:
+    """只有 1 個項 → **不編號**（官網第 1／15／28-4／105 條實測）。
+
+    ⚠️ 這是最容易做錯的一條：直覺上「1 個項編 1」很自然，但官網不編 ——
+    因為沒有第 2 項可對照，編號沒有意義。229 條零反例。
+    """
+    got = _ar("只有一段")
+    assert got[0]["no"] is None, got
+
+
+def test_kuan_are_never_numbered_and_do_not_break_item_numbering() -> None:
+    """款永不編號，且**不會打斷項的編號**。
+
+    ⚠️ 官網第 174 條實測：7 個項交錯 11 個款 → 6 個項編 1…6，11 個款都不編。
+    那是因為 CSS counter 只對帶 `show-number` 的累加。所以我們也不能因為
+    中間遇到款就跳號 —— 那會讓「第一項、第二項、第三項」的編號對不上原文。
+    """
+    got = _ar("項A\n一、款A\n二、款B\n項B\n三、款C\n項C")
+    items = [r for r in got if r["kind"] == "項"]
+    kuans = [r for r in got if r["kind"] == "款"]
+    assert [r["no"] for r in items] == [1, 2, 3], items
+    assert all(r["no"] is None for r in kuans), kuans
+
+
+def test_one_item_plus_kuan_is_not_numbered() -> None:
+    """1 項 + 款 → 全不編號（官網第 15／28-4 條實測）。"""
+    got = _ar("項\n一、款一\n二、款二")
+    assert [r["no"] for r in got] == [None, None, None], got
+
+
+def test_item_versus_kuan_classification() -> None:
+    """款以「一、」「（一）」「1.」開頭；其餘是項。
+
+    這與後端 `law_struct._ITEM_RE` 是同一套判斷，所以前端算出的項／款數
+    必然與後端的「N項M款」一致 —— 不一致會讓項次編號與引用標示打架。
+    """
+    got = _ar("項一\n一、款一\n（一）款二\n1. 款三\n1、款四\n項二")
+    assert [r["kind"] for r in got] == ["項", "款", "款", "款", "款", "項"], got
+
+
+def test_article_rows_handles_edge_cases() -> None:
+    """邊界：空字串、全空行、非字串。不可拋。"""
+    assert _ar("") == []
+    assert _ar("\n\n  \n") == []
+    assert _pure("articleRows", json.dumps([None]))["result"] == []
+    assert _pure("articleRows", json.dumps([123]))["result"] == []
+
+
+def test_answer_uses_moj_two_column_layout_only_for_verbatim_quotes() -> None:
+    """逐字引用才用官網排版（條號欄 + 項次欄）；LLM 生成的答案不用。
+
+    ⚠️ 法律上的理由：LLM 答案是綜合多條的敘述，掛上條號欄會讓讀者以為
+    「這一條就是答案」—— 那是誤導。所以判斷要綁在「逐字引用」上。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    assert "verbatimQuote" in text, "應有逐字引用的判斷函式"
+    assert "class=\"law-no\"" in text, "要有條號欄"
+    assert "class=\"law-n\"" in text, "要有項次欄"
+    assert "confidence !== 'rule'" in text, \
+        "判斷必須先檢查 confidence === 'rule'，不能對所有回答都套條號欄"
+    assert "h0.exact" in text, "還要確認首筆引用是精準命中"
+
+
+def test_law_numbering_is_a_real_element_not_a_css_counter() -> None:
+    """項次必須是**真的元素**，不可用 CSS counter。
+
+    官網用 `::before { content: counter(num) }` —— 數字不在 DOM 裡，
+    複製貼上不會帶到、螢幕閱讀器也讀不到。在法律場合「引用時要連項次
+    一起貼出來」是實際需求，counter 做不到。
+
+    所以這裡驗證的是：頁面裡有 `<span class="law-n">{r.no}` 這種真元素。
+    """
+    text = _strip_comments(PAGE.read_text(encoding="utf-8"))
+    assert re.search(r'class="law-n"[^>]*>\{r\.no', text), \
+        "項次必須渲染成真元素（可選取、可被輔助 tech 讀到）"
+    # ⚠️ 剝註解後再檢查：註解裡會**引述**官網的 `counter-increment` 做對照，
+    #   那不是我們的實作。剝掉才不會把自己的說明當成違規。
+    assert "counter-increment" not in text, \
+        "不可用 CSS counter 產生項次 —— 數字不會進 DOM，複製時會遺失"
 
 
 def test_page_does_not_slice_citations_inline_anymore() -> None:
