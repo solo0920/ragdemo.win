@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 
+import datetime
 import re
 import subprocess
 from pathlib import Path
@@ -403,20 +404,34 @@ def test_law_log_last_attempt_reads_the_log_not_the_json(tmp_path):
     assert fn, "抽不到 law_log_last_attempt_h()"
 
     log = tmp_path / "sync.log"
-    # 三種時間戳形狀都要認：方括號、ISO T 分隔、帶秒
+    # 三種時間戳形狀都要認：方括號、ISO T 分隔、帶秒；再加一行沒有時間戳的垃圾。
+    #
+    # ⚠️ 2026-10-05：這些時間戳**必須相對於現在**產生。
+    #   原第一版把它們寫死（最新那筆 `2026-10-02T23:17:29`），然後斷言算出來的
+    #   小時數 < 48。那是**會過期的斷言**：到了 2026-10-04 之後它就必然失敗，
+    #   而被測函式**完全正確** —— 它確實取了時間最新那一筆，只是「最新」在測試
+    #   裡被寫成了 10/02，於是 10/05 跑就變成 59.5 小時。
+    #   **症狀是「測試紅，但紅的原因與被測邏輯無關」**，而且它會在某個與程式
+    #   改動無關的日子突然紅 —— 那種紅最容易被誤判成「有人改壞了什麼」。
+    now = datetime.datetime.now()
+    def _ago(hours: int) -> str:
+        return (now - datetime.timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
     log.write_text(
-        "[2026-10-01 10:00:00] old line\n"
+        f"[{_ago(100)}] old line\n"
         "garbage without timestamp\n"
-        "[2026-09-01 09:00:00] SYNC OK\n"
-        "[2026-10-02T23:17:29] unchanged (39879 points), skip\n",
+        f"[{_ago(2000)}] SYNC OK\n"
+        # 最新的一筆，且用**不帶方括號的 ISO T** —— 與其他行形狀不同
+        f"{(now - datetime.timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%S')}"
+        " unchanged (39879 points), skip\n",
         encoding="utf-8")
     r = subprocess.run(["bash", "-c", f'SYNC_LOG="{log}"\n{fn}\nlaw_log_last_attempt_h'],
                        capture_output=True, text=True, timeout=30)
     got = r.stdout.strip()
     assert got, f"讀不到 log 時間：{r.stderr[:200]}"
     age = float(got)
-    # 2026-10-02T23:17:29 —— 應該是很近（< 48h），而不是被最後一行以外的东西帶走
-    assert age < 48, (
+    # 上限收得很緊：要證明它取的是**最新那一筆**（1 小時前），而不是被檔案裡
+    # 最後一個「像時間戳」的字串、或前面那幾筆（100／2000 小時前）帶走。
+    assert age < 2, (
         f"算出 {age} 小時 —— 它抓錯行了。應取**時間最新的那一筆**，"
         f"不是檔案最後一個『像時間戳』的字串。")
 
