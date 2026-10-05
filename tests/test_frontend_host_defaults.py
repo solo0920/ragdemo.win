@@ -542,9 +542,22 @@ def test_no_hosts_yet_returns_empty_without_requesting_anything(tmp_path):
 # ── 原始碼層：不列舉主機（沿用 test_frontend_hosts.py 的守門）────────────
 
 def _code_only(path: Path) -> str:
+    """去掉註解，只留會被執行的程式碼。
+
+    ⚠️ 2026-10-05 補 `{/* … */}`（Svelte 樣板註解）。實測症狀：註解寫
+    「症狀：下拉 x570、badge ⦿ wsl」就被機台清單守衛判成「程式寫死了機台」。
+    註解說明舊做法正是它的用途 —— 要守的是「程式不再列舉主機」，
+    不是「這個 repo 不得提及自己的主機名」。
+    """
     text = path.read_text(encoding="utf-8")
-    text = re.sub(r"//[^\n]*", "", text)
+    # ⚠️ 順序有意義：先剝樣板註解（內含 `//`、`/*`、`<!--` 三種），
+    #   再剝 script 與 style 的兩種。逐層收斂才不会留下孤立的符號。
+    #   漏掉 `<!-- -->` 的實測症狀：樣板註解寫「下拉 x570、badge ⦿ wsl」
+    #   被判成程式寫死機台清單。
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    text = re.sub(r"\{\/\*.*?\*\/\}", "", text, flags=re.S)
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", "", text)
     return text
 
 
@@ -935,6 +948,112 @@ def test_single_oversized_item_falls_back_to_char_cut() -> None:
     assert got["truncated"] is True
     assert len(got["text"]) <= 200
     assert got["text"] == "甲" * 200
+
+
+def _strip_comments(text: str) -> str:
+    """去掉四種註解，只留會被執行的程式碼。
+
+    ⚠️ 為什麼需要：`+page.svelte` 同時用 `//`、`/* */`（style 區）、
+    `<!-- -->`（樣板）、`{/* */}`（樣板）。不剝的話會把**說明文字裡
+    提到的**字串當成程式碼 —— 實測踩到兩次：
+      · 註解寫「症狀：下拉 x570、badge ⦿ wsl」→ 機台清單守衛判違規
+      · 註解寫「不可用 `$derived`」→ reactivity 守衛判成混用模式
+    註解說明「不做什麼」正是它們的用途。
+    """
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    text = re.sub(r"\{\/\*.*?\*\/\}", "", text, flags=re.S)
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r"//[^\n]*", "", text)
+    return text
+
+
+def test_onmount_rechecks_health_after_restoring_backend() -> None:
+    """還原上次選擇之後**必須**重新量一次 health。
+
+    ⚠️ 2026-10-05 使用者回報的 bug：重整頁面後下拉顯示 `x570`，右側徽章卻
+    寫 `⦿ wsl`。根因是**順序**不是資料：onMount 裡 `checkHealth()` 跑在
+    `loadStatus()` 之前，而 backendId 是在 loadStatus → restoreBackend 裡
+    才還原的 —— 量到的自然是「自動」那台，之後沒有人重測。
+
+    為什麼手動切換不會有這個問題：`switchBackend()` 內部會呼叫 checkHealth()。
+    所以只有「重整頁面」這條路徑不一致，很容易被誤判成偶發。
+
+    斷言的是「還原結果有被拿來決定要不要補量」：restoreBackend 必須回傳
+    是否真的切換了，onMount 必須依它補量。兩者缺一，badge 就會與下拉不符。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    # restoreBackend 必須回傳布林
+    assert re.search(r"function\s+restoreBackend\s*\(\s*\)\s*\{[\s\S]*?return\s+(true|false)",
+                     text), "restoreBackend 必須回傳是否真的切換了 —— onMount 靠它決定要不要補量"
+    # loadStatus 必須把 restoreBackend 的結果往外傳
+    assert re.search(r"restored\s*=\s*restoreBackend\(\)", text), \
+        "loadStatus 必須把 restoreBackend 的結果存下來並回傳"
+    assert re.search(r"return\s+restored\s*;", text), "loadStatus 必須回傳 restored"
+    # onMount 必須依它補量，且補量要在 loadModels 之前（模型清單也要打到同一台）
+    m = re.search(r"const\s+restored\s*=\s*await\s+loadStatus\(\);(.*?)loadModels\(\)", text, re.S)
+    assert m, "onMount 應捕捉 loadStatus 的回傳值"
+    assert re.search(r"if\s*\(\s*restored\s*\)\s*await\s+checkHealth\(\)", m.group(1)), \
+        "還原改變了 backendId 時必須補量 checkHealth，否則 badge 與下拉不一致"
+    assert "await checkHealth()" in m.group(1), "補量的 await 不能漏（否則 loadModels 會打錯主機）"
+
+
+def test_health_label_states_which_host_is_actually_serving() -> None:
+    """徽章要明說是「實際在服務的那台」，不是只印一個 host_id。
+
+    ⚠️ 使用者回報的另一個面向：原本只印 `⦿ wsl｜…`，沒有說明那是「選擇」
+    還是「實際服務」。兩者可能不同（worker 在自動模式下會挑活著的），
+    不說明就無法判斷。
+
+    這條也守住「不要退回去只印 host_id」—— 那正是使用者回報看不懂的原因。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    assert "目前採用：" in text, "徽章要明說是「目前採用」的主機"
+    assert "servingHost" in text, "要顯示實際服務主機（health.host_id）"
+
+
+def test_backend_host_label_is_a_value_not_a_function_object() -> None:
+    """`servingHost` 必須是**值**，樣板裡不可寫成會被字串化的形式。
+
+    ⚠️ 本次實測踩到：寫成 `const servingHost = () => …` 而樣板用 `{servingHost}`，
+    Svelte 5 會把函式**物件**直接字串化，畫面顯示
+    「目前採用：() => $.get(health)?.host_id || '—'」。
+
+    而且**不會報錯**：型別是 string，模板編譯與靜態斷言都抓不到 ——
+    症狀只是畫面顯示一段程式碼。所以這條要明確擋那個寫法。
+
+    ⚠️ 檢查前必須剝註解：這個 bug 的說明註解裡就寫著 `{servingHost}`，
+    不剝的話這條測試會把自己的註解當成違規。
+    """
+    text = _strip_comments(PAGE.read_text(encoding="utf-8"))
+    assert not re.search(r"(?:const|let)\s+servingHost\s*=\s*(?:\(|async)", text), \
+        "servingHost 不可宣告成函式 —— 樣板裡 {servingHost} 會字串化成函式原始碼"
+    # 宣告處必須是值（`let x = …`），不是函式
+    assert re.search(r"(?:const|let)\s+servingHost\s*=\s*['\"]", text) or \
+           re.search(r"\$:\s*servingHost\s*=", text), \
+        "servingHost 必須是一個值（值宣告或 `$:` 指派）"
+
+
+def test_page_does_not_mix_derived_and_legacy_reactivity() -> None:
+    """不可在同一個檔案混用 `$derived` 與 `$:`。
+
+    ⚠️ 本次實測踩到：為了算 servingHost 寫了 `$derived`，編譯器立刻把整個
+    元件切進 **runes mode**，而這支檔案是 legacy mode（`$: BACKENDS = …`）
+    → build 直接失敗：
+
+        `$:` is not allowed in runes mode, use $derived or $effect instead`
+
+    兩種模式不可混用：只要有**一個** rune，整個元件就是 runes mode。
+
+    ⚠️ 檢查前必須剝註解：這條的說明註解裡就提到 `$derived`／`$effect`，
+    不剝的話會判成「有在用 rune」。
+    """
+    text = _strip_comments(PAGE.read_text(encoding="utf-8"))
+    uses_runes = bool(re.search(r"\$(?:derived|state|effect)\b", text))
+    uses_legacy = bool(re.search(r"^\s*\$:\s", text, re.M))
+    assert not (uses_runes and uses_legacy), (
+        "同一個元件不可混用 runes（$derived／$state／$effect）與 legacy `$:`"
+        " —— 只要有一個 rune，編譯器就把整個元件當 runes mode，`$:` 會直接讓 build 失敗。"
+    )
 
 
 def test_page_does_not_slice_citations_inline_anymore() -> None:

@@ -18,6 +18,35 @@
   }
   const citation = citationText;
 
+  // 「實際服務主機」與「是否被 fallback」—— 兩者都可能與下拉選的值不同。
+  //
+  // ⚠️ 分清這三個是必要的（2026-10-05 使用者回報下拉與 badge 不一致）：
+  //   backendId    使用者選的（= ?backend= 參數）
+  //   servingHost  實際回應的那台（= /health 的 host_id）
+  //   fellBack     兩者不同
+  //
+  // ⚠️ **fallback 只在「自動」時發生**（實測 worker 的 queryRoute:406-413：
+  //   `if (id !== 'auto' && okHosts.includes(id)) … else if (id === 'auto') …`
+  //   —— 指定主機而它掛掉時**不會**換人，會整個回「所有後端皆無法連線」；
+  //   `through()` 的 `picked` 也是只打指定的那台）。
+  //   所以 fellBack 幾乎永遠是 false，它保留是因為 worker 的行為可能改，
+  //   而那時 UI 必須立刻說明「其實是別台在服務」。
+  // ⚠️ **必須是值，不是函式物件**。寫成 `const servingHost = () => ...` 然後在
+  //   樣板裡用 `{servingHost}` 會被 Svelte 5 直接字串化函式原始碼 ——
+  //   畫面會顯示「目前採用：() => $.get(health)?.host_id || '—'」。
+  //   而且**不會報錯**：型別是 string，模板編譯與 pytest 的靜態斷言都抓不到，
+  //   症狀只是畫面顯示一段程式碼。本次實測才發現（見 SCENARIO 記錄）。
+  //
+  // ⚠️ **用 `$:` 不可用 `$derived`**：寫了任何一個 `$derived`／`$state`
+  //   就會把整個元件切進 runes mode，而這支檔案是 legacy mode
+  //   （`$: BACKENDS = …` 在用）→ build 直接失敗：
+  //     `$: is not allowed in runes mode, use $derived or $effect instead`
+  //   兩種模式不可混用。
+  let servingHost = '—';
+  let fellBack = false;
+  $: servingHost = health?.host_id || '—';
+  $: fellBack = backendId !== 'auto' && servingHost !== '—' && servingHost !== backendId;
+
   // 後端切換器的候選名單**從 /status 回的 known 推導**，不在這裡列舉主機。
   // known 來自後端的 HOST_API_URLS；未設就是空 → 只剩「自動」，單機部署正常。
   // 舊版這裡寫死 x570/mbp/msi 三台，第 4 台部署的人必須改程式才能切過去。
@@ -253,7 +282,11 @@
     //  2) 順序有意義：loadStatus 填完 knownHosts 之後 BACKENDS 才更新，
     //     restoreBackend 才知道上次選的是哪台；loadModels 再據此決定打到哪台後端。
     await checkHealth();
-    await loadStatus();
+    const restored = await loadStatus();
+    // ⚠️ 還原改變了 backendId → 上面那次 checkHealth 量的是「自動」那台，
+    //   badge 會與下拉不一致（2026-10-05 實測：下拉 x570、badge ⦿ wsl）。
+    //   補量一次，且必須在 loadModels 之前 —— 模型清單也要打到同一台。
+    if (restored) await checkHealth();
     loadModels();
     requestAnimationFrame(grow);
 
@@ -442,7 +475,16 @@
     return () => clearInterval(timer);
   }
 
+  /**
+   * 抓 /status。回傳「還原上次選擇是否改變了 backendId」。
+   *
+   * ⚠️ 為什麼要回傳：onMount 的順序是 checkHealth() → loadStatus()，
+   *   而 backendId 是在本函式內被還原的。回傳 true 讓呼叫端知道
+   *   「剛才那次 health 量的是別台，要補量」。不回傳的話那個不一致
+   *   就沒有任何機制會修正（實測症狀：下拉 x570、badge ⦿ wsl）。
+   */
   async function loadStatus() {
+    let restored = false;
     statusLoading = true;
     try {
       const r = await fetch(api('/status'));
@@ -461,13 +503,14 @@
       //   ⚠️ 註解裡**不要寫機台代號**：tests/test_frontend_hosts.py 的黑名單守衛
       //   只剝 // 與 /* */，不剝 HTML 註解，寫在 markup 的註解會被當成程式碼。
       await Promise.resolve();
-      restoreBackend();   // 清單到了才驗得動上次選的是哪台（見函式註解）
+      restored = restoreBackend();   // 清單到了才驗得動上次選的是哪台（見函式註解）
     } catch (_) {
       status = { ok: false, host: '-', log: null };
       knownHosts = {};
     } finally {
       statusLoading = false;
     }
+    return restored;
   }
 
   // 只補抓版本，不動 statusLoading —— 法規版本要靠每日 ingest 才會變，
@@ -650,14 +693,34 @@
   // 推導的（不在程式裡寫死），組初始化那時 knownHosts 還是空物件，提前比對
   // 只會得到「永遠不還原」。所以在 loadStatus 填完 knownHosts 之後做。
   let restoreTried = false;
+  /**
+   * 還原上次選的後端。回傳**是否真的切換了**。
+   *
+   * ⚠️ 2026-10-05 使用者回報的 bug：重整頁面後下拉顯示 `x570`，
+   * 右側的連線 badge 卻寫 `⦿ wsl` —— 兩者不一致。
+   *
+   * 根因是**順序**，不是資料：onMount 裡 `checkHealth()` 跑在 `loadStatus()`
+   * 之前，而 backendId 是在 loadStatus() → restoreBackend() 裡才被還原的。
+   *   checkHealth() 量到的是 backendId='auto' 時自動選到的那台（wsl），
+   *   之後 backendId 變成 x570，但**沒有任何人重新量一次 health**。
+   *
+   * 為什麼手動切換不會有這個問題：`switchBackend()` 內部會呼叫
+   * checkHealth()，所以切換後兩者一致 —— 只有「重整頁面」這條路徑會不一致，
+   * 所以很容易被誤判成偶發。
+   *
+   * 回傳值讓呼叫端知道要不要補量；不回傳的話 onMount 無從判斷。
+   */
   function restoreBackend() {
-    if (restoreTried) return;
+    if (restoreTried) return false;
     restoreTried = true;
-    if (typeof localStorage === 'undefined') return;
+    if (typeof localStorage === 'undefined') return false;
     const saved = localStorage.getItem('ragdemo-backend');
     // 認得的才還原；認不得（那台機器已從設定移除）就留在「自動」，
     // 不要硬切到一台不存在的後端。
-    if (saved && BACKENDS.some((x) => x.id === saved)) backendId = saved;
+    if (!saved || saved === backendId) return false;
+    if (!BACKENDS.some((x) => x.id === saved)) return false;
+    backendId = saved;
+    return true;
   }
   // 這三個原本在 script 頂層呼叫（restoreBackend / checkHealth / loadStatus），
   // 已搬進 onMount —— 見上方說明。留在頂層會讓 SSR 直接報錯、整頁載不到資料。
@@ -739,12 +802,35 @@
         <option value={b.id}>{b.label}</option>
       {/each}
     </select>
+    <!-- ⚠️ 這一段取代原本的「⦿ host｜llm ｜ collection ｜ Nms」徽章。
+         原版只印 host_id，沒有說明它是「選擇」還是「實際服務」——
+         兩者不一樣時讀者無從判斷（2026-10-05 使用者回報：下拉 x570、badge ⦿ wsl）。
+
+         兩個值**確實可能不同**，而且是有意義的：
+           · backendId      = 使用者選的（= worker 的 ?backend= 參數）
+           · servingHost    = 實際回應的那台（= /health 的 host_id）
+         選定的機器離線時 worker 會 fallback 到別台（queryRoute 的 okHosts），
+         所以「選了 A、實際 B」是正常狀況、不是故障。
+
+         所以這裡**兩個都要顯示**，而且在不一致時明說是誰接手 —— 隱藏任一個都
+         會讓讀者以為查詢打到自己選的那台。 -->
     {#if healthLoading}
       <span class="health">連線中…</span>
     {:else if health}
-      <span class="health ok">⦿ {health.host_id}｜{health.llm} ｜ {health.collection} ｜ {health.ms}ms</span>
+      <span class="health ok">
+        目前採用：{servingHost}｜{health.llm} ｜ {health.collection} ｜ {health.ms}ms
+        {#if fellBack}<span class="fallback" title="你選的 {backendId} 無法連線，已由 {servingHost} 接手">（由 {servingHost} 接手）</span>{/if}
+      </span>
     {:else if healthError}
-      <span class="health bad">✗ {healthError}</span>
+      <!-- ⚠️ 選了**特定**主機而它掛掉時，說明「查詢也會失敗」——
+           實測 worker：指定主機不可用時 /query 不會 fallback 到別台
+           （queryRoute 只在 id==='auto' 時才換人），而是整個回「所有後端皆
+           無法連線」。所以這不是只有 health 的問題，使用者必須知道。
+           舊版只印「✗ HTTP 502」，看不出來是他選的那台掛了。 -->
+      <span class="health bad">
+        ✗ {healthError}
+        {#if backendId !== 'auto'}<span class="fallback">（你選的 {backendId} 無法連線，查詢也會失敗；改選「自動」可由可用主機接手）</span>{/if}
+      </span>
     {/if}
     <div class="sw-right">
       <button class="info-btn" onclick={toggleInfo} aria-expanded={showInfo}>
@@ -1112,6 +1198,13 @@
   .health { font: var(--body-sm); }
   .health.ok { color: var(--success-text); }
   .health.bad { color: var(--error); }
+  /* fallback 提示：選的那台連不上、由別台接手。這是**可用性設計的結果**，
+   * 不是故障，所以用 muted 不用 error —— 但必須看得見，否則讀者會以為
+   * 查詢打在自己選的那台。 */
+  .fallback {
+    color: var(--muted-text); cursor: help;
+    border-bottom: 1px dotted var(--muted-text);
+  }
   .sw-right { margin-left: auto; position: relative; display: flex; }
 
   /* ── model 下拉 ──────────────────────────────────────────────── */

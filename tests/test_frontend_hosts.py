@@ -50,12 +50,16 @@ def _code_only(path: Path) -> str:
     必要的理由：註解裡**應該**提到舊的做法（那是解釋改動理由的價值所在），
     但那會讓上面的黑名單誤判。要守的是「程式不再列舉主機」，
     不是「這個 repo 不得提及自己的主機名」。
+
+    ⚠️ 2026-10-05 補 `<!-- -->`：Svelte 樣板註解不被前兩條抓到。
+    實測症狀：樣板註解寫「下拉 x570、badge ⦿ wsl」就被判成程式寫死機台清單
+    —— 而那正是解釋這個 bug 的紀錄，不該被當成違規。
     """
     text = path.read_text(encoding="utf-8")
-    # 行註解
-    text = re.sub(r"//[^\n]*", "", text)
-    # 區塊註解（含 JSX 的 {/* */}，這裡只處理裸的）
-    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)   # Svelte 樣板註解
+    text = re.sub(r"\{\/\*.*?\*\/\}", "", text, flags=re.S)  # JSX 樣板註解
+    text = re.sub(r"//[^\n]*", "", text)                     # 行註解
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)        # 區塊／CSS 註解
     return text
 
 
