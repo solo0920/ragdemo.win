@@ -303,6 +303,32 @@ def test_page_backends_has_eager_initializer_not_only_reactive() -> None:
         "BACKENDS 仍需保留反應式賦值，knownHosts 進來後要能更新"
 
 
+def test_page_backends_reactive_line_mentions_known_hosts() -> None:
+    """那條 `$: BACKENDS = …` **必須在同一行提到 knownHosts**。
+
+    ⚠️ 2026-10-05 實測的真 bug。Svelte 的依賴分析只掃反應式語句**本身**出現的
+    識別字 —— `buildBackends()` 函式主體裡讀了 `knownHosts`，編譯器看不到，
+    於是那條語句被判定為「沒有任何依賴」，knownHosts 進來之後**永遠不重算**。
+
+    症狀極具迷惑性：`/status` 有回來、「連線詳細」面板也列得出三台，但切換器
+    永遠只有「自動」一項 —— 使用者看到的是「面板說有三台，卻沒得選」。
+    舊版（按鈕組）與新版（<select>）症狀完全一樣，所以不是改版造成的。
+
+    為什麼要有這條測試：`test_page_backends_has_eager_initializer_not_only_reactive`
+    只比對 `let BACKENDS =` / `$: BACKENDS =` 的**形式**，那兩條對這個 bug
+    一直是綠的 —— 依賴寫錯了它看不出來。
+    """
+    code = _code_only(PAGE)
+    m = re.search(r"^\s*\$\:\s*BACKENDS\s*=(.*)$", code, re.M)
+    assert m, "找不到 `$: BACKENDS = …` 那行"
+    line = m.group(1)
+    assert "knownHosts" in line, (
+        "那條反應式語句裡必須直接出現 knownHosts（例如用 `void knownHosts` "
+        "建立依賴），不能只讓 buildBackends() 在函式內部讀它 —— 那樣 Svelte "
+        "看不到依賴關係，切換器會永遠停在只有「自動」。"
+    )
+
+
 def test_page_startup_fetches_live_in_onmount_not_at_script_top_level() -> None:
     """`checkHealth` / `loadStatus` / `loadModels` 不得在 script 頂層呼叫。
 
@@ -338,16 +364,38 @@ def test_page_startup_fetches_are_actually_awaited_in_onmount() -> None:
 
 
 def test_page_restore_backend_only_runs_once_known_hosts_arrived() -> None:
-    """還原上次選的後端必須在 knownHosts 填好之後，且只做一次。
+    """還原上次選的後端必須在 knownHosts 填好**而且 BACKENDS 已重算**之後。
 
     knownHosts 還是空時 `BACKENDS` 只有「自動」，比對永遠不成立 —— 那時還原
     等於沒做。這是 `restoreTried` 存在的原因，順便守住「只跑一次」，
     否則使用者手動切到別台後，下次 loadStatus 會把他無聲無息切回去。
+
+    ⚠️ 2026-10-03：「緊接著」原本只要求 `knownHosts = …;` 下一行就是
+    restoreBackend()。那是**不夠的**：BACKENDS 是反應式變數，knownHosts 賦值後
+    要等 Svelte 排到 microtask 才會重算。同步呼叫會拿舊的（只有「自動」的）
+    陣列去比對，必然失敗 —— 症狀是 localStorage 記著某台 peer、重整後卻回到
+    「自動」。所以中間**必須**有 `await`（目前是 `await Promise.resolve()`）。
+    這條 regex 改成要求那個 await 存在，而不是禁止它。
     """
     code = _code_only(PAGE)
     assert "restoreTried" in code, "restoreBackend 應有「只試一次」的旗標"
-    m = re.search(r"knownHosts\s*=\s*[^;]+;\s*\n\s*restoreBackend\(\)", code)
-    assert m, "restoreBackend() 應緊接在 knownHosts 賦值之後（loadStatus 裡）"
+    # ⚠️ 只認「賦值給 status?.known 的那一次」（loadStatus 的 try 分支），不是
+    #    檔案裡任何一個 `knownHosts =`。舊版用 `knownHosts\s*=\s*[^;]+;` 會從
+    #    **第一個** knownHosts（`let knownHosts = {}`）就開始比，於是 `between`
+    #    變成一大段不相關的程式碼 —— 裡面剛好有別的 await，於是這條斷言
+    #    **對真正的迴歸恆為綠**（實測：拿掉那個 await 仍然 13 passed）。
+    #    錨定到 `status?.known` 才抓得到。
+    m = re.search(
+        r"knownHosts\s*=\s*status\?\.known[^;]*;(.*?)restoreBackend\(\)",
+        code, re.S,
+    )
+    assert m, "restoreBackend() 必須在 knownHosts 賦值之後（loadStatus 裡）"
+    between = m.group(1)
+    assert "await" in between, (
+        "knownHosts 賦值與 restoreBackend() 之間必須 await 一個 microtask："
+        "BACKENDS 是反應式變數，同步呼叫會拿到還是「只有自動」的舊陣列，"
+        "還原會靜默失效（localStorage 有值、重整後仍回到自動）。"
+    )
 
 
 # 這裡原本還有一條「用 svelte/compiler 編譯後比對 let BACKENDS = 的位置是否

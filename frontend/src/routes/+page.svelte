@@ -23,7 +23,17 @@
   // 那三個呼叫後來搬進了 onMount（見上方），但初值仍保留：`base()` 與樣板都會
   // 讀 BACKENDS，讓它不依賴反應式語句的求值時機，才不會再出現同類問題。
   let BACKENDS = buildBackends();
-  $: BACKENDS = buildBackends();
+  // ⚠️ `knownHosts` **必須出現在這行裡**，不能只躲在 buildBackends() 內部。
+  //   Svelte 的依賴分析只掃反應式語句本身出現的識別字：`buildBackends()` 讀了
+  //   knownHosts，但那是函式主體，編譯器看不到 → 於是這條語句被認為沒有任何
+  //   依賴，knownHosts 進來之後**永遠不重算**。
+  //   症狀（2026-10-05 實測，x570 端／headless chromium）：/status 已經回來、
+  //   「連線詳細」面板也列出三台，但切換器永遠只有「自動」一項 —— 讀者看到的
+  //   是「面板有三台、卻沒得切」。舊版（按鈕組）與新版（<select>）都一樣，
+  //   所以這不是改版造成的，是原本就壞、只是沒人拿「面板有、選擇器沒有」對照過。
+  //   `void knownHosts` 是不求值只建立依賴的最小寫法；靠 buildBackends() 的
+  //   副作用回傳值來帶是隱晦且脆弱的。
+  $: BACKENDS = (void knownHosts, buildBackends());
 
   let question = '';
   let ta;
@@ -407,6 +417,16 @@
       // 後端知道的 peer 清單。取不到就清空（切換器退回只有「自動」）——
       // 那比留著上一次的值誠實：留著會讓 UI 顯示一台已經不認識的機器。
       knownHosts = status?.known && typeof status.known === 'object' ? status.known : {};
+      // ⚠️ 必須 await 一個 microtask：restoreBackend() 要用 BACKENDS.some() 驗
+      //   「上次選的那台還在嗎」，而 BACKENDS 是**反應式**變數 —— knownHosts 剛賦值
+      //   不代表 BACKENDS 已經重算完（Svelte 把反應式更新排到 microtask）。
+      //   同步呼叫會拿到「還只有自動」的舊陣列，比對必然失敗 → 還原靜默失效。
+      //   症狀（2026-10-05 實測）：localStorage 記著某台 peer，重整後下拉卻回到
+      //   「自動」。這個 bug 原本被「BACKENDS 根本不重算」蓋掉 —— 兩邊都是空結果，
+      //   看不出差異；修好重算後才浮出來。await Promise.resolve() 讓排程跑完那一輪即可。
+      //   ⚠️ 註解裡**不要寫機台代號**：tests/test_frontend_hosts.py 的黑名單守衛
+      //   只剝 // 與 /* */，不剝 HTML 註解，寫在 markup 的註解會被當成程式碼。
+      await Promise.resolve();
       restoreBackend();   // 清單到了才驗得動上次選的是哪台（見函式註解）
     } catch (_) {
       status = { ok: false, host: '-', log: null };
@@ -659,14 +679,31 @@
   </section>
 
   <section class="switcher">
-    <span class="sw-label">後端：</span>
-    {#each BACKENDS as b}
-      <button
-        class:active={backendId === b.id}
-        onclick={() => switchBackend(b.id)}>
-        {b.label}
-      </button>
-    {/each}
+    <span class="sw-label" id="backend-label">後端：</span>
+    <!-- ⚠️ 用原生 <select>（這支 codebase 的既有慣例：設定對話框、題庫頁都是它），
+         不是自製 menu。自製的下拉要自己處理鍵盤／焦點／Esc，而且選項一多就
+         需要捲動容器；原生控制項這些都自帶且各瀏覽器一致。
+         onchange 讀 e.currentTarget.value（DOM 的真值）而不是 backendId ——
+         萬一 bind:value 的監聽器晚一步才更新 state，那樣寫會用「舊值」去切換。
+         選項仍**從 BACKENDS 推導**（= /status 的 known），不在這裡列舉主機名，
+         否則第 4 台部署的人得改程式才能切過去。 -->
+    <!-- ⚠️ `bind:value` **不能拿掉**。它不只是雙向綁定，還負責在 knownHosts
+         進來之後把「上次選的那台」畫進控制項：restoreBackend() 只設 backendId，
+         而 `value={backendId}` 這種屬性寫法在 Svelte 5 對<select> 不會更新
+         selectedOption（實測：localStorage 記著某台 peer，重整後 DOM 仍是 auto，只有 bind 會跟上）。
+         先前看到的「選完變空字串」是**測試環境**造成的 —— 該次 mock 沒攔跨網域
+         路徑，loadStatus 拋錯 → knownHosts={} → 選項只剩 auto → 值落空。
+         `onchange` 仍讀 e.currentTarget.value（DOM 真值），不依賴 bind 的更新時序。 -->
+    <select
+      class="backend-select"
+      bind:value={backendId}
+      onchange={(e) => switchBackend(e.currentTarget.value)}
+      aria-labelledby="backend-label"
+      title="選擇查詢要送到哪一台後端">
+      {#each BACKENDS as b}
+        <option value={b.id}>{b.label}</option>
+      {/each}
+    </select>
     {#if healthLoading}
       <span class="health">連線中…</span>
     {:else if health}
@@ -1018,16 +1055,14 @@
     flex-wrap: wrap; margin-bottom: var(--sm);
   }
   .sw-label { font: var(--caption); color: var(--muted); }
-  /* category-tab：未選透明、選中 surface-card（DESIGN.md〈Tab / Filter〉） */
-  .switcher button {
-    height: 32px; padding: 0 var(--sm);
-    border: 1px solid transparent; border-radius: var(--rounded-md);
-    background: transparent; color: var(--muted);
+  /* 後端選擇器。樣式對齊 .info-btn（同一列的鄰居按鈕），讓下拉與「連線詳細」
+     視覺一致；`.switcher button` / `.active` 已在改成 <select> 後移除 ——
+     選中狀態現在由控制項自己呈現（select 永遠顯示當前值），不需要再畫一份。 */
+  .backend-select {
+    height: 32px; padding: 0 var(--xs); min-width: 7rem;
+    border: 1px solid var(--hairline); border-radius: var(--rounded-md);
+    background: var(--canvas); color: var(--ink);
     font: var(--nav-link); cursor: pointer;
-  }
-  .switcher button.active {
-    background: var(--surface-card); color: var(--ink);
-    border-color: var(--hairline);
   }
   .health { font: var(--body-sm); }
   .health.ok { color: var(--success-text); }
