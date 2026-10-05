@@ -10,10 +10,16 @@
        依序 normalize(清洗)→eda(duckdb parquet)→pg_load(metadata)→qdrant_load(向量，
        整庫重建所以上游刪除也會正確移除)→驗證，並把新版工件+原始 zip 備份 versions/<新 stamp>/
   4. 防呆：新版條文數若比上次少 20%+（資料縮水）→ 中止並保留舊資料，等人工確認
+  5. 成功套用後有界化 versions/ 快照數量（預設留 5 份，RAGDEMO_KEEP_VERSIONS 可調）
+     ⚠️ 上游只提供**當前**版本，所以砍掉的快照是無法再取得的歷史 —— 這是
+        保留深度的取捨，不是清垃圾。當前版本與前一版永不刪（回退路徑）。
 
 用法：
   sync_daily.py          # 檢查＋回報（預設，不套用）
   sync_daily.py --apply  # 檢查＋有新版才真正跑整條管線（crontab 用這個）
+
+環境變數：
+  RAGDEMO_KEEP_VERSIONS  保留幾份 versions/ 快照（預設 5）
 """
 import fcntl
 import hashlib
@@ -132,6 +138,59 @@ def version_changed(prev: dict, sha: str) -> bool:
     return prev.get("sha256") != sha
 
 
+# 保留幾份 versions/ 快照。**這是歷史深度，不是磁碟空間** ——
+#   上游 law.moj.gov.tw 只提供**當前**版本，舊的下不回來。所以砍掉的就是
+#   唯一一份過去狀態的紀錄（回退、比對條文變動、稽核都靠它）。
+#   預設 5 份 ≈ 355MB，是「有界」與「保留夠回退深度」之間的取捨。
+#
+# ⚠️ **設定位置：只有「行程環境變數」有效，寫進 `.env` 沒用。**
+#   本模組不載入 .env（整個 ingest/ 沒有 load_dotenv —— `pg_load.py` 讀
+#   `.env` 是走 `_hostenv.py`，那是另一條路），而 cron 那行也不會
+#   `source .env`。所以要調必須寫在 crontab 行的前綴：
+#
+#       30 6 * * * RAGDEMO_KEEP_VERSIONS=8 cd ... && .venv/bin/python ...
+#
+#   ⚠️ env-audit.py 會把這個變數列進 `.env.example`（標成「消費者：backend」，
+#      但它其實只被 ingest/ 讀 —— 那是 env-audit 的分類缺口，不是本檔的問題）。
+#      **那個條目放在那裡不會生效**，不要看到它就去改 .env。
+KEEP_VERSIONS = int(os.environ.get("RAGDEMO_KEEP_VERSIONS", "5"))
+
+
+def prune_versions(keep: int, protect: set[str]) -> list[str]:
+    """刪掉 versions/ 裡過舊的快照，回傳被刪的名稱（給 log）。
+
+    ⚠️ 為什麼只在**成功套用之後**呼叫：失敗時留下來的目錄是回退材料。
+       實測 2026-10-02/03 有 4 次是 pg_load 失敗留下的（那幾次在
+       normalize 之後就中止，但備份步驟已經跑完）—— 那些目錄是排查用線索，
+       不是垃圾。
+
+    ⚠️ 為什麼用 mtime 排序而不是名稱：目錄名有兩種來源 ——
+       `versions/<sha12>`（舊版備份）與 `versions/<YYYYmmdd-HHMMSS>`（新版備份），
+       兩種格式無法直接互比。mtime 是唯一可靠的「時間」。
+
+    ⚠️ 為什麼要有 protect：當前版本與它的前一版是回退路徑。
+       即使它們因為 mtime 怪（有人手動搬過）而排在最舊，也不能刪 ——
+       刪掉當前版本的備份 = 刪掉唯一一份完整的當前工件。
+    """
+    if not VERS.is_dir():
+        return []
+    dirs = [d for d in VERS.iterdir() if d.is_dir()]
+    # 最新的 keep 份留著；protect 的無論多舊都留著。
+    newest = sorted(dirs, key=lambda d: d.stat().st_mtime, reverse=True)[:keep]
+    keep_names = {d.name for d in newest} | protect
+    removed = []
+    for d in sorted(dirs, key=lambda d: d.stat().st_mtime):
+        if d.name in keep_names:
+            continue
+        try:
+            shutil.rmtree(d)
+            removed.append(d.name)
+        except OSError as e:
+            # 刪不掉不是這次同步的錯，絕不能讓它把已完成的套用變成失敗。
+            log.warning("無法刪除舊版快照 versions/%s/：%s（保留）", d.name, e)
+    return removed
+
+
 def shrink_guard(prev_articles: int, new_articles: int, ratio: float = SHRINK_GUARD) -> bool:
     """新版條文數是否大幅縮水（True=應中止）。prev_articles<=0（首次）不擋。"""
     if prev_articles <= 0:
@@ -213,6 +272,20 @@ def main() -> int:
 
         state["applied_at"] = datetime.now().isoformat(timespec="seconds")
         save_state(state)
+
+        # 6) 有界化快照數量。**必須在成功之後**（見 prune_versions 的說明）。
+        # protect = 當前版本 + 前一版：那兩個是回退路徑，永遠不刪。
+        # 整段包 try：資料已經套用完成了，為了清目錄而讓這次同步回報失敗是错的。
+        try:
+            removed = prune_versions(KEEP_VERSIONS, {stamp_new, old_stamp})
+            if removed:
+                log.info("已清理舊版快照（保留最近 %d 份）→ 刪除 %s",
+                         KEEP_VERSIONS, " ".join(removed))
+            else:
+                log.info("舊版快照無需清理（保留最近 %d 份）", KEEP_VERSIONS)
+        except Exception as e:                      # noqa: BLE001 — 見上，不可讓它使同步失敗
+            log.warning("清理舊版快照時發生未預期錯誤（不影響本次套用結果）：%s", e)
+
         log.info("完成：新版已套用（versions/%s/），下次檢查由 crontab 每日執行。", stamp_new)
         return 0
 
