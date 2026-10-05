@@ -316,9 +316,28 @@
     return b ? b.base : '';
   }
 
+  // ⚠️ 所有後端請求都走 `/api?backend=<id>`，**不要**對非 auto 主機展開成絕對網址。
+  //
+  //   症狀（2026-10-05 x570 端實測，下拉選單選 x570／mbp 就出來）：health 徽章
+  //   變成「✗ Failed to fetch」，而查詢其實是好的。
+  //
+  //   為什麼：Pages worker 的 /api 會帶 CF Access Service Token 轉發
+  //   （`through()` 裡 `Object.assign(..., cfHeaders())`）。瀏覽器直接打
+  //   https://api-x570.ragdemo.win/health 沒有 token → Access 回 403 → fetch
+  //   因為不是 2xx 又讀不到 body 而丟出「Failed to fetch」。實測三台裸打
+  //   全是 403（帶 token 才是 200）。
+  //
+  //   `/api/query?backend=<id>` 本來就支援指定主機（queryRoute 讀 searchParams，
+  //   且會用 cfHeaders），所以指定主機**不需要**繞過 worker —— 繞過去反而
+  //   丟掉唯一能穿過 Access 的那條路。
+  //
+  //   刻意保留 base()：targetRows()／設定對話框仍需要各台的 base 網址去讀
+  //   /settings/default-model（那是唯讀、被 guard 放行的路徑）。但那些呼叫
+  //   同樣會撞 Access —— 見 hostDefaults.ts 的說明，那裡是刻意容忍的
+  //   （modelsKnown=false → UI 顯示「取不到」，不會假裝成功）。
   function api(path) {
-    const b = base();
-    return b ? b + path : '/api' + path;
+    const id = backendId;
+    return id && id !== 'auto' ? `/api${path}?backend=${encodeURIComponent(id)}` : `/api${path}`;
   }
 
   function usageSuffix(key) {

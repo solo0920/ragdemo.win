@@ -129,6 +129,49 @@ def test_through_sends_the_token(tmp_path):
         assert c["headers"].get("cf-access-client-secret") == CF_SECRET, c
 
 
+def test_through_honors_backend_param_and_picks_only_that_host(tmp_path):
+    """`?backend=<id>` 必須讓 through() **只**打那一台。
+
+    ⚠️ 2026-10-05 補。症狀來自前端的下拉選單：使用者選了 x570 或 mbp，
+    health 徽章卻是「✗ Failed to fetch」；而即使前端改成走 /api，through()
+    也只會輪詢、忽略 backend —— 那不會報錯，只會回**別台**的資料
+    （「看起來正常但答非所問」，比出錯更難察覺）。
+
+    所以這裡斷言的是「只打到指定的那一台」，不是「打到那台」—— 後者
+    failover 語意下也成立（第一台 dead 就會碰第二台），抓不到這個 bug。
+    """
+    argv = "'GET','health',undefined,{env:{API_ORIGINS:'" + ORIGINS + "'}},undefined,'mbp'"
+    got = _run("through", {"argv": argv}, tmp_path)
+
+    assert got["calls"], "指定主機時也應該有發出請求"
+    hosts = {c["url"].split("/")[2] for c in got["calls"]}
+    assert hosts == {"api-mbp.ragdemo.win"}, f"應該只打 mbp，實際：{hosts}"
+
+
+def test_through_ignores_unknown_backend_and_falls_back_to_round_robin(tmp_path):
+    """認不得的 id **退回輪詢**，不要讓整條路徑壞掉。
+
+    與 queryRoute 的 `hosts.some((h) => h.id === want) ? want : 'auto'` 同一個
+    判法：那台已從 API_ORIGINS 移除時，使用者選到的是一個不存在的 id，
+    寧可服務別台也不要全掛。
+    """
+    argv = "'GET','health',undefined,{env:{API_ORIGINS:'" + ORIGINS + "'}},undefined,'no-such-host'"
+    got = _run("through", {"argv": argv}, tmp_path)
+
+    assert got["calls"], "認不得的 id 也應該有發出請求（退回輪詢）"
+    assert got["status"] == 200, got
+
+
+def test_through_without_backend_param_still_round_robins(tmp_path):
+    """沒有 `?backend=` 時行為不變（第一台健康就回），別被新邏輯誤傷。"""
+    argv = "'GET','health',undefined,{env:{API_ORIGINS:'" + ORIGINS + "'}},undefined"
+    got = _run("through", {"argv": argv}, tmp_path)
+
+    assert got["calls"], "應該有發出請求"
+    hosts = {c["url"].split("/")[2] for c in got["calls"]}
+    assert hosts == {"api-x570.ragdemo.win"}, f"無 backend 參數應只打第一台：{hosts}"
+
+
 def test_probe_sends_the_token(tmp_path):
     got = _run("probe", {"argv": f"'{SENTINEL}'"}, tmp_path)
 

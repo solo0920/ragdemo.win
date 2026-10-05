@@ -261,7 +261,14 @@ function jsonError(phase: string, e: unknown): Response {
   });
 }
 
-async function through(method: string, path: string, body: string | undefined, platform?: { env?: Env }, headers?: Headers): Promise<Response> {
+async function through(
+  method: string,
+  path: string,
+  body: string | undefined,
+  platform?: { env?: Env },
+  headers?: Headers,
+  want?: string | null,
+): Promise<Response> {
   // CF token 檢查放在 API_ORIGINS 之前：兩者都缺時，先講比較具體的那個
   // （Access 是這輪 rollout 的新設定，最可能漏的就是它）。
   const cfMiss = cfUnconfigured();
@@ -271,7 +278,23 @@ async function through(method: string, path: string, body: string | undefined, p
       headers: { 'content-type': 'application/json' },
     });
   }
-  const origins = hostsOf(platform).map((h) => h.url);
+  const all = hostsOf(platform);
+  // ⚠️ `?backend=<id>` 讓這條路徑**指定**單一台，而不是輪詢全部。
+  //
+  //   這是 2026-10-05 補的，症狀來自前端的下拉選單：使用者選了 x570 或 mbp，
+  //   health 徽章卻是「✗ Failed to fetch」。兩個獨立原因，都實測過：
+  //
+  //   1) 前端原本把非 auto 主機展開成絕對網址（`b + path`）→ 瀏覽器裸打 →
+  //      沒有 CF token → Access 403 → fetch 讀不到 body 丟「Failed to fetch」。
+  //      （三台裸打 /health 全 403，帶 token 才 200。）
+  //   2) 即使前端改成走 /api，through() 也**只會輪詢**、忽略 backend →
+  //      health/status/models 回的都是「第一台活著的」，切換主機對它們無效。
+  //      那不是錯誤回應，是**看起來正常但答非所問** —— 更難察覺。
+  //
+  //   認不得的 id 一律退回輪詢（fail-open，與 queryRoute 的 `hosts.some(...)` 判法
+  //   一致）：那台已從 API_ORIGINS 移除時，寧可服務別台也不要整條路徑壞掉。
+  const picked = want ? all.filter((h) => h.id === want) : [];
+  const origins = (picked.length ? picked : all).map((h) => h.url);
   if (origins.length === 0) {
     return new Response(JSON.stringify({ detail: 'API_ORIGINS/API_ORIGIN 未設定（請在 Cloudflare Pages 變數設定）' }), {
       status: 503,
@@ -421,11 +444,18 @@ async function queryRoute(request: Request, platform?: { env?: Env }): Promise<R
   }
 }
 
+// `?backend=<id>` 三個 handler 都要讀（GET/PUT 是為了指定主機，POST 則與
+// queryRoute 的行為一致）。抽一個函式避免三處各寫一次而漏掉某個動詞 ——
+// 漏掉的症狀是「GET 對、PUT 不對」，很難聯想到是同一件事。
+function wantedHost(request: Request): string | null {
+  return new URL(request.url).searchParams.get('backend');
+}
+
 export const GET: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, params.path);
   if (blocked) return blocked;
   try {
-    return await through('GET', params.path, undefined, platform, request.headers);
+    return await through('GET', params.path, undefined, platform, request.headers, wantedHost(request));
   } catch (e) {
     return jsonError(`GET /${params.path} 轉發`, e);
   }
@@ -436,7 +466,7 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
   if (blocked) return blocked;
   try {
     if (parsed(params.path) === 'query') return await queryRoute(request, platform);
-    return await through('POST', params.path, await request.text(), platform, request.headers);
+    return await through('POST', params.path, await request.text(), platform, request.headers, wantedHost(request));
   } catch (e) {
     return jsonError(`POST /${params.path} 轉發`, e);
   }
@@ -452,7 +482,7 @@ export const PUT: RequestHandler = async ({ params, request, platform }) => {
   const blocked = await guard(request, params.path);
   if (blocked) return blocked;
   try {
-    return await through('PUT', params.path, await request.text(), platform, request.headers);
+    return await through('PUT', params.path, await request.text(), platform, request.headers, wantedHost(request));
   } catch (e) {
     return jsonError(`PUT /${params.path} 轉發`, e);
   }

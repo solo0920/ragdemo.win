@@ -541,6 +541,37 @@ def test_worker_never_lets_a_throw_become_a_cloudflare_error_page() -> None:
             f"{verb} 的 catch 應呼叫 jsonError 並標明是哪個路徑失敗"
 
 
+def test_frontend_never_expands_peer_hosts_to_absolute_urls() -> None:
+    """`api()` **不得**把非 auto 主機展開成絕對網址 —— 一律走 /api。
+
+    ⚠️ 2026-10-05 實測的真 bug，症狀是選了 x570／mbp 之後 health 徽章變成
+    「✗ Failed to fetch」（而查詢其實是好的）。
+
+    原因是 Access：三台的 API 全在 Cloudflare Access 後面，**只有 Pages worker
+    持有 Service Token**（`through()` 裡 `Object.assign(..., cfHeaders())`）。
+    瀏覽器直接打 `https://api-x570.ragdemo.win/health` 沒有 token → 403 →
+    fetch 因為不是 2xx 又讀不到 body 而丟出那個沒有診斷資訊的 "Failed to fetch"。
+    實測三台裸打 /health 全是 403，帶 token 才是 200。
+
+    所以指定主機**必須**經過 worker：`/api?backend=<id>`。queryRoute 本來就
+    支援這個參數，繞過 worker 等於丟掉唯一能穿過 Access 的那條路。
+
+    斷言的是「`api()` 回傳的一律以 /api 開頭」，不是字面上的某行程式碼 ——
+    寫法可以很多種，行為只有一件事。
+    """
+    code = _code_only(PAGE)
+    m = re.search(r"function\s+api\s*\(path\)\s*\{(.*?)\n  \}", code, re.S)
+    assert m, "找不到 api() 函式"
+    body = m.group(1)
+    # 不能再有 `b ? b + path : ...` 那種展開
+    assert not re.search(r"\bb\s*\+\s*path\b", body), (
+        "api() 又把主機的 base 網址接在 path 前面了 —— 那會讓瀏覽器直接跨網域"
+        "打該台的 API，而那條路沒有 CF Access token，必然 403（症狀：Failed to fetch）。"
+        "指定主機要走 `/api?backend=<id>`，由 worker 帶 token 轉發。"
+    )
+    assert "/api" in body, "api() 應該產生 /api 開頭的相對網址"
+
+
 def test_relay_is_inside_through_try_so_origin_is_named() -> None:
     """relay() 必須在 through() 的 try 裡。
 
