@@ -228,10 +228,25 @@ def point_id(pcode: str, seq: int, ci: int) -> int:
 
 
 def build_points(flat: list[dict], limit: int) -> list[dict]:
+    """把條文轉成 Qdrant points。**不排除**已廢止／已中止條文。
+
+    ⚠️ 2026-10-05 決定反轉舊行為。舊版在這裡 `continue` 掉
+    `is_repealed` / `is_abandoned`（原註解：「預設排除（不灌進去）」），
+    理由是怕廢止條文被檢索召回。但那造成一個**更嚴重的問題**：
+    `is_repealed` 在 payload 裡被**寫死成 False**（見下），所以
+    「這個法規有第9條但查不到第9條」這種缺口沒有任何徵兆 —— 使用者
+    只會看到引用清單裡少了一條，看不出是資料缺漏還是本來就沒收錄。
+
+    實測（證券交易法 229 條）：qdrant 只有 209 筆，少了 20 條全是
+    「（刪除）」。以「三層內容一致為最高標準」為準，這 20 條必須進來。
+
+    真正的處理應該發生在**檢索時**而不是**存入時**：廢止條文可以被查到
+    （使用者問「證券交易法第9條」時應該得到「第9條已刪除」而不是查不到），
+    但要明確標示已廢止、不該與現行條文同等排序。那是 retrieve 的判斷，
+    這裡只負責**誠實地存進去**。
+    """
     pts: list[dict] = []
     for a in flat:
-        if a["is_repealed"] or a["is_abandoned"]:
-            continue
         seq = a["article_seq"]
         chunks = chunk_text(a["article_content"])
         head = f"{a['article_no']} {a['chapter']} "
@@ -244,8 +259,12 @@ def build_points(flat: list[dict], limit: int) -> list[dict]:
                 "article_seq": seq,
                 "article_no": a["article_no"],
                 "chapter": a["chapter"],
-                "is_repealed": False,
-                "is_abandoned": False,
+                # ⚠️ 必須是**真實值**，不能寫死 False。
+                #   舊版因為只灌未廢止條文，所以寫死 False 也「看起來對」。
+                #   現在廢止條文也進來了 —— 寫死會讓 retrieve 的過濾失去作用，
+                #   而且資料層與 parquet/pg 不一致（那兩層是真值）。
+                "is_repealed": bool(a["is_repealed"]),
+                "is_abandoned": bool(a["is_abandoned"]),
                 "char_len": len(a["article_content"]),
                 "source": "moj",
                 "text": text,

@@ -1000,6 +1000,7 @@
           {#each result.hits as h}
             <li>
               <span class="sc">{#if h.law}簡介{:else if h.exact}精準{:else}{h.rel ?? '?'}%{/if}</span>
+              {#if h.repealed || h.abandoned}<span class="sc repealed" title="此條已{ h.repealed ? '刪除' : '中止施行' }，僅供對照，無現行效力">{h.repealed ? '已刪除' : '已中止'}</span>{/if}
               ｜{#if h.url}<a class="lnk" href={h.url} target="_blank" rel="noreferrer">{h.law_name}{h.art} ↗</a>{:else}{h.law_name}{h.art}{/if}
               ｜{h.item}
               <br /><span class="tx"
@@ -1225,6 +1226,12 @@
     border-radius: var(--rounded-pill); padding: 0 var(--sm);
   }
   .tx { color: var(--body); }
+  /* 廢止／中止徽章。刻意與 .sc 的 cream 底不同調 —— 現行條文是「可用的」，
+   * 已刪除是「僅供對照」，兩者不該看起來同級。 */
+  .sc.repealed {
+    background: var(--surface-soft); color: var(--muted-text);
+    text-decoration: line-through;
+  }
   /* 「展開全文」的省略號／收合鈕。
    *
    * ⚠️ 刻意長得像文字（無邊框、貼在 .tx 尾端）而不是像按鈕：它是句子的

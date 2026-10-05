@@ -32,11 +32,21 @@ HIGH_DENSE = float(os.getenv("RAG_HIGH_DENSE") or "0.70")
 # collection 能力偵測：有 sparse 命名向量 → 走 hybrid(DBSF)；單一未命名 dense → 舊 search。
 HAS_SPARSE = False
 _HAS_NAMED = False
-# hybrid 查詢預設過濾：只找人吃得到的現行條文（demo/ingest 或 backup 舊點會被排除）
-_BASE_FILTER = {"must": [
-    {"key": "is_repealed", "match": {"value": False}},
-    {"key": "is_abandoned", "match": {"value": False}},
-]}
+# ⚠️ hybrid 查詢過濾：**不再排除**已廢止／已中止條文（2026-10-05 反轉）。
+#
+# 舊版在這裡過濾掉 `is_repealed` / `is_abandoned`，配合 ingest 的排除，
+# 廢止條文完全不存在於檢索面。實測（證券交易法）：229 條只有 209 條可查，
+# 第9條／第17條等 20 條「（刪除）」查不到 —— 而且**沒有任何徵兆**。
+#
+# 那個設計有個更根本的問題：**使用者問「證券交易法第9條」時，正確答案是
+# 「第9條已刪除」，不是「查不到」**。查不到會被誤讀成「系統沒有這部法」
+# 或「條號寫錯了」，而兩者都是錯的。
+#
+# 現在的取捨：廢止條文**可以被查到**（所以 `_hit_view` 與回答層要明確標示
+# 已廢止），但排序時**不與現行條文同等對待** —— 那是 `_decide()` 的判斷，
+# 不是檢索層的過濾。分層的好處是資料層誠實、呈現層負責判斷。
+_BASE_CONDITIONS: list[dict] = []
+_BASE_FILTER: dict = {"must": _BASE_CONDITIONS}
 async def _collection_capabilities() -> None:
     """讀 collection 設定，記錄 HAS_SPARSE/_HAS_NAMED（供 search 選路）。"""
     global HAS_SPARSE, _HAS_NAMED
@@ -185,7 +195,7 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
         # 偵測到法名→鎖該法該條；僅條號查詢（無法名）仍走下方跨法競爭。
         law = law_meta._detect_law(question)
         if law:
-            f_law = {"must": _BASE_FILTER["must"] +
+            f_law = {"must": _BASE_CONDITIONS +
                      [{"key": "law_name", "match": {"value": law}},
                       {"key": "article_no", "match": {"value": an}}]}
             r = await gateway._req("qdrant", gateway.QDRANT_URLS, "post",
@@ -207,7 +217,7 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
                 return hits
         # 同條號跨法候選（僅條號查詢）：scroll 全拉（不依賴 dense 排位，避免真身被擠出
         # 小 limit），本地稀疏 dot＋法名 bigram 重疊計分 → prepend top3。
-        f2 = {"must": _BASE_FILTER["must"] + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
+        f2 = {"must": _BASE_CONDITIONS + [{"should": [{"key": "article_no", "match": {"value": an}}]}]}
         r = await gateway._req("qdrant", gateway.QDRANT_URLS, "post",
                        f"/collections/{COLLECTION}/points/scroll",
                        json={"filter": f2, "limit": 1000, "with_payload": True, "with_vector": False},
@@ -238,7 +248,7 @@ async def search(question: str, vector: list[float], limit: int = 50) -> list[di
         if law:
             r = await gateway._req("qdrant", gateway.QDRANT_URLS, "post",
                            f"/collections/{COLLECTION}/points/scroll",
-                           json={"filter": {"must": _BASE_FILTER["must"] +
+                           json={"filter": {"must": _BASE_CONDITIONS +
                                             [{"key": "law_name", "match": {"value": law}}]},
                                  "limit": 300, "with_payload": True, "with_vector": False},
                            timeout=30)
@@ -314,6 +324,17 @@ def _decide(question: str, hits: list[dict], dense_max: float,
     法名精準命中（例:「證券交易法」及其簡稱）→ 意圖明確、永不放 no_match（來源由法名分支列出）。"""
     if not hits:
         return "no_match", "empty"
+    # ⚠️ 全部命中都是廢止／中止條文 → 不該當成「有答案」。
+    #   廢止條文改成可以被查到之後（2026-10-05），這裡是最後一道閘門：
+    #   語意再像也不該用一條已刪除的條文去產生 high 信心 —— 那會讓
+    #   「查不到現行規定」看起來像「有答案、而且很確定」。
+    #   medium 而非 no_match：條文本身是真實存在的歷史紀錄，可供對照。
+    live = [h for h in hits
+            if not ((h.get("payload") or {}).get("is_repealed")
+                    or (h.get("payload") or {}).get("is_abandoned"))]
+    if not live:
+        cos = max(dense_max, 0.0)
+        return "medium", f"repealed_only@cos:{cos:.2f}"
     law = law_meta._detect_law(question)
     if law and any((h.get("payload") or {}).get("law_name") == law for h in hits):
         cos = max(dense_max, 0.0)

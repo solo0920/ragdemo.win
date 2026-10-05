@@ -1,7 +1,7 @@
 """RAG 引擎：本地 rerank / 法律語意訊號 / 信心分級 / answer 閘門（低相關不問 LLM）。"""
 import pytest
 
-from app import rag, gateway, law_meta, retrieve
+from app import rag, gateway, law_meta, law_struct, retrieve
 
 
 def test_detect_law_recognizes_bare_law_name():
@@ -498,6 +498,57 @@ async def test_answer_exact_article_quotes_verbatim_and_skips_llm(monkeypatch):
     assert "共209條" not in r["answer"], "又退回法名簡介了（brief_law 分支吃掉了它）"
     assert r["confidence"] == "rule"       # 逐字引用、非生成
     assert "條號精準" in r["trace"]
+
+
+@pytest.mark.asyncio
+async def test_exact_article_keeps_paragraph_newlines(monkeypatch):
+    """條號精準分支**必須保留換行** —— 換行是項次的分隔，不是排版雜訊。
+
+    ⚠️ 這是 2026-10-05 使用者回報的迴歸，由前一個修復自己引入：該分支原本用
+    `collapse_ws(text)` 取值，而 corpus 的 text 是用 `\\n` 分隔各項
+    （證券交易法第14條 ＝「本法所稱財務報告…\\n前項…\\n第一項…」共 6 段）。
+    `collapse_ws()` 的定義就是「把連續空白（含換行）壓成單一空格」，於是 6 項
+    黏成一坨、款次標籤（「一、」「（一）」）看起來像消失了 —— 使用者拿司法院
+    原文比對，發現項次不見。
+
+    為什麼這是「結構」而不只是排版：`law_struct.structure()` 靠 `\\n` 算出
+    「1項6款」、`cite_item()` 靠它顯示「第N項」。換行被壓掉，那兩個函式看到的
+    就是「全文 1 段」。所以壓掉換行不只是難看，是**資訊遺失**。
+    """
+    law_meta._LAW_NAMES = ["證券交易法"]
+    monkeypatch = await _patch(monkeypatch, {1: 0.63})
+
+    async def never_called(*a, **k):
+        raise AssertionError("條號精準命中時不該呼叫 LLM")
+    monkeypatch.setattr(rag, "generate", never_called)
+
+    six_paras = (
+        "本法所稱財務報告，指發行人及證券商依法令規定應定期編送之財務報告。\n"
+        "前項財務報告之內容，由主管機關定之。\n"
+        "第一項財務報告應經董事長簽名或蓋章。\n"
+        "前項會計主管應具備一定之資格條件。\n"
+        "股票已在證券交易所上市者，應揭露薪資報酬政策。\n"
+        "前項公司應於章程訂明盈餘提撥比率。"
+    )
+    async def fs(q, v, limit):
+        h = _hit(1, exact=True)
+        h["payload"].update(law_name="證券交易法", article_no="第 14 條", text=six_paras)
+        return [h]
+    monkeypatch.setattr(retrieve, "search", fs)
+
+    try:
+        r = await rag.answer("證券交易法第14條")
+    finally:
+        law_meta._LAW_NAMES = []
+
+    # 去掉 "x570: " 前綴後才是條文本身
+    body = r["answer"].split(": ", 1)[1] if ": " in r["answer"] else r["answer"]
+    assert body.count("\n") == 5, f"6 項應該有 5 個換行分隔，實際 {body.count(chr(10))}：{body!r}"
+    for frag in ("前項財務報告之內容", "第一項財務報告應經董事長", "前項公司應於章程"):
+        assert frag in body, f"項次黏掉了：{frag}"
+    # 結構解析器仍看得懂（這才是換行的實際用途）
+    assert law_struct.structure(body)["para"] == 6, law_struct.structure(body)
+    assert law_struct.cite_item(body) == "第1項"
 
 
 @pytest.mark.asyncio
