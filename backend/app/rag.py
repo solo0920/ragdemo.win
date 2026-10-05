@@ -962,7 +962,33 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
         base["no_match"] = True
         base["answer"] = "依目前資料沒有符合比對的法條。請換個關鍵字，或確認問題屬於法律範圍後再查詢。"
         return base
-    if brief_law and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
+    # ⚠️ 條號精準命中 → **直接引用 top1 條文**，不問 LLM。
+    #
+    # 症狀（2026-10-05 實測）：問「證券交易法第15條」回的是
+    #   「《證券交易法》（共209條）」—— 完全沒有第15條的內容。
+    # 根因是下面那個 `brief_law` 分支：它只看「有沒有偵測到法名」與
+    # 「top1 是不是那部法」，**沒有排除有條號的情況** → 「證券交易法**第15條**」
+    # 被當成「查《證券交易法》這部法」處理，回簡介。而且該分支還會
+    # `_strip_article_refs()` 把條號洗掉，LLM 即使答對也會被抹成一句話。
+    # （trace 已經寫著 `條號:第 15 條｜精準:1篇` —— 資料早就到了，只是走錯分支。）
+    #
+    # 為什麼可以跳過 LLM：條號精準命中是**字面相同**的條文，不是推論。用戶問的是
+    # 「這條怎麼規定」，答案就是那條的原文；讓 LLM 改寫只會有機會失真（實測
+    # JEV:0.31 判定不合格而退回規則卡，等於白花一次 LLM 呼叫）。
+    # 這也讓 confidence=rule 的語意一致：可逐字核實。
+    #
+    # ⚠️ 只在「條號與命中條文的 article_no 完全相同」時才用 —— 那個判斷由
+    # retrieve._exact_match() 提供（它自己會去空白比對）。不要放寬成
+    # 「有條號就答 top1」：那會讓「第15條」答成別的條文。
+    if an and top and retrieve._exact_match(top, an):
+        p0 = top[0].get("payload") or {}
+        txt = collapse_ws(p0.get("text") or "").strip()
+        if txt:
+            base["answer"] = f"{gateway.HOST_ID}: {txt}"
+            base["confidence"] = "rule"   # 逐字引用、非生成
+            base["trace"] += f"｜條號精準→直接引用{law_meta._detect_law(question) or ''}條號{an}"
+            return base
+    if brief_law and an is None and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
         brief = law_meta._law_brief(brief_law)
         try:
             text = await generate(question, top, cautious=level == "medium", brief_law=brief_law, model=model)

@@ -453,6 +453,115 @@ async def test_answer_high_calls_llm(monkeypatch):
     assert called.get("cautious") is False     # high 不需警示附註
 
 
+# ---------- 條號精準命中 → 直接引用 top1 條文，不問 LLM ----------
+
+@pytest.mark.asyncio
+async def test_answer_exact_article_quotes_verbatim_and_skips_llm(monkeypatch):
+    """「法名＋條號」且條號精準命中 → 回條文原文，**完全不呼叫 LLM**。
+
+    ⚠️ 這是 2026-10-05 實測修的 bug。症狀：問「證券交易法第15條」回的是
+    「《證券交易法》（共209條）」—— 沒有第15條的內容。
+
+    根因是 `brief_law` 分支（`answer()` 裡 `if brief_law and top and top[0]...`）
+    只看「有沒有偵測到法名」＋「top1 是不是那部法」，**沒有排除有條號的情況**
+    → 「證券交易法**第15條**」被當成「查《證券交易法》這部法」而回簡介。
+    而且那個分支還會 `_strip_article_refs()` 把條號洗掉，LLM 答對也會被抹掉。
+
+    為什麼可以跳過 LLM：條號精準是**字面相同**的條文，不是推論。讓 LLM 改寫
+    只會失真（實測 JEV 0.31 判定不合格而退回規則卡，等於白花一次呼叫）。
+    """
+    law_meta._LAW_NAMES = ["證券交易法"]
+    called = {}
+    async def fake_generate(q, c, cautious=False, brief_law=None, model=""):
+        called["llm"] = True
+        return "LLM 產出（不該被用到）"
+    monkeypatch = await _patch(monkeypatch, {1: 0.66})
+    monkeypatch.setattr(rag, "generate", fake_generate)
+
+    async def fs(q, v, limit):
+        # 條號字面相同 —— 這正是「精準命中」的定義
+        h = _hit(1, exact=True)
+        h["payload"].update(law_name="證券交易法", article_no="第 15 條",
+                            text="依本法經營之證券業務，其種類如左：一、有價證券之承銷。")
+        return [h]
+    monkeypatch.setattr(retrieve, "search", fs)
+
+    try:
+        r = await rag.answer("證券交易法第15條")
+    finally:
+        law_meta._LAW_NAMES = []
+
+    assert "llm" not in called, "條號精準命中時不該呼叫 LLM"
+    assert "LLM 產出" not in r["answer"]
+    assert "依本法經營之證券業務" in r["answer"], r["answer"]
+    # 必須是「條文的內容」，不是法名簡介
+    assert "共209條" not in r["answer"], "又退回法名簡介了（brief_law 分支吃掉了它）"
+    assert r["confidence"] == "rule"       # 逐字引用、非生成
+    assert "條號精準" in r["trace"]
+
+
+@pytest.mark.asyncio
+async def test_exact_article_does_not_fire_when_article_number_differs(monkeypatch):
+    """條號**不一致**時不能直接引用 —— 否則「第15條」會答成別的條文。
+
+    這條守住 `_exact_match()` 的邊界：它比對的是 article_no，不是「有沒有條號」。
+    放寬成「有條號就答 top1」是這個修法最危險的退化成��。
+    """
+    law_meta._LAW_NAMES = ["證券交易法"]
+    called = {}
+    async def fake_generate(q, c, cautious=False, brief_law=None, model=""):
+        called["llm"] = True
+        return "LLM 產出"
+    monkeypatch = await _patch(monkeypatch, {1: 0.66})
+    monkeypatch.setattr(rag, "generate", fake_generate)
+
+    async def fs(q, v, limit):
+        # 條號是第 99 條，但使用者問第 15 條 → 不是精準命中
+        h = _hit(1, exact=True)
+        h["payload"].update(law_name="證券交易法", article_no="第 99 條",
+                            text="第九十九條的內容。")
+        return [h]
+    monkeypatch.setattr(retrieve, "search", fs)
+
+    try:
+        r = await rag.answer("證券交易法第15條")
+    finally:
+        law_meta._LAW_NAMES = []
+
+    assert called.get("llm"), "條號不符時應走一般 RAG（問 LLM），不是直接引用"
+    assert "第九十九條的內容" not in r["answer"], "不該引用條號不符的條文"
+    assert r["confidence"] != "rule"
+
+
+@pytest.mark.asyncio
+async def test_bare_law_name_still_gets_the_brief(monkeypatch):
+    """純法名查詢（無條號）**仍然**回簡介 —— 別被新分支誤傷。
+
+    條號精準分支的前提是 `an`（條號）存在；沒有條號時必須維持原行為。
+    """
+    law_meta._LAW_NAMES = ["證券交易法"]
+    monkeypatch = await _patch(monkeypatch, {1: 0.68})
+    monkeypatch.setattr(rag, "law_meta", law_meta)
+    async def fake_generate(q, c, cautious=False, brief_law=None, model=""):
+        return f"《{brief_law}》規範有價證券之募集與買賣。"
+    monkeypatch.setattr(rag, "generate", fake_generate)
+
+    async def fs(q, v, limit):
+        h = _hit(1)
+        h["payload"].update(law_name="證券交易法", article_no="第 1 條", text="立法目的。")
+        return [h]
+    monkeypatch.setattr(retrieve, "search", fs)
+
+    try:
+        r = await rag.answer("證券交易法")
+    finally:
+        law_meta._LAW_NAMES = []
+
+    assert r["confidence"] != "rule", "純法名不該走條號精準分支"
+    assert "規範有價證券" in r["answer"], r["answer"]
+    assert "條號精準" not in r["trace"]
+
+
 @pytest.mark.asyncio
 async def test_answer_medium_cautious_flag(monkeypatch):
     called = {}
