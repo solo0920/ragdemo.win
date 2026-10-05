@@ -110,6 +110,30 @@ async def run() -> None:
             for i in range(0, len(art_rows), CHUNK):
                 await con.executemany(ART_SQL, art_rows[i:i + CHUNK])
 
+            # ⚠️ 刪除本次來源已不存在的條文（2026-10-05 補）。
+            #
+            # 實測殘留：pg 有 47,289 筆、parquet 只有 47,284 條 —— 5 筆多出來的
+            # 是 2026-09-24 的舊版本，updated_at 全是那一天。
+            #
+            # 為什麼會殘留：`article_seq` 是**位置序號**（列舉 LawArticles 的次序），
+            # 不是條號。司法院刪掉一條中間的條文時，後面所有條的 seq 往前挪一位
+            # → ON CONFLICT (pcode, article_seq) DO UPDATE 更新的是「別條」，
+            # 被刪的那個 (pcode, seq) 就永遠留在表裡。
+            #   實例：醫療法第101條在上游是 seq=118（10-03 版），pg 裡 seq=117
+            #   還留著舊的第101條（09-24 版）。
+            #
+            # 為什麼必須刪：三層一致是最高標準。留著舊版條文會讓 pg 查到
+            # **已不存在的條文內容**，而且沒有任何徵兆 —— 比少一條更危險。
+            #
+            # 只刪「本次匯入範圍內、但本次沒出現」的，且整個動作在同一個
+            # transaction 裡（與 upsert 同一個 con.transaction()），失敗會整批 rollback。
+            # 用 (pcode, article_seq) 比對而非條號：條號會重複於不同章／不同法。
+            n_del_art = await _delete_stale_articles(con, flat)
+            n_del_law = await _delete_stale_laws(con, meta)
+            if n_del_art or n_del_law:
+                print(f"清除殘留：條文 {n_del_art} 筆、法規 {n_del_law} 部"
+                      f"（上游已刪除但仍在表中的舊資料）")
+
             await con.execute("UPDATE law_import SET finished_at=now() WHERE id=$1", imp["id"])
 
         n_law, n_art, n_rep, n_aban = await con.fetchrow(
@@ -121,6 +145,40 @@ async def run() -> None:
               f"law_import#{imp['id']} finished, sha256={sha256f(DATA/'ChLaw.json')[:12]}")
     finally:
         await con.close()
+
+
+async def _delete_stale_articles(con, flat: list[dict]) -> int:
+    """刪除「本次來源已不存在」的條文，回傳刪除筆數。
+
+    ⚠️ 用 `unnest` 配兩個平行陣列，而不是 `(pcode, seq) = ANY(ARRAY[...record])`：
+       PostgreSQL **不支援匿名 composite type 的輸入**（實測：
+       `UnsupportedClientFeatureError: input of anonymous composite types is
+       not supported`），宣告具名 composite type 又是一整個不必要的型別。
+       兩個平行陣列 + unnest 是等價且 asyncpg 能處理的形狀。
+
+    ⚠️ 一次刪完成，不是逐筆比對：47,284 筆逐筆 SELECT 是 47,284 次往返。
+
+    ⚠️ 為什麼 key 是 (pcode, article_seq) 而非條號：條號在不同法規／不同章
+       會重複（第1條到處都是），用它會誤刪別的條文。而 (pcode, seq) 正是
+       ON CONFLICT 使用的唯一鍵，語意一致。
+    """
+    pcodes = [a["pcode"] for a in flat]
+    seqs = [a["article_seq"] for a in flat]
+    rows = await con.fetch(
+        "DELETE FROM article a WHERE NOT EXISTS ("
+        "  SELECT 1 FROM unnest($1::text[], $2::int[]) AS k(p, s)"
+        "  WHERE k.p = a.pcode AND k.s = a.article_seq"
+        ") RETURNING pcode",
+        pcodes, seqs)
+    return len(rows)
+
+
+async def _delete_stale_laws(con, meta: list[dict]) -> int:
+    """刪除「本次來源已不存在」的整部法規（法規被撤銷時會發生）。"""
+    pcodes = [m["pcode"] for m in meta]
+    rows = await con.fetch(
+        "DELETE FROM law WHERE pcode <> ALL($1::text[]) RETURNING pcode", pcodes)
+    return len(rows)
 
 
 if __name__ == "__main__":
