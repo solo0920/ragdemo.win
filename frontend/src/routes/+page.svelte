@@ -1,10 +1,22 @@
 <script>
   import { onMount } from 'svelte';
   import {
-    fetchHostDefaults, hostUrl, makeOnce, missingModels, modelAvailability,
+    citationText, fetchHostDefaults, hostUrl, makeOnce, missingModels, modelAvailability,
     modelOptions, probeClouds, saveHostDefaults, targetRows,
     verdictLabel, verdictState,
   } from '$lib/hostDefaults';
+
+  // 引用條文的展開狀態：key = url||art（同一條可能被引用兩次）。
+  //
+  // ⚠️ 用 **Set 的反應性賦值**（expanded = new Set(expanded)）而不是
+  // expanded.add()：Svelte 5 只會在賦值時觸發更新，原地 mutate 不會。
+  let expanded = new Set();
+  function toggleCite(key) {
+    const next = new Set(expanded);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    expanded = next;
+  }
+  const citation = citationText;
 
   // 後端切換器的候選名單**從 /status 回的 known 推導**，不在這裡列舉主機。
   // known 來自後端的 HOST_API_URLS；未設就是空 → 只剩「自動」，單機部署正常。
@@ -406,6 +418,9 @@
     localStorage.setItem('ragdemo-backend', id);
     result = null;
     error = '';
+    // 換主機 = 換一份引用清單，展開狀態必須跟著清掉；
+    // 否則新結果裡 url||art 撞到的引用會直接是展開的（而且是上一次的展開）。
+    expanded = new Set();
     await checkHealth();
     await loadStatus();
     loadModels();
@@ -501,6 +516,7 @@
     loading = true;
     error = '';
     result = null;
+    expanded = new Set();   // 新一批引用，展開狀態不沿用（理由同 switchBackend）
     try {
       const r = await fetch(`/api/query?backend=${backendId}`, {
         method: 'POST',
@@ -986,7 +1002,16 @@
               <span class="sc">{#if h.law}簡介{:else if h.exact}精準{:else}{h.rel ?? '?'}%{/if}</span>
               ｜{#if h.url}<a class="lnk" href={h.url} target="_blank" rel="noreferrer">{h.law_name}{h.art} ↗</a>{:else}{h.law_name}{h.art}{/if}
               ｜{h.item}
-              <br /><span class="tx">{h.payload.text.slice(0, 200)}…</span>
+              <br /><span class="tx"
+                >{#if !expanded.has(h.url || h.art)}{citation(h.payload.text).text}{#if citation(h.payload.text).truncated}<button
+                    class="more"
+                    onclick={() => toggleCite(h.url || h.art)}
+                    aria-expanded="false"
+                    title="點擊展開法條原文">…</button>{/if}{:else}{h.payload.text}<button
+                    class="more"
+                    onclick={() => toggleCite(h.url || h.art)}
+                    aria-expanded="true"
+                    title="點擊收合"> 收合</button>{/if}</span>
               <br /><span class="jud">{h.jud}</span>
             </li>
           {/each}
@@ -1200,6 +1225,19 @@
     border-radius: var(--rounded-pill); padding: 0 var(--sm);
   }
   .tx { color: var(--body); }
+  /* 「展開全文」的省略號／收合鈕。
+   *
+   * ⚠️ 刻意長得像文字（無邊框、貼在 .tx 尾端）而不是像按鈕：它是句子的
+   * 一部分，讀者的動作是「把這句看完」。但**必須**有可見的 focus 樣式，
+   * 否則鍵盤使用者看不出焦點在哪 —— 而這是唯一能展開全文的入口。
+   */
+  .more {
+    border: 0; background: transparent; padding: 0 var(--xxs);
+    color: var(--primary-active); font: inherit; cursor: pointer;
+    border-radius: var(--rounded-sm);
+  }
+  .more:hover { text-decoration: underline; }
+  .more:focus-visible { outline: 2px solid var(--primary-active); outline-offset: 2px; }
   /* text-link：coral 內文連結（DESIGN.md 說這是系統最鮮明的小細節之一）。
    * 用 primary-active 而不是 primary：原色在 canvas 上只有 3.11:1，
    * 壓暗一階是 4.80:1，且那個 hex 本來就是 DESIGN.md 的 token，不是新值。 */

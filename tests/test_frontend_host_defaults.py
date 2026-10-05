@@ -755,6 +755,80 @@ def test_verdict_labels_say_probe_failed_not_broken() -> None:
     assert len(set(labels.values())) == 4, f"四種狀態的字必須都不同：{labels}"
 
 
+# ── citationText（引用條文截斷）────────────────────────────────────────────
+
+def _ct(text: str) -> dict:
+    return _pure("citationText", json.dumps([text]))["result"]
+
+
+def test_short_citation_gets_no_ellipsis() -> None:
+    """短於上限的條文**完全不動**，而且不該出現「…」。
+
+    ⚠️ 2026-10-05 使用者回報的 bug：舊版是 `text.slice(0, 200) + '…'`
+    —— **無條件**加省略號，於是只有 90 字的條文也被砍掉尾巴、結尾還掛著
+    「…」。讀者會去找不存在的後半段。
+
+    省略號的唯一意義是「這裡省略了東西」，所以沒省略就不該出現。
+    邊界取 <= ：剛好 200 字不算超長。
+    """
+    short = "甲" * 90
+    got = _ct(short)
+    assert got == {"text": short, "truncated": False}, got
+    assert "…" not in got["text"]
+
+
+def test_citation_at_the_limit_is_not_truncated() -> None:
+    """剛好等於上限不算超長（邊界用 <= 不是 <）。"""
+    exact = "甲" * 200
+    got = _ct(exact)
+    assert got["truncated"] is False
+    assert got["text"] == exact
+
+
+def test_long_citation_is_cut_and_marked_truncated() -> None:
+    """超長才截，且必須回 truncated=true —— UI 要靠它決定要不要給展開鈕。"""
+    long = "甲" * 260
+    got = _ct(long)
+    assert got["truncated"] is True
+    assert got["text"] == "甲" * 200
+    assert len(got["text"]) == 200
+
+
+def test_truncated_flag_is_the_only_thing_the_ui_relies_on() -> None:
+    """`truncated` 與 `text` 必須一致：不能「沒截卻說截了」或反之。
+
+    那是展開鈕與實際顯示內容脫節的情況 —— 使用者按了展開，內容一模一樣。
+    """
+    for n in (1, 199, 200, 201, 1000):
+        got = _ct("甲" * n)
+        assert got["truncated"] == (n > 200), f"n={n}: {got}"
+        assert len(got["text"]) == (200 if n > 200 else n), f"n={n}: {got}"
+
+
+def test_citation_handles_non_string_payload() -> None:
+    """payload.text 可能是 undefined（形狀不符）—— 不可拋。
+
+    後端 `_hit_view` 永遠給字串，但前端不該因為上游改版多一個欄位就整頁炸掉
+    （症狀會是空白頁，與真正的原因完全無關）。
+    """
+    for bad in (None, 123, {"a": 1}):
+        got = _pure("citationText", json.dumps([bad]))["result"]
+        assert got == {"text": "", "truncated": False}, f"{bad!r} → {got}"
+
+
+def test_page_does_not_slice_citations_inline_anymore() -> None:
+    """樣板裡不可再有 inline `slice(0, 200)` ＋無條件「…」。
+
+    綁的是行為（走 citationText）而不是這行的寫法：這條抓的是「有人又
+    在樣板裡手動截一次、繞過截斷判斷」—— 那正是這次 bug 的形狀。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    assert "slice(0, 200)" not in text, \
+        "引用條文又出現 inline slice(0,200) 了；截斷與判斷請走 citationText()"
+    assert "citationText" in text, "頁面應該 import citationText"
+    assert "toggleCite" in text, "應該要有展開／收合的處理"
+
+
 # ── modelAvailability ───────────────────────────────────────────────────
 
 def _av(model: str, probe) -> dict:

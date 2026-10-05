@@ -354,6 +354,31 @@ export function modelAvailability(
   return { ok: false, known: false };
 }
 
+// ── 引用條文的截斷 ────────────────────────────────────────────────────────
+
+/** 超過這個長度才截斷。與後端無關，純前端版面決定。 */
+export const CITATION_MAX = 200;
+
+/**
+ * 引用條文的顯示文字。
+ *
+ * ⚠️ 舊版是 `text.slice(0, 200) + '…'` —— **無條件**加省略號。症狀
+ * （2026-10-05 使用者回報）：短條文也被砍掉尾巴、而且結尾一定帶著「…」，
+ * 看起來像「後面還有東西」但其實只有 90 字。實測回「證券交易法第16條」
+ * 那筆全文 90 字，仍被截成 80 字＋「…」。
+ *
+ * 所以規則是：**沒有被截就完全不加省略號**。省略號的唯一意義是「這裡
+ * 省略了東西」，沒有省略就不該出現 —— 否則讀者會去找不存在的後半段。
+ *
+ * 放在這裡而不是樣板內，是為了能真的跑一次測試（`slice` 與條件判斷在
+ * 樣板裡寫對寫錯，regex 斷言看不出來）。
+ */
+export function citationText(text: unknown): { text: string; truncated: boolean } {
+  const s = typeof text === 'string' ? text : '';
+  if (s.length <= CITATION_MAX) return { text: s, truncated: false };
+  return { text: s.slice(0, CITATION_MAX), truncated: true };
+}
+
 /** 該 provider 有沒有「設了但上游沒有」的 model。 */
 export function missingModels(p: ProviderProbe | undefined): string[] {
   return p && Array.isArray(p.missing) ? p.missing : [];
