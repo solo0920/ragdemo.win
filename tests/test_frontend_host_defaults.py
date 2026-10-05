@@ -816,6 +816,127 @@ def test_citation_handles_non_string_payload() -> None:
         assert got == {"text": "", "truncated": False}, f"{bad!r} → {got}"
 
 
+def test_citation_text_preserves_paragraph_newlines_in_the_dom() -> None:
+    """引用條文的換行必須在瀏覽器裡**真的**分行顯示。
+
+    ⚠️ 2026-10-05 使用者回報的 bug。症狀：回答區塊正確顯示 3 個項，但引用
+    清單裡同一條黏成一段（用空格相連）。拿去跟司法院原文比對時，項次看起來
+    就像消失了。
+
+    根因是 **CSS**，不是資料：條文的項／款在資料層用 `\\n` 分隔，而 HTML
+    預設 `white-space: normal` 會把換行**折成空格**。同一頁的 `.ans`
+    （回答）有 `white-space: pre-wrap` 所以正確 —— 兩處不一致才讓這個 bug
+    看起來像「只有引用壞了」。
+
+    為什麼資料層的斷言抓不到：`test_citation_text_keeps_paragraph_newlines`
+    驗的是 `citationText()` 回的字串有 `\\n`，那是**對的** —— 換行是在
+    **渲染**時被折掉的。所以這條要檢查 CSS。
+
+    ⚠️ 這條只做靜態斷言（樣板裡的樣式宣告）。靜態斷言抓不到「寫了
+    pre-wrap 但被後面的規則覆蓋」那種情況 —— 那需要真的算繪行數。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    m = re.search(r"^\s*\.tx\s*\{([^}]*)\}", text, re.M)
+    assert m, "找不到 .tx 的樣式規則 —— 引用條文的換行靠它保留"
+    assert "white-space" in m.group(1), (
+        ".tx 沒有 white-space —— 條文的項／款在資料層用 \\n 分隔，"
+        "而 HTML 預設 normal 會把換行折成空格，於是引用看起來像項次消失。"
+        "請用 pre-wrap（不要 pre-line：全形空白的縮排有意義）。"
+    )
+    assert "pre-wrap" in m.group(1), \
+        "要用 pre-wrap 而不是 normal/pre-line：條文的全形空白縮排有意義"
+
+
+def test_answer_and_citation_use_the_same_whitespace_handling() -> None:
+    """.ans（回答）與 .tx（引用）必須用**同一種**換行處理。
+
+    ⚠️ 兩者不一致正是這個 bug 難以定位的原因：同一條條文的文字，
+    在回答區塊分行、在引用區塊不分行。於是看起來像「引用取到的是壞資料」，
+    而實際資料是好的、只是渲染規則不同。
+    """
+    text = PAGE.read_text(encoding="utf-8")
+    def rule(sel: str) -> str:
+        m = re.search(rf"^\s*{re.escape(sel)}\s*\{{([^}}]*)\}}", text, re.M)
+        assert m, f"找不到 {sel} 的樣式規則"
+        return m.group(1)
+    ans, tx = rule(".ans"), rule(".tx")
+    assert "white-space: pre-wrap" in ans, f".ans 應為 pre-wrap：{ans.strip()}"
+    assert "white-space: pre-wrap" in tx, \
+        f".tx 必須與 .ans 相同（pre-wrap）：{tx.strip()}"
+
+
+def test_paragraphs_split_articles_into_items_like_the_official_site() -> None:
+    """條文要拆成「一項一個元素」，與司法院的 `line-*` div 對應。
+
+    ⚠️ 2026-10-05 使用者給的實測 DOM（證券交易法第6條）：
+
+        <div class="law-article">
+          <div class="line-0000 show-number">本法所稱有價證券，指政府債券…</div>
+          <div class="line-0000 show-number">新股認購權利證書…</div>
+          <div class="line-0000 show-number">前二項規定之有價證券…</div>
+        </div>
+
+    三個項是**三個獨立元素**。所以「比照處理」不只是視覺換行 ——
+    只用 `white-space: pre-wrap` 也是一行一個字，但 DOM 上仍是單一節點，
+    讀者複製／選取時三項會黏在一起。
+    """
+    got = _pure("paragraphs", json.dumps(["甲\n乙\n丙"]))["result"]
+    assert got == ["甲", "乙", "丙"], got
+
+
+def test_paragraphs_drops_blank_lines_and_trims() -> None:
+    """空行要濾掉、每項去頭尾空白。
+
+    條文常有尾端換行；不濾掉會產生一個空白 `.par` 元素，在 block 佈局下
+    就是一行可點不到、但看得出有東西的空白行。
+    """
+    assert _pure("paragraphs", json.dumps(["甲\n\n乙  \n\n"]))["result"] == ["甲", "乙"]
+    assert _pure("paragraphs", json.dumps([""]))["result"] == []
+    assert _pure("paragraphs", json.dumps(["   \n  "]))["result"] == []
+
+
+def test_paragraphs_handles_non_string() -> None:
+    """非字串不可拋 —— payload.text 形狀不符時整頁炸掉最難查。"""
+    for bad in (None, 123, {"a": 1}):
+        assert _pure("paragraphs", json.dumps([bad]))["result"] == [], bad
+
+
+def test_page_renders_each_paragraph_as_an_element() -> None:
+    """頁面要用 paragraphs() 逐項渲染，不是把整段字塞進一個節點。"""
+    text = PAGE.read_text(encoding="utf-8")
+    assert "paragraphs as paras" in text, "頁面應該 import paragraphs"
+    assert text.count("as para, i") >= 2, "回答與引用都要逐項渲染（各一個 #each）"
+    assert ".par { display: block; }" in text.replace("  ", "  "), \
+        "每一項必須是 block 元素，否則 DOM 上仍是單一節點（複製／選取會黏在一起）"
+
+
+def test_long_citation_is_cut_at_an_item_boundary() -> None:
+    """超長條文要在**項邊界**截斷，不可切在某個項的中間。
+
+    ⚠️ spec FR-010。直接 slice 會產生半截的項 —— 讀者看到
+    「…前項財務報告之內容、適用範圍」這種斷句，會誤以為條文原文就這樣。
+    在法律場合，寧可少顯示幾個字也不要給一個看起來像原文的斷句。
+    """
+    # 兩個項各 150 字，總共 301 字 > 200
+    item = "甲" * 150
+    text = f"{item}\n{item}"
+    got = _ct(text)
+    assert got["truncated"] is True
+    assert "\n" not in got["text"], "不該在項中間切斷"
+    assert got["text"] == item, f"應保留第一個完整的項：{got['text'][-20:]!r}"
+
+
+def test_single_oversized_item_falls_back_to_char_cut() -> None:
+    """單一項就超過上限時才退回字元截斷（沒有「完整的一項」可選）。
+
+    旗標仍必須是 truncated —— 使用者要能點開看全文。
+    """
+    got = _ct("甲" * 500)
+    assert got["truncated"] is True
+    assert len(got["text"]) <= 200
+    assert got["text"] == "甲" * 200
+
+
 def test_page_does_not_slice_citations_inline_anymore() -> None:
     """樣板裡不可再有 inline `slice(0, 200)` ＋無條件「…」。
 

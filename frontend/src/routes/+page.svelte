@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import {
     citationText, fetchHostDefaults, hostUrl, makeOnce, missingModels, modelAvailability,
-    modelOptions, probeClouds, saveHostDefaults, targetRows,
+    modelOptions, paragraphs as paras, probeClouds, saveHostDefaults, targetRows,
     verdictLabel, verdictState,
   } from '$lib/hostDefaults';
 
@@ -991,7 +991,7 @@
         <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案不對？把這題加入題庫 →</a></p>
       {:else}
         <h2>回答（{result.host}）</h2>
-        <p class="ans">{result.answer.replace(/^[a-z0-9]+: /, '')}</p>
+        <p class="ans">{#each paras(result.answer.replace(/^[a-z0-9]+: /, '')) as para, i}<span class="par">{para}</span>{/each}</p>
         <p class="hint">信心：{result.confidence}（{result.relevance}）</p>
         <p class="trace">流程：{result.trace}</p>
         <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案有誤或想固定這題答案？加入題庫 →</a></p>
@@ -1004,11 +1004,11 @@
               ｜{#if h.url}<a class="lnk" href={h.url} target="_blank" rel="noreferrer">{h.law_name}{h.art} ↗</a>{:else}{h.law_name}{h.art}{/if}
               ｜{h.item}
               <br /><span class="tx"
-                >{#if !expanded.has(h.url || h.art)}{citation(h.payload.text).text}{#if citation(h.payload.text).truncated}<button
+                >{#if !expanded.has(h.url || h.art)}{#each paras(citation(h.payload.text).text) as para, i}<span class="par">{para}</span>{/each}{#if citation(h.payload.text).truncated}<button
                     class="more"
                     onclick={() => toggleCite(h.url || h.art)}
                     aria-expanded="false"
-                    title="點擊展開法條原文">…</button>{/if}{:else}{h.payload.text}<button
+                    title="點擊展開法條原文">…</button>{/if}{:else}{#each paras(h.payload.text) as para, i}<span class="par">{para}</span>{/each}<button
                     class="more"
                     onclick={() => toggleCite(h.url || h.art)}
                     aria-expanded="true"
@@ -1225,7 +1225,32 @@
     background: var(--surface-cream-strong);
     border-radius: var(--rounded-pill); padding: 0 var(--sm);
   }
-  .tx { color: var(--body); }
+  /* ⚠️ `white-space: pre-wrap` 是**必要的**，不可刪。
+     條文的項／款在資料層用 `\n` 分隔（`law_struct.structure()` 靠它算
+     「1項6款」、`cite_item()` 靠它顯示「第N項」）。而 HTML 預設
+     `white-space: normal` 會把換行**折成空格** —— 於是 3 項看起來像
+     黏成一段，使用者拿去跟司法院原文比對時會以為項次消失了。
+
+     2026-10-05 實測（證券交易法第6條，官方 3 項）：`.tx` 渲染成 1 行、
+     3 項以空格相連；同一頁的 `.ans` 因為有 pre-wrap 而正確分行。
+
+     預設 `normal`（把換行折成空格）
+     `pre-wrap`（保留換行、並在容器換行處自動折行）
+     `pre-line`  保留換行但折掉連續空格
+     這裡要 `pre-wrap` 而不是 `pre-line`：條文裡的全形空白（　）有意義
+     （部分條文用它縮排項次），折掉會讓讀者誤判段落邊界。 */
+  .tx { color: var(--body); white-space: pre-wrap; }
+  /* 一個「項」一個元素（block）。
+   *
+   * 對應司法院的 `<div class="line-0000 show-number">`：實測第6條的三個項
+   * 是**三個獨立 div**，所以「比照處理」不只是視覺換行，而是每項一個節點 ——
+   * 讀者才能單獨複製／引用某一項（黏成一段就做不到），選取時也不會把
+   * 三項一起帶走。
+   *
+   * `white-space: pre-wrap` 留著是保險：全形空白（　）在部分條文用於縮排項次，
+   * 折掉會讓讀者誤判段落邊界。但主要的換行機制已經是 `.par` 這個 block。
+   */
+  .par { display: block; }
   /* 廢止／中止徽章。刻意與 .sc 的 cream 底不同調 —— 現行條文是「可用的」，
    * 已刪除是「僅供對照」，兩者不該看起來同級。 */
   .sc.repealed {

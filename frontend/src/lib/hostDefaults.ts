@@ -376,7 +376,40 @@ export const CITATION_MAX = 200;
 export function citationText(text: unknown): { text: string; truncated: boolean } {
   const s = typeof text === 'string' ? text : '';
   if (s.length <= CITATION_MAX) return { text: s, truncated: false };
+  // ⚠️ 在**項邊界**截斷，不可直接 slice（spec FR-010：切塊不切在某個項的中間）。
+  //   直接切會產生半截的項 —— 讀者看到「…前項財務報告之內容、適用範圍」這種
+  //   斷句，會誤以為條文原文就這樣。在法律場合，寧可少顯示幾個字也不要給一個
+  //   看起來像原文的斷句。
+  //   逐項累加取放得下完整的那些；單一項本身就超過上限時才退回字元截斷
+  //   （那種情況沒有「完整的一項」可選 —— 但旗標仍是 truncated，可點開看全文）。
+  let out = '';
+  for (const seg of s.split('\n')) {
+    const next = out ? `${out}\n${seg}` : seg;
+    if (next.length > CITATION_MAX) break;
+    out = next;
+  }
+  if (out) return { text: out, truncated: true };
   return { text: s.slice(0, CITATION_MAX), truncated: true };
+}
+
+/**
+ * 把條文拆成「項」的陣列 —— 一個元素對應司法院的一個 `line-*` div。
+ *
+ * ⚠️ 2026-10-05 使用者提供的實測 DOM（證券交易法第6條）：
+ *
+ *     <div class="law-article">
+ *       <div class="line-0000 show-number">本法所稱有價證券，指政府債券…</div>
+ *       <div class="line-0000 show-number">新股認購權利證書…</div>
+ *       <div class="line-0000 show-number">前二項規定之有價證券…</div>
+ *     </div>
+ *
+ * 三個項是**三個獨立元素**，所以「比照處理」不只是視覺換行。只用
+ * `white-space: pre-wrap` 也是一行一個字，但 DOM 上仍是單一節點，
+ * 讀者複製或選取時三項會黏在一起。
+ */
+export function paragraphs(text: unknown): string[] {
+  if (typeof text !== 'string') return [];
+  return text.split('\n').map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
 /** 該 provider 有沒有「設了但上游沒有」的 model。 */
