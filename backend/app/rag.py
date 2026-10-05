@@ -1065,7 +1065,16 @@ def _hit_view(h: dict, law_only: bool = False) -> dict:
             "repealed": bool(p.get("is_repealed")),
             "abandoned": bool(p.get("is_abandoned")),
             "url": law_meta._law_url(p.get("pcode"), None if law_only else art_no),
-            "art": (art_no or "").replace(" ", "") or p.get("law", ""),
+            # ⚠️ 2026-10-05：`.replace(" ", "")` → `.strip()`。**只去前後空白**。
+            #   舊版用 replace 連**內部**空格一起刪，於是這裡送出的條號是
+            #   `第6條`，而司法院官網顯示的是 `第 6 條`。上游的 article_no 本來
+            #   就帶空格（實測 47,256 / 47,284 列有，且**沒有一列**是前後有空白），
+            #   所以那個 replace 在真實資料上唯一的效果就是把官網的排版抹掉 ——
+            #   而這一欄的用途就是「比照官網顯示條號」。
+            #   `.strip()` 保留原本真正要做的事（去掉 padding；測試 fixture
+            #   `test_rag_pure` 的 " 第259條 " 就是那種），且**該測試不必改**。
+            #   ⚠️ 別改成「不處理」：那會讓 padding 值洩到畫面上。
+            "art": (art_no or "").strip() or p.get("law", ""),
             "law_name": p.get("law_name", ""),
             "item": _law.cite_item(p.get("text", ""))}
     s = _law.structure(p.get("text", ""))
