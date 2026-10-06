@@ -76,8 +76,22 @@ healthy() {
   curl -sf -m 8 -o /dev/null "${HOST_API_LOCAL:-http://127.0.0.1:920}/health"
 }
 
-# 3) 先等冷卻期。healthy 一開始就成立時這裡立刻返回，所以對正常狀態
-#    零延遲；只有在「現在不健康」時才會花時間等。
+# 3) 容器到底在不在？這決定要不要等。
+#    ⚠️ 冷卻期是為了「**還在啟動 ≠ 壞掉**」——`restart: always` 正在把容器
+#    拉起時 /health 還沒 200（實測冷啟動到 200 要 8 秒），那時要等而不是重建。
+#    但那個前提是**容器已經存在**。一個容器都沒有的時候，沒有東西可以
+#    「等它起來」，冷卻期就是純粹白等。
+#    實測 2026-10-06：使用者跑 `ragup.sh`（容器已被 `ragdown.sh` 收掉），
+#    終端機靜默 60 秒才做 `docker compose up -d` —— 看起來像卡死。
+#    判斷只要一行，所以這裡提早算，後面第 5 步直接沿用（不重複呼叫）。
+n_all=$(docker compose ps -aq 2>/dev/null | grep -c . || true)
+if [ "${n_all:-0}" -eq 0 ]; then
+  log "沒有任何容器 → 略過冷卻期，直接建立（沒有東西可以等它起來）"
+  GRACE_SEC=1
+fi
+
+# 4) 先等冷卻期。healthy 一開始就成立時這裡立刻返回，所以對正常狀態
+#    零延遲；只有在「容器存在但現在不健康」時才會花時間等。
 for i in $(seq 1 "$GRACE_SEC"); do
   if healthy; then
     log "OK：容器與 /health 正常"
@@ -87,11 +101,10 @@ for i in $(seq 1 "$GRACE_SEC"); do
   sleep 1
 done
 
-# 4) 冷卻期過了還是不健康 → 真的故障。分兩條路：
+# 5) 冷卻期過了還是不健康 → 真的故障。分兩條路：
 #    容器根本不存在 → 建立；容器存在但壞掉 → 重建（網路 sandbox 那種）。
 #    混在一起做的後果（實測）：剛 `up -d` 起来的容器立刻被 force-recreate，
 #    三個 ID 全換，等於把「建立」做成「建立完馬上刪掉重建」。
-n_all=$(docker compose ps -aq 2>/dev/null | grep -c . || true)
 if [ "${n_all:-0}" -eq 0 ]; then
   log "偵測異常：容器不存在（down 過或從未建立）→ docker compose up -d 建立"
   docker compose up -d >>"$LOG" 2>&1
