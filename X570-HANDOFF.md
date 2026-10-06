@@ -2,6 +2,55 @@
 
 給 **x570 上的 opencode** 讀。**逐項查證後回報，不要先假設原因。**
 
+## ★★★ 2026-10-06：`crontab` 沒有 `ensure-stack` **是刻意的，不是故障**
+
+**先讀這裡再動任何排程。** 2026-10-06 有 agent 看到 `crontab` 裡沒有
+`ensure-stack.sh`，判定為故障並「修好」它 —— **那個判斷是錯的**，而且差點把
+使用者的刻意設計改回去。
+
+### 這台機器的 stack 是**手動**管理的
+
+| 指令 | 做的事 |
+|---|---|
+| `ragup.sh` | 起 stack，**並把 `ensure-stack.sh` 的 `*/10` 排程寫回來**（冪等）|
+| `ragdown.sh` | **先移除那條排程**再 `docker compose down` |
+| `sd.sh` | 只關機，不碰 stack（關機是唯一不可逆的一步，不該和「收 stack」綁在一起）|
+| `ragsd.sh` | `ragdown` + `sd`，完整收機 |
+
+正式副本在 **`scripts/ragup.sh`、`scripts/ragdown.sh`、`scripts/sd.sh`、
+`scripts/ragsd.sh`**（2026-10-06 納入版控）；`~/.local/bin/` 下那四個是 **symlink**，
+不要在兩邊各自修改 —— 改 repo 那份。
+
+### 為什麼「沒有排程」是正確狀態
+
+使用者的要求是**不希望在開機時自動上服務**，等有需要時再手動啟動。所以：
+
+- 開機後 stack **不會**自己起來 —— 這是預期的
+- `ragdown` 必須先撤掉排程再 `down`，否則 `*/10` 會在十分鐘內把容器拉回來，
+  那「收掉」就只是暫時的（該腳本註解裡寫明了這段理由）
+- **但 `ragup` 之後排程會回來** —— 所以 stack 起來之後，容器掉了仍會自我修復。
+  這是兩段式設計：不要「自動開機」，但要「自動復原」
+
+### 所以看到這些症狀時不要動手
+
+| 症狀 | 正確判讀 |
+|---|---|
+| `crontab -l` 沒有 `ensure-stack.sh` | ✅ 正常，是 `ragdown` 撤掉的或根本還沒 `ragup` |
+| `docker compose ps` 沒有容器 | ✅ 正常，stack 沒起而已 |
+| `api-x570` 回 502 | ⚠️ 這才是真的「後端沒起來」。先確認 **stack 有沒有起**，不要去動 cloudflared／DNS |
+
+**唯一的例外**：若 stack 已經用 `ragup.sh` 起好了、卻仍然沒有 `*/10` 排程，
+那才是故障（`ragup` 應該把排程寫回去）。
+
+### 已知的一個缺陷（尚未修）
+
+`ragup.sh` 寫入的 cron 把輸出導向 `data/ensure-stack.log`，但
+`scripts/ensure-stack.sh` 自己寫的是 **`data/laws/ensure-stack.log`** —— 兩個不同
+的路徑。`data/ensure-stack.log` 目前不存在（這條 cron 建立後還沒跑過）。
+**要看 watchdog 的判斷紀錄，請看 `data/laws/ensure-stack.log`。**
+
+---
+
 ## ★★★ 2026-10-02 23:11 最新待辦（其下章節是歷史，別照舊指示做）
 
 ### 1. `git pull` → 你回報時的 `0be580b` 之後有 4 個 commit，**其中一個是為你加的**
