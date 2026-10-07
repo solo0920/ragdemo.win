@@ -1,0 +1,28 @@
+job: backend
+  checkout_depth: (default)
+  01. [job=backend idx=1] actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  02. [job=backend idx=2] astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+  03. [job=backend idx=3] 安裝依賴
+  04. [job=backend idx=4] Python 語法檢查
+  05. [job=backend idx=5] IP 準則（無 LAN_IP= 殘留）
+  06. [job=backend idx=6] actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+  07. [job=backend idx=7] 安裝 sops + age-keygen（rotate-secret 測試需要）
+  08. [job=backend idx=8] pytest
+job: frontend
+  checkout_depth: (default)
+  09. [job=frontend idx=1] actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  10. [job=frontend idx=2] pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+  11. [job=frontend idx=3] actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+  12. [job=frontend idx=4] (unnamed run)
+  13. [job=frontend idx=5] (unnamed run)
+job: compose
+  checkout_depth: (default)
+  14. [job=compose idx=1] actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  15. [job=compose idx=2] docker compose config
+job: guards
+  checkout_depth: 0
+  16. [job=guards idx=1] actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+  17. [job=guards idx=2] commit 訊息前綴須為 HOSTS= 宣告的機台代號
+  18. [job=guards idx=3] 單檔不得超過 10 MB
+  19. [job=guards idx=4] 追蹤檔案不得含憑證
+TOTAL STEPS: 19

@@ -1,0 +1,416 @@
+# CI：把 .githooks/pre-push 的強制檢查搬到 GitHub Actions。
+#
+# 為什麼要有這份：pre-push 只在「按 push 的那台機器」上跑。三台機器各自一份
+# .githooks/，任何一台沒設 core.hooksPath（或有人用 --no-verify），檢查就不發生。
+# 公開 repo 讓 CI 成為可被外部驗證的證據，而不是各機自述。
+#
+# commit message 前綴在下面 guards job 檢查 —— **那份清單從
+# settings/env/hosts.shared.env 的 HOSTS= 讀，不寫死在這裡**（2026-10-01）。
+# 註解上方說「由 GitHub ruleset 強制」是過時的：個人帳號的公開 repo 拿不到那條
+# rule（實測 API 回 422），所以實際上是這份 workflow 在檢，見 guards job 內的說明。
+#
+# action 以 SHA 釘死（後面註解標版本），與 compose.yaml 釘 image tag 同一個理由：
+# 公開 repo 加上游供應鏈被動過時，不該自動套用。Dependabot 會自動追 SHA 更新。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 唯讀權限：這份 workflow 不需要寫 repo（不發 comment、不開 PR）。
+permissions:
+  contents: read
+
+# 同一 ref 的新 push 取消舊 run：省 runner，且結果以最新 commit 為準。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      # 根 venv 供 tests/（pytest ＋ ragdemo-tools 依賴）；backend 依賴另外裝進同一個
+      # venv，這樣測試若哪天開始 import fastapi / pydantic，不會突然缺套件而失敗。
+      # 裝本專案只是為了帶進它的依賴 —— tests/ 是靠 tests/conftest.py 把 backend/
+      # 塞進 sys.path 來 import app.*，不依賴「已安裝」這件事。
+      # 兩種模式（editable / 非 editable）都會在 backend/ 留下 *.egg-info/（build
+      # backend 就在 source tree 寫），已由 .gitignore 的 `*.egg-info/` 擋掉。
+      - name: 安裝依賴
+        run: |
+          uv sync --frozen
+          uv pip install ./backend
+
+      - name: Python 語法檢查
+        run: |
+          fail=0
+          for f in backend/app/*.py; do
+            python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],"rb").read())' "$f" \
+              || { echo "::error::語法錯誤 $f"; fail=1; }
+          done
+          [ "$fail" -eq 0 ]
+
+      # IP 準則：被 git 追蹤的檔案不得出現 LAN_IP= 賦值。.env 不進版控所以抓不到，
+      # 但 .env.example / 文件 / 腳本若殘留即違規（見 ARCHITECTURE.md〈IP 準則〉）。
+      - name: IP 準則（無 LAN_IP= 殘留）
+        run: |
+          if git grep -nE '^LAN_IP=' --; then
+            echo "::error::追蹤檔案含 LAN_IP= 賦值，違反 IP 準則"
+            exit 1
+          fi
+          echo "✓ 無 LAN_IP= 殘留"
+
+      # 下面兩個工具**只為了讓 pytest 多跑 28 個測試**，不是測試本身需要。
+      # 少了它們這 28 個測試是「靜默 skip」，而 CI 全綠 —— 守門等於不存在。
+      #
+      # · node → tests/test_frontend_hosts.py 的 10 個（它把 +server.ts 的函式抽出來
+      #   用 node 真的跑一次）。**刻意不帶 cache: pnpm**：backend job 沒有
+      #   pnpm/action-setup、也沒有 lockfile 要快取，帶了只會報錯。
+      #   測試用 `node --experimental-strip-types` 跑 .ts，type stripping 在
+      #   node 22.18+ 已是預設（flag 冗餘），但版本仍與 frontend job 同步釘 24。
+      #   ⚠️ frontend/package.json 的 engines 宣告 >=22.12，低於 22.18 —— 那個
+      #   缺口目前被「釘 24」蓋住，記在此處免得日後有人只 engines 就以為能跑。
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # · sops + age-keygen → tests/test_rotate_secret.py 的 18 個，那是**唯一**
+      #   會改寫三台共用憑證檔的腳本，長期零 CI 覆蓋。
+      #
+      #   sops 不在 Ubuntu 24.04 套件庫（packages.ubuntu.com/noble/sops 明確回
+      #   "No such package"；Launchpad 只找得到同名的 orca-sops，是無關的 GNOME
+      #   密碼管理器），所以只能下載。age 在套件庫有，但為了兩半用同一種驗證
+      #   方式、也為了不比 sops 多一條 apt 供應鏈，同樣下載。
+      #
+      # ⚠️ 兩個 hash 的出處不同，別當成同等強度：
+      #   sops — GitHub API digest **與上游 checksums.txt 宣告值一致**（雙重確認）
+      #   age  — 僅 GitHub API digest。上游只發 minisign .proof、沒有
+      #          checksums.txt，此處刻意不引入 minisign 換取對稱。
+      #   兩者皆為 integrity（非 authenticity）：防傳輸損壞與資產被替換，
+      #   防不住 release 帳號被入侵。
+      #
+      # ⚠️ age-keygen 來自 age 專案、與 sops 無關，**裝 sops 不會帶來它**。
+      #   少了它那 18 個測試是 ERROR 不是 skip（subprocess FileNotFoundError），
+      #   失敗訊息看起來像「測試寫壞了」而不是「少裝工具」，比 skip 更難診斷。
+      #   刻意只裝 age-keygen、不裝整包 age：sops 用的是 age 的 Go library，
+      #   只有測試自己 subprocess 呼叫 age-keygen，少一個多餘的攻擊面。
+      - name: 安裝 sops + age-keygen（rotate-secret 測試需要）
+        run: |
+          set -euo pipefail
+          T=$(mktemp -d); cd "$T"   # 離開 repo checkout：sops 52MB + age 19MB
+          V_SOPS=3.13.3; V_AGE=1.3.2
+          B=https://github.com/getsops/sops/releases/download/v${V_SOPS}
+          A=https://github.com/FiloSottile/age/releases/download/v${V_AGE}
+          curl -fsSL -o sops "${B}/sops-v${V_SOPS}.linux.amd64"
+          echo "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b  sops" | sha256sum -c -
+          curl -fsSL -o age.tgz "${A}/age-v${V_AGE}-linux-amd64.tar.gz"
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tgz" | sha256sum -c -
+          sudo install -m755 sops /usr/local/bin/sops
+          tar xzf age.tgz
+          sudo install -m755 age/age-keygen /usr/local/bin/age-keygen
+          # 丟棄式金鑰：測試的 sandbox 會用這把 key 自己建 .sops.yaml，所以
+          # 專案真正的 age 私鑰**永遠不需要進 CI**（repo 是公開的）。
+          # 沒有這把 key 那 18 個測試還是會 skip —— 這行不是多餘的。
+          age-keygen -o /tmp/agekey.txt && chmod 600 /tmp/agekey.txt
+          echo "SOPS_AGE_KEY_FILE=/tmp/agekey.txt" >> "$GITHUB_ENV"
+
+      # 直接呼叫 venv 內的 pytest，不用 `uv run`：uv run 會重新 sync，會把上面
+      # uv pip install 裝進去的 backend 依賴視為 extraneous 而移除。
+      #
+      # 實測結果（2026-10-01，刪掉 test_detect_host_endpoint.py 之後）：
+      # **367 passed / 2 skipped**（本機有 .env 與 node，所以比 CI 多幾個）。
+      #
+      # 驗收條件是「依賴工具的 skip → 0」，**不是** 0 skipped。
+      #
+      # ⚠️ 2026-10-01：這段原本列 7 個永久 skip，其中 3 個來自
+      #   test_detect_host_endpoint.py（WSL NAT 端點偵測）。那個機制連同它的
+      #   測試檔已刪（改走 MagicDNS FQDN，見 settings/env/hosts.shared.env），
+      #   所以這三筆必須跟著移除 —— **留著會讓這份註解開始說謊**，而這份註解
+      #   的唯一用途就是不要讓「CI 綠」被誤讀成「全都驗過」。
+      #   同時刪掉「WSL 下的 ollama 位址偵測不在 CI 驗證」那條警告：那個行為
+      #   已經不存在，沒有東西需要被驗證。
+      #
+      # 剩下的 skip 是**永久**的，分兩類，都不是缺陷、都不該去「修」：
+      #
+      # 缺 artifact（1）—— 檔案被 gitignore，乾淨 clone 不會有：
+      #   test_embed_batch.py:69              需要 data/laws/laws_flat.jsonl
+      #                                        （只有跑過 sync_daily 才存在）
+      #
+      # 缺環境（3）—— 需要 CI runner 沒有的東西（本機 qdrant）：
+      #   test_sync_snapshot_auth.py:107 ×2
+      #   test_sync_snapshot_auth.py:134
+      #
+      # ⚠️ 那 3 個「缺環境」的等於 CI 完全不驗證兩件事：qdrant 的
+      # `/healthz` 免驗證、`/collections` 要驗證這個**安全相關**前提。
+      # 它們只在有真實 stack 的機器上跑。
+      # 記在這裡是為了讓「CI 綠」不等於「全都驗過」這件事保持可見。
+      - name: pytest
+        run: .venv/bin/pytest -q -p no:cacheprovider
+
+  frontend:
+    name: frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # 下限寫在 frontend/package.json 的 engines（>=22.12）；這裡用 24（現行 LTS）。
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm run build
+        working-directory: frontend
+
+  compose:
+    name: compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # 驗證 compose.yaml 的 YAML 結構與變數插值。image tag 打錯、${VAR:?} 漏填，
+      # 在三台機器上都要等到 pull / up 時才爆；這裡先擋。
+      # 給的值都只是假值 —— 只驗證語法，不會真的啟動容器。
+      #
+      # ⚠️ HOST_ID 也要給（2026-09-30 補）。它是 compose.yaml 的必填項
+      # `${HOST_ID:?…}`，2026-09-27 的 d02ba7e 把它改成必填之後，這裡沒跟著加
+      # → **CI 從那天起每個 push 都紅**（run 9aafe9c 之後連續 10 次失敗）。
+      # 教訓：改 compose 的必填變數清單時，記得更新這個 job 的 env 列表 ——
+      # CI 是公開的「三機紀律」證據，它一直紅就等於沒有。
+      - name: docker compose config
+        env:
+          TS_IP: 100.119.83.111
+          POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
+          # 2026-10-01：msi → wsl（後端跑在 WSL，WSL 自己有 tailscale 且
+          # hostname 是 wsl；msi 是同一台實體機器的 Windows 主機，不是後端主機）。
+          # ⚠️ 這裡只驗**語法**，HOST_ID 給哪個合法值都不影響結果，所以改動
+          #    無風險 —— 但留著舊值會讓讀者以為 msi 仍是後端主機。跟著改名。
+          HOST_ID: wsl
+        run: docker compose config -q
+
+  guards:
+    name: 護欄（commit 前綴／單檔大小／憑證格式）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 需要 before..after 範圍的完整歷史才能逐個檢查 commit
+          fetch-depth: 0
+
+      # 下面兩項原本打算用 GitHub ruleset 擋，但個人帳號的公開 repo 拿不到那些 rule：
+      #   commit_message_pattern → 只適用「enterprise 擁有的 repo」（個人／一般 org 不行）
+      #   max_file_size         → 只適用 push target，而 push ruleset 公開 repo 不可用
+      # （實測：API 回 422 Invalid rule / "Source public repos cannot have push rules"）
+      # 所以退到 CI：**能看見但不能阻擋** —— 檢查跑起來時 commit 已經在 main 上了。
+      # 真正的第一道仍是各機的 .githooks/commit-msg（見 ARCHITECTURE.md〈三機紀律〉）。
+
+      # ⚠️ 2026-10-01：前綴清單**從 settings/env/hosts.shared.env 的 HOSTS= 讀**，
+      # 不再寫死在這裡。原寫死 `^(msi|mbp|x570)` 的後果已經發生過一次：
+      # `.githooks/commit-msg` 改成讀 HOSTS=（為了讓 `msi:` 不再能冒充後端主機），
+      # 這個 CI 副本沒跟著改 → 用正確的 `wsl:` 提交，CI 判「缺少主機前綴」而紅。
+      #
+      # 兩份規則並存本身就是這次事故的根因，所以這裡**不抄一份新的常數**：
+      #   * HOSTS= 是機台清單的單一真相（env-sync.sh / env-audit.py / commit-msg
+      #     hook 都讀它）。第 4 台只要在那一行加一個前綴。
+      #   * 讀不到就**放行並警告**，不擋。這是刻意的取捨：這一步在 CI 裡本來就
+      #     「看得見但擋不住」（commit 已經在 main 上了，見上方 ruleset 註解），
+      #     所以寧可失去一道會擋的檢查，也不要留一個會因為檔案路徑／權限／分支
+      #     checkout 深度而**擋掉合法提交**的關卡 —— 假紅會讓人開始用 --no-verify，
+      #     那時連看得見的證據都沒了。真正的第一道仍是各機的 commit-msg hook。
+      #
+      # ⚠️ 這個 job 用 `fetch-depth: 0` + 完整 clone，所以讀得到 settings/ 下的檔。
+      #    若日後換成 sparse checkout，這段會靜默讀不到 —— 那時要改成明確失敗。
+      - name: "commit 訊息前綴須為 HOSTS= 宣告的機台代號"
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          hosts_raw="$(grep -m1 -E '^HOSTS=' settings/env/hosts.shared.env 2>/dev/null \
+                        | cut -d= -f2- | tr ',' '|' | sed 's/[[:space:]]//g')" || true
+          if [ -z "$hosts_raw" ]; then
+            echo "::warning title=無法讀取 HOSTS=,略過前綴檢查::讀不到 settings/env/hosts.shared.env 的 HOSTS= 那一行。放行，但這道檢查這一輪沒有生效。"
+            exit 0
+          fi
+          echo "合法主機前綴（來自 HOSTS=）：$(sed 's/|/ \/ /g' <<<"$hosts_raw")"
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="$AFTER"          # 新分支，或 before 已不可得（force-push）
+          else
+            range="$BEFORE..$AFTER"
+          fi
+
+          # 改名邊界：從**第一個使用當前合法前綴的 commit**往回看，它前面的都算
+          # 歷史（那時 `msi:` 還是合法的後端主機代號）。
+          #
+          # ⚠️ 找法必須是「往前掃、遇到合法前綴就停」，不能只掃這次 range ——
+          #    force-push 時 range 會退化成整條分支，而當時**所有** commit 的
+          #    前綴都是 `msi:`，往前掃會走到底、永遠找不到第一個合法前綴，
+          #    邊界就會是「未知」→ 139 筆誤報（實測）。
+          #
+          # 所以這裡掃 `new_since^`（range 之前的那個 commit）的祖先鏈。
+          # 找不到（沒有前綴歷史、或全新 repo）就讓邊界不存在 → 下面那個
+          # `git merge-base --is-ancestor` 會失敗 → 不視為歷史 → 照報。
+          # 那個方向的失敗是安全的（寧可多報不可漏報）。
+          # 改名邊界 = **把舊代號從總表移掉的那個 commit**（`HOSTS=` 那一行不再含舊代號）。
+          #
+          #   它之前的 commit 都還在建國初期那個命名，那些舊前綴是歷史、不是違規。
+          #
+          # 為什麼是這個定義、而不是「最老的合法前綴 commit」：這個 repo 的前綴
+          # 從來就**不統一** —— 最早的 commit 根本沒有前綴，之後 `msi:` 為主，
+          # 夾雜少數 `mbp:` / `x570:`。所以「最老的合法前綴 commit」落在建國初期，
+          # 邊界等於不存在 → 每個舊 `msi:` 都被報（實測 139 筆全紅）。
+          #
+          # 找法：pickaxe 只認 `HOSTS=` **那一行**，取最新一筆 = 改名點。
+          # 這是**內容導向**的：它問的是「總表什麼時候不再宣告舊代號」，而不是
+          # 「commit 訊息碰巧寫了什麼」，所以改名那天的 commit 訊息怎麼寫都對。
+          #
+          # ⚠️ `^` 那個錨點不能拿掉，它是這段唯一的東西。裸 `-S'msi'` 追的是
+          #    **整個檔案**裡 `msi` 這個字的出現次數變化，而 hosts.shared.env 有
+          #    15 處 `msi`、其中 11 處是註解和值（`msi=http://msi.…:11434`）。
+          #    實測：日後任何人**只是加一行註解提到 msi**，邊界就往前飄一格 ——
+          #    飄過哪裡，哪裡的 `msi:` commit 從此不再被報。連做三個 commit 實測
+          #    （純註解 → 違規的 `msi:` → 再一行純註解）後一次 push 那兩個，
+          #    違規 commit 被靜默放行（exit=0）；同樣的 commit 邊界沒漂移時是
+          #    exit=1。護欄的有效性不能取決於「最近有沒有人順手改到那個檔案的註解」。
+          #    拿掉 `^` 也一樣壞：`HOSTS=.*msi` 的 `.*` 會跨行，註解同樣命中。
+          #
+          # 未來把 `msi` 加回 `HOSTS=` 時，這個邊界會指到那一筆 —— 這是對的，
+          # 那時 `msi` 又是合法前綴了。實測過。
+          #
+          # ⚠️ 邊界找不到（全新 repo、沒有總表歷史）時 `new_since` 為空
+          #    → 下面 `merge-base --is-ancestor` 失敗 → 舊代號照報。這個方向的
+          #    失敗是安全的：寧可多報不可漏報。
+          new_since="$(git log -1 --format='%H' --pickaxe-regex \
+                         -S'^HOSTS=.*\bmsi\b' -- settings/env/hosts.shared.env)"
+          # 規則生效點 = 護檔案案被加入的那個 commit（commit-msg hook，8ca2768）。
+          # 用 --diff-filter=A 找「新增」，所以日後若把護欄刪掉又加回來，邊界會
+          # 跟著最新那個走。
+          rules_since="$(git log --diff-filter=A -1 --format='%H' -- .githooks/commit-msg)"
+          for label in new_since rules_since; do
+            v="${!label:-}"
+            if [ -n "$v" ]; then
+              echo "$label = $(git rev-parse --short "$v")"
+            else
+              echo "$label = （找不到 → 該類舊 commit 一律視為違規）"
+            fi
+          done
+          # ⚠️ 冒號用明確 alternation `(:|：)`，**不要寫成 `[:：]`**。
+          #    那個字元類別在 gawk 裡是壞的：位元組 EF BC 9A 的全角冒號會被當成
+          #    字面字元比對，於是 `mbp：全角`（全角冒號直接接文字）不 match，
+          #    但 `mbp： 全角`（後面剛好有空格）卻 match —— 部分匹配，最壞的一種。
+          #    實測（gawk 5.3.2 / Ubuntu 24.04 就是這個版本）：
+          #      mbp:x   → NO      mbp：x   → NO
+          #      mbp: x  → MATCH   mbp： x  → MATCH
+          #    commit-msg hook 裡那條 `[:：]` 也有同樣的問題，一起修。
+          bad=0
+          for sha in $(git rev-list "$range"); do
+            subj="$(git log -1 --format=%s "$sha")"
+            if printf '%s' "$subj" | grep -Eq "^($hosts_raw)(:|：)[[:space:]]" \
+               || printf '%s' "$subj" | grep -Eq '^(Merge|Revert)'; then
+              continue
+            fi
+            # ── 歷史相容：兩種「現在才變嚴」的舊 commit ──
+            #
+            # (a) 2026-09-22 護欄建立**之前**的 commit：那時根本沒這條規則，
+            #     所以 20 筆完全沒有前綴（`feat: Complete initial setup…`、
+            #     `test2`、`update test`…）。它們不是違規，是規則還不存在。
+            #
+            # (b) 2026-10-01 改名**之前**的 `msi:` commit：那時 `msi:` 是合法
+            #     前綴（後端跑在掛在 Windows 主機下的 WSL，git 身份記主機名）。
+            #     改名後它不再出現在 HOSTS= —— 掃整段歷史時（force-push 會讓
+            #     before 不可得、range 退化成整條分支）每個舊 commit 都會被報。
+            #
+            # 邊界取兩者中**較早**的：規則存在之前的，一律不算違規。
+            #
+            # ⚠️ 這**不是**放水。兩個邊界都是「規則／命名改變的那個 commit」，
+            #    而且都是內容導向（`--diff-filter=A` 找護欄落地、`-S` 找改名），
+            #    所以繞不過去：`msi:` 與無前綴的 commit 一旦出現在邊界**之後**，
+            #    照樣被擋。實測舊寫死 regex 全掃會產出 139 筆誤報 —— 那等於
+            #    這道護欄從此沒有信譽，而沒有信譽的護欄會讓人開始用 --no-verify。
+            if git merge-base --is-ancestor "$sha" "$rules_since" 2>/dev/null \
+               || git merge-base --is-ancestor "$sha" "$new_since" 2>/dev/null; then
+              continue
+            fi
+            echo "::error title=缺少主機前綴::${sha:0:8}  ${subj}"
+            bad=1
+          done
+          [ "$bad" -eq 0 ]
+
+      - name: 單檔不得超過 10 MB
+        run: |
+          limit=$((10 * 1024 * 1024))
+          bad=0
+          while IFS= read -r f; do
+            sz=$(stat -c%s "$f")
+            if [ "$sz" -gt "$limit" ]; then
+              echo "::error title=單檔過大::${f}  $((sz / 1024 / 1024)) MB > 10 MB"
+              bad=1
+            fi
+          done < <(git ls-files)
+          [ "$bad" -eq 0 ]
+
+      # 為什麼 push protection 還不夠（實測 security_and_analysis 現況）：
+      #   secret_scanning_push_protection       = enabled   ← 只認 GitHub 合作廠商 pattern
+      #   secret_scanning_non_provider_patterns = disabled  ← 自訂 pattern，個人帳號計畫開不了
+      #   secret_scanning_validity_checks       = disabled
+      # 也就是說「本專案自己會用到、但不在 GitHub 合作廠商清單裡」的格式完全沒有防線。
+      # 掃「全部被追蹤的檔案」而不是 before..after 範圍：憑證一旦進來會留在樹裡好幾個
+      # commit，後續任何一次 push 都該重新確認它還沒被清掉。
+      #
+      # 這些字面 pattern 不會匹配到本檔自己：`[` 不在 [A-Za-z0-9_-] 類別裡。
+      # 長度門檻 20 是刻意的 —— 實測過 {8,} 也沒誤報，但 20 能擋掉像是變數名
+      # （cfut_underscore）這類巧合命中。
+      #
+      # ⚠️⚠️ 這四個 pattern **不是全部的防線**。別把它們當成憑據守的完整名單。
+      #
+      # 無前綴的 key 一個都匹配不到 —— qdrant 的 key 是 43 字元無前綴隨機串，
+      # 而上面已說明 push protection 只認 GitHub 合作廠商清單。那些 key 由
+      # **值層級**檢查守，而那層是**分目錄範圍**的：
+      #
+      #   tests/test_env_sync.py::test_no_tracked_secret_values
+      #     掃 `git ls-files settings/env/` —— 6 個檔，佔全 repo 4.7%
+      #
+      # ⚠️ 而 `.env.example` **不在那個範圍內**，它卻是全部 8 個憑證鍵的模板、
+      #    最容易被人手誤貼真值進去。它靠的是**另一套機制**：
+      #    test_env_audit.py 的「tracked == body」—— .env.example 必須逐字等於
+      #    `env-audit.py --template` 的輸出，而生成器只印 `NAME=`（空值）。
+      #
+      # 三層的實際分工：
+      #   settings/env/*  → 值層級測試（認鍵名、不認格式）
+      #   .env.example    → generator 相等性（認「必須逐字等於生成結果」）
+      #   其餘 121 個檔   → 只認上面那 4 個廠商前綴
+      #
+      # 一把無前綴的 key 若被貼進第三類檔案，**沒有任何一層會擋**。
+      - name: 追蹤檔案不得含憑證
+        run: |
+          bad=0
+          while IFS='|' read -r label pat; do
+            [ -n "$label" ] || continue
+            if git grep -nIE "$pat" --; then
+              echo "::error title=疑似憑證外洩::命中 $label 格式，請立刻輪換該 key 並清除歷史"
+              bad=1
+            fi
+          done <<'PATTERNS'
+          Cloudflare（gateway AI token）|cfut_[A-Za-z0-9_-]{20,}
+          NVIDIA（api key）|nvapi-[A-Za-z0-9_-]{20,}
+          OpenRouter（api key）|sk-or-v1-[A-Za-z0-9_-]{20,}
+          HuggingFace（token）|hf_[A-Za-z0-9]{30,}
+          PATTERNS
+          if [ "$bad" -eq 0 ]; then
+            echo "✓ 無憑證格式殘留"
+          fi
+          [ "$bad" -eq 0 ]

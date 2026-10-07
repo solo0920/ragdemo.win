@@ -1,4 +1,4 @@
-"""`ci.yml` 的 compose job 必須給齊 `compose.yaml` 的所有必填變數。
+"""`fast-ci.yml` 的 compose job 必須給齊 `compose.yaml` 的所有必填變數。
 
 **這個缺口讓 CI 從 2026-09-27 起連續紅了 10 次 push**（`d02ba7e` 把 `HOST_ID`
 改成 `${HOST_ID:?…}` 必填，但 CI 那個 job 的 `env:` 沒跟著加）。
@@ -9,7 +9,7 @@
 在按鈕那一側全是綠的。
 
 這個測試把「compose 的必填清單」與「CI 給的清單」釘在一起。日後在
-`compose.yaml` 加一個 `${NEW:?…}` 而忘了在 ci.yml 給值，這裡會紅。
+`compose.yaml` 加一個 `${NEW:?…}` 而忘了在 fast-ci.yml 給值，這裡會紅。
 """
 import re
 from pathlib import Path
@@ -18,7 +18,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ROOT / "compose.yaml"
-CI = ROOT / ".github" / "workflows" / "ci.yml"
+# 2026-10-07：CI 拆成 fast-ci.yml（PR 的門）與 full-ci.yml（merge／每日深層）後，
+# compose job 搬到 fast-ci.yml —— 這裡跟著指過去。**只改檔名**，其餘不動。
+# compose job 不在 full-ci.yml：它只驗語法與插值，不需要完整歷史。
+CI = ROOT / ".github" / "workflows" / "fast-ci.yml"
 
 REQUIRED_RE = re.compile(r"\$\{([A-Z_][A-Z0-9_]*):\?")
 
@@ -29,14 +32,14 @@ def _required_vars() -> set:
 
 
 def _compose_job_env() -> set:
-    """ci.yml 裡 compose job 的 `env:` 區塊宣告了哪些變數。
+    """fast-ci.yml 裡 compose job 的 `env:` 區塊宣告了哪些變數。
 
     用區塊邊界找而不是全文抓：`env:` 在 workflow 裡到處都是（backend job、
     guards job 都各有），抓全文會把不該算的算進來。
     """
     text = CI.read_text(encoding="utf-8")
     start = text.find("- name: docker compose config")
-    assert start != -1, "ci.yml 找不到 compose job"
+    assert start != -1, "fast-ci.yml 找不到 compose job"
     # 該 step 的 env 區塊結束於 `run:`
     end = text.find("run: docker compose config", start)
     assert end != -1, "compose job 的 run 行不見了（step 結構變了？）"
@@ -59,7 +62,7 @@ def test_ci_provides_every_required_compose_var():
     given = _compose_job_env()
     missing = sorted(required - given)
     assert not missing, (
-        f"ci.yml 的 compose job 沒給這些必填變數: {missing} —— "
+        f"fast-ci.yml 的 compose job 沒給這些必填變數: {missing} —— "
         f"`docker compose config` 會在 CI 上失敗，"
         f"而本機 pre-push 沒有這道檢查（所以按 push 的人是看不到的）"
     )
@@ -78,6 +81,6 @@ def test_ci_does_not_provide_bogus_vars():
         if f"${{{v}" not in text
     )
     assert not bogus, (
-        f"ci.yml 給了 compose.yaml 沒讀的變數: {bogus} —— "
+        f"fast-ci.yml 給了 compose.yaml 沒讀的變數: {bogus} —— "
         f"拼錯字會讓這道 CI 檢查看起來有覆蓋、實際沒覆蓋到"
     )
