@@ -1,0 +1,341 @@
+# Fast CI —— pull request 上的那道門。
+#
+# 為什麼要有這份：原本的 `.github/workflows/ci.yml` 一個 workflow 扛四個 job，
+# 每個 PR 都要等它跑完 —— 包括「為了合併前一個決定而做完整歷史 clone」這種
+# 對當下這個 PR 沒有意義的工作（見 full-ci.yml 的說明）。這份把「每個 PR 都需要
+# 知道的」與「只有整個 repo 的歷史才有答案的」分開。
+#
+# 這份**不跑** commit 前綴稽核。那道檢查需要完整歷史才能解析兩個「規則生效點」
+# commit，而在淺層 clone 上它不會壞掉 —— 它會安靜地什麼都不報（實測見
+# full-ci.yml 的 guards job 註解）。它因此歸 full-ci.yml。
+#
+# 這份的每一道都必須是「淺 clone 就跑得動」的。已實測：`git ls-files` 與
+# `git grep` 在 `--depth 1` 下都正常（215 個檔案）。
+#
+# action 以 SHA 釘死（後面註解標版本），與 compose.yaml 釘 image tag 同一個理由：
+# 公開 repo 加上游供應鏈被動過時，不該自動套用。Dependabot 會自動追 SHA 更新。
+name: fast-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  # 讓 ci.yml（手動統一入口）能呼叫本檔。**workflow_call 不會讓本檔多跑一次** ——
+  # 兩者共用同一個 `concurrency` group，同一次事件只會有一個 run 在跑。
+  workflow_call:
+
+# 唯讀權限：這份 workflow 不需要寫 repo（不發 comment、不開 PR）。
+permissions:
+  contents: read
+
+# 同一 ref 的新 push 取消舊 run：省 runner，且結果以最新 commit 為準。
+#
+# ⚠️ group 必須與 full-ci.yml 不同名。兩份都在 push 到 main 時觸發，若共用一個
+# group，後啟動的那個會把先啟動的取消掉 —— 那是每次 merge 都會發生的真實競態，
+# 而且會間歇性地弄掉 PR 的門。
+concurrency:
+  group: fast-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── backend：依賴、語法、IP 準則、工具鏈、測試 ──────────────────────────────────
+  #
+  # 根 venv 供 tests/（pytest ＋ ragdemo-tools 依賴）；backend 依賴另外裝進同一個
+  # venv，這樣測試若哪天開始 import fastapi / pydantic，不會突然缺套件而失敗。
+  # 裝本專案只是為了帶進它的依賴 —— tests/ 是靠 tests/conftest.py 把 backend/
+  # 塞進 sys.path 來 import app.*，不依賴「已安裝」這件事。
+  # 兩種模式（editable / 非 editable）都會在 backend/ 留下 *.egg-info/（build
+  # backend 就在 source tree 寫），已由 .gitignore 的 `*.egg-info/` 擋掉。
+  #
+  # 這裡的 checkout **刻意是預設深度**。整個 guards（commit 前綴稽核）需要完整歷史，
+  # 它在 full-ci.yml；這四道不需要。
+  backend:
+    name: backend (py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: 安裝依賴
+        run: |
+          uv sync --frozen
+          uv pip install ./backend
+
+      # ⚠️ 用 `find -name '*.py'` 而不是 `backend/app/*.py` glob。2026-10-07 實測：
+      # glob 只掃到第一層（14 個檔），`find backend/app` 掃到 19 個 —— 被漏掉的
+      # 5 個**全部**在 `backend/app/common/`，而那正是 2026-09-29 為了修
+      # 「切模組時漏檔」而生的套件。.githooks/pre-push:31 早就用 find 了，
+      # 這裡是 CI 唯一沒跟上的一處。兩份規則並存本身就是事故的根因
+      # （見 ci.yml.orig:282-288：HOSTS= 那條護欄也是兩份才出事的）。
+      - name: Python 語法檢查
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            python3 -c 'import ast,sys; ast.parse(open(sys.argv[1],"rb").read())' "$f" \
+              || { echo "::error::語法錯誤 $f"; fail=1; }
+          done < <(find backend/app -name '*.py' -type f | sort)
+          [ "$fail" -eq 0 ]
+
+      # IP 準則：被 git 追蹤的檔案不得出現 LAN_IP= 賦值。.env 不進版控所以抓不到，
+      # 但 .env.example / 文件 / 腳本若殘留即違規（見 ARCHITECTURE.md〈IP 準則〉）。
+      - name: IP 準則（無 LAN_IP= 殘留）
+        run: |
+          if git grep -nE '^LAN_IP=' --; then
+            echo "::error::追蹤檔案含 LAN_IP= 賦值，違反 IP 準則"
+            exit 1
+          fi
+          echo "✓ 無 LAN_IP= 殘留"
+
+      # 下面兩個工具**只為了讓 pytest 多跑 28 個測試**，不是測試本身需要。
+      # 少了它們這 28 個測試是「靜默 skip」，而 CI 全綠 —— 守門等於不存在。
+      #
+      # · node → tests/test_frontend_hosts.py 的 10 個（它把 +server.ts 的函式抽出來
+      #   用 node 真的跑一次）。**刻意不帶 cache: pnpm**：backend job 沒有
+      #   pnpm/action-setup、也沒有 lockfile 要快取，帶了只會報錯。
+      #   測試用 `node --experimental-strip-types` 跑 .ts，type stripping 在
+      #   node 22.18+ 已是預設（flag 冗餘），但版本仍與 frontend job 同步釘 24。
+      #   ⚠️ frontend/package.json 的 engines 宣告 >=22.12，低於 22.18 —— 那個
+      #   缺口目前被「釘 24」蓋住，記在此處免得日後有人只 engines 就以為能跑。
+
+      # 下面兩個工具**只為了讓 pytest 多跑 28 個測試**，不是測試本身需要。
+      # 少了它們這 28 個測試是「靜默 skip」，而 CI 全綠 —— 守門等於不存在。
+      #
+      # · node → tests/test_frontend_hosts.py 的 10 個（它把 +server.ts 的函式抽出來
+      #   用 node 真的跑一次）。**刻意不帶 cache: pnpm**：backend job 沒有
+      #   pnpm/action-setup、也沒有 lockfile 要快取，帶了只會報錯。
+      #   測試用 `node --experimental-strip-types` 跑 .ts，type stripping 在
+      #   node 22.18+ 已是預設（flag 冗餘），但版本仍與 frontend job 同步釘 24。
+      #   ⚠️ frontend/package.json 的 engines 宣告 >=22.12，低於 22.18 —— 那個
+      #   缺口目前被「釘 24」蓋住，記在此處免得日後有人只 engines 就以為能跑。
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # · sops + age-keygen → tests/test_rotate_secret.py 的 18 個，那是**唯一**
+      #   會改寫三台共用憑證檔的腳本，長期零 CI 覆蓋。
+      #
+      #   sops 不在 Ubuntu 24.04 套件庫（packages.ubuntu.com/noble/sops 明確回
+      #   "No such package"；Launchpad 只找得到同名的 orca-sops，是無關的 GNOME
+      #   密碼管理器），所以只能下載。age 在套件庫有，但為了兩半用同一種驗證
+      #   方式、也為了不比 sops 多一條 apt 供應鏈，同樣下載。
+      #
+      # ⚠️ 兩個 hash 的出處不同，別當成同等強度：
+      #   sops — GitHub API digest **與上游 checksums.txt 宣告值一致**（雙重確認）
+      #   age  — 僅 GitHub API digest。上游只發 minisign .proof、沒有
+      #          checksums.txt，此處刻意不引入 minisign 換取對稱。
+      #   兩者皆為 integrity（非 authenticity）：防傳輸損壞與資產被替換，
+      #   防不住 release 帳號被入侵。
+      #
+      # ⚠️ age-keygen 來自 age 專案、與 sops 無關，**裝 sops 不會帶來它**。
+      #   少了它那 18 個測試是 ERROR 不是 skip（subprocess FileNotFoundError），
+      #   失敗訊息看起來像「測試寫壞了」而不是「少裝工具」，比 skip 更難診斷。
+      #   刻意只裝 age-keygen、不裝整包 age：sops 用的是 age 的 Go library，
+      #   只有測試自己 subprocess 呼叫 age-keygen，少一個多餘的攻擊面。
+      - name: 安裝 sops + age-keygen（rotate-secret 測試需要）
+        run: |
+          set -euo pipefail
+          T=$(mktemp -d); cd "$T"   # 離開 repo checkout：sops 52MB + age 19MB
+          V_SOPS=3.13.3; V_AGE=1.3.2
+          B=https://github.com/getsops/sops/releases/download/v${V_SOPS}
+          A=https://github.com/FiloSottile/age/releases/download/v${V_AGE}
+          curl -fsSL -o sops "${B}/sops-v${V_SOPS}.linux.amd64"
+          echo "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b  sops" | sha256sum -c -
+          curl -fsSL -o age.tgz "${A}/age-v${V_AGE}-linux-amd64.tar.gz"
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tgz" | sha256sum -c -
+          sudo install -m755 sops /usr/local/bin/sops
+          tar xzf age.tgz
+          sudo install -m755 age/age-keygen /usr/local/bin/age-keygen
+          # 丟棄式金鑰：測試的 sandbox 會用這把 key 自己建 .sops.yaml，所以
+          # 專案真正的 age 私鑰**永遠不需要進 CI**（repo 是公開的）。
+          # 沒有這把 key 那 18 個測試還是會 skip —— 這行不是多餘的。
+          age-keygen -o /tmp/agekey.txt && chmod 600 /tmp/agekey.txt
+          echo "SOPS_AGE_KEY_FILE=/tmp/agekey.txt" >> "$GITHUB_ENV"
+
+      # 直接呼叫 venv 內的 pytest，不用 `uv run`：uv run 會重新 sync，會把上面
+      # uv pip install 裝進去的 backend 依賴視為 extraneous 而移除。
+      #
+      # 實測結果（2026-10-01，刪掉 test_detect_host_endpoint.py 之後）：
+      # **367 passed / 2 skipped**（本機有 .env 與 node，所以比 CI 多幾個）。
+      #
+      # 驗收條件是「依賴工具的 skip → 0」，**不是** 0 skipped。
+      #
+      # ⚠️ 2026-10-01：這段原本列 7 個永久 skip，其中 3 個來自
+      #   test_detect_host_endpoint.py（WSL NAT 端點偵測）。那個機制連同它的
+      #   測試檔已刪（改走 MagicDNS FQDN，見 settings/env/hosts.shared.env），
+      #   所以這三筆必須跟著移除 —— **留著會讓這份註解開始說謊**，而這份註解
+      #   的唯一用途就是不要讓「CI 綠」被誤讀成「全都驗過」。
+      #   同時刪掉「WSL 下的 ollama 位址偵測不在 CI 驗證」那條警告：那個行為
+      #   已經不存在，沒有東西需要被驗證。
+      #
+      # 剩下的 skip 是**永久**的，分兩類，都不是缺陷、都不該去「修」：
+      #
+      # 缺 artifact（1）—— 檔案被 gitignore，乾淨 clone 不會有：
+      #   test_embed_batch.py:69              需要 data/laws/laws_flat.jsonl
+      #                                        （只有跑過 sync_daily 才存在）
+      #
+      # 缺環境（3）—— 需要 CI runner 沒有的東西（本機 qdrant）：
+      #   test_sync_snapshot_auth.py:107 ×2
+      #   test_sync_snapshot_auth.py:134
+      #
+      # ⚠️ 那 3 個「缺環境」的等於 CI 完全不驗證兩件事：qdrant 的
+      # `/healthz` 免驗證、`/collections` 要驗證這個**安全相關**前提。
+      # 它們只在有真實 stack 的機器上跑。
+      # 記在這裡是為了讓「CI 綠」不等於「全都驗過」這件事保持可見。
+
+
+      # 直接呼叫 venv 內的 pytest，不用 `uv run`：uv run 會重新 sync，會把上面
+      # uv pip install 裝進去的 backend 依賴視為 extraneous 而移除。
+      #
+      # 這裡刻意**保留** sops + age-keygen（上面第 7 步）。原始 spec 把它歸到
+      # 「Full CI 的 secret 驗證」，但那會讓這 18 個 rotate-secret 測試在每個 PR
+      # 上變成靜默 skip —— 而 skip 不是「通過」，是「這道門不存在」
+      # （見上方安裝那一步的註解）。整個 suite 實測 16.7 秒，沒有為了省這點時間
+      # 而犧牲 skip-free 的理由。
+      #
+      # `-m 'not slow'` 是 pyproject.toml 的 addopts；慢速那組（test_pg_timeout_real，
+      # 真的連 10.255.255.1 等逾時，約 63 秒）歸 full-ci.yml，不在 PR 的門裡。
+      - name: pytest
+        run: |
+          set -o pipefail
+          out="$(.venv/bin/pytest -q -p no:cacheprovider 2>&1 | tee /dev/stderr)"
+          # FR-019：把實際跑到的數字印出來。「測試有跑」與「測試被 skip」在
+          # 都是綠燈的情況下長得一模一樣，只有數字看得出來。預期基線見下方
+          # 註解 —— 若這裡的數字掉了，先確認是不是工具鏈沒裝好。
+          #
+          # 預期（2026-10-07，乾淨 clone + node/sops/age-keygen 齊全）：
+          #   674 passed / 115 skipped / 2 deselected
+          # 其中 skip 全是「缺環境」，不是缺陷、也不該去「修」：
+          #   · node 那一批（本機沒 node；CI 有，所以 CI 這裡是 0）
+          #   · data/laws/laws_flat.jsonl（被 gitignore，跑過 sync_daily 才有）
+          #   · 本機 qdrant（/healthz 免驗證、/collections 要驗證這個安全前提
+          #     只在有真實 stack 的機器上驗）
+          echo "::notice title=pytest 實際執行數::$(printf '%s' "$out" | tail -1)"
+
+  # ── frontend：安裝 + build ────────────────────────────────────────────────────────
+  frontend:
+    name: frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # 下限寫在 frontend/package.json 的 engines（>=22.12）；這裡用 24（現行 LTS）。
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm run build
+        working-directory: frontend
+
+  # ── compose：驗證 YAML 結構與變數插值 ─────────────────────────────────────────────
+  compose:
+    name: compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # 驗證 compose.yaml 的 YAML 結構與變數插值。image tag 打錯、${VAR:?} 漏填，
+      # 在三台機器上都要等到 pull / up 時才爆；這裡先擋。
+      # 給的值都只是假值 —— 只驗證語法，不會真的啟動容器。
+      #
+      # ⚠️ HOST_ID 也要給（2026-09-30 補）。它是 compose.yaml 的必填項
+      # `${HOST_ID:?…}`，2026-09-27 的 d02ba7e 把它改成必填之後，這裡沒跟著加
+      # → **CI 從那天起每個 push 都紅**（run 9aafe9c 之後連續 10 次失敗）。
+      # 教訓：改 compose 的必填變數清單時，記得更新這個 job 的 env 列表 ——
+      # CI 是公開的「三機紀律」證據，它一直紅就等於沒有。
+      #
+      # 這三個值由 tests/test_ci_compose_env.py 釘住：compose.yaml 加一個
+      # `${NEW:?…}` 而這裡沒跟著給，那條測試會紅。改這裡時**不要**順手改測試。
+      - name: docker compose config
+        env:
+          TS_IP: 100.119.83.111
+          POSTGRES_PASSWORD: ci-placeholder-not-a-real-secret
+          # 2026-10-01：msi → wsl（後端跑在 WSL，WSL 自己有 tailscale 且
+          # hostname 是 wsl；msi 是同一台實體機器的 Windows 主機，不是後端主機）。
+          # ⚠️ 這裡只驗**語法**，HOST_ID 給哪個合法值都不影響結果，所以改動
+          #    無風險 —— 但留著舊值會讓讀者以為 msi 仍是後端主機。跟著改名。
+          HOST_ID: wsl
+        run: docker compose config -q
+
+  # ── security：兩道掃「全部被追蹤的檔案」的關卡 ─────────────────────────────────
+  #
+  # 這兩道原本住在 ci.yml 的 guards job。guards 之所以整個搬去 full-ci.yml，是因為
+  # 它**第三道**（commit 前綴稽核）需要完整歷史；但前兩道不需要 —— `git ls-files`
+  # 與 `git grep` 在淺層 clone 上都正常（已實測），所以留在 PR 的門裡。
+  security:
+    name: 護欄（單檔大小／憑證格式）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: 單檔不得超過 10 MB
+        run: |
+          limit=$((10 * 1024 * 1024))
+          bad=0
+          while IFS= read -r f; do
+            sz=$(stat -c%s "$f")
+            if [ "$sz" -gt "$limit" ]; then
+              echo "::error title=單檔過大::${f}  $((sz / 1024 / 1024)) MB > 10 MB"
+              bad=1
+            fi
+          done < <(git ls-files)
+          [ "$bad" -eq 0 ]
+
+      # 為什麼 push protection 還不夠（實測 security_and_analysis 現況）：
+      #   secret_scanning_push_protection       = enabled   ← 只認 GitHub 合作廠商 pattern
+      #   secret_scanning_non_provider_patterns = disabled  ← 自訂 pattern，個人帳號計畫開不了
+      #   secret_scanning_validity_checks       = disabled
+      # 也就是說「本專案自己會用到、但不在 GitHub 合作廠商清單裡」的格式完全沒有防線。
+      # 掃「全部被追蹤的檔案」而不是 before..after 範圍：憑證一旦進來會留在樹裡好幾個
+      # commit，後續任何一次 push 都該重新確認它還沒被清掉。
+      #
+      # 這些字面 pattern 不會匹配到本檔自己：`[` 不在 [A-Za-z0-9_-] 類別裡。
+      # 長度門檻 20 是刻意的 —— 實測過 {8,} 也沒誤報，但 20 能擋掉像是變數名
+      # （cfut_underscore）這類巧合命中。
+      #
+      # ⚠️⚠️ 這四個 pattern **不是全部的防線**。別把它們當成憑據守的完整名單。
+      #
+      # 無前綴的 key 一個都匹配不到 —— qdrant 的 key 是 43 字元無前綴隨機串，
+      # 而上面已說明 push protection 只認 GitHub 合作廠商清單。那些 key 由
+      # **值層級**檢查守，而那層是**分目錄範圍**的：
+      #
+      #   tests/test_env_sync.py::test_no_tracked_secret_values
+      #     掃 `git ls-files settings/env/` —— 6 個檔，佔全 repo 4.7%
+      #
+      # ⚠️ 而 `.env.example` **不在那個範圍內**，它卻是全部 8 個憑證鍵的模板、
+      #    最容易被人手誤貼真值進去。它靠的是**另一套機制**：
+      #    test_env_audit.py 的「tracked == body」—— .env.example 必須逐字等於
+      #    `env-audit.py --template` 的輸出，而生成器只印 `NAME=`（空值）。
+      #
+      # 三層的實際分工：
+      #   settings/env/*  → 值層級測試（認鍵名、不認格式）
+      #   .env.example    → generator 相等性（認「必須逐字等於生成結果」）
+      #   其餘 121 個檔   → 只認上面那 4 個廠商前綴
+      #
+      # 一把無前綴的 key 若被貼進第三類檔案，**沒有任何一層會擋**。
+      - name: 追蹤檔案不得含憑證
+        run: |
+          bad=0
+          while IFS='|' read -r label pat; do
+            [ -n "$label" ] || continue
+            if git grep -nIE "$pat" --; then
+              echo "::error title=疑似憑證外洩::命中 $label 格式，請立刻輪換該 key 並清除歷史"
+              bad=1
+            fi
+          done <<'PATTERNS'
+          Cloudflare（gateway AI token）|cfut_[A-Za-z0-9_-]{20,}
+          NVIDIA（api key）|nvapi-[A-Za-z0-9_-]{20,}
+          OpenRouter（api key）|sk-or-v1-[A-Za-z0-9_-]{20,}
+          HuggingFace（token）|hf_[A-Za-z0-9]{30,}
+          PATTERNS
+          if [ "$bad" -eq 0 ]; then
+            echo "✓ 無憑證格式殘留"
+          fi
+          [ "$bad" -eq 0 ]

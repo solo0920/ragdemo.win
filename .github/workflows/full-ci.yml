@@ -1,0 +1,345 @@
+# Full CI —— merge 之後與每天的那道深層驗證。
+#
+# 為什麼要有這份：原本 ci.yml 的 guards job 用 `fetch-depth: 0` 做 commit 前綴稽核，
+# 那份 checkout 是**載重**的，不是習慣。實測（specs/003-split-ci-fast-full/plan.md R-1）：
+# 在 `--depth 1` 上，`git log --diff-filter=A -- .githooks/commit-msg` 會回 **HEAD** 而不是
+# 真正的「護欄加入」commit，於是 `git merge-base --is-ancestor "$sha" "$rules_since"`
+# 對範圍內每個 commit 都成立，稽核**什麼都不報**。
+#
+# 那不是「壞掉」，是「永遠綠」—— 比壞掉更難發現。所以這道檢查必須在完整歷史上跑，
+# 而完整 clone 對一個只改了一行的 PR 沒有意義，於是它歸這份。
+#
+# 這份的三個 job：
+#   guards    — commit 前綴稽核（需要完整歷史）
+#   secrets   — 加密檔的深度驗證（sops filestatus + 丟棄式金鑰往返）
+#   test-full — 慢速測試（`test_pg_timeout_real`，約 63 秒，PR 的門不跑）
+#
+# ⚠️ 這份**不跑**單檔大小與憑證格式掃描。那兩道不需要完整歷史（`git ls-files` 與
+# `git grep` 在淺層 clone 上都正常），留在 fast-ci.yml 的 security job。
+#
+# action 以 SHA 釘死（後面註解標版本），理由同 fast-ci.yml；Dependabot 會追 SHA。
+name: full-ci
+
+on:
+  push:
+    branches: [main]
+  # 每天跑一次的理由：這份有幾道是「關於過去」的檢查（歷史稽核），push 只覆蓋
+  # 這次的 range；定時跑才能覆蓋 force-push 造成的、當時沒被看到的差異。
+  # 排 04:23 而非整點 —— 三台機器與 GitHub 都沒有理由在同一分鐘醒來。
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+  # 讓 ci.yml（手動統一入口）能呼叫本檔。**workflow_call 不會讓本檔多跑一次**。
+  workflow_call:
+
+# 唯讀權限：不發 comment、不開 PR、不寫 repo。
+permissions:
+  contents: read
+
+# ⚠️ group 必須與 fast-ci.yml 不同名。兩份都在 push 到 main 時觸發，若共用一個
+# group，後啟動的那個會把先啟動的取消掉 —— 每次 merge 都可能弄掉其中一道。
+concurrency:
+  group: full-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── guards：commit 前綴稽核（需要完整歷史）────────────────────────────────────
+  guards:
+    name: 護欄（commit 前綴）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 需要 before..after 範圍的完整歷史才能逐個檢查 commit。
+          #
+          # ⚠️ 這一行是**載重**的，不是習慣。實測（plan.md R-1，check-audit.sh 已驗證）：
+          # 在 `--depth 1` 上，下面 `rules_since` 那個 `--diff-filter=A` 查詢會回 HEAD
+          # 而不是真正的「護欄加入」commit，於是 `merge-base --is-ancestor` 對範圍內
+          # 每個 commit 都成立 → **稽核什麼都不報**。它不會壞掉，它是永遠綠。
+          # 拿掉這行不會得到「比較寬鬆的稽核」，會得到「沒有稽核」。
+          fetch-depth: 0
+
+  # 下面兩項原本打算用 GitHub ruleset 擋，但個人帳號的公開 repo 拿不到那些 rule：
+      #   commit_message_pattern → 只適用「enterprise 擁有的 repo」（個人／一般 org 不行）
+      #   max_file_size         → 只適用 push target，而 push ruleset 公開 repo 不可用
+      # （實測：API 回 422 Invalid rule / "Source public repos cannot have push rules"）
+      # 所以退到 CI：**能看見但不能阻擋** —— 檢查跑起來時 commit 已經在 main 上了。
+      # 真正的第一道仍是各機的 .githooks/commit-msg（見 ARCHITECTURE.md〈三機紀律〉）。
+
+      # ⚠️ 2026-10-01：前綴清單**從 settings/env/hosts.shared.env 的 HOSTS= 讀**，
+      # 不再寫死在這裡。原寫死 `^(msi|mbp|x570)` 的後果已經發生過一次：
+      # `.githooks/commit-msg` 改成讀 HOSTS=（為了讓 `msi:` 不再能冒充後端主機），
+      # 這個 CI 副本沒跟著改 → 用正確的 `wsl:` 提交，CI 判「缺少主機前綴」而紅。
+      #
+      # 兩份規則並存本身就是這次事故的根因，所以這裡**不抄一份新的常數**：
+      #   * HOSTS= 是機台清單的單一真相（env-sync.sh / env-audit.py / commit-msg
+      #     hook 都讀它）。第 4 台只要在那一行加一個前綴。
+      #   * 讀不到就**放行並警告**，不擋。這是刻意的取捨：這一步在 CI 裡本來就
+      #     「看得見但擋不住」（commit 已經在 main 上了，見上方 ruleset 註解），
+      #     所以寧可失去一道會擋的檢查，也不要留一個會因為檔案路徑／權限／分支
+      #     checkout 深度而**擋掉合法提交**的關卡 —— 假紅會讓人開始用 --no-verify，
+      #     那時連看得見的證據都沒了。真正的第一道仍是各機的 commit-msg hook。
+      #
+      # ⚠️ 這個 job 用 `fetch-depth: 0` + 完整 clone，所以讀得到 settings/ 下的檔。
+      #    若日後換成 sparse checkout，這段會靜默讀不到 —— 那時要改成明確失敗。
+      - name: "commit 訊息前綴須為 HOSTS= 宣告的機台代號"
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          hosts_raw="$(grep -m1 -E '^HOSTS=' settings/env/hosts.shared.env 2>/dev/null \
+                        | cut -d= -f2- | tr ',' '|' | sed 's/[[:space:]]//g')" || true
+          if [ -z "$hosts_raw" ]; then
+            echo "::warning title=無法讀取 HOSTS=,略過前綴檢查::讀不到 settings/env/hosts.shared.env 的 HOSTS= 那一行。放行，但這道檢查這一輪沒有生效。"
+            exit 0
+          fi
+          echo "合法主機前綴（來自 HOSTS=）：$(sed 's/|/ \/ /g' <<<"$hosts_raw")"
+
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            range="$AFTER"          # 新分支，或 before 已不可得（force-push）
+          else
+            range="$BEFORE..$AFTER"
+          fi
+
+          # 改名邊界：從**第一個使用當前合法前綴的 commit**往回看，它前面的都算
+          # 歷史（那時 `msi:` 還是合法的後端主機代號）。
+          #
+          # ⚠️ 找法必須是「往前掃、遇到合法前綴就停」，不能只掃這次 range ——
+          #    force-push 時 range 會退化成整條分支，而當時**所有** commit 的
+          #    前綴都是 `msi:`，往前掃會走到底、永遠找不到第一個合法前綴，
+          #    邊界就會是「未知」→ 139 筆誤報（實測）。
+          #
+          # 所以這裡掃 `new_since^`（range 之前的那個 commit）的祖先鏈。
+          # 找不到（沒有前綴歷史、或全新 repo）就讓邊界不存在 → 下面那個
+          # `git merge-base --is-ancestor` 會失敗 → 不視為歷史 → 照報。
+          # 那個方向的失敗是安全的（寧可多報不可漏報）。
+          # 改名邊界 = **把舊代號從總表移掉的那個 commit**（`HOSTS=` 那一行不再含舊代號）。
+          #
+          #   它之前的 commit 都還在建國初期那個命名，那些舊前綴是歷史、不是違規。
+          #
+          # 為什麼是這個定義、而不是「最老的合法前綴 commit」：這個 repo 的前綴
+          # 從來就**不統一** —— 最早的 commit 根本沒有前綴，之後 `msi:` 為主，
+          # 夾雜少數 `mbp:` / `x570:`。所以「最老的合法前綴 commit」落在建國初期，
+          # 邊界等於不存在 → 每個舊 `msi:` 都被報（實測 139 筆全紅）。
+          #
+          # 找法：pickaxe 只認 `HOSTS=` **那一行**，取最新一筆 = 改名點。
+          # 這是**內容導向**的：它問的是「總表什麼時候不再宣告舊代號」，而不是
+          # 「commit 訊息碰巧寫了什麼」，所以改名那天的 commit 訊息怎麼寫都對。
+          #
+          # ⚠️ `^` 那個錨點不能拿掉，它是這段唯一的東西。裸 `-S'msi'` 追的是
+          #    **整個檔案**裡 `msi` 這個字的出現次數變化，而 hosts.shared.env 有
+          #    15 處 `msi`、其中 11 處是註解和值（`msi=http://msi.…:11434`）。
+          #    實測：日後任何人**只是加一行註解提到 msi**，邊界就往前飄一格 ——
+          #    飄過哪裡，哪裡的 `msi:` commit 從此不再被報。連做三個 commit 實測
+          #    （純註解 → 違規的 `msi:` → 再一行純註解）後一次 push 那兩個，
+          #    違規 commit 被靜默放行（exit=0）；同樣的 commit 邊界沒漂移時是
+          #    exit=1。護欄的有效性不能取決於「最近有沒有人順手改到那個檔案的註解」。
+          #    拿掉 `^` 也一樣壞：`HOSTS=.*msi` 的 `.*` 會跨行，註解同樣命中。
+          #
+          # 未來把 `msi` 加回 `HOSTS=` 時，這個邊界會指到那一筆 —— 這是對的，
+          # 那時 `msi` 又是合法前綴了。實測過。
+          #
+          # ⚠️ 邊界找不到（全新 repo、沒有總表歷史）時 `new_since` 為空
+          #    → 下面 `merge-base --is-ancestor` 失敗 → 舊代號照報。這個方向的
+          #    失敗是安全的：寧可多報不可漏報。
+          new_since="$(git log -1 --format='%H' --pickaxe-regex \
+                         -S'^HOSTS=.*\bmsi\b' -- settings/env/hosts.shared.env)"
+          # 規則生效點 = 護檔案案被加入的那個 commit（commit-msg hook，8ca2768）。
+          # 用 --diff-filter=A 找「新增」，所以日後若把護欄刪掉又加回來，邊界會
+          # 跟著最新那個走。
+          rules_since="$(git log --diff-filter=A -1 --format='%H' -- .githooks/commit-msg)"
+          for label in new_since rules_since; do
+            v="${!label:-}"
+            if [ -n "$v" ]; then
+              echo "$label = $(git rev-parse --short "$v")"
+            else
+              echo "$label = （找不到 → 該類舊 commit 一律視為違規）"
+            fi
+          done
+          # ⚠️ 冒號用明確 alternation `(:|：)`，**不要寫成 `[:：]`**。
+          #    那個字元類別在 gawk 裡是壞的：位元組 EF BC 9A 的全角冒號會被當成
+          #    字面字元比對，於是 `mbp：全角`（全角冒號直接接文字）不 match，
+          #    但 `mbp： 全角`（後面剛好有空格）卻 match —— 部分匹配，最壞的一種。
+          #    實測（gawk 5.3.2 / Ubuntu 24.04 就是這個版本）：
+          #      mbp:x   → NO      mbp：x   → NO
+          #      mbp: x  → MATCH   mbp： x  → MATCH
+          #    commit-msg hook 裡那條 `[:：]` 也有同樣的問題，一起修。
+          bad=0
+          for sha in $(git rev-list "$range"); do
+            subj="$(git log -1 --format=%s "$sha")"
+            if printf '%s' "$subj" | grep -Eq "^($hosts_raw)(:|：)[[:space:]]" \
+               || printf '%s' "$subj" | grep -Eq '^(Merge|Revert)'; then
+              continue
+            fi
+            # ── 歷史相容：兩種「現在才變嚴」的舊 commit ──
+            #
+            # (a) 2026-09-22 護欄建立**之前**的 commit：那時根本沒這條規則，
+            #     所以 20 筆完全沒有前綴（`feat: Complete initial setup…`、
+            #     `test2`、`update test`…）。它們不是違規，是規則還不存在。
+            #
+            # (b) 2026-10-01 改名**之前**的 `msi:` commit：那時 `msi:` 是合法
+            #     前綴（後端跑在掛在 Windows 主機下的 WSL，git 身份記主機名）。
+            #     改名後它不再出現在 HOSTS= —— 掃整段歷史時（force-push 會讓
+            #     before 不可得、range 退化成整條分支）每個舊 commit 都會被報。
+            #
+            # 邊界取兩者中**較早**的：規則存在之前的，一律不算違規。
+            #
+            # ⚠️ 這**不是**放水。兩個邊界都是「規則／命名改變的那個 commit」，
+            #    而且都是內容導向（`--diff-filter=A` 找護欄落地、`-S` 找改名），
+            #    所以繞不過去：`msi:` 與無前綴的 commit 一旦出現在邊界**之後**，
+            #    照樣被擋。實測舊寫死 regex 全掃會產出 139 筆誤報 —— 那等於
+            #    這道護欄從此沒有信譽，而沒有信譽的護欄會讓人開始用 --no-verify。
+            if git merge-base --is-ancestor "$sha" "$rules_since" 2>/dev/null \
+               || git merge-base --is-ancestor "$sha" "$new_since" 2>/dev/null; then
+              continue
+            fi
+            echo "::error title=缺少主機前綴::${sha:0:8}  ${subj}"
+            bad=1
+          done
+          [ "$bad" -eq 0 ]
+
+# ── secrets：加密檔的深度驗證 ──────────────────────────────────────────────────
+  #
+  # 這道 job 存在的理由不是「檢查 sops 有沒有裝」，而是回答一個具體問題：
+  # **被 git 追蹤的加密檔，現在真的還是加密的嗎？**
+  #
+  # 為什麼值得單獨一道：sops 加密的檔案一旦被 `sops -d` 過又直接 commit 回去，
+  # 憑證就會以明文躺在**公開 repo 的歷史裡** —— 而且 push protection 只認 GitHub
+  # 合作廠商的 pattern（qdrant 那種無前綴的 key 它抓不到，見 ci.yml.orig:366-397）。
+  # 加密檔變回明文時，**沒有任何既有的檢查會紅**。這道是那道缺口。
+  #
+  # 為什麼工具鏈要在這裡也裝一份（fast-ci.yml 那份是為了讓 rotate-secret 測試跑）：
+  # 兩處用途不同 —— 那邊是「讓測試不被 skip」，這邊是「實際拿來驗加密往返」。
+  secrets:
+    name: secrets（加密檔驗證）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ⚠️ 兩個 hash 的出處不同，別當成同等強度（註解沿用 ci.yml.orig）：
+      #   sops — GitHub API digest **與上游 checksums.txt 宣告值一致**（雙重確認）
+      #   age  — 僅 GitHub API digest。上游只發 minisign .proof、沒有
+      #          checksums.txt，此處刻意不引入 minisign 換取對稱。
+      #   兩者皆為 integrity（非 authenticity）：防傳輸損壞與資產被替換，
+      #   防不住 release 帳號被入侵。
+      - name: 安裝 sops + age-keygen（加密往返驗證需要）
+        run: |
+          set -euo pipefail
+          T=$(mktemp -d); cd "$T"   # 離開 repo checkout：sops 52MB + age 19MB
+          V_SOPS=3.13.3; V_AGE=1.3.2
+          B=https://github.com/getsops/sops/releases/download/v${V_SOPS}
+          A=https://github.com/FiloSottile/age/releases/download/v${V_AGE}
+          curl -fsSL -o sops "${B}/sops-v${V_SOPS}.linux.amd64"
+          echo "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b  sops" | sha256sum -c -
+          curl -fsSL -o age.tgz "${A}/age-v${V_AGE}-linux-amd64.tar.gz"
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tgz" | sha256sum -c -
+          sudo install -m755 sops /usr/local/bin/sops
+          tar xzf age.tgz
+          sudo install -m755 age/age-keygen /usr/local/bin/age-keygen
+          # 丟棄式金鑰：repo 是公開的，專案真正的 age 私鑰**永遠不進 CI**。
+          age-keygen -o /tmp/agekey.txt && chmod 600 /tmp/agekey.txt
+          echo "SOPS_AGE_KEY_FILE=/tmp/agekey.txt" >> "$GITHUB_ENV"
+
+      # 驗證 1：被追蹤的加密檔**現在還是加密的嗎**。
+      #
+      # ⚠️ `sops filestatus` 回 `{"encrypted":false}` 時 **exit code 仍然是 0** ——
+      #    它不回傳失敗，它只是回一個 JSON。所以這裡不能靠 `set -e` 擋，必須
+      #    **讀它的輸出**。實測：明文檔 → exit=0 但 encrypted:false。
+      #
+      # ⚠️ 這正是這道檢查存在的理由：加密檔被 `sops -d` 之後直接 commit 回去，
+      #    憑證就以明文留在公開 repo 的歷史裡，而 push protection 只認 GitHub 合作
+      #    廠商的 pattern（qdrant 那種無前綴 key 抓不到，見 ci.yml.orig:366-397）。
+      #    沒有任何既有的檢查會紅。
+      - name: 被追蹤的加密檔必須仍是加密狀態
+        run: |
+          set -uo pipefail
+          bad=0; n=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            n=$((n+1))
+            st="$(sops filestatus "$f" 2>/dev/null || echo '{"encrypted":false}')"
+            echo "  $f → $st"
+            if ! printf '%s' "$st" | grep -q '"encrypted":true'; then
+              echo "::error title=加密檔已變成明文::$f —— 立刻輪換該檔內所有憑證，並用 git filter-repo 清掉歷史（見 settings/env/QDRANT-KEY-ROTATION-RUNBOOK.md）"
+              bad=1
+            fi
+          done < <(git ls-files 'settings/env/*.enc.env')
+          [ "$n" -gt 0 ] || { echo "::error::一個 settings/env/*.enc.env 都沒追蹤到 —— 這道檢查等於沒跑"; exit 1; }
+          echo "已檢查 $n 個加密檔"
+          [ "$bad" -eq 0 ]
+
+      # 驗證 2：用**丟棄式金鑰**做一次真正的加密/解密往返，證明這套 sops + age
+      # 組合在 CI 裡真的能用 —— 而不只是「檔案看起來有 sops 的 metadata」。
+      #
+      # ⚠️ 兩個 CLI 的地雷（都實測踩過，別簡化掉參數）：
+      #   · `sops -e` 沒給 `--output` 會把結果寫到 **stdout**，不寫檔案 ——
+      #     於是「加密成功」但目標檔沒變。tests/test_rotate_secret.py:90-92 記著同一件事。
+      #   · `sops -d` 的目標檔要在 `--filename-override` **之後再positional 給一次**；
+      #     只給 `--filename-override F` 而不給 positional F 會報 "no file specified"。
+      #
+      # 這裡用的是自己產生的金鑰與自己的沙盒 `.sops.yaml`，**完全不碰**
+      # settings/env/ 下的真實加密檔，也不碰專案真正的 age 私鑰。
+      - name: 加密往返（丟棄式金鑰，不碰真實檔案）
+        run: |
+          set -euo pipefail
+          W=$(mktemp -d); cd "$W"
+          PUB="$(age-keygen -y /tmp/agekey.txt)"
+          mkdir -p settings/env
+          printf 'creation_rules:\n  - path_regex: settings/env/secrets\\..*\\.enc\\.env$\n    age:\n      - %s\n' "$PUB" > .sops.yaml
+          printf 'RAGDEMO_CI_ROUNDTRIP=ok\n' > settings/env/plain.env
+
+          sops -e --filename-override settings/env/secrets.common.enc.env \
+                --input-type dotenv --output-type dotenv \
+                --output settings/env/secrets.common.enc.env settings/env/plain.env
+          # ⚠️ 斷言要下在**值**上，不能下在鍵名上。實測：sops 的 dotenv 輸出會保留
+          #    鍵名 —— `RAGDEMO_CI_ROUNDTRIP=ok` 加密後變成
+          #    `RAGDEMO_CI_ROUNDTRIP=ENC[AES256_GCM,data:…]`，鍵名原封不動。
+          #    所以 `grep '^RAGDEMO_CI_ROUNDTRIP='` 對**明文與密文都成立**；
+          #    第一次寫成那樣時，這道檢查在密文上誤報「加密後仍是明文」。
+          grep -q '^RAGDEMO_CI_ROUNDTRIP=ENC\[' settings/env/secrets.common.enc.env \
+            || { echo "::error::加密後的值不是 sops 密文 —— 往返失敗"; exit 1; }
+          st="$(sops filestatus settings/env/secrets.common.enc.env)"
+          echo "沙盒加密後：$st"
+          printf '%s' "$st" | grep -q '"encrypted":true' || { echo "::error::沙盒往返：filestatus 不是 encrypted:true"; exit 1; }
+
+          out="$(sops -d --filename-override settings/env/secrets.common.enc.env \
+                        --input-type dotenv settings/env/secrets.common.enc.env)"
+          printf '%s\n' "$out" | grep -q '^RAGDEMO_CI_ROUNDTRIP=ok$' \
+            || { echo "::error::沙盒往返：解密結果不符（$out）"; exit 1; }
+          echo "✓ sops + age 往返成立（用的是這次 run 自己產生的金鑰）"
+
+  # ── test-full：慢速測試 ───────────────────────────────────────────────────────
+  #
+  # pyproject.toml 的 addopts 是 `-m 'not slow'`，而原本的 ci.yml 從來沒有覆寫它
+  # —— 也就是說 tests/test_pg_timeout_real.py（真的連 10.255.255.1 等 connect_timeout
+  # 超時，約 63 秒）**從來沒有在任何 CI 跑過**。它是 asyncpg 的 3 秒 timeout 真的
+  # 生效的唯一證據，而那正是 mbp 2026-09-30 掛 +60s 的根因。
+  #
+  # 它歸這裡而不是 fast-ci.yml：63 秒是 slow 那組自己的成本，且它的失敗與否與
+  # 「這次 PR 改了什麼」無關（它是連不到 10.255.255.1 的行為檢查）。
+  test-full:
+    name: test-full（含 slow）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: 安裝依賴
+        run: |
+          uv sync --frozen
+          uv pip install ./backend
+
+      - name: pytest（含 slow）
+        run: |
+          set -o pipefail
+          # `-o addopts=` 必須整組覆寫，不能只加 `-m slow`：addopts 裡已有
+          # `-m 'not slow'`，兩個 -m 只有最後一個生效，覆寫成空字串才不會互相干擾。
+          out="$(.venv/bin/pytest -q -p no:cacheprovider -o addopts= -m slow 2>&1 | tee /dev/stderr)"
+          echo "::notice title=pytest slow 實際執行數::$(printf '%s' "$out" | tail -1)"
