@@ -50,6 +50,7 @@
 
 ### T101 — profile 目錄列入 gitignore
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ gitignore 命中／seed 不命中／raw 仍命中
 - **Layer**: [doc]
 - **Purpose**:讓 `data/judgements/profile-m1/` 及其內容（解壓 bytes、chunk 產物、審閱包）不可能被誤 commit
 - **Dependencies**: none
@@ -69,6 +70,7 @@
 
 ### T102 — allowlist 載入與離線層自檢
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 離線層 11 條全 PASS
 - **Layer**: [D] 1
 - **Purpose**:把「輸入是對的那份清單」變成每次必跑、fail-closed 的可執行檢查（FR-010a）
 - **Dependencies**: none
@@ -92,6 +94,7 @@
 
 ### T103 — 離線層自檢測試（含 SC-008 的注入錯誤）
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 5 個注入全紅、還原轉綠、零 skip
 - **Layer**: [D] 1
 - **Purpose**: 證明「守住了」，不是證明「現在是綠的」（SC-008）
 - **Dependencies**: T102
@@ -117,6 +120,7 @@
 
 ### T104 — 由 archive 重算選樣並比對
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 對庫層 PASS（0.6s），digest 造假必紅
 - **Layer**: [D] 1
 - **Purpose**: 證明「這份清單確實是那個選樣規則算出來的」，而非只是自己內部自洽（FR-010b）
 - **Dependencies**: T102
@@ -140,6 +144,7 @@
 
 ### T105 — 逐筆解壓並比對 size＋CRC32
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 100/100；allowlist 值不符停在 size_crc_ok
 - **Layer**: [D] 2
 - **Purpose**: 只解 allowlist 上的 100 條，逐筆證明 bytes 沒走樣（FR-002）
 - **Dependencies**: T102
@@ -159,6 +164,7 @@
 
 ### T106 — artifact 與凍結語料零寫入
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ seed_tree_sha256 固定、mtime 不變、反向注入有效
 - **Layer**: [A] 3
 - **Purpose**: 證明整輪執行沒有改動任何 [A] 資料（FR-005 禁寫凍結路徑）
 - **Dependencies**: T105
@@ -184,6 +190,7 @@
 
 ### T107 — schema／document／lossless text 串接
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 100/100；drift 記錄不拋例外
 - **Layer**: [D] 4
 - **Purpose**: 逐份過既有驗證，Drift 全記錄（FR-003、SC-002）
 - **Dependencies**: T105
@@ -200,6 +207,7 @@
 
 ### T108 — 切塊（凍結參數）與重組斷言
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 100/100；chunk_size 未傳參（測試釘死）
 - **Layer**: [D] 5
 - **Purpose**: 用凍結的 chunker 切出可追溯片段（FR-004、SC-003）
 - **Dependencies**: T107
@@ -221,6 +229,7 @@
 
 ### T109 — profile manifest
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ manifest schema 正確、grep /home/ 命中 0
 - **Layer**: [D] 6
 - **Purpose**: 把指紋與逐卷結果變成可稽核、可重算的檔案（FR-005、SC-005）
 - **Dependencies**: T104, T106, T107, T108
@@ -242,6 +251,7 @@
 
 ### T110 — 人可讀審閱包
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 100 節＋FORCED 索引；100 卷逐位元組 0 不符
 - **Layer**: [D] 7
 - **Purpose**: 讓 P2 **不跑程式**就能判斷 holding 是否被切斷（FR-007、SC-006）
 - **Dependencies**: T108
@@ -268,6 +278,7 @@
 
 ### T111 — 審閱結論檔（空表）
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 100 列全空、個資命中 0
 - **Layer**: [doc] 8
 - **Purpose**: 給 P2 一個可 diff、可稽核的落點（FR-008、SC-007）
 - **Dependencies**: T109
@@ -282,6 +293,7 @@
 - **FR**: FR-008 · **INV**: INV-PII
 
 ### T112 — CLI 入口與階段可觀測性
+- **Status**: ✅ 完成（2026-10-10）｜✅ 退出碼 0/2/3/4 實測；閘門擋下零寫入
 - **Layer**: [D] 9
 - **Purpose**: 讓執行可被外部驅動，且失敗能定位到**階段**（憲法 IX）
 - **Dependencies**: T105–T110
@@ -306,6 +318,7 @@
 
 ### T113 — 誠實報告
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 五段計數寫入 SCOPE.md 與 commit 訊息
 - **Layer**: [doc] 10
 - **Purpose**: 結果無論好壞都必須可見（SC-001～SC-003 的「如實報數」）
 - **Dependencies**: T112
@@ -323,6 +336,7 @@
 
 ### T114 — 預設檢索路徑零引用新 profile（分離回歸防護）
 
+- **Status**: ✅ 完成（2026-10-10）｜✅ 7 檔命中 0；清單存在性已驗
 - **Layer**: [D] 11
 - **Purpose**: 把 US2／SC-004 的「預設檢索零引用新 profile」變成可執行斷言，而不是一句散文
 - **Dependencies**: T109
@@ -355,6 +369,7 @@
 
 - **Layer**: [D] 12
 - **Purpose**: 把「各機一致」從口號變成 grep 與斷言（FR-011、SC-009；analyze A5＋Q7／Q8）
+- **Status**: ✅ 完成（2026-10-10）｜✅ 零絕對路徑；三欄恆存在
 - **Dependencies**: T102, T109
 - **Files**: `tests/test_judgement_profile_build.py`（修改）
 - **Input**: 本 feature 新增的三個檔案（`profile_build.py`、`scripts/build-m1-profile.py`、

@@ -25,7 +25,7 @@
 |---|---|---|---|---|---|
 | `M` ⏸️ 擱置（未執行） | 跨 M3／M6／frontend／M1 | **解除三台鎖死：只要本機有就能跑** | 2026-10-09 使用者裁決：擱置不做。原因：scope `K` 已明寫不做其內容，A/B/C 仍是未完成的阻塞項；且檔案範圍與 `M0` 重疊（compose、前端），不能並行。A/B/C 保留在「沒做而記錄下來」，見原 `### scope M` 節（保留不刪）。**不推送** | — | 2026-09-27 |
 | `M0` ✅ | 跨 backend／frontend／compose／主機層 | **判決問答止血與解鎖**：前端「判決摘引」不誤導、容器內服務可達、基線可重現 | 不動 B2/B3/B4 判定邏輯、不重 chunk 凍結語料、不解壓新卷宗、不碰 x570/mbp/wsl 的 `.env` 憑證值、不 push。**⚠ 2026-10-09 使用者裁決 `M` 擱置，本格轉正**。⚠ UnRAR 原列「不裝」**已由使用者在 scope 外授權完成**（見〈M0 驗收結果〉） | 見下方 `### scope M0 驗收結果` | 2026-10-09 |
-| `M1` 🔄 | M3 ingest | **100 卷司法選樣解壓＋profile 建立**：allowlist→解壓→CRC32/schema→凍結 chunker→manifest＋人可讀審閱包 | 不建 Qdrant collection、不接 live、不產 gold、不做 P2 審閱本體、不改 T005/T008–T010 任一檔、不改 `chunk.py` 參數、**不碰 `agent/` 那 20 個寫死路徑的檔案（另開 `P`）**、不 push | 15 個 task（`specs/006-…/tasks.md` T101–T115），SC-001~SC-009 | 2026-10-09 |
+| `M1` ✅ | M3 ingest | **100 卷司法選樣解壓＋profile 建立**：allowlist→解壓→CRC32/schema→凍結 chunker→manifest＋人可讀審閱包 | 不建 Qdrant collection、不接 live、不產 gold、不做 P2 審閱本體、不改 T005/T008–T010 任一檔、不改 `chunk.py` 參數、**不碰 `agent/` 那 20 個寫死路徑的檔案（另開 `P`）**、不 push | 15 個 task 全完成（`specs/006-…/tasks.md` T101–T115），SC-001~SC-009 全通過 → 見下方 `### scope M1 驗收結果` | 2026-10-10 |
 | `L` ✅ | M6 | 修 `host-doctor.sh` 的**靜默陳舊**：本機快照同步停擺時仍報 `law-version ok` | 不加第 16 個檢查（擴充既有的 `ch_law_version`，檢查數維持 15）、不改門檻語意成 fail（跨機無法實測，只能 warn）、不碰 sync 排程本身。**沒**順手修 `env-audit.py` 的 `SH_ASSIGN`（屬 M1，且屬行為變更） | 見下方驗收表 | 2026-09-27 |
 | `K` ✅ | **M1 限定**（原訂跨 M1／M6） | **msi 成為唯一開發主機**：本機自給自足，實測跑起來 | **不做**「解除三台寫死」——那要動 `backend/app/rag.py`（M3）與 frontend，屬另一個模組、另一個 scope（見〈沒做而記錄下來〉）。不動 x570/mbp 的既有設定。**不推送** | 見下方驗收表 | 2026-09-27 |
 | `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（**2026-09-30 精簡**：原本的事項 2/3/4 已作廢或失效，只剩事項 5 age 公鑰是真阻塞）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
@@ -106,6 +106,89 @@
    （現況 127.0.0.1-only，容器全滅，連法規 `/query` 都 500）。
 3. `LLM_MODEL` 預設：`qwen3:14b` 未安裝，建議改 `gemma3:12b`（benchmark 14/14）。
    改任一機 `.env` 都需逐台授權。
+
+### scope `M1` 驗收結果（2026-10-10 關閉；全部實跑，非推論）
+
+**北極星推進到哪**：使用者問題 → 相關真實判決 → 引用法條全文 → 逐點可追溯。
+M0 已讓這條鏈在 1 卷判決上跑通；**M1 讓它有 100 卷可查、且其中 37 卷在結構上
+可能出現跨 chunk 正例**。P2 審閱與 S2 正例 hunting 是下一步（不在本 scope）。
+
+**逐 task 驗收**（15 個全完成）：
+
+| task | 驗收項 | 結果 |
+|---|---|---|
+| T101 | `.gitignore` `data/judgements/profile-*/` | ✅ profile 兩路徑命中／`seed/*.json` **不**命中（rc=1）／`raw/*.rar` 仍命中／`git status` 乾淨 |
+| T102 | 離線層自檢（11 條） | ✅ **PASS**；結構性錯誤（讀不了）與內容不符分成兩種錯誤 |
+| T103 | SC-008 的 5 個注入全紅＋還原轉綠 | ✅ 5/5 紅燈（訊息指名原因），還原後全綠；**`-rs` 零 skip** |
+| T104 | 對庫層自檢（digest＋size＋crc32 三樣） | ✅ **PASS（0.6s）**；反向測試：digest 造假必紅；缺 artifact 時報缺檔而非靜默通過 |
+| T105 | 逐筆解壓＋逐筆 size/CRC32 | ✅ 100/100；壞 CRC 停在 `extracted`（T005 內部擋）、allowlist 值不符停在 `size_crc_ok` |
+| T106 | 凍結語料零寫入 ＋ 機器無關錨點 | ✅ `seed_tree_sha256=e8a7275b…`、RAR mtime 不變、`git status` 乾淨；**反向**：改一個 byte → digest 變 |
+| T107 | schema／drift 記錄 | ✅ 100/100 通過；非 8-key payload 記 drift **不拋例外** |
+| T108 | 凍結 chunker ＋ 重組斷言 | ✅ 100/100；`chunk_size=750`、`passed_explicitly=false`（未傳參，由測試釘死）；邊界值域未溢出 |
+| T109 | manifest（契約②） | ✅ `m1-profile-manifest/1`、entries 100、逐卷 stages＋fail、`grep /home/` **命中 0** |
+| T110 | 人可讀審閱包 | ✅ 100 節、5.2MB；含 **FORCED 索引段（37 卷）**；**100 卷逐位元組比對 0 不符** |
+| T111 | 審閱結論檔 | ✅ 100 列**全空**（未審＝空值非省略）；`grep` 個資命中 **0** |
+| T112 | CLI ＋ 退出碼契約 | ✅ `0` 正常／`4` 壞 allowlist／`3` 無 decoder 或壞 decoder／`2` 前置閘門；閘門擋下時**一個位元組都沒寫** |
+| T113 | 誠實報告 | ✅ 本節與各 commit 訊息皆含分母明確的五段計數 |
+| T114 | 檢索零引用防護 | ✅ 7 檔命中 0；清單單一事實來源在 CLI 的 `RETRIEVAL_FILES`；含「清單檔必須存在」 |
+| T115 | 路徑可攜性 | ✅ 新增檔案 `/home/` 命中 0；manifest 路徑全相對；`external_snapshot` 三欄恆存在 |
+
+**live 端到端**（100 卷，帶 unrar 7.13）：
+
+| 項 | 值 |
+|---|---|
+| 分母（allowlist） | **100** |
+| extracted ／ size_crc_ok ／ schema_valid ／ chunked | **100 / 100 / 100 / 100**，失敗 **0** |
+| chunk 總數 | **2,955** |
+| **有 FORCED 斷點的卷** | **37** |
+| 原文 CRLF 合計 | **61,747 處**，逐位元組比對 **0 卷不符** |
+| 回歸基線 | `pytest` **1775 passed / 119 skipped / 2 deselected**（44.10s） |
+
+**為什麼 37 這個數字是本次最重要的產出**：B1／S2 一直卡在「凍結 430 筆語料裡
+**一條 FORCED 都沒有**」——chunker 全走 `NATURAL`，所以跨 chunk 正例**結構上
+不可能**，不是沒找到。實測最大那卷（156KB／82 chunks）FORCED 為 **0**（典型民事
+判決書，結構清楚），而 `PCDV,115,訴,891`（61 chunks）有 **53 處**硬切，
+切點落在**證人訊息附表的中間**（`附表一：\r\n日期／時間 原文摘錄…`）。
+**長卷宗＋非判決書結構**才是跨 chunk 正例的來源，選樣規則（size 降冪）方向正確。
+
+**踩坑記錄（都留了反向測試）**：
+
+1. **CRLF 被讀成 LF —— 看不見的破壞。** 第一次驗 100 卷逐字性時**全部不符**，
+   我一度以為寫檔壞掉；真正原因是驗證程式用預設 `read_text` 讀回，
+   `TextIOWrapper` 在 `newline=None` 時做 universal newlines，61,747 處 CRLF 全變 LF。
+   （`Path.write_text` **寫出**側不做轉換——這點我當時記錯方向，已在測試註解更正。）
+   **檔案內容看起來完全正常**，人眼逐頁翻都不會發現；只有逐位元組比對會紅。
+   修正：審閱包讀寫兩端都明確 `newline=""`，並留 `verify-m1-review-bundle.py`
+   為常駐指令（審閱包是 gitignore 的，沒有測試會自動提醒）。
+2. **repo 的 env 稽核抓到我憑空新增環境變數。** 原本用 `ARTIFACTS_ROOT` 取
+   repo 外快照路徑，CI 兩條測試紅燈（快照缺鍵）。**那個紅燈是對的**——
+   憑空多一個環境變數就是憑空多一個跨機不一致的來源。改成 caller 傳參
+   （沿用 `extract.py` 對 decoder 的既有原則：不搜尋 PATH、不假設存在）。
+3. **`data/judgements/seed/*.json` 是處理後格式**（小寫鍵＋`chunks`＋`entry_path`），
+   拿它餵 `schema.validate` 必然報 structural drift——那是**假失敗**。
+   改用 `tests/fixtures/judgements/golden/docs_*.json`（真正的 8-key）。
+4. **fixture 的 `bad-crc` entry 在 `extract_one` 內部就被 T005 擋下**，
+   階段是 `extracted` 而非 `size_crc_ok`。寫成後者是假失敗，會讓人以為
+   M1 的比對邏輯生效了（事實上沒被呼叫到）。補上 M1 專屬那條：
+   archive 沒事但 allowlist 的 crc32 被改 → `size_crc_ok` 擋下。
+
+**關閉時仍為 UNVERIFIED（如實記錄，不當已驗）**：
+
+- **P2 審閱尚未進行**（100 列全空）——「37 卷」只是**結構條件**，
+  不等於真的有跨 chunk 正例。SC-006 前半「開箱判讀」只能由人閉環。
+- **`external_snapshot.present=false`**：本機沒有 T006 的 494 筆快照
+  （在 repo 外 `/home/solo/artifacts/…`），故 manifest 未記其 sha。
+- **284M RAR 不可重建**（`raw/*` gitignored 且無 sync 機制，`data/laws/`
+  有 `sync-snapshot.sh` 而 `data/judgements/` 沒有）。本 feature 只在
+  **持有該 artifact 且 sha256 相符**的機器跑得起。
+- **mbp／wsl 上未實跑**（那兩台目前關機）。T115 只保證**程式碼層面**零絕對路徑，
+  不等於已在三台驗證過；跨機實測歸 `P`。
+- `agent/` 20 檔的 `/home/solo` 路徑化**未做**（`P`，且 A-01~A-11 凍結中）。
+
+**回滾**：`git revert` 三個 Phase commit（`ab7c4da`／`539a528`／`e198b05`＋
+`93b1390`）即可；`data/judgements/profile-m1/` 整個目錄可刪（gitignore 內，
+無外部依賴）。刪除後 T114 的防護會因為「檢索面零引用」而**仍然成立**——
+那是設計如此，不需要回復。
 
 ### scope `M0` 驗收結果（2026-10-09 關閉；全部實跑，非推論）
 
@@ -476,8 +559,8 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | `G` | M1 ＋ M2 | 顯式化 `HOST_ROLE=source｜replica`，取代「有沒有 `.law_sync.json`」的隱式角色判定 | 三台常駐且 registry 顯示心跳（2026-09-27 決定），角色不該靠檔案存在與否推斷 |
 | `H` | M2 backend | `EMBED_MODEL`／`RERANK_MODEL` 從 compose 寫死改成可設定 | 這 2 個是 `env-audit` 剩下的唯一真問題。修它會動到 embedding 模型＝動檢索行為，必須獨立一個 scope 並跑 eval |
 | `S1` ✅ 已關閉（E4 複測仍無重現，條件齊備） | M2 backend（法條路徑限定） | `_strip_article_refs` 退回調查 | E4（LLM gemma 在線、JEV 在線以探測呼叫驗得 0.65）：兩題皆走條號精準分支逐字引用（conf=rule），`_strip` 未觸發（只作用無條號分支）；JEV 只評生成答案，本路徑 bypass LLM 故無 JEV 分數可記。原 claim 例證不成立，無 bug 可修，關閉 |
-| `M1` ✅ spec／plan／tasks 已定稿（clarify 7/7、analyze 修畢），2026-10-09 轉正進行中 | M1 env＋ingest | M1 司法選樣：spec 以此二 task 開頭——(1) UnRAR binary 安裝授權（pinned 7.13，decoder.py 已備）；(2) 補 T007 `scope.md`（法院／日期／筆數，maintainer 決策） | 2026-10-09 使用者裁決：M1 spec 的前兩個 task 固定為此二項。**兩項皆已完成**（UnRAR 7.13 裝於 `~/.local/bin/unrar`、T007 `scope.md` ＋ `allowlist-m1.json` 已產出） |
-| `P`（佇列中，**M1 關閉後才開**） | M5 評測／agent＋M6 ops＋frontend | **各機都能跑、也能互相備援**：① `agent/` 20 檔去 `/home/solo` 路徑化 ② 跨機自測 harness（驗「各地部署都能跑」） ③ **前端手動選 backend**（= scope `M` 的 B 項，屆時復活） | 不在 `M1` 內做（憲法 X：`agent/` 屬 M5 檔位且 A-01~A-11 凍結）；`M1` 的 T115 只驗自己新增的檔案，**明令不得擴大到那些檔案** | 2026-10-09 使用者裁決：「之後再作各機都能互相備援，且使用者能手動在 frontend 上選擇 backend」 |
+| ~~`M1`~~ ✅ | M1 env＋ingest | 已完成，移入〈已完成〉 | — |
+| `P` ⏭️ **下一個**（M1 已關閉，可開工） | M5 評測／agent＋M6 ops＋frontend | **各機都能跑、也能互相備援**：① `agent/` 20 檔去 `/home/solo` 路徑化 ② 跨機自測 harness ③ **前端手動選 backend**（= scope `M` 的 B 項，屆時復活） | 不在 `M1` 內做（憲法 X：`agent/` 屬 M5 檔位且 A-01~A-11 凍結）；M1 的 T115 只驗自己新增的檔案，**明令不得擴大到那些檔案** | 2026-10-09 使用者裁決；2026-10-10 M1 關閉後升為下一個 |
 
 ## ⚠ 現況註記（2026-10-09，非缺陷）
 
@@ -498,4 +581,5 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | 2026-09-27 | `arch-table`（C） | 跨模組 | `ARCHITECTURE.md`〈架構表〉6 模組 × 目標／擁有者 agent／架構書／邊界 ＋ 模組契約 5 題 ＋ 三段升級路徑；本檔；`.opencode/agents/ops.md`（第 6 個 agent）；5 個既有 agent 補上契約／陷阱／升級路徑；`backend/DESIGN.md`、`frontend/DESIGN.md`、`scripts/DESIGN.md` 三份骨架 |
 | 2026-09-27 | `F` | M6 ops | `host-sync.sh`（冪等部署單一入口，`--ref`／`--dry-run`／`--skip-verify`）＋ `host-doctor.sh`（7 段診斷、人類＋`--json` 雙輸出）。**全 repo 第一支含 `git pull` 的腳本** —— 601 行散文 runbook 從此有一個可執行的入口。刻意不提供 force flag（髒樹就 exit 3 並列檔名）、xtrace 拒絕執行、exit code 契約 0/1/2/3/4/5/6 且「略過驗收」＝6 不＝0。`--ref` 讓 replica 只吃 tag → 這條規則是解除「一次只能開一個 scope」的前提。**審查抓到 subagent 的假實測**：容器檢查因 `json.load` 吃掉 stdin 而 fallback 恆空，整段失效卻標 `skip`（醫生壞掉看起來像沒事），已修並改判 `fail`。詳見〈進行中〉的驗收表 |
 | 2026-09-27 | `I` | 跨 M1／M3／M5（**文件限定**） | 補齊剩下 3 個模組的契約 5 題 → **6/6 架構書全部合約**。`settings/env/README.md`（原本 richest 但零契約章節）、`ingest/laws/DESIGN.md`（寫成管線設計、無邊界/不變量/驗收）、`ingest/cases/DESIGN.md`（草案，加契約並明示**未實作**）、`evals/README.md`（原本只有 4 行）。`files/` 三份文件收進 `docs/` 納入版控、刪掉 Windows `:Zone.Identifier` ADS 髒檔、`.gitignore` 補 ADS 規則。**逐項查證並修正 6 處事實錯誤**：`rules.py`→`rules_store.py`、`pytest backend/tests/`→根 `tests/`、PG `laws_keywords`→`article`、~~rerank() 是 stub~~（已實作，真正缺的是接 cross-encoder）、M1/M6 對 `env-sync.sh` 的**雙重所有權**劃給 M1、`__init__.py` 慣例未落實。另修正 M5 README 對 `/eval` 計分邏輯的錯誤描述（原說只算 `expect_case`，實際 19 題裡 `expect_case` 是 0 題、計分的全是 `expect_law`）。**零程式碼**：`.py`/`.env`/`compose.yaml` 全未觸碰，`pytest -q` 165 條不 regression |
+| 2026-10-10 | `M1` | M3 ingest | **100 卷司法選樣解壓＋profile 建立**（spec 006，T101–T115 全完成，SC-001~SC-009 全通過）。live 100 卷：extracted/size_crc_ok/schema_valid/chunked **全 100**、失敗 **0**、chunk **2,955**、**37 卷有 FORCED 斷點**（B1/S2 的結構前提首次成立）、原文 CRLF **61,747 處逐位元組相符**、`pytest` **1775 passed**。產出：進版控的 `profile-manifest.json`（指紋＋逐卷結果，**零絕對路徑**）＋`review-verdicts.md`（100 列全空供 P2 填）＋gitignore 的審閱包（100 節＋FORCED 索引）。**踩坑四則留了反向測試**，最關鍵是 CRLF 被 universal newlines 讀成 LF（檔案看起來正常、只有逐位元組比對會紅）。詳見〈scope M1 驗收結果〉 |
 | 2026-10-09 | `FR-007` | M3 ingest（spec 002 FR-007/FR-020，獨立小 scope，與 M0 檔位無交集） | 三層條文稽核工具：`ingest/laws/layer_check.py`（純比對：段數＋內容，缺層／不一致指到條／層／差異）＋`scripts/check-law-layers.py`（取樣確定性、缺層 exit 2、憑證只讀 env）＋`tests/test_law_layer_check.py`（6 條 fake-layers，守 tests 不碰外部服務慣例）。驗收：單元 6/6、live 50/50 exit 0、全套 1723 passed。未動舊檔一行；SC-002/005 仍待工具外的抽樣 harness／查詢日誌 |

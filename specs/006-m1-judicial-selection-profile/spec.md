@@ -1,6 +1,7 @@
 # Feature Specification: M1 司法選樣解壓與 profile 建立（DRAFT）
 
-- Status: Draft（**clarify 已完成**：7 題全答，見〈Clarifications〉；未 tasks→implement 之實作）
+- Status: **Implemented**（2026-10-10 實作完成、驗收通過並關閉；15 task 全數完成，
+  SC-001~SC-009 全通過。逐條驗收證據見 `SCOPE.md`〈scope `M1` 驗收結果〉）
 - Scope: SCOPE.md 待開 M1（北部民事 100 卷跨 chunk 正例候選池）。
   前置已定：(1) UnRAR 7.13 安裝完成（`~/.local/bin/unrar`，已驗收）；
   (2) T007 `specs/004-judicial-source-fidelity/scope.md`（100 paths 可重現）。
@@ -148,6 +149,33 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 **為什麼 Q1／Q5 這樣切**：repo 追蹤「決策、指紋、結論」，不追蹤「可由 RAR 確定性
 重建的 bytes」。這同時修掉 T006 留下的老毛病——它的 494 筆 manifest（重現的錨點）
 放在 repo 外 `/home/solo/artifacts/`，新 clone 無法自證。
+
+## 驗收結果（2026-10-10 實測，回頭補錄；SC 逐條對照）
+
+| SC | 對應實測 | 結果 |
+|---|---|---|
+| SC-001 size＋CRC32 如實報 | 分母＝allowlist **100**；通過 **100/100**；**無下限**未被動用（沒補位、沒重抽） | ✅ |
+| SC-002 schema Valid 與 Drift | Valid **100/100**（分母＝實際解壓成功者＝100）；drift 記錄路徑另有單元測試（非 8-key payload → 記 drift 不拋例外） | ✅ |
+| SC-003 chunk 重組 ＋ FORCED 統計 | 重組斷言 **100/100**；FORCED **37 卷**（如實統計，未為湊數調參數） | ✅ |
+| SC-004 凍結零寫入 ＋ 檢索零引用 | `seed_tree_sha256` 前後一致、`raw/` 與 `seed/` 檔案清單與 mtime 未變；T114 的 7 個檢索檔命中 `profile-m1` **0** | ✅ |
+| SC-005 manifest 可重算 | `m1-profile-manifest/1`，指紋齊（allowlist／artifact／decoder／chunker），`chunker.params.passed_explicitly=false` | ✅ |
+| SC-006 審閱包可開箱判讀 | 機械可驗的部分：100 節、欄位齊全、**100 卷逐位元組比對 0 不符**。⚠ **前半「可開箱判讀」只能由 P2 人工閉環**——尚未進行 | ✅（後半）／⚠（前半，UNVERIFIED） |
+| SC-007 結論可 diff、版控無個資 | `review-verdicts.md` 100 列、`git diff` 可讀；`grep` 判決全文與姓名 **命中 0** | ✅ |
+| SC-008 自檢能被故意破壞抓到 | 5 個注入**全部紅燈**且訊息指名原因，還原後全綠；`-rs` **零 skip**（離線層沒有東西可缺） | ✅ |
+| SC-009 三機一致性 | 新增檔案 `/home/` 命中 **0**、manifest 路徑全相對、`external_snapshot` 三欄恆存在（缺檔記 `present:false`）。⚠ **mbp／wsl 未實跑**（兩台關機中），跨機實測歸 scope `P` | ✅（程式碼層）／⚠（跨機實測，UNVERIFIED） |
+
+**誠實記錄的三件事**（都不是缺陷，但影響「這批資料現在能做什麼」）：
+
+1. **FORCED 37 卷只是「結構條件」，不是正例。** P2 審閱尚未進行
+   （`review-verdicts.md` 100 列全空）。SC-006 前半因此未閉環。
+2. **`external_snapshot.present=false`**：本機沒有 T006 的 494 筆快照
+   （在 repo 外），故 manifest 未記其 sha——欄位仍在，誠實宣告缺席。
+3. **284M RAR 不可重建**（`raw/*` gitignored 且無 sync 機制）。本 feature 只在
+   持有該 artifact 且 sha256 相符的機器跑得起。
+
+**FR-004「不傳 chunk_size」**：實作時由測試釘死（`test_chunker_params_are_frozen_defaults`
+檢查原始碼無 `chunk_size=`）。若日後有人為了「切得更好看」傳值，重組斷言仍會綠
+（內容仍等於切片），但 corpus 形狀會悄悄變——而那正是 B1／S2 的阻塞點。
 
 ## Assumptions
 
