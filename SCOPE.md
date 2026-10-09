@@ -25,6 +25,7 @@
 |---|---|---|---|---|---|
 | `M` ⏸️ 擱置（未執行） | 跨 M3／M6／frontend／M1 | **解除三台鎖死：只要本機有就能跑** | 2026-10-09 使用者裁決：擱置不做。原因：scope `K` 已明寫不做其內容，A/B/C 仍是未完成的阻塞項；且檔案範圍與 `M0` 重疊（compose、前端），不能並行。A/B/C 保留在「沒做而記錄下來」，見原 `### scope M` 節（保留不刪）。**不推送** | — | 2026-09-27 |
 | `M0` ✅ | 跨 backend／frontend／compose／主機層 | **判決問答止血與解鎖**：前端「判決摘引」不誤導、容器內服務可達、基線可重現 | 不動 B2/B3/B4 判定邏輯、不重 chunk 凍結語料、不解壓新卷宗、不碰 x570/mbp/wsl 的 `.env` 憑證值、不 push。**⚠ 2026-10-09 使用者裁決 `M` 擱置，本格轉正**。⚠ UnRAR 原列「不裝」**已由使用者在 scope 外授權完成**（見〈M0 驗收結果〉） | 見下方 `### scope M0 驗收結果` | 2026-10-09 |
+| `M1` 🔄 | M3 ingest | **100 卷司法選樣解壓＋profile 建立**：allowlist→解壓→CRC32/schema→凍結 chunker→manifest＋人可讀審閱包 | 不建 Qdrant collection、不接 live、不產 gold、不做 P2 審閱本體、不改 T005/T008–T010 任一檔、不改 `chunk.py` 參數、**不碰 `agent/` 那 20 個寫死路徑的檔案（另開 `P`）**、不 push | 15 個 task（`specs/006-…/tasks.md` T101–T115），SC-001~SC-009 | 2026-10-09 |
 | `L` ✅ | M6 | 修 `host-doctor.sh` 的**靜默陳舊**：本機快照同步停擺時仍報 `law-version ok` | 不加第 16 個檢查（擴充既有的 `ch_law_version`，檢查數維持 15）、不改門檻語意成 fail（跨機無法實測，只能 warn）、不碰 sync 排程本身。**沒**順手修 `env-audit.py` 的 `SH_ASSIGN`（屬 M1，且屬行為變更） | 見下方驗收表 | 2026-09-27 |
 | `K` ✅ | **M1 限定**（原訂跨 M1／M6） | **msi 成為唯一開發主機**：本機自給自足，實測跑起來 | **不做**「解除三台寫死」——那要動 `backend/app/rag.py`（M3）與 frontend，屬另一個模組、另一個 scope（見〈沒做而記錄下來〉）。不動 x570/mbp 的既有設定。**不推送** | 見下方驗收表 | 2026-09-27 |
 | `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（**2026-09-30 精簡**：原本的事項 2/3/4 已作廢或失效，只剩事項 5 age 公鑰是真阻塞）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
@@ -475,7 +476,15 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | `G` | M1 ＋ M2 | 顯式化 `HOST_ROLE=source｜replica`，取代「有沒有 `.law_sync.json`」的隱式角色判定 | 三台常駐且 registry 顯示心跳（2026-09-27 決定），角色不該靠檔案存在與否推斷 |
 | `H` | M2 backend | `EMBED_MODEL`／`RERANK_MODEL` 從 compose 寫死改成可設定 | 這 2 個是 `env-audit` 剩下的唯一真問題。修它會動到 embedding 模型＝動檢索行為，必須獨立一個 scope 並跑 eval |
 | `S1` ✅ 已關閉（E4 複測仍無重現，條件齊備） | M2 backend（法條路徑限定） | `_strip_article_refs` 退回調查 | E4（LLM gemma 在線、JEV 在線以探測呼叫驗得 0.65）：兩題皆走條號精準分支逐字引用（conf=rule），`_strip` 未觸發（只作用無條號分支）；JEV 只評生成答案，本路徑 bypass LLM 故無 JEV 分數可記。原 claim 例證不成立，無 bug 可修，關閉 |
-| `M1` | M1 env＋ingest | M1 司法選樣：spec 以此二 task 開頭——(1) UnRAR binary 安裝授權（pinned 7.13，decoder.py 已備）；(2) 補 T007 `scope.md`（法院／日期／筆數，maintainer 決策） | 2026-10-09 使用者裁決：M1 spec 的前兩個 task 固定為此二項 |
+| `M1` ✅ spec／plan／tasks 已定稿（clarify 7/7、analyze 修畢），2026-10-09 轉正進行中 | M1 env＋ingest | M1 司法選樣：spec 以此二 task 開頭——(1) UnRAR binary 安裝授權（pinned 7.13，decoder.py 已備）；(2) 補 T007 `scope.md`（法院／日期／筆數，maintainer 決策） | 2026-10-09 使用者裁決：M1 spec 的前兩個 task 固定為此二項。**兩項皆已完成**（UnRAR 7.13 裝於 `~/.local/bin/unrar`、T007 `scope.md` ＋ `allowlist-m1.json` 已產出） |
+| `P`（佇列中，**M1 關閉後才開**） | M5 評測／agent＋M6 ops＋frontend | **各機都能跑、也能互相備援**：① `agent/` 20 檔去 `/home/solo` 路徑化 ② 跨機自測 harness（驗「各地部署都能跑」） ③ **前端手動選 backend**（= scope `M` 的 B 項，屆時復活） | 不在 `M1` 內做（憲法 X：`agent/` 屬 M5 檔位且 A-01~A-11 凍結）；`M1` 的 T115 只驗自己新增的檔案，**明令不得擴大到那些檔案** | 2026-10-09 使用者裁決：「之後再作各機都能互相備援，且使用者能手動在 frontend 上選擇 backend」 |
+
+## ⚠ 現況註記（2026-10-09，非缺陷）
+
+**其他主機目前是關機狀態**（mbp／sabre／note10 等），所以「其他機連不上」是**預期**，
+不是故障。`scope P` 的跨機驗證必須等對方開機後才做得了——在此之前，本機能驗的只有
+「路徑可攜性」（不依賴對方開機）。E5 已實測過的 msi↔x570 兩條路（22 通、11434 不通）
+在 msi 開機時可重複。
 
 ## 已完成
 
