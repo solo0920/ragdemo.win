@@ -23,7 +23,8 @@
 
 | 代號 | 模組 | 所屬模組／目標 | 不做什麼 | 驗收 | 預計完成日 |
 |---|---|---|---|---|---|
-| `M` | 跨 M3／M6／frontend／M1 | **解除三台鎖死：只要本機有就能跑** | 不刪「連線與來源」功能（單機時它顯示自己，不是多主機專屬）。不動 x570/mbp 兩台的**資料**設定。**不推送** | 見下方驗收表 | 2026-09-27 |
+| `M` ⏸️ 擱置（未執行） | 跨 M3／M6／frontend／M1 | **解除三台鎖死：只要本機有就能跑** | 2026-10-09 使用者裁決：擱置不做。原因：scope `K` 已明寫不做其內容，A/B/C 仍是未完成的阻塞項；且檔案範圍與 `M0` 重疊（compose、前端），不能並行。A/B/C 保留在「沒做而記錄下來」，見原 `### scope M` 節（保留不刪）。**不推送** | — | 2026-09-27 |
+| `M0` ✅ | 跨 backend／frontend／compose／主機層 | **判決問答止血與解鎖**：前端「判決摘引」不誤導、容器內服務可達、基線可重現 | 不動 B2/B3/B4 判定邏輯、不重 chunk 凍結語料、不解壓新卷宗、不碰 x570/mbp/wsl 的 `.env` 憑證值、不 push。**⚠ 2026-10-09 使用者裁決 `M` 擱置，本格轉正**。⚠ UnRAR 原列「不裝」**已由使用者在 scope 外授權完成**（見〈M0 驗收結果〉） | 見下方 `### scope M0 驗收結果` | 2026-10-09 |
 | `L` ✅ | M6 | 修 `host-doctor.sh` 的**靜默陳舊**：本機快照同步停擺時仍報 `law-version ok` | 不加第 16 個檢查（擴充既有的 `ch_law_version`，檢查數維持 15）、不改門檻語意成 fail（跨機無法實測，只能 warn）、不碰 sync 排程本身。**沒**順手修 `env-audit.py` 的 `SH_ASSIGN`（屬 M1，且屬行為變更） | 見下方驗收表 | 2026-09-27 |
 | `K` ✅ | **M1 限定**（原訂跨 M1／M6） | **msi 成為唯一開發主機**：本機自給自足，實測跑起來 | **不做**「解除三台寫死」——那要動 `backend/app/rag.py`（M3）與 frontend，屬另一個模組、另一個 scope（見〈沒做而記錄下來〉）。不動 x570/mbp 的既有設定。**不推送** | 見下方驗收表 | 2026-09-27 |
 | `J` ✅ | 跨模組（**原訂文件限定，實際跨到 M6**） | 瘦身：刪掉可證明已被取代的文件與章節，準備 msi 重灌 | **不刪** `X570-HANDOFF.md`（**2026-09-30 精簡**：原本的事項 2/3/4 已作廢或失效，只剩事項 5 age 公鑰是真阻塞）、不刪 `ROADMAP.md`（歷史）、不刪 `settings/opencode/`（重灌要靠它）。⚠ 原訂「只動 `.md`」**沒守住** —— 見下方〈越界說明〉 | 見下方驗收表 | 2026-09-27 |
@@ -80,6 +81,88 @@
 **刻意保留舊變數的自動相容？** 不保留。`HOST_API_X570/MBP/MSI` 全刪。
 理由：留著就是使用者說的「非必要程式碼」。但**刪除不能是靜默的** ——
 `env-audit.py` 會把殘留的 `HOST_API_*` 鍵報出來，所以三台升級時會被叫到。
+
+### scope `M0`：判決問答止血與解鎖（2026-10-09 開工，`M` 已擱置）
+
+**目標**：判決問答不誤導（前端「判決摘引」隱藏或標實驗性）、容器內
+`/health` ok 且 `/query`、`/judgments/query` 皆 200、基線可重現
+（pytest 1717 passed／S4 eval PASS）。北極星：金融法律問題→真實判決→
+判決引用的法條全文→逐點可追溯的答案（jid→chunk→span→條號→法條全文）。
+
+**不做什麼**：不新增模組／抽象層；不改 B2/B3/B4 判定邏輯（A-01~A-11 凍結）；
+不重 chunk 凍結 430 筆；不裝 UnRAR、不解壓（M1 事）；不動 `.env` 憑證值；
+不 push；不碰 `_strip_article_refs` 184 問題（另開 scope）。
+
+**驗收**：
+- 容器內 `GET /health` 200；`POST /query`、`/judgments/query` 皆 200
+  （證據不足時 200＋誠實 abstain 亦算過，500 算不過）。
+- `pytest -q` 回歸全綠；`agent/scripts/eval_judgements_slice.py` 仍 PASS。
+- ollama 綁定與 `LLM_MODEL` 預設變更**只提案、不執行**（等授權，見下）。
+
+**待授權（停等回覆，不先做）**：
+1. `M`（2026-09-27）是否已完：若完，標 ✅ 關閉；若未完，M0 與之檔位衝突需另議。
+2. ollama 綁定：建議 `OLLAMA_HOST=0.0.0.0`＋防火牆限 docker bridge
+   （現況 127.0.0.1-only，容器全滅，連法規 `/query` 都 500）。
+3. `LLM_MODEL` 預設：`qwen3:14b` 未安裝，建議改 `gemma3:12b`（benchmark 14/14）。
+   改任一機 `.env` 都需逐台授權。
+
+### scope `M0` 驗收結果（2026-10-09 關閉；全部實跑，非推論）
+
+**三項待授權全部有回覆，且執行只做授權過的範圍**：
+
+| # | 授權事項 | 使用者回覆 | 實際動作 |
+|---|---|---|---|
+| 1 | `M` 處置 | **擱置不做** | `M` 標 ⏸️，`M0` 轉正 |
+| 2 | ollama 綁定 | 採**選項 B**（綁 `172.17.0.1`，禁 `0.0.0.0`）＋防火牆層 | systemd drop-in ＋ `/etc/hosts` ＋ `ufw`（見 E1／E5） |
+| 3 | `LLM_MODEL` | 走總表 `x570_LLM_MODEL=gemma3:12b`，**不手改 `.env`** | `settings/env/hosts.shared.env` ＋ `render` ＋ `--check` |
+
+**主機層驗收（x570 本機 Linux 指令；E5 是 msi 外部視角，由使用者執行）**：
+
+| 項 | 指令 | 結果 |
+|---|---|---|
+| E1 綁定名單 | `ss -ltnp` | ✅ 唯一 listener `172.17.0.1:11434`（ufw 啟用**後**複測仍成立，綁定未被防火牆動到） |
+| E2 容器→ollama | 容器內 `urllib` 打 `http://host.docker.internal:11434/api/tags` | ✅ 回 5 個模型；ufw 啟用**後**複測仍通（`172.18.0.0/16` 規則正確） |
+| E3 端點 | 容器內端到端 | ✅ `/query` eval **14/14 hit、5/5 neg**；`/judgments/query` 200 |
+| E5(a) msi 視角有效 | `Test-NetConnection -Port 22` × `192.168.0.4`／`100.119.83.111` | ✅ True／True |
+| E5(b) 綁名單外不可達 | `curl http://<兩位址>:11434/api/tags` | ✅ rc=7（約 2 秒拒絕），兩個位址皆然 |
+| E5(c) 同網段路由注入 | 加 host route 後 curl | ✅ **ufw 前 rc=0（通）→ ufw 後 rc=28 逾時（DROP）**：證明「沒綁也擋得住」 |
+| E5 清理 | `route delete` | ✅ 回 `確定!`（不存在時會報 `cannot find the file`，故此為刪除成功的權威訊號） |
+| E6 tailscale | `tailscale status`／`ip`／`debug` 前後比對 | ✅ 輸出逐字相同；全程未執行任何改設定指令 |
+
+**回歸基線（關閉前重跑）**：
+
+| 指令 | 結果 |
+|---|---|
+| `pytest -q -p no:cacheprovider` | ✅ **1723 passed, 119 skipped, 2 deselected in 43.42s** |
+| `agent/scripts/eval_judgements_slice.py`（live，Qdrant＋gemma3:12b） | ✅ `SLICE: PASS`（grounded 3/3、top-jid 3/3、needles 4/4、spans 25/0、statute-identity-bad 0） |
+| `npm run build --prefix frontend` | ✅ 兩段 `✓ built in 235ms`／`3.15s` |
+
+**⚠ 主機層回滾（缺一不可，全需 sudo；每項都請使用者動，agent 無 sudo）**
+
+1. ollama 綁定：`sudo rm /etc/systemd/system/ollama.service.d/bind-docker0.conf && sudo systemctl daemon-reload && sudo systemctl restart ollama`
+2. `/etc/hosts`：移除 `172.17.0.1 host.docker.internal` 那一行
+3. `settings/env/hosts.shared.env`：還原 `x570_OLLAMA` 原值後 `bash scripts/env-sync.sh render`
+4. **防火牆（本次新增，`ufw` 原為關閉狀態）**：`sudo ufw disable` 回到本 scope 之前的 posture
+   （只想撤 11434 那條：`echo "y" | sudo ufw delete <N>`；互動式 `y|n` 會被非 UTF-8 位元組打成 `UnicodeDecodeError`，一律用 pipe 或 `--force`）
+
+**ufw 現況（已生效，repo 之外）**：active、`Default: deny (incoming)`、允許
+`22/tcp`、`139,445/tcp`、`11434 ← 172.18.0.0/16`（含 v6 對應項）。
+**啟用時曾出現一條我們沒下過的 `11434/tcp ALLOW IN Anywhere`（編號 1），已刪除**——
+推測是 ufw 停用期間就寫在 `user.rules` 裡的舊規則（停用時下 allow 只寫檔不生效，
+`enable` 才讓它變活）；`/etc/ufw/user.rules` 權限 0640 root，agent 讀不到，
+**此推測標 UNVERIFIED**，未經證實不當結論。
+
+**關閉時仍為 UNVERIFIED（如實記錄，不當已驗）**：
+
+- 開機後的綁定順序（`Restart=always` 已確認，但未重開機驗過）
+- 瀏覽器實際 render（`npm run build` 通過只證明編譯過，不等於畫面正確）
+- mbp／wsl／sabre／note10 視角、Samba 139/445 綁 `0.0.0.0`（獨立待辦）
+- `opencode.json` 內 `http://x570:11434/v1`（x570 無 IPv4 解析且從無 listener；已知問題，非 M0 回歸）
+- `SC-007` 延遲歷史基線、`/judgments/answer`（B2-D）永遠誠實拒答（`LOW_RETRIEVAL_CONFIDENCE`）
+
+**流程偏離（如實記錄）**：`specs/005` 停在 Draft，未走完
+clarify／plan／tasks／analyze 就先實作（先止血後補規格）。驗收結果如上，
+但規格本身未回頭補齊 FR↔SC 的逐條對照——留給文件 scope 處理。
 
 ### scope `L`：修 `host-doctor.sh` 的靜默陳舊
 
@@ -391,6 +474,8 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | `F2` | M6 ops | `host-onboard.sh`（從零到能跑：一台新機裝 docker → 簽出 repo → `env-sync pull` → 進 registry） | 從 `F` 拆出。**必須排在 `F` 之後**：沒有 `host-doctor.sh` 當診斷基準就寫 onboard，等於再造一份散文 runbook。價值也較低——三台都不需要新增機器 |
 | `G` | M1 ＋ M2 | 顯式化 `HOST_ROLE=source｜replica`，取代「有沒有 `.law_sync.json`」的隱式角色判定 | 三台常駐且 registry 顯示心跳（2026-09-27 決定），角色不該靠檔案存在與否推斷 |
 | `H` | M2 backend | `EMBED_MODEL`／`RERANK_MODEL` 從 compose 寫死改成可設定 | 這 2 個是 `env-audit` 剩下的唯一真問題。修它會動到 embedding 模型＝動檢索行為，必須獨立一個 scope 並跑 eval |
+| `S1` ✅ 已關閉（E4 複測仍無重現，條件齊備） | M2 backend（法條路徑限定） | `_strip_article_refs` 退回調查 | E4（LLM gemma 在線、JEV 在線以探測呼叫驗得 0.65）：兩題皆走條號精準分支逐字引用（conf=rule），`_strip` 未觸發（只作用無條號分支）；JEV 只評生成答案，本路徑 bypass LLM 故無 JEV 分數可記。原 claim 例證不成立，無 bug 可修，關閉 |
+| `M1` | M1 env＋ingest | M1 司法選樣：spec 以此二 task 開頭——(1) UnRAR binary 安裝授權（pinned 7.13，decoder.py 已備）；(2) 補 T007 `scope.md`（法院／日期／筆數，maintainer 決策） | 2026-10-09 使用者裁決：M1 spec 的前兩個 task 固定為此二項 |
 
 ## 已完成
 
@@ -404,3 +489,4 @@ fallback 永遠拿到空字串。症狀是每次都顯示「解析不了（版�
 | 2026-09-27 | `arch-table`（C） | 跨模組 | `ARCHITECTURE.md`〈架構表〉6 模組 × 目標／擁有者 agent／架構書／邊界 ＋ 模組契約 5 題 ＋ 三段升級路徑；本檔；`.opencode/agents/ops.md`（第 6 個 agent）；5 個既有 agent 補上契約／陷阱／升級路徑；`backend/DESIGN.md`、`frontend/DESIGN.md`、`scripts/DESIGN.md` 三份骨架 |
 | 2026-09-27 | `F` | M6 ops | `host-sync.sh`（冪等部署單一入口，`--ref`／`--dry-run`／`--skip-verify`）＋ `host-doctor.sh`（7 段診斷、人類＋`--json` 雙輸出）。**全 repo 第一支含 `git pull` 的腳本** —— 601 行散文 runbook 從此有一個可執行的入口。刻意不提供 force flag（髒樹就 exit 3 並列檔名）、xtrace 拒絕執行、exit code 契約 0/1/2/3/4/5/6 且「略過驗收」＝6 不＝0。`--ref` 讓 replica 只吃 tag → 這條規則是解除「一次只能開一個 scope」的前提。**審查抓到 subagent 的假實測**：容器檢查因 `json.load` 吃掉 stdin 而 fallback 恆空，整段失效卻標 `skip`（醫生壞掉看起來像沒事），已修並改判 `fail`。詳見〈進行中〉的驗收表 |
 | 2026-09-27 | `I` | 跨 M1／M3／M5（**文件限定**） | 補齊剩下 3 個模組的契約 5 題 → **6/6 架構書全部合約**。`settings/env/README.md`（原本 richest 但零契約章節）、`ingest/laws/DESIGN.md`（寫成管線設計、無邊界/不變量/驗收）、`ingest/cases/DESIGN.md`（草案，加契約並明示**未實作**）、`evals/README.md`（原本只有 4 行）。`files/` 三份文件收進 `docs/` 納入版控、刪掉 Windows `:Zone.Identifier` ADS 髒檔、`.gitignore` 補 ADS 規則。**逐項查證並修正 6 處事實錯誤**：`rules.py`→`rules_store.py`、`pytest backend/tests/`→根 `tests/`、PG `laws_keywords`→`article`、~~rerank() 是 stub~~（已實作，真正缺的是接 cross-encoder）、M1/M6 對 `env-sync.sh` 的**雙重所有權**劃給 M1、`__init__.py` 慣例未落實。另修正 M5 README 對 `/eval` 計分邏輯的錯誤描述（原說只算 `expect_case`，實際 19 題裡 `expect_case` 是 0 題、計分的全是 `expect_law`）。**零程式碼**：`.py`/`.env`/`compose.yaml` 全未觸碰，`pytest -q` 165 條不 regression |
+| 2026-10-09 | `FR-007` | M3 ingest（spec 002 FR-007/FR-020，獨立小 scope，與 M0 檔位無交集） | 三層條文稽核工具：`ingest/laws/layer_check.py`（純比對：段數＋內容，缺層／不一致指到條／層／差異）＋`scripts/check-law-layers.py`（取樣確定性、缺層 exit 2、憑證只讀 env）＋`tests/test_law_layer_check.py`（6 條 fake-layers，守 tests 不碰外部服務慣例）。驗收：單元 6/6、live 50/50 exit 0、全套 1723 passed。未動舊檔一行；SC-002/005 仍待工具外的抽樣 harness／查詢日誌 |

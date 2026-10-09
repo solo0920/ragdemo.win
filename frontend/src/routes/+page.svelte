@@ -856,6 +856,9 @@ const rows = articleRows;
       <option value="law">法規問答</option>
       <option value="judgment">判決摘引</option>
     </select>
+    {#if kind === 'judgment'}
+      <span class="hint">實驗性：目前僅收錄 1 份判決</span>
+    {/if}
     <!-- ⚠️ 這一段取代原本的「⦿ host｜llm ｜ collection ｜ Nms」徽章。
          原版只印 host_id，沒有說明它是「選擇」還是「實際服務」——
          兩者不一樣時讀者無從判斷（2026-10-05 使用者回報：下拉 x570、badge ⦿ wsl）。
@@ -1491,6 +1494,13 @@ const rows = articleRows;
     text-align: right;
     font-family: Consolas, "DejaVu Sans Mono", monospace;
     font-size: 1.05em; font-style: italic; color: #666; line-height: inherit;
+  }
+  /* 引用清單（.tx > .law-row）沒有條號欄可借：項次改行內元素，縮在文字欄內、
+     永不向左超出 <li>（2026-10-09 使用者回報：絕對定位的 -4em 在清單裡會溢出）。
+     逐字引用區（.law-body）的懸掛式保持不變。 */
+  .tx > .law-row > .law-n {
+    position: static; display: inline-block; width: 2em;
+    margin-right: 0.5em; vertical-align: baseline;
   }
   .law-t { white-space: pre-wrap; }   /* 保留全形空白的縮排語意 */
 

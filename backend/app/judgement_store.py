@@ -67,4 +67,5 @@ def doc_meta(entry_path: str) -> dict | None:
     d = _store().get(entry_path)
     if not d:
         return None
-    return {k: d.get(k) for k in ("entry_path", "jid", "jyear", "jdate", "jcase")}
+    return {k: d.get(k) for k in ("entry_path", "jid", "jyear", "jdate", "jcase",
+                                 "jtitle")}

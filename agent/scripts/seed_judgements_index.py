@@ -98,6 +98,7 @@ async def main() -> int:
 
     seed = {"entry_path": entry_path, "jid": doc["JID"],
             "jyear": doc["JYEAR"], "jdate": doc["JDATE"], "jcase": doc["JCASE"],
+            "jtitle": doc.get("JTITLE", ""),
             "jfull": doc["JFULL"],
             "chunks": [{"chunk_index": ch.chunk_index,
                         "start_offset": ch.start_offset,
