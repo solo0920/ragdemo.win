@@ -66,6 +66,16 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
   （`specs/006-m1-judicial-selection-profile/review-verdicts.md`），與 gitignore 的
   全文包分離——repo 內只留無個資的結論，可 diff 出「誰在何時改了結論」。
 - FR-009：P2 審閱本身在本 spec 之外；本 spec 不產 gold、不升級 APPLIED。
+- FR-010：**allowlist 自檢分兩層，且兩層的失敗語義不同**（照
+  `tests/test_judgement_artifact.py` 的正向＋反向雙向斷言樣式）——
+  **(a) 離線層（永遠跑）**：`count` == `len(entries)`；
+  `entries_sha256` == 由 `path` 重算的 sha256；`path_posix` == `forward_slash(path)`；
+  `path` 無重複；74 個被排除 JID 唯一且與 `entries` **零交集**；`crc32` 為 8 hex。
+  此層**不依賴 RAR**，因此 fresh clone 也必跑，且必為 fail-closed（不得 skip 冒充通過）。
+  **(b) 對庫層（需要 284M RAR）**：由 archive 重算選樣結果比對 `entries_sha256`。
+  **不得放進預設 pytest**——RAR 是 gitignored 檔，fresh clone 沒有它，条件跳過會變成
+  「靜默 skip」這個本專案最厭惡的失效模式；它屬顯式指令（M1 pipeline 的前置閘門，
+  見 FR-001）。
 
 ### Key Entities
 
@@ -91,6 +101,9 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
   且 `JFULL` 與 chunk 邊界在包內可逐字對照。
 - SC-007：審閱結論檔 `review-verdicts.md` 可 `git diff`，每列含審閱者與日期；
   **repo 內不含判決全文與當事人姓名**。
+- SC-008：allowlist 自檢可被**故意破壞而抓得到**——離線層至少 5 個注入錯誤
+  （改一筆 path／刪一筆／sha 欄位造假／塞重複／讓某筆與凍結清單重疊）
+  **全部紅燈**，且還原後全綠；**在沒有 RAR 的環境跑也不會 skip**。
 
 ## Clarifications（2026-10-09，clarify 階段，5/5 已答）
 
@@ -101,6 +114,7 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 | Q3 | allowlist 機器可讀檔住哪 | `specs/004-judicial-source-fidelity/allowlist-m1.json`（與 T007 同居，**不放 006**） | FR-001 |
 | Q4 | 重跑要不要跳過已驗過的卷 | **每次全量重解覆寫**，不保存「上次驗過」的憑證 | FR-006 |
 | Q5 | 審閱包與審閱結論哪個進版控 | 審閱包 gitignore；**審閱結論進版控**（小、無個資、可 diff） | FR-007／008、SC-007 |
+| Q6 | `entries_sha256` 從「手動命令」升級為「每次都被檢查」 | 兩層自檢（離線層必跑 ＋ 對庫層顯式指令），**不放預設 pytest** | FR-010、SC-008 |
 
 **為什麼 Q1／Q5 這樣切**：repo 追蹤「決策、指紋、結論」，不追蹤「可由 RAR 確定性
 重建的 bytes」。這同時修掉 T006 留下的老毛病——它的 494 筆 manifest（重現的錨點）
