@@ -68,6 +68,18 @@ data/judgements/raw/*
 # 在這條規則的匹配範圍之外，所以照常進版控 —— 這是對的，inventory 的欄位邏輯
 # 需要它在乾淨 clone 上也能跑（CI 沒有那 283 MB artifact）。
 
+# M1 的選樣 profile（spec 006 FR-005）：解壓後的判決 bytes、chunk 產物，以及
+# **含當事人姓名全文的審閱包**。
+# ⚠ 用 `profile-*/`（通配）不是 `profile-m1`：日後若做第二個 profile（M2/P2
+# 的正式語料），不必再回來改這裡，也不會漏擋。
+# ⚠ 刻意**不是** `data/judgements/*` —— 那會連帶擋掉 `seed/`（1 份判決 seed
+# 是版控內的追蹤內容，見上方 raw 那條的同源理由）。
+# ⚠ 進版控的是「決策、指紋、結論」，不是「可由 RAR 確定性重建的 bytes」：
+#   manifest → specs/006-…/profile-manifest.json
+#   審閱結論 → specs/006-…/review-verdicts.md（小、無個資、可 diff）
+# 兩者都刻意放在 specs/ 而非這個目錄。
+data/judgements/profile-*/
+
 # law-update 執行狀態機（request/status 檔由 api 寫、host worker 讀寫）
 data/.ops/
 
