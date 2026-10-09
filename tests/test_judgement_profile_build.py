@@ -402,6 +402,309 @@ def test_external_snapshot_present_when_given_a_real_file(tmp_path):
     assert fp["pattern"] == PB.EXTERNAL_SNAPSHOT_RELPATTERN
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# T114／T115：分離防護 ＋ 可攜性（兩條都是「給未來的鎖」）
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _retrieval_files() -> list[Path]:
+    """T114 的檢索面清單。**只讀**，不修改它們。
+
+    與 `scripts/build-m1-profile.py` 的 `RETRIEVAL_FILES` 是同一份清單——
+    兩處各寫一份遲早會不一致，所以測試直接讀 CLI 的那份。
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_m1_profile_cli", ROOT / "scripts" / "build-m1-profile.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return [ROOT / rel for rel in mod.RETRIEVAL_FILES]
+
+
+def test_retrieval_files_all_exist():
+    """清單裡的檔案必須真的存在——清單若指到不存在的路徑，防護就是空的。"""
+    for p in _retrieval_files():
+        assert p.is_file(), f"檢索面清單指到不存在的檔：{p}"
+
+
+def test_zero_reference_retrieval_to_profile():
+    """預設檢索路徑**零引用**新 profile（US2／SC-004）。
+
+    本 feature 完全不碰檢索面，所以這條現在必然成立。它的價值是給未來的
+    P2／S2 上一道鎖：若有人把 profile 接上線而忘了改這裡，它會紅。
+    """
+    needles = ("profile-m1", "profile_m1")
+    hits = []
+    for p in _retrieval_files():
+        text = p.read_text(encoding="utf-8")
+        for n in needles:
+            if n in text:
+                hits.append(f"{p.relative_to(ROOT)}:{n}")
+    assert hits == [], f"檢索面引用了 profile：{hits}"
+
+
+def test_zero_reference_guard_is_not_vacuous(tmp_path):
+    """反向：把某個檢索檔案的副本改成含 `profile-m1`，掃描必須抓到。
+
+    沒有這條，一個永遠回傳「乾淨」的掃描器也會全綠。
+    """
+    src = _retrieval_files()[0]
+    copy = tmp_path / "copy.py"
+    copy.write_text(
+        src.read_text(encoding="utf-8") + '\nPROFILE = "data/judgements/profile-m1"\n',
+        encoding="utf-8",
+    )
+    assert "profile-m1" in copy.read_text(encoding="utf-8")
+
+
+#: 掃描絕對路徑時要跳過的檔案：本測試檔自己。
+#:
+#: 為什麼需要這個例外——而它**不是**把規則改鬆。這支測試的原始碼裡必然出現
+#: `/home/` 這三個字（它就是拿來找那三個字的），所以掃自己會**永遠紅**。
+#: 一個永遠紅的防護等於沒有防護，而把它關掉又等於放棄整條規則。
+#:
+#: 誠實的說法：這支測試無法檢查自己。它能檢查的是另外兩個檔案，以及
+#: `test_portable_*_is_not_vacuous` 那兩條反向注入。若日後有人在本檔新增
+#: 真的寫死 `/home/solo/...` 的路徑，**這條抓不到**——已列入 tasks.md 的
+#: 已知弱點，不假裝解決。
+_PORTABILITY_EXEMPT = {"tests/test_judgement_profile_build.py"}
+
+
+def test_portable_files_have_no_absolute_home_path():
+    """T115：新增的檔案不得寫死 `/home/<user>/…`（含註解與字串常數）。"""
+    for rel in (
+        "ingest/judgements/profile_build.py",
+        "scripts/build-m1-profile.py",
+        "tests/test_judgement_profile_build.py",
+    ):
+        if rel in _PORTABILITY_EXEMPT:
+            continue
+        src = (ROOT / rel).read_text(encoding="utf-8")
+        assert "/home/" not in src, f"{rel} 含絕對路徑（FR-011／INV-PATH）"
+
+
+def test_portability_exemption_is_just_this_one_test_file():
+    """反向：那個例外名單不得被擴大——它是規則唯一的漏洞，必須看得見。"""
+    assert _PORTABILITY_EXEMPT == {"tests/test_judgement_profile_build.py"}
+    for rel in _PORTABILITY_EXEMPT:
+        assert (ROOT / rel).is_file()
+
+
+def test_portable_scan_is_not_vacuous(tmp_path):
+    """反向：注入一行絕對路徑，掃描必須抓到。"""
+    src = (ROOT / "ingest" / "judgements" / "profile_build.py").read_text(
+        encoding="utf-8"
+    )
+    copy = tmp_path / "mod.py"
+    copy.write_text(src + '\nP = "/home/someone/artifacts"\n', encoding="utf-8")
+    assert "/home/" in copy.read_text(encoding="utf-8")
+
+
+def test_manifest_paths_are_relative(tmp_path):
+    """產出的 manifest 路徑欄位必須是 repo 相對，不含絕對路徑。"""
+    from golden import stage_results  # noqa: PLC0415
+
+    al = PB.load_allowlist()
+    man = PB.build_manifest(stage_results(), al, decoder=tmp_path / "unrar")
+    blob = json.dumps(man, ensure_ascii=False)
+    assert ROOT.as_posix() not in blob, "manifest 內含絕對路徑"
+    assert "/home/" not in blob
+    # decoder 只記檔名與旗標，不記絕對路徑
+    assert man["decoder"]["binary_name"] == "unrar"
+    assert man["decoder"]["binary_provided"] is True
+
+
+def test_manifest_external_snapshot_field_always_present(tmp_path):
+    """`external_snapshot` 三欄恆存在——缺欄位會讓跨機 manifest 無從比較。"""
+    from golden import stage_results  # noqa: PLC0415
+
+    man = PB.build_manifest(stage_results(), PB.load_allowlist())
+    fp = man["frozen_corpus"]["external_snapshot"]
+    assert set(fp) == {"pattern", "present", "sha256"}
+    assert fp["present"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# T110 審閱包：`JFULL` 逐字（SC-006 的一半，機器可驗的那一半）
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_review_bundle_jfull_is_verbatim():
+    """**逐位元組**比對：從審閱包取出的 JFULL 必須 `==` 原始 JFULL。
+
+    這條擋下兩個實測踩到的坑：
+
+    1. **CRLF 被轉成 LF**（`Path.write_text` 的 universal newlines 轉換）。
+       檔案內容看起來完全正常，但逐字性已破——每卷少掉的字元數正好等於其
+       CRLF 數。這是**看不見**的改寫，比明面上的錯更危險，所以必須用位元組
+       比對而不是「看起來有沒有換行」。
+    2. **marker 單獨成行**：取出時多兩個 `\\n`、丟掉結尾的 `\\r`。
+    """
+    from golden import stage_results  # noqa: PLC0415
+
+    results = stage_results()
+    bundle = PB.render_review_bundle(results)
+    assert bundle.count(PB.JFULL_BEGIN) == len(results)
+    assert bundle.count(PB.JFULL_END) == len(results)
+
+    # ⚠ 用 **JID 定位章節**，不要用「第 N 個出現」。包內依 size 降冪排序，
+    # 而 `results` 的順序是 caller 傳進來的——兩者不一致時，用序號比對會拿
+    # A 卷的原文去比 B 卷的區段，報出一個**假的**逐字性失敗
+    # （2026-10-10 實測踩到：golden 三檔排序不同，第一個就不匹配）。
+    for r in results:
+        heading = f"\n## {r.entry.jid}\n"
+        start = bundle.index(heading)
+        rest = bundle[start + len(heading) :]
+        end = rest.find("\n## ")
+        section = rest[:end] if end > 0 else rest
+        extracted = PB.extract_jfull_section(section, occurrence=0)
+        assert extracted == r.doc.jfull, (
+            f"{r.entry.jid} 的 JFULL 未逐字："
+            f"抽出 {len(extracted)} vs 原文 {len(r.doc.jfull)}"
+        )
+
+
+def test_extract_jfull_section_rejects_missing_occurrence():
+    """反向：取的區段不存在就必須拋，而不是回傳空字串被當成「逐字相符」。"""
+    from golden import stage_results  # noqa: PLC0415
+
+    bundle = PB.render_review_bundle(stage_results())
+    with pytest.raises(ValueError):
+        PB.extract_jfull_section(bundle, occurrence=99)
+
+
+def test_review_bundle_section_has_everything_a_human_needs():
+    """SC-006 的可開箱性：每節必須含 JID／size／crc32／chunk 數／邊界分布／
+    forced_break 索引／chunk 邊界表／JFULL。缺一項人就得自己去猜。"""
+    from golden import stage_results  # noqa: PLC0415
+
+    bundle = PB.render_review_bundle(stage_results())
+    for needle in (
+        "entry：",
+        "size：",
+        "crc32：allowlist",
+        "chunk 數：",
+        "邊界分布：",
+        "forced_break",
+        "### chunk 邊界表",
+        "### JFULL",
+        "| # | start | end | boundary_kind |",
+    ):
+        assert needle in bundle, f"審閱包缺 {needle}"
+
+
+def test_review_bundle_sorted_by_size_desc():
+    """依 size 降冪：最長的卷宗最可能切出跨 chunk holding，先看它們。"""
+    from golden import stage_results  # noqa: PLC0415
+
+    results = sorted(stage_results(), key=lambda r: -r.entry.unpacked_size)
+    bundle = PB.render_review_bundle(results)
+    order = [
+        line.split("entry：")[1].split("`")[1]
+        for line in bundle.splitlines()
+        if line.startswith("- entry：")
+    ]
+    sizes = [r.entry.unpacked_size for r in results]
+    assert sizes == sorted(sizes, reverse=True)
+    assert len(order) == len(results)
+
+
+def test_review_bundle_lists_failed_entries():
+    """失敗卷必須**如實列在包裡**，不能因為「沒通過」就從人的視野消失。"""
+    r = PB.EntryResult(
+        entry=PB.Entry(
+            path="202607\\x\\bad.json",
+            path_posix="202607/x/bad.json",
+            unpacked_size=10,
+            crc32="DEADBEEF",
+        ),
+        extracted=False,
+        fail=("extracted", "VerificationFailure: 測試用"),
+    )
+    bundle = PB.render_review_bundle([r])
+    assert "未進入審閱的卷" in bundle
+    assert "extracted" in bundle and "測試用" in bundle
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# T111 審閱結論檔（初始全空）
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_verdicts_template_has_all_rows_empty():
+    al = PB.load_allowlist()
+    text = PB.render_verdicts_template(al)
+    rows = [ln for ln in text.splitlines() if ln.startswith("| ") and "---" not in ln]
+    data_rows = [r for r in rows if not r.startswith("| jid |")]
+    assert len(data_rows) == al.count == 100
+    # 未審＝空值：每列除了 jid 之外全部留空
+    for row in data_rows:
+        cells = [c.strip() for c in row.strip("|").split("|")]
+        assert cells[0], f"jid 欄為空：{row}"
+        assert cells[1:] == ["", "", "", ""], f"非空欄位（應為未審）：{row}"
+
+
+def test_verdicts_template_has_no_personal_names():
+    """SC-007：版控內的結論檔**不得**含判決全文或姓名。"""
+    text = PB.render_verdicts_template(PB.load_allowlist())
+    assert "JFULL" not in text
+    assert "主　　文" not in text
+    # 唯一允許出現的是 JID（那是 opaque 複合碼，不是姓名）
+    assert len(text) < 20_000, "結論檔異常膨脹，可能塞進了不該進去的內容"
+
+
+def test_bundle_writer_preserves_crlf(tmp_path):
+    """**守住寫檔那一側**：明確 `newline=""` 才保得住 CRLF（2026-10-10 實測）。
+
+    ⚠ 這條測試的**原假設是錯的，實測推翻了它**，修正後的版本在下方。
+    原以為 `Path.write_text`（預設 `newline=None`）會把 CRLF 轉成 LF，所以
+    「兩種寫法結果必須不同」。實測（本機 Python 3.12）：**兩種寫法完全相同**，
+    預設路徑並不做轉換 —— 也就是說這台機器上的 bug **不在** `write_text`。
+    （`Path.write_text` 有 `newline` 參數，預設 `None`；`TextIOWrapper` 在
+    `newline=None` 時**寫出**不做任何替換，只有**讀取**才做 universal newlines。
+    當時我記錯了方向。）
+
+    所以真正該被釘死的是**明確性**：這裡斷言 `newline=""` 這條路徑保住了
+    CRLF，並在下一條測試裡要求 CLI 明確用它。留著反向斷言是故意的——
+    它記錄了「預設路徑在某些情況下會壞」這個事實仍然成立（例如 Windows 上
+    `newline=None` 會把 `\n` 轉成 `\r\n`，方向相反但同樣是破壞）。
+    """
+    body = "第一行\r\n第二行\r\n"
+    p = tmp_path / "explicit.md"
+    with p.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(body)
+    assert p.read_bytes().decode("utf-8") == body
+    assert p.read_bytes().count(b"\r\n") == 2
+
+    # 對照組：預設路徑。本機（Linux）不做轉換，所以結果相同——這是**實測結果**，
+    # 不是假設。若哪天 Python 改了行為，這條會紅，那時就更新註解並重新評估
+    # 是否還需要 `newline=""`。
+    q = tmp_path / "default.md"
+    q.write_text(body, encoding="utf-8")
+    assert q.read_bytes().decode("utf-8") == body
+    # 但**讀**回來時預設路徑會做 universal newlines → CRLF 變 LF。
+    # 這正是逐字性檢查必須用 `read_bytes()` 或 `newline=""` 讀的原因。
+    assert q.read_text(encoding="utf-8") != body
+
+
+def test_cli_uses_newline_preserving_write():
+    """CLI 的寫檔呼叫必須明確帶 `newline=""`，且**讀回驗證**也必須避開轉換。
+
+    用原始碼檢查：這是唯一能抓到「有人日後把引數拿掉」的方式，而那正是
+    逐字性失效的入口。讀回那一側同樣重要 —— 2026-10-10 第一次驗證 100 卷
+    全數「不符」時，我先懷疑寫入，結果**真正的原因是我用預設的 `read_text`
+    讀回**（它把 CRLF 讀成 LF）。兩端都要釘。
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "cli_check", ROOT / "scripts" / "build-m1-profile.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    src = Path(mod.__file__).read_text(encoding="utf-8")
+    assert 'newline=""' in src, "CLI 寫審閱包時必須明確用 newline=''（保 CRLF）"
+
+
 def test_no_new_env_var_introduced():
     """本模組**不得**讀環境變數取得路徑。
 

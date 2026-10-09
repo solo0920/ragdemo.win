@@ -251,10 +251,19 @@
 - **Acceptance**:
   - 每卷一節：JID／size／CRC32／chunk 數／`boundary_kind` 分布／
     FORCED 斷點所在 chunk 索引／`JFULL` **逐字全文**／逐 chunk `(start, end, boundary_kind)` 表
-  - **`JFULL` 逐字輸出**：不得摻格式化、不得摻清洗、不得改空白（INV-SRC）
+  - **`JFULL` 逐字輸出**：不得摻格式化、不得摻清洗、不得改空白（INV-SRC）。
+    **寫入與讀回兩端都必須顯式 `newline=""`**——`TextIOWrapper` 在
+    `newline=None` 時**讀取**會做 universal newlines（CRLF→LF），那是逐字性
+    的破壞，而且檔案內容看起來完全正常（2026-10-10 實測：第一次驗 100 卷
+    全數不符，真正原因是我用預設 `read_text` 讀回，不是寫入壞掉）
+  - `JFULL` 區段的邊界 marker 與原文**同一行**（不插入換行），否則取出的
+    字串會多 2 個 `\n` 並丟掉結尾的 `\r`
   - 包內**不含**任何生成式摘要或結論（VI：模型輸出不得與原文混同）
   - 檔案**不被 git 追蹤**（T101 已擋）；`git status` 乾淨
-- **Verification**: 隨機抽 1 卷，逐字比對包內 `JFULL` 與 `LosslessText.text`（`diff` 零差異）
+- **Verification**: **全 100 卷**逐位元組比對包內 `JFULL` 與原始 JSON 的
+  `JFULL`（不是抽 1 卷——2026-10-10 實測證明「抽 1 卷」會漏掉系統性的轉換）。
+  比對時以 **JID 定位章節**，不可用「第 N 個出現」（包內依 size 降冪排序，
+  與 caller 傳入順序不一定一致，會產生假的逐字性失敗）
 - **FR**: FR-007 · **INV**: INV-SRC, INV-SEP, INV-PII
 
 ### T111 — 審閱結論檔（空表）
@@ -330,12 +339,17 @@
   - 清單本身寫在 test 的 docstring，**日後新增檢索入口必須一併加進來**
     （見下方〈已知弱點〉）
   - **反向**：把某個檔案的內容在 tmp 副本裡改成含 `profile-m1` 時，斷言必須紅
-- **Verification**: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_judgement_profile_build.py -k zero_reference`
+  - 清單的**單一事實來源是** `scripts/build-m1-profile.py` 的 `RETRIEVAL_FILES`
+    常數，測試讀它（不各寫一份）
+  - 清單內每個檔案必須真的存在——清單指到不存在的路徑時防護就是空的
+- **Verification**: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_judgement_profile_build.py -k "zero_reference or retrieval_files"`
 - **FR**: FR-005 · **INV**: INV-FROZEN
 - **Note**: 本 feature 完全不碰檢索面（這條必然成立）；它的價值是**給未來的 P2／S2
   scope 上一道鎖**——若有人把 profile 接上線而忘了改這條測試，它會紅。
-  **已知弱點（不隱瞞）**：清單是靜態的，日後新增的檢索模組不在其中就不受保護；
-  根治要靠「從『讀判決 JSON 的地方』反推清單」，屬另開 scope 的重構，本次不做。
+  **已知弱點（2026-10-09 實作時確認，不隱瞞）**：①清單是靜態的，日後新增的檢索模組
+  不在其中就不受保護；②反向測試是「注入到 tmp 副本後確認字串存在」，
+  它證明**掃描器有能力找到**，但沒有直接跑掃描器去掃那份副本——
+  這是刻意的簡化，真接起來會多一層間接。根治兩者都要另開 scope 的重構。
 
 ### T115 — 路徑可攜性守則（各地部署都能跑）
 
@@ -349,6 +363,11 @@
 - **Acceptance**:
   - 上述三個檔案對 `/home/` 的命中數 **== 0**（連註解與字串常數都算）——
     **反向**：在 tmp 副本注入一行 `Path("/home/x/artifacts")` 時斷言必須紅
+  - ⚠ **例外名單只允許一項**（`tests/test_judgement_profile_build.py` 本身），
+    並加一條測試斷言該名單**不得被擴大**。理由：該檔原始碼必然含 `/home/`
+    那三個字（它就是找那三個字的），掃自己會永遠紅，而一個永遠紅的防護等於
+    沒有防護。代價是**本檔抓不到自己**（日後有人在測試裡寫死路徑，這條不會
+    抓到）——已如實記錄，不假裝解決
   - `profile-manifest.json` 的所有路徑欄位皆為 **repo 相對**；**無**絕對路徑
   - `frozen_corpus.external_snapshot.pattern` 是**佔位形式**
     （含 `<ARTIFACTS_ROOT>` 字樣），**不是** `/home/solo/...`

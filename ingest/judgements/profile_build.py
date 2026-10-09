@@ -54,6 +54,7 @@ from pathlib import Path
 
 import artifact as _artifact
 import chunk as _chunk
+import decoder as _decoder
 import document as _document
 import extract as _extract
 import inventory as _inventory
@@ -581,6 +582,269 @@ class _ShimExtracted:
     @property
     def sha256(self) -> str:
         return hashlib.sha256(self.data).hexdigest()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Phase 5：產出物（manifest／審閱包／結論檔）
+# ═══════════════════════════════════════════════════════════════════════════
+
+MANIFEST_SCHEMA = "m1-profile-manifest/1"
+
+#: 審閱包裡 `JFULL` 的邊界標記。為什麼用 HTML 註解而不是 code fence：
+#: fence 的內容若含 ``` 就會提前收尾，而**逐字**是硬要求（憲法 XI），
+#: 不能因為排版方便就讓原文被截斷。註解在渲染後不可見，但測試可以精確取出
+#: 兩行之間的位元組並與原文逐位元組比對。
+#:
+#: ⚠ **CRLF 陷阱（2026-10-09 實測才發現）**：Marker 必須與原文**同一行**，
+#: 前後不得插入換行。這些判決的 `JFULL` 含 **CRLF**；若 marker 單獨成行，
+#: Markdown 檔裡就會多出 `BEGIN\n` 與 `\nEND` 這兩處行邊界，取出的字串會
+#: 比原文多 2 個 `\n`、少掉原文結尾的 `\r` —— **看起來只差兩個字元，實際
+#: 是逐字性被破壞**。所以 marker 直接黏在原文頭尾，中間不換行。
+JFULL_BEGIN = "<!-- JFULL:BEGIN -->"
+JFULL_END = "<!-- JFULL:END -->"
+
+
+def extract_jfull_section(bundle: str, *, occurrence: int = 0) -> str:
+    """從審閱包取出第 `occurrence` 個 `JFULL` 區段的**逐字**內容。
+
+    這是 T110「`JFULL` 逐字」的機器驗證入口：取出結果必須 `==` 原始 `JFULL`，
+    一個字元都不差。它同時是 CRLF 陷阱的守門人 —— 若有人日後把 marker 改成
+    單獨成行，這裡就會紅。
+    """
+    begins = []
+    pos = 0
+    while True:
+        i = bundle.find(JFULL_BEGIN, pos)
+        if i < 0:
+            break
+        begins.append(i)
+        pos = i + 1
+    if len(begins) <= occurrence:
+        raise ValueError(f"審閱包只有 {len(begins)} 個 JFULL 區段，取不到第 {occurrence} 個")
+    start = begins[occurrence] + len(JFULL_BEGIN)
+    end = bundle.find(JFULL_END, start)
+    if end < 0:
+        raise ValueError("JFULL 區段沒有結束標記（內容被截斷？）")
+    return bundle[start:end]
+
+VERDICTS_HEADER = (
+    "| jid | 判定（正例／負例） | 理由 | 審閱者 | 日期 |\n"
+    "|---|---|---|---|---|\n"
+)
+
+
+def _module_sha256(module) -> str:
+    return hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
+
+
+def process_all(
+    al: Allowlist,
+    *,
+    profile_dir: Path | None = None,
+    decoder: Path | None = None,
+    archive: Path | None = None,
+    limit: int | None = None,
+) -> list[EntryResult]:
+    """跑完 allowlist 裡的每一筆（FR-001）。
+
+    `limit` 只給「先跑幾筆看看」用；它**不是**補位機制，也不改變通過率的分母
+    ——分母永遠是實際處理的筆數，而 manifest 會同時記錄 `allowlist.count`，
+    兩者並列就看得見「只跑了 10 筆」而不是「只有 10 筆」。
+    """
+    entries = al.entries if limit is None else al.entries[:limit]
+    return [
+        process_entry(e, profile_dir=profile_dir, decoder=decoder, archive=archive)
+        for e in entries
+    ]
+
+
+def build_manifest(
+    results: list[EntryResult],
+    al: Allowlist,
+    *,
+    decoder: Path | None = None,
+    external_snapshot: Path | None = None,
+    limited: bool = False,
+) -> dict:
+    """組出 manifest（契約②，plan.md）。
+
+    三條刻意的取捨：
+
+    1. **不存絕對路徑**（含 `decoder`）—— 只記 `decoder_used` 的**檔名**與
+       版本／來源 sha。絕對路徑進版控會讓 manifest 在別台機器上看起來「不對」
+       （FR-011④）。
+    2. **失敗逐筆記錄，不中斷**（FR-001／INV-COUNT）。
+    3. **counts 的分母是實際處理筆數**，並與 `allowlist.count` 並列——所以
+       「只跑了前 10 筆」不會被誤讀成「只有 10 筆通過」。
+    """
+    counts = {
+        "allowlisted": len(results),
+        "allowlist_total": al.count,
+        "limited": limited,
+    }
+    for stage in STAGES:
+        counts[stage] = sum(1 for r in results if getattr(r, stage))
+
+    entries_out = []
+    for r in results:
+        row = {
+            "jid": r.entry.jid,
+            "path": r.entry.path,
+            "path_posix": r.entry.path_posix,
+            "size": r.entry.unpacked_size,
+            "sha256": r.sha256,
+            "crc32_expected": r.entry.crc32,
+            "crc32_actual": r.crc32_actual,
+            "stages": {s: bool(getattr(r, s)) for s in STAGES},
+            "chunk_count": r.chunk_count if r.chunked else 0,
+            "boundary_kind_histogram": r.boundary_kind_histogram if r.chunked else {},
+            "forced_break_chunk_indexes": list(r.forced_break_chunk_indexes),
+            "fail": (
+                {"stage": r.fail[0], "reason": r.fail[1]} if r.fail else None
+            ),
+        }
+        entries_out.append(row)
+
+    forced_docs = [r for r in results if r.forced_break_chunk_indexes]
+
+    import datetime as _dt
+
+    return {
+        "schema": MANIFEST_SCHEMA,
+        "generated_at": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "allowlist": {
+            "sha256": al.entries_sha256,
+            "count": al.count,
+        },
+        "artifact": {"sha256": al.artifact_sha256},
+        "decoder": {
+            "version": _decoder.DECODER_VERSION,
+            "source_url": _decoder.SOURCE_URL,
+            "source_sha256": _decoder.SOURCE_SHA256,
+            # 只記檔名與是否提供，不記絕對路徑（FR-011④）
+            "binary_name": Path(decoder).name if decoder else None,
+            "binary_provided": decoder is not None,
+        },
+        "chunker": {
+            "module_sha256": _module_sha256(_chunk),
+            # 未傳參＝用凍結預設值；把「沒有傳」這件事記下來，否則日後
+            # 有人改成傳值時，這份 manifest 看不出差別。
+            "params": {
+                "chunk_size": _chunk.DEFAULT_CHUNK_SIZE,
+                "passed_explicitly": False,
+            },
+        },
+        "counts": counts,
+        "forced_break_documents": len(forced_docs),
+        "total_chunks": sum(r.chunk_count for r in results if r.chunked),
+        "entries": entries_out,
+        "frozen_corpus": {
+            "seed_tree_sha256": seed_tree_sha256(),
+            "external_snapshot": external_snapshot_fingerprint(external_snapshot),
+        },
+    }
+
+
+def render_review_bundle(results: list[EntryResult]) -> str:
+    """人可讀審閱包（FR-007／SC-006）。
+
+    **單檔**、依 size 降冪（最長的卷宗最可能切出跨 chunk holding，先看它們）。
+
+    每一節都給人「不用跑程式就能判斷」的東西：FORCED 斷點落在第幾個 chunk、
+    邊界分布、以及可逐字對照的原文與 chunk 邊界表。
+    """
+    ok = [r for r in results if r.chunked]
+    ok.sort(key=lambda r: (-r.entry.unpacked_size, r.entry.path))
+
+    out = [
+        "# M1 選樣審閱包（人可讀）",
+        "",
+        f"共 {len(ok)} 卷（已解壓驗證並切塊），依 `unpacked_size` 降冪。",
+        "",
+        "**這份檔怎麼用**：每節看兩件事 ——（1）`forced_break` 列出的 chunk 索引，",
+        "那些位置是硬切出來的，**holding 有可能被切斷**；（2）`JFULL` 全文與下方",
+        "chunk 邊界表，確認自己要的段落落在哪一塊。",
+        "",
+        "**判定寫到** `specs/006-m1-judicial-selection-profile/review-verdicts.md`",
+        "（未審＝留空，不要刪列）。",
+        "",
+        "---",
+        "",
+    ]
+
+    for r in ok:
+        jfull = r.doc.jfull
+        hist = r.boundary_kind_histogram
+        forced = r.forced_break_chunk_indexes
+        out += [
+            f"## {r.entry.jid}",
+            "",
+            f"- entry：`{r.entry.path_posix}`",
+            f"- size：{r.entry.unpacked_size} bytes　sha256：`{r.sha256}`",
+            f"- crc32：allowlist `{r.entry.crc32}`　實際 `{r.crc32_actual}`",
+            f"- chunk 數：{r.chunk_count}",
+            f"- 邊界分布：{hist}",
+            f"- forced_break（chunk 索引）："
+            f"{list(forced) if forced else '無'}",
+            "",
+            "### chunk 邊界表",
+            "",
+            "| # | start | end | boundary_kind |",
+            "|---|---|---|---|",
+        ]
+        for c in r.chunks:
+            kind = getattr(c.boundary_kind, "value", str(c.boundary_kind))
+            mark = " **←FORCED**" if c.chunk_index in forced else ""
+            out.append(
+                f"| {c.chunk_index} | {c.start_offset} | {c.end_offset} | {kind}{mark} |"
+            )
+        out += [
+            "",
+            "### JFULL（逐字，勿手改；含 CRLF，marker 與原文同一行）",
+            "",
+            # marker 與原文同一行：見 JFULL_BEGIN 的 CRLF 陷阱說明
+            f"{JFULL_BEGIN}{jfull}{JFULL_END}",
+            "",
+            "---",
+            "",
+        ]
+
+    skipped = [r for r in results if not r.chunked]
+    if skipped:
+        out += [
+            "## 未進入審閱的卷（失敗或 drift，如實列出）",
+            "",
+            "| jid | 停在階段 | 原因 |",
+            "|---|---|---|",
+        ]
+        for r in skipped:
+            stage, reason = r.fail or ("?", "未記錄原因")
+            out.append(f"| {r.entry.jid} | {stage} | {reason} |")
+        out.append("")
+
+    return "\n".join(out)
+
+
+def render_verdicts_template(al: Allowlist) -> str:
+    """審閱結論檔的初始內容（FR-008／SC-007）。
+
+    **未審＝空值而非省略** —— 100 列全在，判定欄留空。那樣「沒審」和
+    「審了說不是」在檔案層面就不會搞混：後者會有文字，前者只有空欄。
+    """
+    lines = [
+        "# M1 審閱結論",
+        "",
+        "由 P2 填寫。**未審請留空，不要刪列** —— 空值代表「還沒看」，",
+        "填了代表「看過了」，兩者必須能從檔案本身分辨。",
+        "",
+        f"allowlist：`{al.entries_sha256[:16]}…`（{al.count} 筆）",
+        "",
+        VERDICTS_HEADER.rstrip("\n"),
+    ]
+    for e in al.entries:
+        lines.append(f"| {e.jid} |  |  |  |  |")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _describe_drift(parsed) -> str:
