@@ -262,7 +262,6 @@
 - **FR**: FR-008 · **INV**: INV-PII
 
 ### T112 — CLI 入口與階段可觀測性
-
 - **Layer**: [D] 9
 - **Purpose**: 讓執行可被外部驅動，且失敗能定位到**階段**（憲法 IX）
 - **Dependencies**: T105–T110
@@ -273,9 +272,16 @@
   - 每階段**先執行 T104 的前置閘門**；不符 → **非零退出**且不寫任何產物（INV-NOSKIP）
   - 失敗卷以 `stage`＋`reason` 呈現，**不得**折疊成一句通用錯誤
   - 退出碼契約：`0` 全程可讀／`2` allowlist 或 artifact 不符／`3` UnRAR 缺席／`4` 環境缺失
-  - `bash -n` 通過；不接受 `-x`（沿用 `host-sync.sh`／`host-doctor.sh` 的既有拒絕）
-  - **xtrace 拒絕執行**（既有安全慣例）
+  - 語法驗證用 **`.venv/bin/python -m py_compile scripts/build-m1-profile.py`**
+    （⚠ **不是** `bash -n`——那是 shell 專用，對 `.py` 必然報錯；本 repo 也**沒有**
+    任何 linter 可用，**不得**為了這一條憑空新增相依，原則 III）
+  - **同旨的實際性質取代「拒絕 xtrace」**：本 CLI 不讀任何憑證（對應原則 VII），
+    驗收改為「**任何輸出**（stdout／stderr／manifest）不含憑證值」——以本機
+    `.env` 的真值逐一比對，驗證樣式沿用 `host-sync.sh` 既有的第⑤條測試
+  - **覆寫語義明文化**：依 FR-006 每次執行覆寫 `profile-m1/` 與 manifest，
+    **不提供** `--force`／`--skip-verify` 之類繞過旗標（既有 shell 腳本刻意不提供 force）
 - **Verification**: `python -m json.tool` 解析 manifest ＋ 以 `--limit 1` 快跑驗證計數輸出
+  ＋ 以 `.env` 真值比對確認輸出無憑證值
 - **FR**: FR-010 · **INV**: INV-NOSKIP, INV-COUNT
 
 ### T113 — 誠實報告
@@ -294,6 +300,32 @@
 - **Verification**: 人工複核 commit 訊息與 manifest 數字一致
 - **FR**: FR-001 · **INV**: INV-COUNT
 
+
+### T114 — 預設檢索路徑零引用新 profile（分離回歸防護）
+
+- **Layer**: [D] 11
+- **Purpose**: 把 US2／SC-004 的「預設檢索零引用新 profile」變成可執行斷言，而不是一句散文
+- **Dependencies**: T109
+- **Files**: `tests/test_judgement_profile_build.py`（修改；**只讀**下列檢索檔案，不得修改它們）
+- **Input**: 明列的檢索模組清單（見下）＋ `data/judgements/profile-m1/` 已存在
+- **Output**: 一條 grep 型斷言 ＋ 檢查清單寫進 test docstring
+- **Acceptance**:
+  - 明列清單內每個檔案對 `profile-m1`／`profile_m1` 的命中數 **== 0**：
+    `backend/app/rag.py`、`backend/app/b1_serve.py`、`backend/app/b2d_answer.py`、
+    `backend/app/judgement_store.py`、`ingest/judgements/index_load.py`、
+    `ingest/laws/qdrant_load.py`、`agent/scripts/eval_judgements_slice.py`
+  - `backend/app/judgement_store.py` 的預設讀取路徑仍為 `data/judgements/seed/`
+    （**行為斷言**，不只字串比對）
+  - 清單本身寫在 test 的 docstring，**日後新增檢索入口必須一併加進來**
+    （見下方〈已知弱點〉）
+  - **反向**：把某個檔案的內容在 tmp 副本裡改成含 `profile-m1` 時，斷言必須紅
+- **Verification**: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_judgement_profile_build.py -k zero_reference`
+- **FR**: FR-005 · **INV**: INV-FROZEN
+- **Note**: 本 feature 完全不碰檢索面（這條必然成立）；它的價值是**給未來的 P2／S2
+  scope 上一道鎖**——若有人把 profile 接上線而忘了改這條測試，它會紅。
+  **已知弱點（不隱瞞）**：清單是靜態的，日後新增的檢索模組不在其中就不受保護；
+  根治要靠「從『讀判決 JSON 的地方』反推清單」，屬另開 scope 的重構，本次不做。
+
 ---
 
 ## Dependencies & Execution Order
@@ -303,7 +335,7 @@
 ```text
 Phase 1 (T101, T102, T103)  ──┬──> Phase 3 (T105 ──> T106, T107 ──> T108)
 T102 ──> T104 ────────────────┤
-                              └──> Phase 5 (T109 ──> T110, T111)
+                              └──> Phase 5 (T109 ──> T110, T111, T114)
                                         └──> T112 ──> T113
 ```
 
@@ -312,7 +344,7 @@ T102 ──> T104 ────────────────┤
 - **T101／T102／T103** 可並行（檔案互不重疊：`.gitignore`／模組／測試檔）
 - **T104** 需 T102 完成後可與 T105 併行
 - **T106**（零寫入斷言）與 **T107**（schema 串接）可並行
-- **T110／T111** 可並行（不同檔案）
+- **T110／T111／T114** 可並行（不同檔案；T114 只讀檢索模組，其餘不碰）
 
 ### Critical path
 
@@ -339,13 +371,15 @@ gold 標註 · P2 審閱本體（FR-009）· 改 `chunk.py` 參數 · 改 T005/T
 | 檢查 | 結果 |
 |---|---|
 | 每條 FR 至少映射一個 task | **PASS** — FR-001（T102,T105,T113）· FR-002（T105）· FR-003（T107）· FR-004（T108）· FR-005（T101,T106,T109）· FR-006（T109）· FR-007（T101,T110）· FR-008（T111）· FR-009（scope boundary）· FR-010（T102,T103,T104,T112） |
-| 每條 SC 可量測 | **PASS** — SC-001（T113）· SC-002（T107）· SC-003（T108）· SC-004（T106,T109）· SC-005（T109）· SC-006（T110）· SC-007（T111）· SC-008（T103） |
+| 每條 SC 可量測 | **PASS** — SC-001（T113）· SC-002（T107）· SC-003（T108）· SC-004（T106,T109,**T114**）· SC-005（T109）· SC-006（T110）· SC-007（T111）· SC-008（T103） |
 | 每條 invariant 有驗證 task | **PASS** — INV-SRC（T105,T107,T110）· INV-SUB（T108）· INV-PROV（T102,T109）· INV-REPRO（T104,T108）· INV-SEP（T107,T110）· INV-FROZEN（T105,T106）· INV-COUNT（T105,T108,T113）· INV-NOSKIP（T102,T103,T112）· INV-PII（T101,T110,T111） |
 | 單元測試不需要 284M RAR | **PASS** — T102／T103／T106／T111 全離線；T104／T105 整合段才需要，且用既有 marker＋skipif |
 | 沒有 task 跨越多個架構層 | **PASS** — 每個 task 只宣告一層；T113 為 [doc] 且不動程式 |
 | 沒有 task 修改 [A] 資料 | **PASS** — T101／T106／T111 只加規則或斷言；T102／T105／T107／T108／T109／T110／T112 對 [A] 唯讀 |
 | 沒有 task 需要新的抽象層或相依 | **PASS** — 唯一新模組是 pipeline 本體；CLI 為薄殼；無新 pip 套件、無新服務 |
 | 失敗語義不被吞掉 | **PASS** — INV-NOSKIP 由 T102／T103／T112 三處把關；manifest 逐筆帶 `stage`＋`reason` |
+| analyze A1（覆蓋缺口）已補 | **PASS** — US2／SC-004 的「預設檢索零引用」原無任何 task 承載，已新增 **T114**（grep ＋ 行為斷言 ＋ 反向注入） |
+| analyze A2（錯誤驗證手段）已修 | **PASS** — T112 原寫 `bash -n`／拒絕 `-x`（shell 專用，對 `.py` 必然報錯），已改為 `py_compile` ＋「輸出不含憑證值」，並註明 repo 無 linter 故不得新增相依 |
 
 ### 刻意留白（不做）
 
