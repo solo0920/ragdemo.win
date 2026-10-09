@@ -1,6 +1,6 @@
 # Feature Specification: M1 司法選樣解壓與 profile 建立（DRAFT）
 
-- Status: Draft（specify 階段；未 clarify／plan／tasks／analyze／implement）
+- Status: Draft（**clarify 已完成**：5 題全答，見〈Clarifications〉；未 plan／tasks／analyze／implement）
 - Scope: SCOPE.md 待開 M1（北部民事 100 卷跨 chunk 正例候選池）。
   前置已定：(1) UnRAR 7.13 安裝完成（`~/.local/bin/unrar`，已驗收）；
   (2) T007 `specs/004-judicial-source-fidelity/scope.md`（100 paths 可重現）。
@@ -41,19 +41,35 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 ### Functional Requirements
 
 - FR-001：僅解 allowlist 上的 entry paths（**ceiling，非目標下限**；少於 allowlist
-  長度就如實報數，不補位、不換選樣規則重抽）。allowlist 必須是**版控內的機器可讀
-  檔案**（由 `specs/004-…/scope.md` 的 header-only 指令重生成，附完整 sha256）；
-  不得依賴 `/tmp` 等 repo 外的暫存，也不得由程式去解析 `scope.md` 散文。
+  長度就如實報數，不補位、不換選樣規則重抽）。allowlist = **版控內機器可讀檔**
+  `specs/004-judicial-source-fidelity/allowlist-m1.json`（與 T007 的 `scope.md` 同居，
+  由其 header-only 指令加 `--out` 產生，附**完整 sha256**）；不得依賴 repo 外暫存，
+  不得由程式解析 `scope.md` 散文。path 存 RAR 內**原始字面（含反斜線）**，
+  另存 forward-slash 版供顯示，沿用 `selection.py` 的 `backslash()`／`forward_slash()`
+  （不自寫正規化）。
 - FR-002：沿用 T005 向量（size＋CRC32 `%08X`＋artifact digest 前後不變）。
 - FR-003：沿用 T008–T010（schema／frozen document／lossless text），Drift 即跳過。
 - FR-004：沿用凍結 `chunk.py`（不改參數），chunk 產物帶 offsets＋boundary_kind。
-- FR-005：新 profile 目錄＋manifest（artifact／decoder／selection／chunker
-  fingerprint＋時間戳），禁寫凍結路徑。
-- FR-006：P2 審閱在本 spec 之外；本 spec 不產 gold、不升級 APPLIED。
+- FR-005：profile 落在 `data/judgements/profile-m1/`（與 `seed/` 平級），
+  **整個目錄進 `.gitignore`**（`data/judgements/profile-*/`）；manifest
+  （artifact／decoder／selection／chunker fingerprint＋逐卷結果＋時間戳）**進版控**，
+  落 `specs/006-m1-judicial-selection-profile/profile-manifest.json`。禁寫凍結路徑。
+- FR-006：**每次執行都全量重解並覆寫**，不跳過已驗過的卷（本批總量約 15MB，
+  重驗成本可負擔）；重現性由 artifact sha256＋allowlist sha256 撐，**不保存
+  「上次驗過」的憑證**。中斷只停該卷、不影響其他卷。
+- FR-007：產出**人可讀 Markdown 審閱包**（gitignore，留在 profile 內）：每卷一節含
+  JID／size／CRC32／chunk 數／`boundary_kind` 分布／FORCED 斷點落在第幾個 chunk／
+  `JFULL` 全文／逐 chunk 的 `(start, end, boundary_kind)` 表。
+- FR-008：審閱**結論**（每卷一行：正例／負例／理由＋審閱者＋日期）**進版控**
+  （`specs/006-m1-judicial-selection-profile/review-verdicts.md`），與 gitignore 的
+  全文包分離——repo 內只留無個資的結論，可 diff 出「誰在何時改了結論」。
+- FR-009：P2 審閱本身在本 spec 之外；本 spec 不產 gold、不升級 APPLIED。
 
 ### Key Entities
 
-- allowlist（100 entry paths＋manifest sha）、profile（含 manifest＋fingerprint）、
+- allowlist（100 entry paths＋完整 sha256）、profile（`data/judgements/profile-m1/`，
+  gitignore）、profile manifest（指紋＋逐卷結果，進版控）、
+  審閱包（Markdown，gitignore）與審閱結論（`review-verdicts.md`，進版控）、
   UnRAR 7.13（`~/.local/bin/unrar`，已驗）。
 
 ## Success Criteria
@@ -69,6 +85,24 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
   （不設下限——0 個也是合法結果，只代表這批長卷宗切不出跨 chunk holding）。
 - SC-004：凍結語料 sha 前後一致；預設檢索零引用新 profile。
 - SC-005：profile manifest fingerprint 已記錄且可重算。
+- SC-006：審閱包可**開箱判讀**（不跑程式就能看出 holding 是否被切斷），
+  且 `JFULL` 與 chunk 邊界在包內可逐字對照。
+- SC-007：審閱結論檔 `review-verdicts.md` 可 `git diff`，每列含審閱者與日期；
+  **repo 內不含判決全文與當事人姓名**。
+
+## Clarifications（2026-10-09，clarify 階段，5/5 已答）
+
+| # | 問題 | 裁決 | 寫進哪 |
+|---|---|---|---|
+| Q1 | 100 卷與 chunk 產物落在哪 | `data/judgements/profile-m1/`（**全 gitignore**），manifest 進版控 | FR-005 |
+| Q2 | P2 審閱的輸入形式 | **人可讀 Markdown 審閱包**（不跑程式就能判讀） | FR-007、SC-006 |
+| Q3 | allowlist 機器可讀檔住哪 | `specs/004-judicial-source-fidelity/allowlist-m1.json`（與 T007 同居，**不放 006**） | FR-001 |
+| Q4 | 重跑要不要跳過已驗過的卷 | **每次全量重解覆寫**，不保存「上次驗過」的憑證 | FR-006 |
+| Q5 | 審閱包與審閱結論哪個進版控 | 審閱包 gitignore；**審閱結論進版控**（小、無個資、可 diff） | FR-007／008、SC-007 |
+
+**為什麼 Q1／Q5 這樣切**：repo 追蹤「決策、指紋、結論」，不追蹤「可由 RAR 確定性
+重建的 bytes」。這同時修掉 T006 留下的老毛病——它的 494 筆 manifest（重現的錨點）
+放在 repo 外 `/home/solo/artifacts/`，新 clone 無法自證。
 
 ## Assumptions
 
