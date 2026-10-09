@@ -13,9 +13,10 @@
 
 ### User Story 1 — 100 卷解壓驗證入庫待審（Priority: P1）
 
-操作者按 scope.md allowlist 解壓 100 個 RAR entries，每份過 size＋CRC32＋
-schema 驗證，chunk 後寫入新版 profile（含 manifest＋fingerprint），供 P2 人審。
-任一失敗即停該卷、不污染已入庫。
+操作者讀 `specs/004-judicial-source-fidelity/allowlist-m1.json`（T007 的機器可讀
+對應物）取出 100 個 entry path，解壓每份後過 size＋CRC32＋schema 驗證，chunk 後寫入
+`data/judgements/profile-m1/`（含 manifest 與人可讀審閱包），供 P2 人審。
+任一失敗即停該卷、不污染已入庫。**不讀 `scope.md` 散文、不讀任何 repo 外檔案。**
 
 驗收：通過 size＋CRC32 者 `N/allowlist`（N 如實報，無下限）；其中 schema Valid 者
 `M/N` 且 **Drift 全記錄無遺漏**；chunk 重組斷言全過（分母＝實際入庫者）；
@@ -43,10 +44,11 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 - FR-001：僅解 allowlist 上的 entry paths（**ceiling，非目標下限**；少於 allowlist
   長度就如實報數，不補位、不換選樣規則重抽）。allowlist = **版控內機器可讀檔**
   `specs/004-judicial-source-fidelity/allowlist-m1.json`（與 T007 的 `scope.md` 同居，
-  由其 header-only 指令加 `--out` 產生，附**完整 sha256**）；不得依賴 repo 外暫存，
-  不得由程式解析 `scope.md` 散文。path 存 RAR 內**原始字面（含反斜線）**，
-  另存 forward-slash 版供顯示，沿用 `selection.py` 的 `backslash()`／`forward_slash()`
-  （不自寫正規化）。
+  **2026-10-09 已產出並進版控**：100 筆、附 `entries_sha256`、74 個凍結 JID）；
+  不得依賴 repo 外暫存，不得由程式解析 `scope.md` 散文。path 存 RAR 內**原始字面
+  （含反斜線）**，另存 forward-slash 版供顯示，沿用 `selection.py` 的 `backslash()`／
+  `forward_slash()`（不自寫正規化）。**解壓前先比對 `entries_sha256`**，不符即中止
+  （清單漂移不該等到解壓一半才發現）。
 - FR-002：沿用 T005 向量（size＋CRC32 `%08X`＋artifact digest 前後不變）。
 - FR-003：沿用 T008–T010（schema／frozen document／lossless text），Drift 即跳過。
 - FR-004：沿用凍結 `chunk.py`（不改參數），chunk 產物帶 offsets＋boundary_kind。
