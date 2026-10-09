@@ -1,0 +1,77 @@
+{
+  "project_id": "ragdemo.win",
+  "workflow_id": "ragdemo.workflow.e05dd-candidate-research",
+  "workflow_version": "1.0.0",
+  "task_id": "ragdemo.task.e05dd-candidate-research",
+  "run_id": "run-e05dd-repr-20261008-01",
+  "note": "Retrospective representation of the completed E05-D-D selection. No re-execution, no download, no benchmark.",
+  "nodes": [
+    {
+      "node_id": "research",
+      "agent_id": "ragdemo.agent.researcher",
+      "agent_version": "1.0.0",
+      "gate_ids": ["ragdemo.gate.scope"],
+      "transition_gate": "ragdemo.gate.scope",
+      "output": "findings"
+    },
+    {
+      "node_id": "record",
+      "agent_id": "ragdemo.artifact.e05dd-candidates",
+      "agent_version": "1.0.0",
+      "gate_ids": ["ragdemo.gate.policy"],
+      "transition_gate": "ragdemo.gate.policy",
+      "output": "candidate_record"
+    },
+    {
+      "node_id": "verify",
+      "agent_id": "ragdemo.agent.verifier",
+      "agent_version": "1.0.0",
+      "gate_ids": ["ragdemo.gate.fingerprint"],
+      "transition_gate": "ragdemo.gate.fingerprint",
+      "output": "verification"
+    },
+    {
+      "node_id": "policycheck",
+      "agent_id": "ragdemo.gate.policy",
+      "agent_version": "1.0.0",
+      "gate_ids": ["ragdemo.gate.policy"],
+      "transition_gate": "ragdemo.gate.policy",
+      "output": "verdict"
+    },
+    {
+      "node_id": "decide",
+      "agent_id": "ragdemo.agent.orchestrator",
+      "agent_version": "1.0.0",
+      "gate_ids": ["ragdemo.gate.scope", "ragdemo.gate.policy"],
+      "transition_gate": "ragdemo.gate.release",
+      "output": "decision"
+    }
+  ],
+  "gates": [
+    { "gate_id": "ragdemo.gate.scope", "version": "1.0.0", "verdict": "PASS" },
+    { "gate_id": "ragdemo.gate.fingerprint", "version": "1.0.0", "verdict": "PASS" },
+    { "gate_id": "ragdemo.gate.policy", "version": "1.0.0", "verdict": "PASS" },
+    { "gate_id": "ragdemo.gate.release", "version": "1.0.0", "verdict": "PASS" }
+  ],
+  "model_binding": {
+    "mechanism": "runtime pointer only; no model is part of any component identity",
+    "runtime_ref": "opencode.json#model (repo-local binding, replaceable without redefining components)",
+    "models_introduced": []
+  },
+  "artifact": {
+    "artifact_id": "ragdemo.artifact.e05dd-candidates",
+    "path": "~/projects/e05dd/E05-D-D-CANDIDATES.md",
+    "sha256": "4cc062c1b60da7190218a9960f03afd7d8261e7b21ec4ce0d894449608b21386",
+    "referenced_by": "identity + provenance, not copied"
+  },
+  "provenance": [
+    "objective + constraints (E05-D-D selection task)",
+    "Hugging Face API metadata + per-candidate config.json / README license lines",
+    "artifact sha256 above",
+    "gate verdicts listed in this file"
+  ],
+  "status": "STOP",
+  "terminal": "STOP",
+  "started_at": "2026-10-08T12:44:04Z",
+  "completed_at": "2026-10-08T12:44:04Z"
+}

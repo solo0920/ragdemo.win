@@ -1,0 +1,14 @@
+# B1 — Judicial Retrieval + Evidence-Grounded Answer: production file manifest.
+# Every production (non-agent/) path this batch created or modified, relative to repo root.
+# Validators allow working-tree entries newer than their task markers iff listed here
+# (or in a later B*-CHANGES.txt). Anything else newer-than-marker still FAILs.
+backend/app/b1_serve.py
+backend/app/main.py
+frontend/src/routes/api/[...path]/+server.ts
+tests/b1_helpers.py
+tests/test_b1_evidence.py
+tests/test_b1_linking.py
+tests/test_b1_gate.py
+tests/test_b1_abstention.py
+tests/test_b1_serving_demo.py
+tests/fixtures/b1_judgement_serving/case_00450.json

@@ -1,0 +1,21 @@
+# B2-F production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b2f_confidence.py
+backend/app/b2d_answer.py
+tests/test_b2f_confidence.py
+tests/test_b2f_serve.py
+tests/test_b2f_eval.py
+tests/fixtures/b2f_confidence_eval.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B2-F-RETRIEVAL-CONFIDENCE.md
+agent/architecture/B2-F-VALIDATION-REPORT.md
+agent/architecture/B2-F-FOLLOWUPS.md
+agent/architecture/B2-F-CHANGES.txt
+agent/architecture/B2-F-EVIDENCE.json
+agent/scripts/b2f_calibrate.py
+agent/scripts/build_b2f_set.py
+# b2d_answer.py change is NARROW: import + 2 abstention reasons + optional
+# confidence gate block (default off; B1/B2-D tests pin default behavior) +
+# serve_live enforces with uncalibrated-serving method. No composer, ranking,
+# model, frozen, or policy change. No vector recompute in repo (b2r1 only).

@@ -1,0 +1,23 @@
+# B4-A production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b4a_continuity.py
+backend/app/b2d_answer.py
+tests/test_b4a_assemble.py
+tests/test_b4a_gate.py
+tests/test_b4a_chain.py
+tests/test_b4a_serve.py
+tests/fixtures/b4a_multichunk_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B4-A-MULTI-CHUNK-EVIDENCE.md
+agent/architecture/B4-A-VALIDATION-REPORT.md
+agent/architecture/B4-A-FOLLOWUPS.md
+agent/architecture/B4-A-CHANGES.txt
+agent/architecture/B4-A-EVIDENCE.json
+agent/scripts/build_b4a_set.py
+agent/scripts/b4a_evaluate.py
+# b2d_answer.py change is NARROW: serve_live accepts/forwards require_statutes
+# and enforces continuity (enforce_continuity=True); serve_question gained the
+# enforce_continuity flag (default False) plus _enforce_continuity wiring.
+# Composer default path untouched (prior suites pin it). No ranking, model,
+# frozen, corpus, weights, or policy change.

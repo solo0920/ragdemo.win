@@ -671,13 +671,44 @@ def _mark_limited(key: str, r) -> None:
         _LIMITED[key] = {"until": time.time() + 3600, "note": ""}
 
 
+def log_upstream_failure(where: str, r, key: str) -> None:
+    """記一筆上游失敗的來源：誰（provider/model＝key）、打哪（方法＋URL）、回什麼（狀態＋回應前 500 字）。
+
+    2026-10-09 的教訓：上游回 400「The request contains invalid parameters」但
+    code/param 全空時，若只靠回給前端的前 200 字，下次排查等於沒有來源可對。
+    所以失敗當下就記；main.py 各 except 與下面的 _rstatus 共用這一支。
+
+    ⚠️ 只記 URL 與回應片段，**不記 headers** —— 憑證（CF token／HF key／Access
+    service token）全走 header，進了 log 就是外洩（tests/test_upstream_error_log.py 釘住）。
+    """
+    try:
+        method = r.request.method
+        url = str(r.request.url)
+    except Exception:
+        method, url = "?", "?"
+    try:
+        body = (r.text or "")[:500]
+    except Exception:
+        body = ""
+    try:
+        status = r.status_code
+    except Exception:
+        status = "?"
+    logger.warning("%s上游失敗：%s（%s %s 回 %s）：%s", where, key, method, url, status, body)
+
+
 def _rstatus(r, key: str) -> None:
-    """取代 r.raise_for_status()：429 時標記限流再 re-raise；成功（2xx）清除限流。"""
+    """取代 r.raise_for_status()：429 時標記限流再 re-raise；成功（2xx）清除限流。
+
+    非 2xx 先經 log_upstream_failure 留下來源再 raise（哪家 provider／哪個 model／
+    打哪個 URL／回什麼）—— 排查上游 400 只能靠這筆，response 本身常常沒有細節。
+    """
     if 200 <= r.status_code < 300:
         _LIMITED.pop(key, None)
         return
     if r.status_code == 429:
         _mark_limited(key, r)
+    log_upstream_failure("llm", r, key)
     try:
         r.raise_for_status()
     except httpx.HTTPStatusError as e:
@@ -1036,6 +1067,209 @@ async def answer(question: str, recall: int = 50, top_k: int = 5, model: str = "
     if jv is not None:
         base["trace"] += f"｜JEV:{jv:.2f}(keep)"
     return base
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 判決回答路徑（spec 004 T019 / T020）
+#
+# 與上面的 laws 路徑**完全分離**，且刻意**不呼叫 LLM**。
+#
+# 為什麼判決路徑不呼叫 LLM（這是本 feature 的核心主張）：
+#
+#   FR-019 要求引用區塊內**零**模型生成的句子。一個 LLM 的輸出無法被結構性
+#   保證滿足這條 —— 我們只能事後檢查，而檢查必然有漏。唯一能保證的方式是
+#   **根本不產生**模型文字：回答 = 用檢索到的 offset 從 `JFULL` 切片 + 逐字
+#   附加 citation。
+#
+#   FR-002 說「系統 MUST NOT alter, rewrite, correct, paraphrase, summarize
+#   judicial source text」。讓 LLM 讀判決原文再產出敘述，幾乎必然發生改寫。
+#   而改寫後的判決文字比沒有答案更糟 —— 使用者無從分辨哪一句是司法院說的。
+#
+#   所以這條路徑的成本是「回答比較不像人話」，換取「每一句都能逐字核實」。
+#   這個取捨是 spec 定的，不是實作偏好。
+#
+# 拒絕（T020）同理是**結構性**的：零 hits → 明確說明找不到，不是讓 LLM 用常識
+# 補一段。
+# ═══════════════════════════════════════════════════════════════════════════
+
+# 拒絕訊息。刻意**不含**任何法條文字或案號（FR-020 / acceptance：「0 statute
+# text and 0 case numbers」），也**不含**任何法律結論。
+#
+# 「請換個關鍵字」這句是實務上的必要 —— 但它不構成法律結論，它只是說明
+# 系統做了什麼、沒做什麼。
+JUDGMENT_NO_SOURCE_ANSWER = (
+    "在目前的判決資料中找不到支持這個問題的原文。"
+    "本系統只引用司法院公開的判決原文，不會在找不到來源時推測答案。"
+)
+
+
+class JudgmentAnswerError(ValueError):
+    """判決回答的輸入違反契約（例如 offset 切不出原文）。"""
+
+
+def judgment_source_block(view: dict, jfull: str) -> str:
+    """從 `JFULL` 切出 chunk 原文，**逐 byte 不加改動**。
+
+    ## 這個函式不做的事
+
+    * 不 strip（會吃掉行首的 U+3000 結構縮排）
+    * 不換行正規化（CRLF → LF 會讓所有 offset 失效）
+    * 不做 Unicode 正規化（NFKC 會折半全形空格）
+
+    ## 為什麼要在這裡切片，而不是把 chunk text 存進 payload
+
+    T017 的 payload 契約**不含** chunk text —— 750 字 × 數十萬筆會讓 collection
+    體爆炸，而且那份文字本來就能從 `JFULL` 精確重建。切片發生在「有 document
+    的那一側」。
+
+    ## 驗證
+
+    切出來之後立刻驗 `JFULL[start:end] == block`。那是 FR-011（chunk text 必須
+    逐字出現在來源文件裡）。不符就拋錯 —— 讓呼叫端知道資料層與檢索層不一致，
+    而不是把一段可疑的文字當成司法院的話呈現給使用者。
+    """
+    start, end = view["start_offset"], view["end_offset"]
+    block = jfull[start:end]
+    if len(block) != (end - start):
+        raise JudgmentAnswerError(
+            f"offset 越界：JFULL[{start}:{end}] 只切出 {len(block)} 字元"
+        )
+    # 決定性斷言：這個 chunk 的內容必須與它的 content_hash 對得上。
+    # hash 不符代表 payload 的 offset 與實際內容已經不同步 —— 而那正是
+    # 「Qdrant 是 derived」這條性質要防的情況：索引過期了。
+    import hashlib
+
+    expected = view["content_hash"]
+    actual = hashlib.sha256(block.encode("utf-8")).hexdigest()
+    if expected and actual != expected:
+        raise JudgmentAnswerError(
+            f"chunk 內容與 content_hash 不符（{view['jid']} chunk "
+            f"{view['chunk_index']}）—— 索引可能已過期，請重建"
+        )
+    return block
+
+
+def judgment_citation(view: dict) -> str:
+    """逐字組出 citation —— 不得推論任何欄位。
+
+    顯示的是來源**實際提供**的值：`JID`（opaque）、`JDATE`、來源路徑。
+    **沒有法院** —— source 沒有這個欄位（spec §Court），推論它是 FR-016 禁止的。
+
+    `JID` 整串顯示，不拆解成「案號/年份/法院」（FR-028）。
+    """
+    return (
+        f"[來源:{view['jid']}｜日期:{view['jdate']}｜"
+        f"段落:{view['start_offset']}-{view['end_offset']}]"
+    )
+
+
+def answer_judgments(
+    question: str,
+    hits: list[dict],
+    *,
+    jfull_by_entry: dict | None = None,
+) -> dict:
+    """判決回答：**逐字引用**，不生成、不改寫（T019）。
+
+    ## 參數
+
+    * `hits` —— `retrieve.search_judgments()` 的結果（已含 payload）。
+    * `jfull_by_entry` —— `entry_path → JFULL`。**必須提供**才能組出引用塊 ——
+      payload 刻意不含全文，所以引用文字只能從來源那份取。
+
+    ## 回傳
+
+    * 零 hits → T020 的結構性拒絕（不是 exception）
+    * 有 hits → `{"no_match": False, "answer": ..., "citations": [...], "quoted_blocks": [...]}`
+
+    ## 保證
+
+    * 每一個 quoted block 都等於 `JFULL[start:end]`（逐 byte）
+    * answer 裡除了引號與 citation 標記，**沒有任何**模型生成的文字
+    * `no_match` 為 True 時，`answer` 不含任何法條文字或案號
+    """
+    # ── T020：零結果 → 明確拒絕 ──
+    if not hits:
+        return {
+            "ok": True,
+            "host": gateway.HOST_ID,
+            "no_match": True,
+            "answer": JUDGMENT_NO_SOURCE_ANSWER,
+            "citations": [],
+            "quoted_blocks": [],
+            "confidence": "no_source",
+            "trace": "判決檢索 0 筆；不生成答案",
+        }
+
+    if jfull_by_entry is None:
+        raise JudgmentAnswerError(
+            "需要 jfull_by_entry（entry_path → JFULL）—— "
+            "payload 刻意不含全文，引用文字只能從來源那份切出來"
+        )
+
+    # 自己在這裡排序，不依賴呼叫端已經排好。
+    #
+    # `retrieve.search_judgments()` 會排，但回答層不該假設上游做了它 —— 若哪天
+    # 有第二條呼叫路徑（或測試）傳進未排序的 hits，回答的引文順序就會依輸入
+    # 順序變動，而那讓「同一個問題得到同一份引用」失效。排序鍵與檢索層相同，
+    # 所以兩層對「什麼先出現」的判斷一致。
+    ordered = sorted(hits, key=retrieve.judgment_sort_key)
+
+    quoted: list[dict] = []
+    for hit in ordered:
+        view = retrieve.judgment_hit_view(hit)
+        jfull = jfull_by_entry.get(view["entry_path"])
+        if jfull is None:
+            # 這個 entry 的原文不在手上 → 不能組引用，只能略過並記錄。
+            # 不能用 payload 裡有的東西替代（那什麼都沒有）。
+            continue
+        block = judgment_source_block(view, jfull)
+        quoted.append({
+            "view": view,
+            "text": block,
+            "citation": judgment_citation(view),
+        })
+
+    if not quoted:
+        # hits 有但沒有一筆能切出原文 —— 這是「無法引用」，與「查不到」不同，
+        # 但同樣不能生成答案。
+        return {
+            "ok": True,
+            "host": gateway.HOST_ID,
+            "no_match": True,
+            "answer": JUDGMENT_NO_SOURCE_ANSWER,
+            "citations": [],
+            "quoted_blocks": [],
+            "confidence": "no_source",
+            "trace": f"判決檢索 {len(hits)} 筆但無原文可引用；不生成答案",
+        }
+
+    # 組裝：只有引文與 citation，沒有任何生成的銜接句。
+    #
+    # 為什麼連「根據您所詢問的判決，原文如下」這種前言都不加：它聽起來無害，
+    # 但它是**模型產生的句子**，而 acceptance 說的是「引用區塊內 0 個模型生成
+    # 句子」。把生成句放在區塊**外面**在技術上過關，但那等於給未來的維護者
+    # 一個「可以在區塊外面加」的先例 —— 而那個先例會一路退化成改寫原文。
+    # 所以這裡連前言都不加。
+    parts: list[str] = []
+    for q in quoted:
+        parts.append(f"「{q['text']}」")
+        parts.append(q["citation"])
+    answer = "\n".join(parts)
+
+    return {
+        "ok": True,
+        "host": gateway.HOST_ID,
+        "no_match": False,
+        "answer": answer,
+        "citations": [q["citation"] for q in quoted],
+        "quoted_blocks": quoted,
+        "confidence": "verbatim",
+        "trace": (
+            f"判決逐字引用 {len(quoted)} 段（offset 切自 JFULL，"
+            f"content_hash 已驗證）；0 模型生成句"
+        ),
+    }
 
 
 def _hit_view(h: dict, law_only: bool = False) -> dict:

@@ -1,0 +1,21 @@
+# B3-A production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b3a_attribution.py
+backend/app/b2d_answer.py
+tests/test_b3a_attribution.py
+tests/test_b3a_gate.py
+tests/test_b3a_serve.py
+tests/fixtures/b3a_attribution_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B3-A-ATTRIBUTION.md
+agent/architecture/B3-A-VALIDATION-REPORT.md
+agent/architecture/B3-A-FOLLOWUPS.md
+agent/architecture/B3-A-CHANGES.txt
+agent/architecture/B3-A-EVIDENCE.json
+agent/scripts/build_b3a_set.py
+agent/scripts/b3a_evaluate.py
+# b2d_answer.py change is NARROW: attribution param + citation span-bridge +
+# enforce_attribution flag + attribute_graph_nodes helper + serve_live
+# enforcement. Composer default path untouched (prior suites pin it). No
+# ranking, model, frozen, corpus, or policy change.

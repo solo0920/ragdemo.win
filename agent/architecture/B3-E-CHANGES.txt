@@ -1,0 +1,21 @@
+# B3-E production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b3e_applied.py
+backend/app/b2d_answer.py
+tests/test_b3e_link.py
+tests/test_b3e_gate.py
+tests/fixtures/b3e_applied_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B3-E-APPLIED-STATUTE-EVIDENCE.md
+agent/architecture/B3-E-VALIDATION-REPORT.md
+agent/architecture/B3-E-FOLLOWUPS.md
+agent/architecture/B3-E-CHANGES.txt
+agent/architecture/B3-E-EVIDENCE.json
+agent/scripts/build_b3e_set.py
+agent/scripts/b3e_evaluate.py
+# b2d_answer.py change is NARROW: B3-E relation computation (transparent
+# record) + applied_statutes response key + A11 consistency gate. No wording
+# change (legacy byte-identical prose), no B2-B/B3-A/B3-B/B3-C/B3-D/B4-A
+# semantics, ranking, model, frozen, corpus, weights, or policy change.
+# B4-C not started.

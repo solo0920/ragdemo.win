@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ragdemo.local/schemas/rag-runtime-v1.json",
+  "title": "RAG Runtime Architecture Schema (v1, proposal)",
+  "description": "Machine-readable proposal for host/model/provider/policy/mode/plan contracts. Profiles, registries, and plans are intended to be registered as artifact components under the existing agent-arch authority; no authority schema change is proposed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["runtime_mode", "host_profile", "model_profile", "provider", "data_policy", "index_identity", "execution_plan"],
+  "$defs": {
+    "runtime_mode": { "type": "string", "enum": ["PERFORMANCE", "BALANCE", "SAFETY"] },
+    "egress_class": { "type": "string", "enum": ["none", "lan", "wan-gated"] },
+    "origin": {
+      "type": "string", "enum": ["allowed", "blocked", "unknown"],
+      "description": "unknown is equivalent to blocked until verified by the policy owner."
+    },
+    "host_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host_id", "role", "ram_gb", "gpu", "gpu_budget_gb", "egress", "measured_at", "measured_by"],
+      "properties": {
+        "host_id": { "type": "string", "enum": ["x570", "mbp", "msi", "sabre"] },
+        "role": { "type": "string", "enum": ["dev-benchmark", "demo", "portable-demo", "fallback"] },
+        "cpu": { "type": "string" },
+        "ram_gb": { "type": "number", "exclusiveMinimum": 0 },
+        "gpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "vram_gb", "unified_memory"],
+          "properties": {
+            "name": { "type": "string" },
+            "vram_gb": { "type": "number", "exclusiveMinimum": 0 },
+            "unified_memory": { "type": "boolean" }
+          }
+        },
+        "gpu_budget_gb": {
+          "type": "number", "exclusiveMinimum": 0,
+          "description": "Measured usable budget with provenance, never raw spec VRAM."
+        },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lan", "wan"],
+          "properties": { "lan": { "type": "boolean" }, "wan": { "type": "boolean" } }
+        },
+        "measured_at": { "type": "string" },
+        "measured_by": { "type": "string" }
+      }
+    },
+    "model_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_ref", "provider_id", "role", "revision", "origin", "capability", "resource", "license", "provenance"],
+      "properties": {
+        "model_ref": { "type": "string", "description": "Opaque runtime binding; never a component identity." },
+        "provider_id": { "type": "string" },
+        "role": { "type": "string", "enum": ["embed", "rerank", "generate"] },
+        "revision": { "type": "string", "description": "Immutable pin: digest, tag digest, or commit SHA." },
+        "origin": { "$ref": "#/$defs/origin" },
+        "capability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimension": { "type": "integer", "minimum": 1 },
+            "metric": { "type": "string", "enum": ["cosine", "dot", "euclidean"] },
+            "context_tokens": { "type": "integer", "minimum": 1 },
+            "measured_or_unmeasured": { "type": "string" }
+          }
+        },
+        "resource": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["vram_gb_est"],
+          "properties": {
+            "vram_gb_est": { "type": "number", "minimum": 0 },
+            "ram_gb_est": { "type": "number", "minimum": 0 },
+            "safety_margin_applied": { "type": "boolean" }
+          }
+        },
+        "license": { "type": "string" },
+        "provenance": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "kind", "egress_class", "auth_ref"],
+      "properties": {
+        "provider_id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["local-daemon", "local-lib", "gateway-http", "external-agent"] },
+        "egress_class": { "$ref": "#/$defs/egress_class" },
+        "auth_ref": { "type": "string", "description": "Secret name only; never the secret." },
+        "data_policy_class": { "type": "string" }
+      }
+    },
+    "data_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["data_class", "allowed_egress", "gate_points"],
+      "properties": {
+        "data_class": { "type": "string", "enum": ["local-only", "lan-only", "wan-gated"] },
+        "allowed_egress": { "$ref": "#/$defs/egress_class" },
+        "gate_points": {
+          "type": "array", "minItems": 1,
+          "items": { "type": "string", "enum": ["embed", "rerank", "generate", "telemetry"] }
+        }
+      }
+    },
+    "index_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index_id", "model_fingerprint", "dimension", "metric", "collection_config_fingerprint"],
+      "properties": {
+        "index_id": { "type": "string" },
+        "model_fingerprint": { "type": "string" },
+        "dimension": { "type": "integer", "minimum": 1 },
+        "metric": { "type": "string", "enum": ["cosine", "dot", "euclidean"] },
+        "collection_config_fingerprint": { "type": "string" }
+      }
+    },
+    "plan_stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "provider_id", "model_ref", "reasons"],
+      "properties": {
+        "stage": { "type": "string", "enum": ["embed", "retrieve", "rerank", "generate"] },
+        "provider_id": { "type": "string" },
+        "model_ref": { "type": "string" },
+        "index_id": { "type": "string" },
+        "reasons": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    },
+    "execution_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_id", "host_id", "mode", "planner_version", "stages", "fallback", "budget", "gates", "provenance", "terminal"],
+      "properties": {
+        "plan_id": { "type": "string" },
+        "host_id": { "type": "string" },
+        "mode": { "$ref": "#/$defs/runtime_mode" },
+        "planner_version": { "type": "string" },
+        "stages": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/plan_stage" } },
+        "fallback": { "type": "array", "items": { "type": "string" }, "description": "Ordered plan_ids of pre-declared degraded plans." },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["vram_gb", "latency_ms_slo"],
+          "properties": {
+            "vram_gb": { "type": "number", "minimum": 0 },
+            "latency_ms_slo": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "gates": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "provenance": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "terminal": { "type": "string", "enum": ["PASS", "FAIL", "STOP", "BLOCKED"] }
+      }
+    }
+  },
+  "properties": {
+    "runtime_mode": { "$ref": "#/$defs/runtime_mode" },
+    "host_profile": { "$ref": "#/$defs/host_profile" },
+    "model_profile": { "$ref": "#/$defs/model_profile" },
+    "provider": { "$ref": "#/$defs/provider" },
+    "data_policy": { "$ref": "#/$defs/data_policy" },
+    "index_identity": { "$ref": "#/$defs/index_identity" },
+    "execution_plan": { "$ref": "#/$defs/execution_plan" }
+  }
+}

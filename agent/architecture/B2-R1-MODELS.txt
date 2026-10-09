@@ -1,0 +1,5 @@
+# B2-R1 batch-authorized model weights (pinned revisions, policy re-verified).
+
+# Format per entry: <hf_id> @ <revision> | <basis> | <downloaded_in_batch:true|false>
+Snowflake/snowflake-arctic-embed-m-v2.0 @ 95c2741480856aa9666782eb4afe11959938017f | Apache-2.0, US vendor, public/ungated re-verified live 2026-10-08; B2-R1 §6 candidate C | downloaded_in_batch:true
+google/embeddinggemma-2 @ 914f7f89142e33e77833254d9c9b90c3cef7303b | cache predates this batch (D-B era); reused read-only, no re-download | downloaded_in_batch:false

@@ -1,0 +1,24 @@
+# B2-D production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b2d_answer.py
+backend/app/main.py
+tests/b2d_helpers.py
+tests/test_b2d_abstain.py
+tests/test_b2d_chain.py
+tests/test_b2d_contract.py
+tests/test_b2d_gate.py
+tests/fixtures/b2d_answer_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B2-D-GROUNDED-ANSWER.md
+agent/architecture/B2-D-VALIDATION-REPORT.md
+agent/architecture/B2-D-FOLLOWUPS.md
+agent/architecture/B2-D-CHANGES.txt
+agent/architecture/B2-D-EVIDENCE.json
+agent/scripts/build_b2d_set.py
+agent/scripts/b2d_evaluate.py
+# main.py change is ADDITIVE ONLY (+import, +POST /judgments/answer; /query and
+# /judgments/query untouched; worker SENSITIVE prefix 'judgments' already covers
+# the new route — sensitive-paths suite green with no frontend change).
+# No retrieval baseline, statute corpus, frozen/B2 sets, or policy modified.
+# No model introduced (extractive only).

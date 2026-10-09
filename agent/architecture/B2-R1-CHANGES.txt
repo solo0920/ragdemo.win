@@ -1,0 +1,18 @@
+# B2-R1 — Judicial Semantic Retrieval: production footprint.
+# New repo code (product candidates for the serving path + tests):
+backend/app/b2r1_rank.py
+tests/test_b2r1_rank.py
+# Reports/evidence (this batch):
+agent/architecture/B2-R1-JUDICIAL-SEMANTIC-RETRIEVAL.md
+agent/architecture/B2-R1-VALIDATION-REPORT.md
+agent/architecture/B2-R1-FOLLOWUPS.md
+agent/architecture/B2-R1-CHANGES.txt
+agent/architecture/B2-R1-EVIDENCE.json
+# Experiment runtime lives OUTSIDE the repo (~/projects/b2r1/, isolated uv env):
+# scripts/run_candidateB.py, scripts/run_candidateC.py,
+# scripts/analyze_judgement_level.py, scripts/live_equivalence.py,
+# out/b2r1_candidateB_embeddinggemma2.json, out/b2r1_candidateC_snowflake.json,
+# out/b2r1_judgement_level.json
+# Temp Qdrant (own container/volume/port 6334, collections b2r1_tmp_*):
+# created and destroyed inside this batch; serving collections never touched.
+# No production serving path modified in B2-R1 (no promotion: decision HOLD/REJECT).

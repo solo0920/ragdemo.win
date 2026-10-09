@@ -1,0 +1,36 @@
+{
+  "registry_version": "1.0.0",
+  "project_id": "ragdemo.win",
+  "authority": {
+    "root": "~/projects/agent-arch/",
+    "schema": "component.schema.json",
+    "proposal": "PROPOSAL.md",
+    "validator": "scripts/validate.py",
+    "validator_result": "PASS: 15 component files valid"
+  },
+  "components": {
+    "ragdemo.agent.orchestrator": { "path": "agents/orchestrator.json", "version": "1.0.0" },
+    "ragdemo.agent.researcher": { "path": "agents/researcher.json", "version": "1.0.0" },
+    "ragdemo.agent.builder": { "path": "agents/builder.json", "version": "1.0.0" },
+    "ragdemo.agent.reviewer": { "path": "agents/reviewer.json", "version": "1.0.0" },
+    "ragdemo.agent.verifier": { "path": "agents/verifier.json", "version": "1.0.0" },
+    "ragdemo.task.e05dd-candidate-research": { "path": "tasks/e05dd-candidate-research.json", "version": "1.0.0" },
+    "ragdemo.tool.hf-metadata-read": { "path": "tools/hf-metadata-read.json", "version": "1.0.0" },
+    "ragdemo.artifact.e05dd-candidates": { "path": "artifacts/e05dd-candidates.json", "version": "1.0.0" },
+    "ragdemo.gate.scope": { "path": "gates/scope.json", "version": "1.0.0" },
+    "ragdemo.gate.test": { "path": "gates/test.json", "version": "1.0.0" },
+    "ragdemo.gate.regression": { "path": "gates/regression.json", "version": "1.0.0" },
+    "ragdemo.gate.fingerprint": { "path": "gates/fingerprint.json", "version": "1.0.0" },
+    "ragdemo.gate.policy": { "path": "gates/policy.json", "version": "1.0.0" },
+    "ragdemo.gate.release": { "path": "gates/release.json", "version": "1.0.0" },
+    "ragdemo.workflow.e05dd-candidate-research": { "path": "workflows/e05dd-candidate-research.json", "version": "1.0.0" }
+  },
+  "workflow_instances": [
+    "workflows/e05dd-candidate-research.instance.json"
+  ],
+  "provider_policy_ref": "ragdemo.gate.policy v1.0.0 (authority) — exclusion enforced by gate verdict, not restated here",
+  "opencode_integration": {
+    "model_binding": "repo-local opencode.json#model (runtime pointer only; not part of any component identity)",
+    "subagents": ".opencode/agents/ (unchanged; execution only, no planning/contract role)"
+  }
+}

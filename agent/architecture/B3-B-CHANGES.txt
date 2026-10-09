@@ -1,0 +1,21 @@
+# B3-B production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b3b_temporal.py
+backend/app/b2d_answer.py
+tests/test_b3b_temporal.py
+tests/test_b3b_serve.py
+tests/test_b3b_eval.py
+tests/fixtures/b3b_temporal_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B3-B-STATUTE-CURRENCY.md
+agent/architecture/B3-B-VALIDATION-REPORT.md
+agent/architecture/B3-B-FOLLOWUPS.md
+agent/architecture/B3-B-CHANGES.txt
+agent/architecture/B3-B-EVIDENCE.json
+agent/scripts/build_b3b_set.py
+agent/scripts/b3b_evaluate.py
+# b2d_answer.py change is NARROW: temporal param + status-derived limitation
+# sentences (allowlisted) + INVALID exclusion + enforce_temporal flag.
+# Composer default path untouched (prior suites pin it). No ranking, model,
+# frozen, corpus, weights, or policy change.

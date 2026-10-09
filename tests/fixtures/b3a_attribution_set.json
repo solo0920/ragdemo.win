@@ -1,0 +1,150 @@
+{
+ "verification_status": "AUTHOR_REVIEWED",
+ "provenance": "real frozen corpus excerpts located by anchor needles",
+ "cases": [
+  {
+   "passage_id": "P-01",
+   "chunk_id": "TCEV,115,中簡,468,20260703,1#C004",
+   "passage": "被告抗辯依96年度訴\r\n    字第529號判決，被告應將系爭建物拆除，及將占用系爭土\r\n    地部分返還水利署臺中管理處，被告自80幾年迄今仍住在系\r\n    爭建物內，因為系爭建物是被告所購買的，屬於被告所有，\r\n    不需要給原告租金",
+   "expected_attribution": "PARTY_VOICE",
+   "recorded_attribution": "PARTY_VOICE",
+   "recorded_rule": "R-PARTY",
+   "recorded_reason": "party-voice marker '被告抗辯'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "P-02",
+   "chunk_id": "KSHM,115,上訴,322,20260723,1#C002",
+   "passage": "二、被告上訴意旨：\r\n　㈠就原判決附表一編號3、4、6至14之販賣第一級毒品犯行部分\r\n    ：\r\n　⒈應有毒品危害防制條例第17條第1項規定之適用，本件係因被\r\n    告之供出毒品來源，而查獲毒品上游洪志𢖍。\r\n　⒉又本件被告販賣第一級毒品海洛因之數量與價額均非鉅，請\r\n    法院依憲法法庭112年度憲判字第13號判決意旨，酌減刑度\r\n    。\r\n　㈡就原判決附表一編號1、2、5之轉讓第一級毒品犯行部分：請\r\n    法院依刑法第59條規定，酌減其刑等語",
+   "expected_attribution": "PARTY_VOICE",
+   "recorded_attribution": "PARTY_VOICE",
+   "recorded_rule": "R-PARTY",
+   "recorded_reason": "party-voice marker '上訴意旨：'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "P-03",
+   "chunk_id": "TNDV,114,重訴,219,20260710,2#C008",
+   "passage": "被告蕭維\r\n    能律師即吳烏毛遺產管理人主張應以找補方式或全部變價方\r\n    式分割系爭土地，即屬無據",
+   "expected_attribution": "PARTY_VOICE",
+   "recorded_attribution": "PARTY_VOICE",
+   "recorded_rule": "R-PARTY",
+   "recorded_reason": "party-voice marker '主張'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "Q-01",
+   "chunk_id": "TCEV,115,中簡,468,20260703,1#C004",
+   "passage": "（最高法院61年台上字第1695號判決先\r\n    例意旨參照）",
+   "expected_attribution": "QUOTED_OTHER_JUDGMENT",
+   "recorded_attribution": "QUOTED_OTHER_JUDGMENT",
+   "recorded_rule": "R-PRIOR",
+   "recorded_reason": "other-court reference '最高法院' without court markers",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "Q-02",
+   "chunk_id": "TNDV,114,重訴,219,20260710,2#C008",
+   "passage": "已有上開最高法院裁判意旨供參",
+   "expected_attribution": "QUOTED_OTHER_JUDGMENT",
+   "recorded_attribution": "QUOTED_OTHER_JUDGMENT",
+   "recorded_rule": "R-PRIOR",
+   "recorded_reason": "other-court reference '最高法院' without court markers",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "S-01",
+   "chunk_id": "CTDM,115,訴,1694,20260731,1#C006",
+   "passage": "中華民國刑法第339條之4\r\n犯第 339 條詐欺罪而有下列情形之一者，處 1 年以上 7 年以\r\n下有期徒刑，得併科 1 百萬元以下罰金：\r\n一、冒用政府機關或公務員名義犯之。\r\n二、三人以上共同犯之。\r\n三、以廣播電視、電子通訊、網際網路或其他媒體等傳播工具，\r\n　　對公眾散布而犯之。\r\n四、以電腦合成或其他科技方法製作關於他人不實影像、聲音或\r\n　　電磁紀錄之方法犯之。\r\n前項之未遂犯罰之",
+   "expected_attribution": "QUOTED_STATUTE",
+   "recorded_attribution": "QUOTED_STATUTE",
+   "recorded_rule": "R-STATUTE",
+   "recorded_reason": "passage opens with reproduced statute text",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "S-02",
+   "chunk_id": "CHDM,115,簡,1769,20260730,1#C005",
+   "passage": "而按司法院憲法法庭113年度憲判字第3號判決意旨：\r\n    「按個人語言使用習慣及修養本有差異，有些人之日常言談\r\n    確可能習慣性混雜某些粗鄙髒話（例如口頭禪、發語詞、感\r\n    嘆詞等），或只是以此類粗話來表達一時之不滿情緒，縱使\r\n    粗俗不得體，亦非必然蓄意貶抑他人之社會名譽或名譽人格\r\n    。尤其於衝突當場之短暫言語攻擊，如非反覆、持續出現之\r\n    恣意謾罵，即難逕認表意人係故意貶損他人之社會名譽或名\r\n    譽人格。是就此等情形亦處以公然侮辱罪，實屬過苛」",
+   "expected_attribution": "QUOTED_OTHER_JUDGMENT",
+   "recorded_attribution": "QUOTED_OTHER_JUDGMENT",
+   "recorded_rule": "R-QUOTE",
+   "recorded_reason": "prior-judgment quotation",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "D-01",
+   "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+   "passage": "如不服本判決，得自收受送達之日起20日內，以書狀敘明理\r\n    由，向本院提出上訴（須附繕本）。",
+   "expected_attribution": "PROCEDURAL_DESCRIPTION",
+   "recorded_attribution": "PROCEDURAL_DESCRIPTION",
+   "recorded_rule": "R-PROC",
+   "recorded_reason": "procedural marker '如不服本判決'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "D-02",
+   "chunk_id": "CHDM,115,簡,1769,20260730,1#C005",
+   "passage": "此 致\r\n臺灣彰化地方法院\r\n中　　華　　民　　國　 115　　年　　6 　　月　　16 　日\r\n　　　　　　　　　　　　　　　檢　察　官　林俊杰\r\n本件正本證明",
+   "expected_attribution": "PROCEDURAL_DESCRIPTION",
+   "recorded_attribution": "PROCEDURAL_DESCRIPTION",
+   "recorded_rule": "R-PROC",
+   "recorded_reason": "procedural marker '正本證明'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "C-01",
+   "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+   "passage": "查被告與告訴人為叔嫂關係，渠等間具\r\n    有家庭暴力防治法第3條第5款所定之家庭成員關係，業據被\r\n    告、告訴人陳述明確",
+   "expected_attribution": "COURT_VOICE",
+   "recorded_attribution": "COURT_VOICE",
+   "recorded_rule": "R-COURT",
+   "recorded_reason": "court marker '查'",
+   "match": true,
+   "expected_eligible": true,
+   "recorded_eligible": true
+  },
+  {
+   "passage_id": "C-02",
+   "chunk_id": "TNDV,114,重訴,219,20260710,2#C008",
+   "passage": "原告主張以附圖所\r\n    示方式原物分割系爭土地予全體共有人，尚屬有理",
+   "expected_attribution": "PARTY_VOICE",
+   "recorded_attribution": "PARTY_VOICE",
+   "recorded_rule": "R-PARTY",
+   "recorded_reason": "party-voice marker '原告主張'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  },
+  {
+   "passage_id": "U-01",
+   "chunk_id": "CHDM,115,簡,1769,20260730,1#C005",
+   "passage": "經查，被告與告訴人於家事爭執過程中口出「幹你娘、垃\r\n    圾女人」等語，應僅係偶然出現之一時謾罵，尚難認係故意\r\n    貶損他人之社會名譽或名譽人格，且案發時僅被告之父母親\r\n    等2人在場，此部分應認與刑法公然侮辱罪之構成要件不符\r\n    ，惟告訴暨報告意旨認被告係於傷害之際同時辱罵告訴人，\r\n    則此部分與提起公訴之犯罪事實間有裁判上一罪之關係，爰\r\n    不另為不起訴處分",
+   "expected_attribution": "UNRESOLVED_ATTRIBUTION",
+   "recorded_attribution": "UNRESOLVED_ATTRIBUTION",
+   "recorded_rule": "R-PROSECUTOR",
+   "recorded_reason": "prosecutorial voice '報告意旨'",
+   "match": true,
+   "expected_eligible": false,
+   "recorded_eligible": false
+  }
+ ]
+}

@@ -1,0 +1,727 @@
+{
+ "verification_status": "AUTHOR_REVIEWED",
+ "provenance": "real frozen corpus chunks + real B1 demo excerpts; expectations reviewed by author",
+ "cases": [
+  {
+   "case_id": "D-01-unresolved-436-18",
+   "note": "the audited exclusion; B2-C demo excerpt path",
+   "chunk_text": "於民國115年6月22日言詞辯論終結，本院判決如下\r\n：\r\n　　主　文\r\n原告之訴駁回。\r\n訴訟費用由原告負擔。\r\n　　理由要領\r\n一、本件為小額訴訟事件，依民事訴訟法第436條之18第1項之規\r\n    定，僅記載主文及理由要領。\r\n二、查原告起訴時聲明：「被告應給付原告新臺幣（下同）60,0\r\n    00元，及自起訴狀繕本送達翌日起至清償日止按年息5%計算\r\n    之利息。」，嗣於民國115年6月22日減縮請求金額為：被告\r\n    應給付原告30,000元（見本院卷第55），依民事訴訟法第25\r\n    5條第1項第3款、第436條第2項、第436條之23規定，應予准\r\n    許。\r\n三、原告主張略以：被告於114年4月2日19時2分許，在臺北市○○\r\n    區○○路0段0號統一超商添恩門市（下稱統一超商）前，見原\r\n    告與其他志工於統一超商外進行罷免臺北市第11屆立法",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c900:79-95",
+    "raw_text": "民事訴訟法第436條之18第1項",
+    "normalized": {
+     "law_name": "民事訴訟法",
+     "article": "第436條之18",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 79,
+     "end": 95,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　　理由要領\r\n一、本件為小額訴訟事件，依民事訴訟法第436條之18第1項之規\r\n    定，僅記載主文及理由要領"
+   },
+   "nodes": [
+    {
+     "evidence_id": "disposition:STEV,115,店小,450,20260713,1#b3d:32-60",
+     "evidence_type": "DISPOSITION",
+     "source_span": {
+      "start": 32,
+      "end": 60,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "disposition:STEV,115,店小,450,20260713,1#b3d:32-60": "COURT_VOICE"
+   },
+   "relation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c900:79-95",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "chunk_id": "STEV,115,店小,450,20260713,1#chunk900",
+    "source_span": {
+     "start": 79,
+     "end": 95,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "民事訴訟法第436條之18第1項",
+    "normalized_law": "民事訴訟法",
+    "normalized_article": "第436條之18",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:B0010001#580",
+    "attribution": "UNRESOLVED_ATTRIBUTION",
+    "attribution_rule_id": "no-covering-node",
+    "attribution_source_span": {},
+    "covering_node_id": null,
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": false,
+     "display_as": "mention_only"
+    },
+    "provenance": {
+     "covering_node_id": null,
+     "sentence_rule": "R-UNKNOWN"
+    }
+   }
+  },
+  {
+   "case_id": "D-02-court-184",
+   "note": "covered court citation",
+   "chunk_text": "於見\r\n    聞被告系爭言論及行為後，並無心生畏懼之情。依上情狀，\r\n    原告並未受有實際損害，則原告請求被告負侵權行為損害賠\r\n    償責任，難認有據。\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。\r\n四、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    本院斟酌後，核於判決結果不生影響，爰不逐一論述，併此\r\n    敘明。\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c901:93-103",
+    "raw_text": "民法第184條第1項",
+    "normalized": {
+     "law_name": "民法",
+     "article": "第184條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 93,
+     "end": 103,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回"
+   },
+   "nodes": [
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#b3d:29-81",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 29,
+      "end": 81,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#b3d:81-196",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 81,
+      "end": 196,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#b3d:29-81",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 29,
+      "end": 81,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#b3d:81-196",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 81,
+      "end": 196,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#b3d:196-267",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 196,
+      "end": 267,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "holding:STEV,115,店小,450,20260713,1#b3d:29-81": "COURT_VOICE",
+    "holding:STEV,115,店小,450,20260713,1#b3d:81-196": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#b3d:29-81": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#b3d:81-196": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#b3d:196-267": "COURT_VOICE"
+   },
+   "relation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c901:93-103",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "chunk_id": "STEV,115,店小,450,20260713,1#chunk901",
+    "source_span": {
+     "start": 93,
+     "end": 103,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "民法第184條第1項",
+    "normalized_law": "民法",
+    "normalized_article": "第184條",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:B0000001#219",
+    "attribution": "COURT_VOICE_EXPLICIT_CITATION",
+    "attribution_rule_id": "bridge-cover",
+    "attribution_source_span": {
+     "start": 81,
+     "end": 196,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "covering_node_id": "holding:STEV,115,店小,450,20260713,1#b3d:81-196",
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": true,
+     "display_as": "court_citation"
+    },
+    "provenance": {
+     "covering_node_id": "holding:STEV,115,店小,450,20260713,1#b3d:81-196",
+     "sentence_rule": "R-COURT"
+    }
+   }
+  },
+  {
+   "case_id": "D-03-court-195-scoped",
+   "note": "scoped court citation",
+   "chunk_text": "求被告負侵權行為損害賠\r\n    償責任，難認有據。\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。\r\n四、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    本院斟酌後，核於判決結果不生影響，爰不逐一論述，併此\r\n    敘明。\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r\n    3條第3項。　\r\n中　　華　　民　　國　　115 　年　　7 　　月　　13　　日\r\n　　　　　　　　　臺灣臺北地方法院新店簡易庭\r\n　　　　　　　　　　　　　",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c901:49-57",
+    "raw_text": "第195條第1項",
+    "normalized": {
+     "law_name": "民法",
+     "article": "第195條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 49,
+     "end": 57,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回"
+   },
+   "nodes": [
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#b3d:0-26",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 0,
+      "end": 26,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#b3d:26-141",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 26,
+      "end": 141,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#b3d:0-26",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 0,
+      "end": 26,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#b3d:26-141",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 26,
+      "end": 141,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#b3d:141-212",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 141,
+      "end": 212,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "holding:STEV,115,店小,450,20260713,1#b3d:0-26": "COURT_VOICE",
+    "holding:STEV,115,店小,450,20260713,1#b3d:26-141": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#b3d:0-26": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#b3d:26-141": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#b3d:141-212": "COURT_VOICE"
+   },
+   "relation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c901:49-57",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "chunk_id": "STEV,115,店小,450,20260713,1#chunk901",
+    "source_span": {
+     "start": 49,
+     "end": 57,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "第195條第1項",
+    "normalized_law": "民法",
+    "normalized_article": "第195條",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:B0000001#233",
+    "attribution": "COURT_VOICE_EXPLICIT_CITATION",
+    "attribution_rule_id": "bridge-cover",
+    "attribution_source_span": {
+     "start": 26,
+     "end": 141,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "covering_node_id": "holding:STEV,115,店小,450,20260713,1#b3d:26-141",
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": true,
+     "display_as": "court_citation"
+    },
+    "provenance": {
+     "covering_node_id": "holding:STEV,115,店小,450,20260713,1#b3d:26-141",
+     "sentence_rule": "R-COURT"
+    }
+   }
+  },
+  {
+   "case_id": "D-04-party-17-1",
+   "note": "party-framed (上訴意旨主張)",
+   "chunk_text": "    因犯行部分，同時有毒品危害防制條例第17條第2項、刑法\r\n    第59條之刑之減輕事由，爰依刑法第70條、第71條第2項規\r\n    定，遞減輕之。\r\n　⒋上訴意旨主張附表所示之罪，應依毒品危害防制條例第17條\r\n    第1項減輕其刑部分：\r\n　⑴按犯第4條至第8條、第10條或第11條之罪，供出毒品來 源，\r\n    因而查獲其他正犯或共犯者，減輕或免除其刑，毒品危害防\r\n    制條例第17條第1項定有明文。又按毒品危害防制條例第17\r\n    條第1項所謂「供出毒品來源，因而查獲」，係指具體提供\r\n    毒品來源之資訊，使調查或偵查犯罪之機關或公務員知悉而\r\n    對之發動調查或偵查，並據以破獲者而言，必以被告所稱供\r\n    應自己毒品之人與嗣後查獲之其他正犯或共犯所犯之罪間具\r\n    有關聯性，始稱充足。所稱「查獲」，除指查獲該其他正犯\r\n    或共犯外，並兼及被告所指其毒品來源其事。申言之，被告\r\n    之供出毒品來源，與調查或偵查犯罪之公務員對之發動調查\r\n    或偵查並進而破獲之間，須具有前後手、上下游且相當之因\r\n    果關係，非謂被告一有自白或指認毒品來源之人，即得依上\r\n    開規定減免其刑。倘被告所犯同條項所列之罪之犯罪時間，\r\n    在時序上較早於該正犯或共犯供應被告毒品之時間，或其販\r\n    賣毒品之時序雖較晚於該正犯或共犯供應被告毒品之時間，\r\n    惟其被查獲之案情與被告自己所犯同條項所列之罪之毒品來\r\n    源無關者，即令該正犯或共犯係因被告之供出而查獲，均仍\r\n    不符合上開應獲減免其刑規定之要件（最高法院112年度台\r\n    上字第2588號判決要旨參照）。\r\n　⑵經查，被告雖稱其本案毒品來源為暱稱「同班」（按：真實\r\n    姓名洪志𢖍）及「奕仔」（按：真實姓名蘇奕衡）等語（見\r\n    本院卷第125頁），其中檢警雖有因被告之供述而查獲洪志�\r\n    �販賣海洛因予被告之犯行，惟洪志𢖍因被告供述遭查獲之\r\n    犯行為114年3月16日，時序上晚於本案各罪之交易時間，此\r\n    有高雄市政府警察局刑事警察大隊114年8月25日高市警刑大\r\n    偵18字第11472558400號刑事案件報告書、臺灣橋頭地方檢\r\n    察署（下稱橋頭地檢署）114年度偵字第17006號起訴書等件\r\n    為憑（原審院卷第135頁、145至151頁、189至192頁），故\r\n    被告供出上游與本案各次犯行間均不具時序先後順序之關聯\r\n    性，難認本案各次犯行之毒品來源係洪志𢖍；至蘇奕衡販賣\r\n    毒品犯行部分，雖經高雄市政府警察局刑事警察大隊報請橋\r\n    頭地檢署偵辦，惟經原審法院電詢橋頭地檢署承辦股查詢結\r\n",
+   "judgement_id": "KSHM,115,上訴,322,20260723,1",
+   "citation": {
+    "citation_id": "cit:KSHM,115,上訴,322,20260723,1#c1:98-119",
+    "raw_text": "毒品危害防制條例第17條第1項",
+    "normalized": {
+     "law_name": "毒品危害防制條例",
+     "article": "第17條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 98,
+     "end": 119,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　⒋上訴意旨主張附表所示之罪，應依毒品危害防制條例第17條\r\n    第1項減輕其刑部分：\r\n　⑴按犯第4條至第8條、第10條或第11條之罪，供出毒品來 源，\r\n    因而查獲其他正犯或共犯者，減輕或免除其刑，毒品危害防\r\n    制條例第17條第1項定有明文"
+   },
+   "nodes": [
+    {
+     "evidence_id": "reasoning:KSHM,115,上訴,322,20260723,1#C004:0-79",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 0,
+      "end": 79,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "reasoning:KSHM,115,上訴,322,20260723,1#C004:0-79": "UNRESOLVED_ATTRIBUTION"
+   },
+   "relation": {
+    "citation_id": "cit:KSHM,115,上訴,322,20260723,1#c1:98-119",
+    "judgement_id": "KSHM,115,上訴,322,20260723,1",
+    "chunk_id": "KSHM,115,上訴,322,20260723,1#chunk1",
+    "source_span": {
+     "start": 98,
+     "end": 119,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "毒品危害防制條例第17條第1項",
+    "normalized_law": "毒品危害防制條例",
+    "normalized_article": "第17條",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:C0000008#20",
+    "attribution": "PARTY_ATTRIBUTION",
+    "attribution_rule_id": "R-PARTY",
+    "attribution_source_span": {},
+    "covering_node_id": null,
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": false,
+     "display_as": "party_citation"
+    },
+    "provenance": {
+     "covering_node_id": null,
+     "sentence_rule": "R-PARTY"
+    }
+   }
+  },
+  {
+   "case_id": "D-05-prosecutor-21-1",
+   "note": "prosecutorial voice",
+   "chunk_text": "    證據證明被告對詐欺集團以網際網路為傳播工具對公眾散布\r\n    而施行詐術一情，主觀上已知情或有所預見，則被告對所屬\r\n    詐欺集團其他共犯以網際網路為傳播工具施行詐術之犯行，\r\n    應已超出其所認知之犯行範圍，自不應令被告就詐欺集團此\r\n    部分所為，負共同正犯責任。惟此與三人以上共同詐欺取財\r\n    屬同一加重詐欺取財犯行適用同一條項加重事由之減縮，亦\r\n    尚無庸變更起訴法條。\r\n　㈡公訴意旨雖認被告就本案犯行亦涉犯洗錢防制法第21條第1項\r\n    第5款之非法收集他人帳戶罪，惟觀該條之立法理由載明：\r\n    「現行實務上查獲收集帳戶、帳號之犯罪集團成員，於尚未\r\n    有犯罪所得匯入所收受、持有或使用之帳戶帳號內時，依現\r\n    行法尚無法可罰，而生處罰漏洞。為有效打擊此類犯罪，使\r\n    洗錢犯罪斷鏈，爰針對無正當理由收集帳戶、帳號之犯罪行\r\n    為，參考日本犯罪收益移轉防止法第28條第1項針對無正當\r\n    理由受讓或收受帳戶、帳號增訂獨立刑事處罰之意旨，於第\r\n    1項訂定無正當理由收集帳戶、帳號罪，填補現行處罰漏洞\r\n    。」可知該條性質上係將尚未有洗錢之具體犯行，而提前到\r\n    行為人收集帳戶之階段，即予處罰之前置化作法。從而，倘\r\n    若案內事證已足資論處行為人一般洗錢或詐欺取財罪之罪責\r\n    ，即無另適用修正前洗錢防制法第15條之1第1項（修正後移\r\n    列第21條第1項）刑罰前置規定之餘地。而本案被告所收取\r\n    之帳戶提款卡，已用於收取告訴人張珉寧、黃荺媗遭詐騙所\r\n    匯之款項，自無須再適用洗錢防制法第21條第1項第5款之非\r\n    法收集他人帳戶罪，公訴意旨容有誤會，併予敘明。\r\n　㈢被告就本件犯行與真實姓名年籍不詳、TELEGRAM暱稱「宗介\r\n    」之人，及其所屬之詐欺集團內不詳成員，有犯意聯絡及行\r\n    為分擔，為共同正犯。\r\n　㈣被告與本案詐欺集團先後以相同理由詐欺同一告訴人、被害\r\n    人，使其等陷於錯誤而於密接之時間內數次匯款、被告分次\r\n    提領同一告訴人、被害人所匯入款項之行為，均因係於密切\r\n    接近之時地實施，侵害同一告訴人、被害人之財產法益，各\r\n    行為之獨立性極為薄弱，依一般社會健全觀念，在時間差距\r\n    上，難以強行分開，應視為數個舉動之接續實行，各僅論以\r\n    接續犯。\r\n　㈤被告前開所犯之2罪罪名，各係在同一犯罪決意及預定計畫下\r\n    所為，因果歷程並未中斷，應僅認各係一個犯罪行為。是被\r\n    告係以一行為觸犯數罪名，為想像競合犯，均依刑法第55條\r\n    之規定，各從一重論以刑法第339條之4第1項第2款之三人以\r\n    上共同詐欺取財罪。\r\n",
+   "judgement_id": "TPHM,115,上訴,2702,20260716,1",
+   "citation": {
+    "citation_id": "cit:TPHM,115,上訴,2702,20260716,1#c1:226-238",
+    "raw_text": "洗錢防制法第21條第1項",
+    "normalized": {
+     "law_name": "洗錢防制法",
+     "article": "第21條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 226,
+     "end": 238,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　㈡公訴意旨雖認被告就本案犯行亦涉犯洗錢防制法第21條第1項\r\n    第5款之非法收集他人帳戶罪，惟觀該條之立法理由載明：\r\n    「現行實務上查獲收集帳戶、帳號之犯罪集團成員，於尚未\r\n    有犯罪所得匯入所收受、持有或使用之帳戶帳號內時，依現\r\n    行法尚無法可罰，而生處罰漏洞"
+   },
+   "nodes": [],
+   "attribution_map": {},
+   "relation": {
+    "citation_id": "cit:TPHM,115,上訴,2702,20260716,1#c1:226-238",
+    "judgement_id": "TPHM,115,上訴,2702,20260716,1",
+    "chunk_id": "TPHM,115,上訴,2702,20260716,1#chunk1",
+    "source_span": {
+     "start": 226,
+     "end": 238,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "洗錢防制法第21條第1項",
+    "normalized_law": "洗錢防制法",
+    "normalized_article": "第21條",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:G0380131#21",
+    "attribution": "PROSECUTOR_OR_INDICTMENT_ATTRIBUTION",
+    "attribution_rule_id": "R-PROSECUTOR",
+    "attribution_source_span": {},
+    "covering_node_id": null,
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": false,
+     "display_as": "prosecution_citation"
+    },
+    "provenance": {
+     "covering_node_id": null,
+     "sentence_rule": "R-PROSECUTOR"
+    }
+   }
+  },
+  {
+   "case_id": "D-06-quoted-statute",
+   "note": "appendix reproduction",
+   "chunk_text": "\r\n附錄本案所犯法條\r\n中華民國刑法第339條之4\r\n犯第 339 條詐欺罪而有下列情形之一者，處 1 年以上 7 年以\r\n下有期徒刑，得併科 1 百萬元以下罰金：\r\n一、冒用政府機關或公務員名義犯之。\r\n二、三人以上共同犯之。\r\n三、以廣播電視、電子通訊、網際網路或其他媒體等傳播工具，\r\n　　對公眾散布而犯之。\r\n四、以電腦合成或其他科技方法製作關於他人不實影像、聲音或\r\n　　電磁紀錄之方法犯之。\r\n前項之未遂犯罰之。\r\n \r\n洗錢防制法第19條\r\n有第 2 條各款所列洗錢行為者，處 3 年以上 10 年以下有期徒\r\n刑，併科新臺幣 1 億元以下罰金。其洗錢之財物或財產上利益\r\n未達新臺幣一億元者，處 6 月以上 5 年以下有期徒刑，併科新\r\n臺幣 5 千萬元以下罰金。\r\n前項之未遂犯罰之。\r\n \r\n　　　\r\n附件：\r\n臺灣橋頭地方檢察署檢察官起訴書\r\n　　　　　　　　　　　　　　　　　　115年度偵字第10478號\r\n　　被　　　告　王俊傑\r\n\r\n\r\n　　　　　　　　陳淑榕\r\n\r\n\r\n上列被告因詐欺等案件，業經偵查終結，認應提起公訴，茲將犯\r\n罪事實及證據並所犯法條分敘如下：\r\n　　　　犯罪事實\r\n",
+   "judgement_id": "CTDM,115,訴,1694,20260731,1",
+   "citation": {
+    "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c1:12-25",
+    "raw_text": "中華民國刑法第339條之4",
+    "normalized": {
+     "law_name": "中華民國刑法",
+     "article": "第339條之4",
+     "paragraph": null,
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 12,
+     "end": 25,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n附錄本案所犯法條\r\n中華民國刑法第339條之4\r\n犯第 339 條詐欺罪而有下列情形之一者，處 1 年以上 7 年以\r\n下有期徒刑，得併科 1 百萬元以下罰金：\r\n一、冒用政府機關或公務員名義犯之"
+   },
+   "nodes": [],
+   "attribution_map": {},
+   "relation": {
+    "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c1:12-25",
+    "judgement_id": "CTDM,115,訴,1694,20260731,1",
+    "chunk_id": "CTDM,115,訴,1694,20260731,1#chunk1",
+    "source_span": {
+     "start": 12,
+     "end": 25,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "中華民國刑法第339條之4",
+    "normalized_law": "中華民國刑法",
+    "normalized_article": "第339條之4",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:C0000001#448",
+    "attribution": "UNRESOLVED_ATTRIBUTION",
+    "attribution_rule_id": "R-PROC",
+    "attribution_source_span": {},
+    "covering_node_id": null,
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": false,
+     "display_as": "mention_only"
+    },
+    "provenance": {
+     "covering_node_id": null,
+     "sentence_rule": "R-PROC"
+    }
+   }
+  },
+  {
+   "case_id": "D-07-boundary-80-1",
+   "note": "3 chars from chunk end",
+   "chunk_text": "六、按因共有物分割、經界或其他性質上類似之事件涉訟，由敗\r\n    訴當事人負擔訴訟費用顯失公平者，法院得酌量情形，命勝\r\n    訴之當事人負擔其一部，民事訴訟法第80條之1定有明文。\r\n    又本件分割共有物之方法，本應由法院斟酌何種方式較能增\r\n    進共有物之經濟效益，並兼顧兩造之利益，以決定適當之分\r\n    割方法，不因何造起訴而有所不同，故原告訴請裁判分割共\r\n    有物雖有理由，惟關於訴訟費用之負擔，如全部由被告負擔\r\n    ，將顯失公平，依前揭法條規定，本院認本件訴訟費用應由\r\n    兩造各按其應有部分比例負擔，較為適當，爰諭知如主文第\r\n    3項所示。\r\n七、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    核與判決結果均無影響，爰不一一論列，併此敘明。\r\n八、訴訟費用負擔之依據：民事訴訟法第80條之1。　　",
+   "judgement_id": "CTDV,112,訴,82,20260731,1",
+   "citation": {
+    "citation_id": "cit:CTDV,112,訴,82,20260731,1#c1:77-88",
+    "raw_text": "民事訴訟法第80條之1",
+    "normalized": {
+     "law_name": "民事訴訟法",
+     "article": "第80條之1",
+     "paragraph": null,
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 77,
+     "end": 88,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "六、按因共有物分割、經界或其他性質上類似之事件涉訟，由敗\r\n    訴當事人負擔訴訟費用顯失公平者，法院得酌量情形，命勝\r\n    訴之當事人負擔其一部，民事訴訟法第80條之1定有明文"
+   },
+   "nodes": [
+    {
+     "evidence_id": "reasoning:CTDV,112,訴,82,20260731,1#C011:0-93",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 0,
+      "end": 93,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:CTDV,112,訴,82,20260731,1#C011:93-296",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 93,
+      "end": 296,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    },
+    {
+     "evidence_id": "reasoning:CTDV,112,訴,82,20260731,1#C011:296-355",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 296,
+      "end": 355,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "reasoning:CTDV,112,訴,82,20260731,1#C011:0-93": "COURT_VOICE",
+    "reasoning:CTDV,112,訴,82,20260731,1#C011:93-296": "COURT_VOICE",
+    "reasoning:CTDV,112,訴,82,20260731,1#C011:296-355": "COURT_VOICE"
+   },
+   "relation": {
+    "citation_id": "cit:CTDV,112,訴,82,20260731,1#c1:77-88",
+    "judgement_id": "CTDV,112,訴,82,20260731,1",
+    "chunk_id": "CTDV,112,訴,82,20260731,1#chunk1",
+    "source_span": {
+     "start": 77,
+     "end": 88,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "民事訴訟法第80條之1",
+    "normalized_law": "民事訴訟法",
+    "normalized_article": "第80條之1",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:B0010001#132",
+    "attribution": "COURT_VOICE_EXPLICIT_CITATION",
+    "attribution_rule_id": "bridge-cover",
+    "attribution_source_span": {
+     "start": 0,
+     "end": 93,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "covering_node_id": "reasoning:CTDV,112,訴,82,20260731,1#C011:0-93",
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": true,
+     "display_as": "court_citation"
+    },
+    "provenance": {
+     "covering_node_id": "reasoning:CTDV,112,訴,82,20260731,1#C011:0-93",
+     "sentence_rule": "R-COURT"
+    }
+   }
+  },
+  {
+   "case_id": "D-08-override-pcdv",
+   "note": "sentence override beats flagged full-chunk node",
+   "chunk_text": "臺灣新北地方法院支付命令\r\n115年度司促字第17332號\r\n債  權  人  國泰世華商業銀行股份有限公司\r\n\r\n法定代理人  即副董事長蔡宗翰\r\n\r\n\r\n\r\n債  務  人  徐玉玲  \r\n\r\n\r\n一、債務人應向債權人清償新臺幣貳拾玖萬柒仟參佰貳拾貳元，\r\n    及自民國115年4月27日起至清償日止，按年息百分之十六計\r\n    算之利息，暨自民國115年4月28日起至清償日止，其逾期在\r\n    六個月以內部分，按前述利率之百分之十，逾期超過六個月\r\n    至九個月以內部分，按前述利率之百分之二十，計算之違約\r\n    金，並賠償督促程序費用新臺幣伍佰元，否則應於本命令送\r\n    達後二十日之不變期間內，向本院提出異議。\r\n二、債權人請求之原因事實：\r\n    聲請人前董事長郭明鑑日前辭任。依公司法第208條第3項規\r\n    定：「董事長對內為股東會、董事會及常務董事會主席，對\r\n    外代表公司。董事長請假或因故不能行使職權時，由副董事\r\n    長代理之。」又依最高法院107年度台上字第97號民事判決\r\n    意旨，董事長缺位而尚未補選完成前，得類推適用上開規定\r\n    由副董事長代理董事長職務。故聲請人現由副董事長蔡宗翰\r\n    代理董事長職務，並依法對外代表公司。一、緣債務人與債\r\n    權人成立貸款契約書，於自民國112年9月27日向債權人借款\r\n    500,000元，借款利率依年利率16%計算，債務人若未依約按\r\n    期繳款時，除喪失期限利益外，另本金逾期在六個月以內部\r\n    分，按前述利率百分之十，逾期超過六個月部分，按前述利\r\n    率百分之二十，按期計收違約金，每次違約狀態最高連續收\r\n    取期數為9期。詎債務人未依約繳款，現仍積欠債權人借款2\r\n    97,322元及相關之利息及違約金未償付。另債務人與債權人\r\n    成立之貸款契約書，因係透過電子及通訊設備向債權人申請\r\n    所成立，其內容需透過科技設備始能呈現，爰依民事訴訟法\r\n    第363第2項規定提出呈現其申請內容之書面，併予陳明。二\r\n    、茲債權人屢次催討無效，實有督促其履行之必要，特依民\r\n    事訴訟法第五百零八條規定，狀請    鈞院迅賜對債務人核\r\n    發支付命令，實感法便。釋明文件：證據清單\r\n三、債務人未於不變期間內提出異議時，債權人得依法院核發之\r\n    支付命令及確定證明書聲請強制執行。\r\n",
+   "judgement_id": "PCDV,115,司促,17332,20260713,1",
+   "citation": {
+    "citation_id": "cit:PCDV,115,司促,17332,20260713,1#c1:358-369",
+    "raw_text": "公司法第208條第3項",
+    "normalized": {
+     "law_name": "公司法",
+     "article": "第208條",
+     "paragraph": "第3項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 358,
+     "end": 369,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "依公司法第208條第3項規\r\n    定：「董事長對內為股東會、董事會及常務董事會主席，對\r\n    外代表公司"
+   },
+   "nodes": [
+    {
+     "evidence_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+     "evidence_type": "DISPOSITION",
+     "source_span": {
+      "start": 0,
+      "end": 1045,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045": "COURT_VOICE"
+   },
+   "relation": {
+    "citation_id": "cit:PCDV,115,司促,17332,20260713,1#c1:358-369",
+    "judgement_id": "PCDV,115,司促,17332,20260713,1",
+    "chunk_id": "PCDV,115,司促,17332,20260713,1#chunk1",
+    "source_span": {
+     "start": 358,
+     "end": 369,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "公司法第208條第3項",
+    "normalized_law": "公司法",
+    "normalized_article": "第208條",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:J0080001#257",
+    "attribution": "QUOTED_STATUTE",
+    "attribution_rule_id": "R-STATUTE",
+    "attribution_source_span": {
+     "start": 0,
+     "end": 1045,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "covering_node_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": false,
+     "display_as": "quoted_statute"
+    },
+    "provenance": {
+     "covering_node_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+     "sentence_rule": "R-STATUTE"
+    }
+   }
+  },
+  {
+   "case_id": "D-08b-override-pcdv-508",
+   "note": "sentence override, second citation same chunk",
+   "chunk_text": "臺灣新北地方法院支付命令\r\n115年度司促字第17332號\r\n債  權  人  國泰世華商業銀行股份有限公司\r\n\r\n法定代理人  即副董事長蔡宗翰\r\n\r\n\r\n\r\n債  務  人  徐玉玲  \r\n\r\n\r\n一、債務人應向債權人清償新臺幣貳拾玖萬柒仟參佰貳拾貳元，\r\n    及自民國115年4月27日起至清償日止，按年息百分之十六計\r\n    算之利息，暨自民國115年4月28日起至清償日止，其逾期在\r\n    六個月以內部分，按前述利率之百分之十，逾期超過六個月\r\n    至九個月以內部分，按前述利率之百分之二十，計算之違約\r\n    金，並賠償督促程序費用新臺幣伍佰元，否則應於本命令送\r\n    達後二十日之不變期間內，向本院提出異議。\r\n二、債權人請求之原因事實：\r\n    聲請人前董事長郭明鑑日前辭任。依公司法第208條第3項規\r\n    定：「董事長對內為股東會、董事會及常務董事會主席，對\r\n    外代表公司。董事長請假或因故不能行使職權時，由副董事\r\n    長代理之。」又依最高法院107年度台上字第97號民事判決\r\n    意旨，董事長缺位而尚未補選完成前，得類推適用上開規定\r\n    由副董事長代理董事長職務。故聲請人現由副董事長蔡宗翰\r\n    代理董事長職務，並依法對外代表公司。一、緣債務人與債\r\n    權人成立貸款契約書，於自民國112年9月27日向債權人借款\r\n    500,000元，借款利率依年利率16%計算，債務人若未依約按\r\n    期繳款時，除喪失期限利益外，另本金逾期在六個月以內部\r\n    分，按前述利率百分之十，逾期超過六個月部分，按前述利\r\n    率百分之二十，按期計收違約金，每次違約狀態最高連續收\r\n    取期數為9期。詎債務人未依約繳款，現仍積欠債權人借款2\r\n    97,322元及相關之利息及違約金未償付。另債務人與債權人\r\n    成立之貸款契約書，因係透過電子及通訊設備向債權人申請\r\n    所成立，其內容需透過科技設備始能呈現，爰依民事訴訟法\r\n    第363第2項規定提出呈現其申請內容之書面，併予陳明。二\r\n    、茲債權人屢次催討無效，實有督促其履行之必要，特依民\r\n    事訴訟法第五百零八條規定，狀請    鈞院迅賜對債務人核\r\n    發支付命令，實感法便。釋明文件：證據清單\r\n三、債務人未於不變期間內提出異議時，債權人得依法院核發之\r\n    支付命令及確定證明書聲請強制執行。\r\n",
+   "judgement_id": "PCDV,115,司促,17332,20260713,1",
+   "citation": {
+    "citation_id": "cit:PCDV,115,司促,17332,20260713,1#c1:929-946",
+    "raw_text": "民事訴訟法第五百零八條",
+    "normalized": {
+     "law_name": "民事訴訟法",
+     "article": "第508條",
+     "paragraph": null,
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 929,
+     "end": 946,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "二\r\n    、茲債權人屢次催討無效，實有督促其履行之必要，特依民\r\n    事訴訟法第五百零八條規定，狀請    鈞院迅賜對債務人核\r\n    發支付命令，實感法便"
+   },
+   "nodes": [
+    {
+     "evidence_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+     "evidence_type": "DISPOSITION",
+     "source_span": {
+      "start": 0,
+      "end": 1045,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     }
+    }
+   ],
+   "attribution_map": {
+    "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045": "COURT_VOICE"
+   },
+   "relation": {
+    "citation_id": "cit:PCDV,115,司促,17332,20260713,1#c1:929-946",
+    "judgement_id": "PCDV,115,司促,17332,20260713,1",
+    "chunk_id": "PCDV,115,司促,17332,20260713,1#chunk1",
+    "source_span": {
+     "start": 929,
+     "end": 946,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "raw_text": "民事訴訟法第五百零八條",
+    "normalized_law": "民事訴訟法",
+    "normalized_article": "第508條",
+    "corpus_resolution_status": "RESOLVED",
+    "statute_evidence_id": "st:B0010001#691",
+    "attribution": "COURT_VOICE_EXPLICIT_CITATION",
+    "attribution_rule_id": "bridge-cover",
+    "attribution_source_span": {
+     "start": 0,
+     "end": 1045,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "covering_node_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+    "temporal_status": null,
+    "downstream_eligibility": {
+     "court_used": true,
+     "display_as": "court_citation"
+    },
+    "provenance": {
+     "covering_node_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+     "sentence_rule": "R-UNKNOWN"
+    }
+   }
+  }
+ ]
+}

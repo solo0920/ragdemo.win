@@ -1,0 +1,174 @@
+{
+ "protocol": "B2-R1: new experiments B/C (own identities); A cited frozen; hybrid RRF over frozen+new ranks; live equivalence vs temp Qdrant (torn down)",
+ "similarity": "true cosine float64 (methodology correction: ST normalize leaves norms 0.9967-1.0039; pure dot was systematically off)",
+ "frozen_cited": {
+  "bm25_chunk_recall@1": 0.38,
+  "recall@20": 0.8133,
+  "bge_m3_chunk_r@20": 0.7533,
+  "emb2_chunk_r@20": 0.7733
+ },
+ "identities": {
+  "B": {
+   "embedding_model": "google/embeddinggemma-2",
+   "model_revision": "914f7f89142e33e77833254d9c9b90c3cef7303b",
+   "model_fingerprint": "21a7a8cb3967ea837a938631b6ecf7e1ee0e60209803e4f4f27d5a0f4721a54e",
+   "embedding_dimension": 768,
+   "distance_metric": "cosine",
+   "chunking_configuration": "frozen-corpus-430/E05-B-R1",
+   "prompt_configuration": "official encode_query/encode_document, batch doc=8/query=1",
+   "index_configuration": "brute-force-cosine(in-memory); qdrant-equivalence pending",
+   "index_id": "b2r1-4d7732982687e36b"
+  },
+  "C": {
+   "embedding_model": "Snowflake/snowflake-arctic-embed-m-v2.0",
+   "model_revision": "95c2741480856aa9666782eb4afe11959938017f",
+   "model_fingerprint": "2a5cd163f29273162f72dc3c7e6ee4410fc051338ea004da0dc7692cc59ba5a2",
+   "embedding_dimension": 768,
+   "distance_metric": "cosine",
+   "chunking_configuration": "frozen-corpus-430/E05-B-R1",
+   "prompt_configuration": "ST prompts query=\"query: \"; docs plain; CLS pooling",
+   "index_configuration": "brute-force-cosine(in-memory); qdrant-equivalence pending",
+   "index_id": "b2r1-8bc23df5d3af540e"
+  }
+ },
+ "judgement_level_N20_max": {
+  "A-bm25": {
+   "r1": 0.631578947368421,
+   "r5": 0.7894736842105263,
+   "r10": 0.8552631578947368,
+   "r20": 0.8552631578947368,
+   "mrr": 0.712719298245614,
+   "hn1": 0.0,
+   "hn5": 0.0,
+   "hn10": 0.0
+  },
+  "B-embeddinggemma2": {
+   "r1": 0.47368421052631576,
+   "r5": 0.7368421052631579,
+   "r10": 0.7763157894736842,
+   "r20": 0.7894736842105263,
+   "mrr": 0.5933014354066986,
+   "hn1": 0.0,
+   "hn5": 0.0,
+   "hn10": 0.0
+  },
+  "C-snowflake": {
+   "r1": 0.5789473684210527,
+   "r5": 0.6710526315789473,
+   "r10": 0.7368421052631579,
+   "r20": 0.75,
+   "mrr": 0.6321172248803828,
+   "hn1": 0.0,
+   "hn5": 0.0,
+   "hn10": 0.0
+  },
+  "H-bm25+B": {
+   "r1": 0.5657894736842105,
+   "r5": 0.8026315789473685,
+   "r10": 0.8421052631578947,
+   "r20": 0.8552631578947368,
+   "mrr": 0.6659413685729476,
+   "hn1": 0.0,
+   "hn5": 0.0,
+   "hn10": 0.0
+  },
+  "H-bm25+C": {
+   "r1": 0.5657894736842105,
+   "r5": 0.7763157894736842,
+   "r10": 0.8421052631578947,
+   "r20": 0.8421052631578947,
+   "mrr": 0.6599937343358396,
+   "hn1": 0.0,
+   "hn5": 0.0,
+   "hn10": 0.0
+  }
+ },
+ "audit_distributions_N20": {
+  "A-bm25": {
+   "TARGET": 48,
+   "UNKNOWN": 7,
+   "WRONG_JUDGEMENT": 21
+  },
+  "B-embeddinggemma2": {
+   "TARGET": 36,
+   "WRONG_JUDGEMENT": 36,
+   "UNKNOWN": 4
+  },
+  "C-snowflake": {
+   "WRONG_JUDGEMENT": 25,
+   "TARGET": 44,
+   "UNKNOWN": 7
+  },
+  "H-bm25+B": {
+   "TARGET": 43,
+   "UNKNOWN": 6,
+   "WRONG_JUDGEMENT": 27
+  },
+  "H-bm25+C": {
+   "WRONG_JUDGEMENT": 27,
+   "TARGET": 43,
+   "UNKNOWN": 6
+  }
+ },
+ "full_ranking": {
+  "B_max": {
+   "recall@1": 0.47368421052631576,
+   "recall@5": 0.7763157894736842,
+   "recall@10": 0.8157894736842105,
+   "recall@20": 0.868421052631579,
+   "mrr": 0.6124481658692187,
+   "hn@1": 0.0,
+   "hn@5": 0.0,
+   "hn@10": 0.0,
+   "n": 76
+  },
+  "C_max": {
+   "recall@1": 0.5921052631578947,
+   "recall@5": 0.7105263157894737,
+   "recall@10": 0.7894736842105263,
+   "recall@20": 0.8421052631578947,
+   "mrr": 0.6614149008885851,
+   "ndcg@10": 0.715178730724908,
+   "hn@1": 0.013157894736842105,
+   "hn@5": 0.013157894736842105,
+   "hn@10": 0.013157894736842105,
+   "n": 76
+  }
+ },
+ "paired_strict_TARGET": {
+  "A": 48,
+  "B": 36,
+  "C": 44,
+  "A_hit_C_miss": 12,
+  "C_hit_A_miss": 8,
+  "A_hit_B_miss": 17,
+  "B_hit_A_miss": 5
+ },
+ "live_equivalence": {
+  "B": "0/76 chunk-order mismatches (exact search)",
+  "C": "0/76 chunk-order mismatches (exact search)"
+ },
+ "operational": {
+  "B": {
+   "device": "cuda",
+   "dtype": "torch.bfloat16",
+   "peak_vram_gb": 5.25,
+   "doc_texts": 430,
+   "doc_seconds": 12.8,
+   "doc_per_sec": 33.54,
+   "query_seconds": 1.92,
+   "determinism_max_abs_diff": 0.0
+  },
+  "C": {
+   "device": "cuda",
+   "dtype": "torch.bfloat16",
+   "peak_vram_gb": 5.06,
+   "doc_texts": 430,
+   "doc_seconds": 2.8,
+   "doc_per_sec": 151.93,
+   "query_seconds": 0.49,
+   "determinism_max_abs_diff": 0.0
+  }
+ },
+ "aggregation_decision": "max selected: C full-ranking R@1 max 0.5921 vs top2mean 0.5; B max 0.4737 vs top2mean 0.4737 (tie -> simpler rule wins). top2mean evaluated, evidence favors max; complexity stops."
+}

@@ -1,0 +1,64 @@
+{
+ "protocol": "B3-D: reviewed-set recomputation + corpus-wide relations with real graphs; no services, no LLM",
+ "reviewed_set": {
+  "cases": 9,
+  "all_match": true,
+  "rows": [
+   {
+    "case_id": "D-01-unresolved-436-18",
+    "match": true
+   },
+   {
+    "case_id": "D-02-court-184",
+    "match": true
+   },
+   {
+    "case_id": "D-03-court-195-scoped",
+    "match": true
+   },
+   {
+    "case_id": "D-04-party-17-1",
+    "match": true
+   },
+   {
+    "case_id": "D-05-prosecutor-21-1",
+    "match": true
+   },
+   {
+    "case_id": "D-06-quoted-statute",
+    "match": true
+   },
+   {
+    "case_id": "D-07-boundary-80-1",
+    "match": true
+   },
+   {
+    "case_id": "D-08-override-pcdv",
+    "match": true
+   },
+   {
+    "case_id": "D-08b-override-pcdv-508",
+    "match": true
+   }
+  ],
+  "court_precision": "3/3 reviewed COURT relations correct",
+  "false_exclusions": 0,
+  "false_inclusions": 0
+ },
+ "corpus_relations": {
+  "citations": 1023,
+  "by_attribution": {
+   "COURT_VOICE_EXPLICIT_CITATION": 126,
+   "PARTY_ATTRIBUTION": 45,
+   "PROSECUTOR_OR_INDICTMENT_ATTRIBUTION": 21,
+   "QUOTED_OTHER_JUDGMENT": 41,
+   "QUOTED_STATUTE": 237,
+   "UNRESOLVED_ATTRIBUTION": 553
+  },
+  "court_used": 126,
+  "unresolved_rate": 0.5406,
+  "party_as_court": 0,
+  "quoted_as_court": 0
+ },
+ "claim_eligibility": "A4b gate unit-pinned (forged non-court statute rejected; legacy skipped)"
+}

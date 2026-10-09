@@ -1,0 +1,920 @@
+{
+ "verification_status": "AUTHOR_REVIEWED",
+ "provenance": "real frozen corpus chunks + real B1 demo excerpts; see source_chunk_id",
+ "cases": [
+  {
+   "case_id": "V-01-home-violence",
+   "source_chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "chunk_index": 0,
+   "chunk_text": "\r\n　　事實及理由\r\n一、本件犯罪事實及證據，除犯罪事實欄第1行關於「羅仕竤與\r\n    陳秋蓁是叔嫂關係」之記載後，應補充記載「，彼此間具有\r\n    家庭暴力防治法第3條第5款所定之家庭成員關係」外，其餘\r\n    均引用檢察官起訴書之記載（如附件）。\r\n二、按家庭暴力者，指家庭成員間實施身體、精神或經濟上之騷\r\n    擾、控制、脅迫或其他不法侵害行為，家庭暴力防治法第2\r\n    條第1款定有明文。查被告與告訴人為叔嫂關係，渠等間具\r\n    有家庭暴力防治法第3條第5款所定之家庭成員關係，業據被\r\n    告、告訴人陳述明確。則被告傷害告訴人之行為，已屬家庭\r\n    成員間實施身體上不法侵害之行為，檢察官聲請簡易判決處\r\n    刑書漏未援引家庭暴力防治法之相關規定，尚有未洽，應予\r\n    補充。核被告所為，係犯刑法第277條第1項之傷害罪，並同\r\n    時構成家庭暴力防治法第2條第2款之家庭暴力罪，惟因家庭\r\n    暴力防治法上開條文並無科處刑罰之規定，是以被告所為仍\r\n    應依刑法關於傷害罪之規定予以論罪科刑。\r\n三、爰以行為人之責任為基礎，審酌被告羅仕竤不思以理性方式\r\n    解決紛爭，因細故即為本案傷害犯行，致告訴人受有如起訴\r\n    書犯罪事實欄所載傷勢，自應非難；考量被告犯後坦承犯行\r\n    、惟未與告訴人達成和解或賠償損害，兼衡被告無前科之素\r\n    行、犯罪之動機、目的、手段、造成之傷害，及被告於警詢\r\n    時自述之教育程度、職業、家庭經濟狀況等一切情狀，量處\r\n    如主文所示之刑，並諭知易科罰金之折算標準。\r\n四、依刑事訴訟法第449條第2項、第3項、第454條第2項，逕以\r\n    簡易判決處刑如主文。\r\n五、如不服本判決，得自收受送達之日起20日內，以書狀敘明理\r\n    由，向本院提出上訴（須附繕本）。\r\n本案經檢察官林俊杰提起公訴。",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:77-90",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "家庭暴力防治法第3條第5款",
+     "normalized": {
+      "law_name": "家庭暴力防治法",
+      "article": "第3條",
+      "paragraph": null,
+      "subparagraph": "第5款"
+     },
+     "source_span": {
+      "start": 77,
+      "end": 90,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:D0050071#4",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:181-200",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "家庭暴力防治法第2條第1款",
+     "normalized": {
+      "law_name": "家庭暴力防治法",
+      "article": "第2條",
+      "paragraph": null,
+      "subparagraph": "第1款"
+     },
+     "source_span": {
+      "start": 181,
+      "end": 200,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:D0050071#3",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:229-242",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "家庭暴力防治法第3條第5款",
+     "normalized": {
+      "law_name": "家庭暴力防治法",
+      "article": "第3條",
+      "paragraph": null,
+      "subparagraph": "第5款"
+     },
+     "source_span": {
+      "start": 229,
+      "end": 242,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:D0050071#4",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:368-378",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "刑法第277條第1項",
+     "normalized": {
+      "law_name": "刑法",
+      "article": "第277條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 368,
+      "end": 378,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "unresolved",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "UNRESOLVED:unknown_alias",
+     "evidence_id": null,
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:394-407",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "家庭暴力防治法第2條第2款",
+     "normalized": {
+      "law_name": "家庭暴力防治法",
+      "article": "第2條",
+      "paragraph": null,
+      "subparagraph": "第2款"
+     },
+     "source_span": {
+      "start": 394,
+      "end": 407,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:D0050071#3",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:697-710",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "刑事訴訟法第449條第2項",
+     "normalized": {
+      "law_name": "刑事訴訟法",
+      "article": "第449條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 697,
+      "end": 710,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0010001#629",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:711-714",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第3項",
+     "normalized": {
+      "law_name": "刑事訴訟法",
+      "article": "第449條",
+      "paragraph": "第3項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 711,
+      "end": 714,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "刑事訴訟法第449條第2項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0010001#629",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:715-723",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第454條第2項",
+     "normalized": {
+      "law_name": "刑事訴訟法",
+      "article": "第454條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 715,
+      "end": 723,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "刑事訴訟法第449條第2項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0010001#636",
+     "surface_collapsed": false
+    }
+   ]
+  },
+  {
+   "case_id": "V-02-constitutional",
+   "source_chunk_id": "JCCC,115,審裁,1177,20260713#C002",
+   "judgement_id": "JCCC,115,審裁,1177,20260713",
+   "chunk_index": 0,
+   "chunk_text": "\r\n    理  由\r\n一、本件聲請人以加害人涉犯妨害性自主罪嫌提出告訴，經高雄\r\n    市政府警察局旗山分局移送臺灣高雄少年及家事法院（下稱\r\n    高少家法院），高少家法院以被告已滿 20 歲，裁定移送臺\r\n    灣橋頭地方檢察署檢察官偵辦，經該署檢察官不起訴，聲請\r\n    人不服聲請再議，復經臺灣高等檢察署高雄檢察分署駁回其\r\n    聲請，聲請人仍不服，向高少家法院聲請准許提起自訴，經\r\n    高少家法院 112 年度少聲字第 8 號刑事裁定（下稱系爭確\r\n    定終局裁定）以被告於行為時為未滿 18 歲之少年，因少年\r\n    刑事案件不適用刑事訴訟法關於自訴之規定，而予駁回確定\r\n    。\r\n二、聲請人認系爭確定終局裁定所適用之少年事件處理法第 65\r\n    條第 2 項規定（下稱系爭規定）使少年刑事案件之被害人\r\n    ，對檢察官不起訴及上級檢察署檢察長駁回再議之處分，不\r\n    得聲請准許提起自訴，違反憲法第 8 條正當法律程序及第\r\n    16 條保障訴訟權之意旨；系爭確定終局裁定因適用系爭規\r\n    定，亦有違憲疑義，爰聲請裁判及法規範憲法審查等語。\r\n三、按人民於其憲法上所保障之權利遭受不法侵害，經依法定程\r\n    序用審級救濟程序，對於所受不利確定終局裁判，或該裁判\r\n    及其所適用之法規範，認有牴觸憲法者，得聲請憲法法庭為\r\n    宣告違憲之判決；聲請不合程式或不備其他要件者，審查庭\r\n    得以一致決裁定不受理，憲法訴訟法（下稱憲訴法）第 59\r\n    條第 1 項及第 15 條第 2 項第 7 款分別定有明文。又，\r\n    憲訴法第 59 條第 1 項所定裁判憲法審查制度，係賦予人\r\n    民就其依法定程序用盡審級救濟之案件，認確定終局裁判解\r\n    釋及適用法律，有誤認或忽略基本權利重要意義，或違反通\r\n    常情況下所理解之憲法價值等牴觸憲法之情形時（憲訴法第\r\n    59 條第 1 項規定立法理由參照），得聲請憲法法庭為宣告\r\n    違憲之判決。\r\n四、核聲請意旨所陳，聲請人僅係以一己之見，泛言系爭規定有\r\n    違憲疑義，尚難謂已具體指摘系爭規定有何牴觸憲法之處，\r\n    亦未敘明系爭確定終局裁定對其據為裁判基礎之法律的解釋\r\n    、適用，有如何之誤認或忽略相關基本權利重要意義與關聯\r\n    性，或違反通常情況下所理解之憲法價值等牴觸憲法之情形\r\n    ，核與憲訴法第 59 條第 1 項規定不合，本庭爰依同法第\r\n    15 條第 2 項第 7 款以一致決裁定不受理。",
+   "xiachen_usable": {
+    "憲訴法": "憲法訴訟法"
+   },
+   "expected_citations": [
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:331-354",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "少年事件處理法第65條第2項",
+     "normalized": {
+      "law_name": "少年事件處理法",
+      "article": "第65條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 331,
+      "end": 354,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0010011#100",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:425-432",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "憲法第8條",
+     "normalized": {
+      "law_name": "憲法",
+      "article": "第8條",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 425,
+      "end": 432,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "unresolved",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "UNRESOLVED:unknown_alias",
+     "evidence_id": null,
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:439-450",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第16條",
+     "normalized": {
+      "law_name": "憲法",
+      "article": "第16條",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 439,
+      "end": 450,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "unresolved",
+     "scoped": true,
+     "scoped_from": "憲法第8條",
+     "resolution_status": "UNRESOLVED:unknown_alias",
+     "evidence_id": null,
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:647-675",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "憲法訴訟法（下稱憲訴法）第59條第1項",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第59條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 647,
+      "end": 675,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#71",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:676-687",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第15條第2項",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第15條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 676,
+      "end": 687,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "憲法訴訟法（下稱憲訴法）第59條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#20",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:687-692",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第7款",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第15條",
+      "paragraph": null,
+      "subparagraph": "第7款"
+     },
+     "source_span": {
+      "start": 687,
+      "end": 692,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "第15條第2項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#20",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:707-721",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "憲訴法第59條第1項",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第59條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 707,
+      "end": 721,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "xiachen_defined",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#71",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:828-847",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "憲訴法第59條第1項",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第59條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 828,
+      "end": 847,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "xiachen_defined",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#71",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:1046-1060",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "憲訴法第59條第1項",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第59條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 1046,
+      "end": 1060,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "xiachen_defined",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#71",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:1071-1087",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第15條第2項",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第15條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 1071,
+      "end": 1087,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "xiachen_defined",
+     "scoped": true,
+     "scoped_from": "憲訴法第59條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#20",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:JCCC,115,審裁,1177,20260713#c0:1087-1092",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第7款",
+     "normalized": {
+      "law_name": "憲法訴訟法",
+      "article": "第15條",
+      "paragraph": null,
+      "subparagraph": "第7款"
+     },
+     "source_span": {
+      "start": 1087,
+      "end": 1092,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "xiachen_defined",
+     "scoped": true,
+     "scoped_from": "第15條第2項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:A0030159#20",
+     "surface_collapsed": true
+    }
+   ]
+  },
+  {
+   "case_id": "V-03-land-split",
+   "source_chunk_id": "CTDV,112,訴,82,20260731,1#C002",
+   "judgement_id": "CTDV,112,訴,82,20260731,1",
+   "chunk_index": 0,
+   "chunk_text": "\r\n　　事實及理由\r\n一、原告主張：坐落高雄市○○區○○段000地號土地（面積157平方\r\n    公尺，下稱系爭土地）為兩造共有，兩造應有部分各如附表\r\n    一所示。兩造就系爭土地並無不為分割之約定，系爭土地亦\r\n    無使用目的上不能分割之情事，因兩造就分割方法無法達成\r\n    協議，且被告王鉦皓表示不願就系爭土地與原告維持分別共\r\n    有，又系爭土地上有兩棟建物存在，分割方案受法定空地之\r\n    限制，亦無法分割為兩筆土地，故請求將系爭土地變價分割\r\n    ，以利化解糾紛。為此，依民法第823條第1項、第824條第1\r\n    項、第2項規定，請求裁判分割系爭土地。爰聲明求為判決\r\n    ：兩造共有系爭土地，准予變價分割。\r\n",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:CTDV,112,訴,82,20260731,1#c0:254-264",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "民法第823條第1項",
+     "normalized": {
+      "law_name": "民法",
+      "article": "第823條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 254,
+      "end": 264,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0000001#988",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CTDV,112,訴,82,20260731,1#c0:265-279",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第824條第1項",
+     "normalized": {
+      "law_name": "民法",
+      "article": "第824條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 265,
+      "end": 279,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "民法第823條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0000001#989",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:CTDV,112,訴,82,20260731,1#c0:280-283",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第2項",
+     "normalized": {
+      "law_name": "民法",
+      "article": "第824條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 280,
+      "end": 283,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "第824條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0000001#989",
+     "surface_collapsed": false
+    }
+   ]
+  },
+  {
+   "case_id": "V-04-fraud-appendix",
+   "source_chunk_id": "CTDM,115,訴,1694,20260731,1#C006",
+   "judgement_id": "CTDM,115,訴,1694,20260731,1",
+   "chunk_index": 0,
+   "chunk_text": "\r\n附錄本案所犯法條\r\n中華民國刑法第339條之4\r\n犯第 339 條詐欺罪而有下列情形之一者，處 1 年以上 7 年以\r\n下有期徒刑，得併科 1 百萬元以下罰金：\r\n一、冒用政府機關或公務員名義犯之。\r\n二、三人以上共同犯之。\r\n三、以廣播電視、電子通訊、網際網路或其他媒體等傳播工具，\r\n　　對公眾散布而犯之。\r\n四、以電腦合成或其他科技方法製作關於他人不實影像、聲音或\r\n　　電磁紀錄之方法犯之。\r\n前項之未遂犯罰之。\r\n \r\n洗錢防制法第19條\r\n有第 2 條各款所列洗錢行為者，處 3 年以上 10 年以下有期徒\r\n刑，併科新臺幣 1 億元以下罰金。其洗錢之財物或財產上利益\r\n未達新臺幣一億元者，處 6 月以上 5 年以下有期徒刑，併科新\r\n臺幣 5 千萬元以下罰金。\r\n前項之未遂犯罰之。\r\n \r\n　　　\r\n附件：\r\n臺灣橋頭地方檢察署檢察官起訴書\r\n　　　　　　　　　　　　　　　　　　115年度偵字第10478號\r\n　　被　　　告　王俊傑\r\n\r\n\r\n　　　　　　　　陳淑榕\r\n\r\n\r\n上列被告因詐欺等案件，業經偵查終結，認應提起公訴，茲將犯\r\n罪事實及證據並所犯法條分敘如下：\r\n　　　　犯罪事實\r\n",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c0:12-25",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "中華民國刑法第339條之4",
+     "normalized": {
+      "law_name": "中華民國刑法",
+      "article": "第339條之4",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 12,
+      "end": 25,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0000001#448",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c0:28-35",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第339條",
+     "normalized": {
+      "law_name": "中華民國刑法",
+      "article": "第339條",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 28,
+      "end": 35,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "中華民國刑法第339條之4",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0000001#444",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c0:217-226",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "洗錢防制法第19條",
+     "normalized": {
+      "law_name": "洗錢防制法",
+      "article": "第19條",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 217,
+      "end": 226,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:G0380131#19",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c0:229-234",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第2條",
+     "normalized": {
+      "law_name": "洗錢防制法",
+      "article": "第2條",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 229,
+      "end": 234,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "洗錢防制法第19條",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:G0380131#2",
+     "surface_collapsed": true
+    }
+   ]
+  },
+  {
+   "case_id": "V-05-no-citation",
+   "source_chunk_id": "CHDM,115,簡,1769,20260730,1#C001",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "chunk_index": 0,
+   "chunk_text": "臺灣彰化地方法院刑事簡易判決 \r\n 115年度簡字第1769號\r\n公  訴  人  臺灣彰化地方檢察署檢察官 \r\n被      告  羅仕竤\r\n\r\n\r\n上列被告因傷害案件，經檢察官提起公訴（115年度偵字第9807\r\n號），因被告自白犯罪，本院認宜以簡易判決處刑，爰不經通常\r\n訴訟程序（原案號：115年度易字第1015號），逕以簡易判決處\r\n刑如下： \r\n　　主　　　文\r\n羅仕竤犯傷害罪，處拘役肆拾日，如易科罰金，以新臺幣壹仟元\r\n折算壹日。",
+   "xiachen_usable": {},
+   "expected_citations": []
+  },
+  {
+   "case_id": "V-06-lookalike",
+   "source_chunk_id": "CTDV,112,訴,82,20260731,1#C003",
+   "judgement_id": "CTDV,112,訴,82,20260731,1",
+   "chunk_index": 0,
+   "chunk_text": "二、被告方面\r\n　㈠被告王鉦皓表示：同意變價分割系爭土地等語。\r\n　㈡被告王永慶、王宏榮、王娜莉及王騰緯（下合稱王永慶等4人\r\n    ，分則以姓名稱之）則以：\r\n　⒈系爭土地原登記為被繼承人王烱燿（殁於民國81年5月12日）\r\n    、王茂盛（殁於79年3月30日）兄弟共有，兩造各為王烱燿\r\n    、王茂盛之再轉繼承人，故系爭土地輾轉登記於兩造名下。\r\n    而兩造之父祖輩王烱燿、王茂盛為岡山地區望族，擁有眾多\r\n    不動產，原先均是王烱燿、王茂盛兩人共有，應有部分約各\r\n    1/2。嗣王烱燿、王茂盛於41年5月5日訂定分家鬮書協議（\r\n    下稱41年鬮書），協議分割兩人共有之多筆土地、建物，主\r\n    要協議內容即係將王烱燿、王茂盛共有之不動產分割為個人\r\n    單獨所有。其後，王烱燿、王茂盛亦按41年鬮書約定分割，\r\n    該鬮書所載多數不動產均陸續依該鬮書內容辦理移轉登記、\r\n    交換應有部分完畢，而僅餘如附表四「應辦理移轉登記之土\r\n    地」欄所示3筆土地（下合稱系爭3筆土地）尚未辦理交換完\r\n    畢。系爭3筆土地未依41年鬮書（共有物分割協議）約定分\r\n    割之原因，乃因當年王烱燿、王茂盛就系爭3筆土地增值稅\r\n    負擔問題未能達成協議，是其2人約定暫緩辦理所有權移轉\r\n    登記，待日後就稅捐問題有共識後再為辦理。準此，系爭土\r\n    地前已經共有人為分割協議，且該協議、分割方法亦經當事\r\n    人約定先維持現狀，待日後再辦理移轉交換應有部分登記之\r\n    方式為之，均為有效之協議。\r\n　⒉王茂盛死亡後，如附表四編號1所示富貴段69地號（73年重測\r\n    前為台上段239地號）土地、岡山段82-79地號（分割自同段\r\n    82-16地號）土地由其子王光宇繼承，王光宇於110年10月19\r\n    日死亡，上開土地由其配偶即訴外人曾美葉、子女即原告、\r\n    王鉦皓繼承。富貴段69地號土地於111年7月6日辦理分割繼\r\n    承登記完畢（其3人權利範圍各1/6），嗣其等於113年5月間\r\n    以新臺幣（下同）7950萬元將該土地應有部分出售予第三人\r\n    ；另岡山段82-79地號土地則由曾美葉於111年7月6日因分割\r\n    繼承取得。而王永慶等4人因繼承取得原登記在王烱燿名下\r\n    之系爭土地應有部分1/2，然依41年鬮書協議，王永慶等4人\r\n    名下之系爭土地應有部分1/2應移轉登記與王茂盛繼承人即\r\n    王光宇所有；同時，如附表四編號1所示兩筆土地應有部分\r\n    登記於原告、王鉦皓及曾美葉名下者，均應移轉登記給王烱\r\n    燿之繼承人即王永慶等4人。\r\n　⒊41年鬮書之請求權時效雖已完成（至56年5月5日滿15年），\r\n",
+   "xiachen_usable": {},
+   "expected_citations": []
+  },
+  {
+   "case_id": "V-07-demo-claim-basis",
+   "source_chunk_id": "STEV,115,店小,450,20260713,1#demo-excerpt",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunk_index": 906,
+   "chunk_text": "害原告參與政治活動之自由，爰\r\n    依民法第184條第1項、第195條第1項前段之規定提起本件訴\r\n    訟等語。並聲明：被告應賠償原告非財產上損害新臺幣（下\r\n    同）3萬元及自起訴狀繕本送達翌日起至清償日止按年息5%\r\n    計算之利息。\r\n二、被告辯稱略以：原告請求沒有權利保護的必要",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c906:21-31",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "民法第184條第1項",
+     "normalized": {
+      "law_name": "民法",
+      "article": "第184條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 21,
+      "end": 31,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0000001#219",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c906:32-40",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第195條第1項",
+     "normalized": {
+      "law_name": "民法",
+      "article": "第195條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 32,
+      "end": 40,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "民法第184條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0000001#233",
+     "surface_collapsed": false
+    }
+   ]
+  },
+  {
+   "case_id": "V-08-demo-procedure",
+   "source_chunk_id": "STEV,115,店小,450,20260713,1#demo-excerpt",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunk_index": 907,
+   "chunk_text": "原告30,000元（見本院卷第55），依民事訴訟法第25\r\n    5條第1項第3款、第436條第2項、第436條之23規定，應予准\r\n    許。\r\n三、原告主張略以：被告於114年4月2日19時2分許，在臺北市○○\r\n    區○○路0段0號統一超商添恩門市（下稱統一超商）前，見原\r\n   ",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c907:20-39",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "民事訴訟法第255條第1項",
+     "normalized": {
+      "law_name": "民事訴訟法",
+      "article": "第255條",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 20,
+      "end": 39,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0010001#337",
+     "surface_collapsed": true
+    },
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c907:39-42",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第3款",
+     "normalized": {
+      "law_name": "民事訴訟法",
+      "article": "第255條",
+      "paragraph": null,
+      "subparagraph": "第3款"
+     },
+     "source_span": {
+      "start": 39,
+      "end": 42,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "民事訴訟法第255條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0010001#337",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c907:43-51",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第436條第2項",
+     "normalized": {
+      "law_name": "民事訴訟法",
+      "article": "第436條",
+      "paragraph": "第2項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 43,
+      "end": 51,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "民事訴訟法第255條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0010001#561",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c907:52-60",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "第436條之23",
+     "normalized": {
+      "law_name": "民事訴訟法",
+      "article": "第436條之23",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 52,
+      "end": 60,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": true,
+     "scoped_from": "民事訴訟法第255條第1項",
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0010001#585",
+     "surface_collapsed": false
+    }
+   ]
+  },
+  {
+   "case_id": "V-09-demo-wrapped-costs",
+   "source_chunk_id": "STEV,115,店小,450,20260713,1#demo-excerpt",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunk_index": 908,
+   "chunk_text": "逐一論述，併此\r\n    敘明。\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r\n    3條第3項。　\r\n中　　華　　民　　國　　115 　年　　7 　　月　　13　　日\r\n　　　　　　　　　臺灣臺北地方法院新店簡易庭\r\n　　　　　　　　　　　　　　　法　官　蔡寶樺\r\n以上正本",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c908:30-39",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "民事訴訟法第78條",
+     "normalized": {
+      "law_name": "民事訴訟法",
+      "article": "第78條",
+      "paragraph": null,
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 30,
+      "end": 39,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0010001#129",
+     "surface_collapsed": false
+    },
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c908:40-59",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "刑事訴訟法第503條第3項",
+     "normalized": {
+      "law_name": "刑事訴訟法",
+      "article": "第503條",
+      "paragraph": "第3項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 40,
+      "end": 59,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:C0010001#744",
+     "surface_collapsed": true
+    }
+   ]
+  },
+  {
+   "case_id": "V-10-demo-zhi18",
+   "source_chunk_id": "STEV,115,店小,450,20260713,1#demo-excerpt",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunk_index": 909,
+   "chunk_text": "　　理由要領\r\n一、本件為小額訴訟事件，依民事訴訟法第436條之18第1項之規\r\n    定，僅記載主文及理由要領。\r\n二、查原告起訴時聲明：「被告應給付原告新臺幣（下同）60,0\r\n    00元，及自起訴狀繕本送達翌日起至清償日止按年息5%計算\r\n    之利息。」，嗣於民國115年6月22日減縮請求金",
+   "xiachen_usable": {},
+   "expected_citations": [
+    {
+     "citation_id": "cit:STEV,115,店小,450,20260713,1#c909:21-37",
+     "citation_type": "EXPLICIT_CITATION",
+     "raw_text": "民事訴訟法第436條之18第1項",
+     "normalized": {
+      "law_name": "民事訴訟法",
+      "article": "第436條之18",
+      "paragraph": "第1項",
+      "subparagraph": null
+     },
+     "source_span": {
+      "start": 21,
+      "end": 37,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "law_source": "verbatim",
+     "scoped": false,
+     "scoped_from": null,
+     "resolution_status": "RESOLVED",
+     "evidence_id": "st:B0010001#580",
+     "surface_collapsed": false
+    }
+   ]
+  },
+  {
+   "case_id": "V-11-demo-xiachen-unusable",
+   "source_chunk_id": "STEV,115,店小,450,20260713,1#demo-excerpt",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunk_index": 910,
+   "chunk_text": "為原告及其友\r\n    人之罷免連署活動違反選舉罷免法（下稱選罷法）之相關規\r\n    定，並妨礙統一超商之營業及民眾於統一超商旁臨時停車之\r\n    權益，當時被告手持一杯飲料自統一超商走出，向原告及其\r\n    有人提出質疑，被告對原告及其友人稱：「人家的門口做生\r\n    意，佔到人家的位置，停車欸！",
+   "xiachen_usable": {},
+   "expected_citations": []
+  }
+ ]
+}

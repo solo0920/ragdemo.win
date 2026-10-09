@@ -1,0 +1,16 @@
+# B2-E production footprint (extends manifest pattern).
+
+# New repo code: NONE (evaluation-only batch; product code untouched).
+# New tests + fixtures:
+tests/test_b2e_eval.py
+tests/fixtures/b2e_answer_eval.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B2-E-ANSWER-EVALUATION.md
+agent/architecture/B2-E-VALIDATION-REPORT.md
+agent/architecture/B2-E-FOLLOWUPS.md
+agent/architecture/B2-E-CHANGES.txt
+agent/architecture/B2-E-EVIDENCE.json
+agent/scripts/build_b2e_set.py
+agent/scripts/b2e_evaluate.py
+# No serving behavior, retrieval baseline, statute corpus, frozen/B2 sets,
+# weights, or policy modified. B2-E validates; it does not implement.

@@ -21,5 +21,13 @@ markers = [
   #   pytest -q -m "not slow"   （CI 與 pre-push 走這條）
   #   pytest -q -m slow         （想確認逾時行為時手動跑）
   "slow: 需要等待真實網路逾時的測試（預設不跑）",
+  # 需要真實 283 MB RAR artifact 的整合測試（spec 004 T004）。
+  # CI 的乾淨 clone 沒有那份檔案，所以這些測試同時有 skipif 保護 —— marker 是
+  # 為了「只跑整合測試」時能精確選到：pytest -q -m judgement_corpus
+  #
+  # **不預設排除**：spec FR-006 的重點是「unit 測試不需要那 283 MB」，靠的是
+  # 每條測試自己的 skipif，不是靠 marker 過濾。把 marker 加進 addopts 只會讓
+  # 真正的外部錨點（108,547 entries）永遠不被執行 —— 那正好抵消了它的作用。
+  "judgement_corpus: 需要真實 283 MB RAR artifact 的整合測試",
 ]
 addopts = "-m 'not slow'"

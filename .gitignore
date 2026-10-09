@@ -52,6 +52,22 @@ dist/
 data/laws/*
 !data/laws/.gitkeep
 
+# 司法判決 raw artifact（spec 004）。
+# 202607--(20260916Update).rar 是 283 MB 的 authoritative source，**永不進版控**
+# （spec FR-006）。它的 SHA-256 釘在 ingest/judgements/artifact.py，
+# provenance 釘在 specs/004-judicial-source-fidelity/decoder-proof.md ——
+# 需要的可重現性靠那些常數，不靠把檔案搬進 git。
+#
+# ⚠️ 用 `data/judgements/raw/*`（只擋 raw/ 底下），不是 `data/judgements/*`。
+# derived 輸出（work/、解壓後的 corpus、報告）不該被連帶擋掉，那些是可以進版控
+# 的。跟上面 data/laws 的做法不同是有意的：laws 那個目錄只有 raw 資料。
+data/judgements/raw/*
+# 但目錄本身要存在，否則 clone 的人不知道該放哪。
+!data/judgements/raw/.gitkeep
+# 測試 fixture 不受影響：`tests/fixtures/judgements/fixture.rar` 在 repo 內、
+# 在這條規則的匹配範圍之外，所以照常進版控 —— 這是對的，inventory 的欄位邏輯
+# 需要它在乾淨 clone 上也能跑（CI 沒有那 283 MB artifact）。
+
 # law-update 執行狀態機（request/status 檔由 api 寫、host worker 讀寫）
 data/.ops/
 

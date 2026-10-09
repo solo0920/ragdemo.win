@@ -1,0 +1,179 @@
+{
+ "protocol": "B2-F: rule-based margin gate (per-method thresholds) + identity REJECT; calibrated on even split, evaluated on holdout incl. mandatory E-06/E-07 probes; no ranking changed, no model added",
+ "split": {
+  "rule": "calibration=even except GQ-020; holdout=odd + GQ-020 (mandatory probes in holdout)",
+  "calibration": 37,
+  "holdout": 39
+ },
+ "threshold_rule": "max coverage subject to zero wrong-accepts on calibration (declared before holdout)",
+ "thresholds": {
+  "bm25": 38.742660905265,
+  "snowflake-C": 0.12242048428695307
+ },
+ "gate_version": "b2f/v1",
+ "holdout_results": {
+  "bm25": {
+   "accepted": [
+    "GQ-003",
+    "GQ-019",
+    "GQ-031",
+    "GQ-073"
+   ],
+   "accepted_correct": [
+    "GQ-003",
+    "GQ-019",
+    "GQ-031",
+    "GQ-073"
+   ],
+   "accepted_wrong": [],
+   "precision": 1.0,
+   "coverage": 0.103,
+   "false_rejects": [
+    "GQ-007",
+    "GQ-011",
+    "GQ-017",
+    "GQ-021",
+    "GQ-023",
+    "GQ-027",
+    "GQ-029",
+    "GQ-033",
+    "GQ-037",
+    "GQ-039",
+    "GQ-041",
+    "GQ-043",
+    "GQ-047",
+    "GQ-049",
+    "GQ-051",
+    "GQ-055",
+    "GQ-057",
+    "GQ-063",
+    "GQ-069"
+   ],
+   "all_accepted_76": [
+    "GQ-003",
+    "GQ-018",
+    "GQ-019",
+    "GQ-031",
+    "GQ-034",
+    "GQ-042",
+    "GQ-073"
+   ]
+  },
+  "snowflake-C": {
+   "accepted": [
+    "GQ-073"
+   ],
+   "accepted_correct": [
+    "GQ-073"
+   ],
+   "accepted_wrong": [],
+   "precision": 1.0,
+   "coverage": 0.026,
+   "false_rejects": [
+    "GQ-003",
+    "GQ-007",
+    "GQ-011",
+    "GQ-017",
+    "GQ-019",
+    "GQ-023",
+    "GQ-025",
+    "GQ-027",
+    "GQ-029",
+    "GQ-031",
+    "GQ-033",
+    "GQ-035",
+    "GQ-039",
+    "GQ-041",
+    "GQ-045",
+    "GQ-047",
+    "GQ-049",
+    "GQ-053",
+    "GQ-055",
+    "GQ-057",
+    "GQ-063"
+   ],
+   "all_accepted_76": [
+    "GQ-073"
+   ]
+  }
+ },
+ "mandatory_probes": {
+  "GQ-020": {
+   "bm25": {
+    "status": "ABSTAIN",
+    "reason": "margin 0.2546 < 38.742660905265",
+    "margin": 0.2545780287133965
+   },
+   "snowflake-C": {
+    "status": "ABSTAIN",
+    "reason": "margin 0.001175 < 0.12242048428695307",
+    "margin": 0.0011748338250190393
+   }
+  },
+  "GQ-035": {
+   "bm25": {
+    "status": "ABSTAIN",
+    "reason": "margin 0.2877 < 38.742660905265",
+    "margin": 0.2876507193282265
+   },
+   "snowflake-C": {
+    "status": "ABSTAIN",
+    "reason": "margin 0.02854 < 0.12242048428695307",
+    "margin": 0.028541223228124024
+   }
+  }
+ },
+ "hn_exposure": {
+  "before": [
+   "GQ-001",
+   "GQ-008",
+   "GQ-076"
+  ],
+  "after": {
+   "GQ-001": {
+    "bm25": "ABSTAIN",
+    "snowflake-C": "ABSTAIN"
+   },
+   "GQ-008": {
+    "bm25": "ABSTAIN",
+    "snowflake-C": "ABSTAIN"
+   },
+   "GQ-076": {
+    "bm25": "REJECT",
+    "snowflake-C": "REJECT"
+   }
+  }
+ },
+ "dropped_features": {
+  "concentration_top5": "no separation (conc=1: 41% correct vs 49% wrong); top2/top3-same-doc INVERTED",
+  "lexical_coverage": "saturated (median 0.909 both classes)",
+  "cross_method_agreement": "weak (agree|wrong still 14-16/39); excluded to stop complexity",
+  "relative_margin": "0.243 vs 0.220 medians: no threshold room"
+ },
+ "identity_cases": {
+  "GQ-003": {
+   "bm25": {
+    "status": "ACCEPT",
+    "reason": "margin 73.63 >= 38.742660905265",
+    "margin": 73.62621291801683
+   },
+   "snowflake-C": {
+    "status": "ABSTAIN",
+    "reason": "margin 0.04952 < 0.12242048428695307",
+    "margin": 0.04952300127979081
+   }
+  },
+  "GQ-076": {
+   "bm25": {
+    "status": "REJECT",
+    "reason": "explicit-identity-mismatch",
+    "margin": 17.852010250018502
+   },
+   "snowflake-C": {
+    "status": "REJECT",
+    "reason": "explicit-identity-mismatch",
+    "margin": 0.06310286918331032
+   }
+  }
+ }
+}

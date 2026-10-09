@@ -1,0 +1,22 @@
+# B3-C production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b3c_contra.py
+backend/app/b2d_answer.py
+tests/test_b3c_normalize.py
+tests/test_b3c_detect.py
+tests/test_b3c_gate.py
+tests/test_b3c_eval.py
+tests/fixtures/b3c_contradiction_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B3-C-CONTRADICTION.md
+agent/architecture/B3-C-VALIDATION-REPORT.md
+agent/architecture/B3-C-FOLLOWUPS.md
+agent/architecture/B3-C-CHANGES.txt
+agent/architecture/B3-C-EVIDENCE.json
+agent/scripts/build_b3c_set.py
+agent/scripts/b3c_evaluate.py
+# b2d_answer.py change is NARROW: pre/post contradiction checks +
+# enforce_contradiction flag + serve_live enforcement. Composer default path
+# untouched (prior suites pin it). No ranking, model, frozen, corpus, weights,
+# or policy change.

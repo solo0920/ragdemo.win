@@ -1,0 +1,20 @@
+# B3-D production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b3d_attribution.py
+backend/app/b2d_answer.py
+tests/test_b3d_link.py
+tests/test_b3d_serve.py
+tests/fixtures/b3d_attribution_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B3-D-STATUTE-ATTRIBUTION.md
+agent/architecture/B3-D-VALIDATION-REPORT.md
+agent/architecture/B3-D-FOLLOWUPS.md
+agent/architecture/B3-D-CHANGES.txt
+agent/architecture/B3-D-EVIDENCE.json
+agent/scripts/build_b3d_set.py
+agent/scripts/b3d_evaluate.py
+# b2d_answer.py change is NARROW: B3-D relation computation + enforced-only
+# filtering (legacy byte-identical) + statute_attributions/attribution_enforced
+# response keys + A4b gate (flag-guarded). No B2-B/B3-A/B3-B/B3-C semantics,
+# ranking, model, frozen, corpus, weights, or policy change.

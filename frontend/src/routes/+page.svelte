@@ -113,6 +113,9 @@ const rows = articleRows;
   let loading = false;
   let result = null;
   let error = '';
+  // 查詢種類：law＝法規（/query，LLM 生成）／judgment＝判決摘引（/judgments/query，
+  // B1 逐字引用、無 LLM 生成）。兩者回傳形狀不同，見 ask() 與下方渲染分支。
+  let kind = 'law';
   let backendId = 'auto';
   let health = null;
   let healthLoading = false;
@@ -584,7 +587,12 @@ const rows = articleRows;
     result = null;
     expanded = new Set();   // 新一批引用，展開狀態不沿用（理由同 switchBackend）
     try {
-      const r = await fetch(`/api/query?backend=${backendId}`, {
+      // 判決問答走 B1 摘引路徑（/judgments/query），回傳形狀與法規 /query
+      // 不同（status/answer/evidence，无 ok/no_match），見下方渲染分支。
+      const url = kind === 'judgment'
+        ? `/api/judgments/query?backend=${backendId}`
+        : `/api/query?backend=${backendId}`;
+      const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, model })
@@ -595,7 +603,10 @@ const rows = articleRows;
         if (result?.detail) msg += '：' + result.detail;
         throw new Error(msg);
       }
-      if (!result?.ok) throw new Error(result.detail || '查詢失敗');
+      if (kind === 'judgment') {
+        if (!result?.status) throw new Error(result.detail || '查詢失敗');
+        result.kind = 'judgment';
+      } else if (!result?.ok) throw new Error(result.detail || '查詢失敗');
     } catch (e) {
       error = e.message;
     } finally {
@@ -711,6 +722,14 @@ const rows = articleRows;
     ];
   }
 
+  // 判決回答的視覺分離（spec 004 T022）。
+  // 與 laws 的「逐字引用條文」不同：判決來源沒有 court 欄位，也不推論 court，
+  // 只顯示 source 實際提供的 JID / JDATE / offset。
+  function judgmentBlocks(r) {
+    if (r.confidence !== 'verbatim') return [];
+    return Array.isArray(r.quoted_blocks) ? r.quoted_blocks : [];
+  }
+
   // 還原上次選的後端。
   // ⚠️ 必須等 knownHosts 回來之後才能驗證：切換器的候選是從 /status 的 known
   // 推導的（不在程式裡寫死），組初始化那時 knownHosts 還是空物件，提前比對
@@ -824,6 +843,18 @@ const rows = articleRows;
       {#each BACKENDS as b}
         <option value={b.id}>{b.label}</option>
       {/each}
+    </select>
+    <!-- 查詢種類：law 走 /query（法規＋LLM 生成）；judgment 走
+      /judgments/query（B1 判決逐字摘引、無 LLM 生成）。兩者回傳形狀不同，
+      見 ask() 與下方結果渲染分支；預設 law，前端行為不變。 -->
+    <select
+      class="backend-select"
+      bind:value={kind}
+      onchange={(e) => { kind = e.currentTarget.value; result = null; }}
+      aria-label="查詢種類"
+      title="選擇查詢種類：法規問答或判決摘引">
+      <option value="law">法規問答</option>
+      <option value="judgment">判決摘引</option>
     </select>
     <!-- ⚠️ 這一段取代原本的「⦿ host｜llm ｜ collection ｜ Nms」徽章。
          原版只印 host_id，沒有說明它是「選擇」還是「實際服務」——
@@ -1100,13 +1131,15 @@ const rows = articleRows;
         <p class="hint"><a href="/rules?q={encodeURIComponent(question)}">答案不對？把這題加入題庫 →</a></p>
       {:else}
         <h2>回答（{result.host}）</h2>
-        <!-- 逐字引用條文時比照司法院官網的排版：左欄條號、右欄項次 + 條文。
-             ⚠️ 只在「逐字引用」時用這個排版 —— LLM 生成的答案是綜合敘述，
-                不是某一條的原文，掛上條號欄會讓人以為「這一條就是答案」，
-                那在法律上是誤導。
-             判斷依據：`confidence === 'rule'` 且首筆引用是精準命中（後端
-             `exact` 分支會把 confidence 設成 rule 且逐字引用）。 -->
-        {#if verbatimQuote(result)}
+        <!-- 判決原文引用：confidence === 'verbatim' 且帶 quoted_blocks -->
+        {#if judgmentBlocks(result).length}
+          {#each judgmentBlocks(result) as q, i}
+            <div class="judgment-block">
+              <div class="judgment-text">{q.text}</div>
+              <div class="judgment-cite">{q.citation}</div>
+            </div>
+          {/each}
+        {:else if verbatimQuote(result)}
           {@const q = verbatimQuote(result)}
           <div class="law">
             <div class="law-no">{q.law}{q.art}</div>
@@ -1148,6 +1181,30 @@ const rows = articleRows;
           {/each}
         </ol>
       {/if}
+      {:else if result.kind === 'judgment'}
+        <!-- B1 /judgments/query 的實際形狀：status/answer/evidence/statutes/
+          abstention（沒有 ok/no_match/confidence）。證據原文逐字呈現。 -->
+        {#if result.status === 'grounded'}
+          <h2>判決摘引</h2>
+          {#each result.evidence as ev, i}
+            <div class="judgment-block">
+              <div class="judgment-text">「{ev.text}」</div>
+              <div class="judgment-cite">{ev.citation}｜{ev.document_id}</div>
+            </div>
+          {/each}
+          {#if result.statutes?.length}
+            <h2>本案引用的法規（已驗證原文）</h2>
+            <ol>
+              {#each result.statutes as s}
+                <li>{s.law_name}{s.article}{s.paragraph ?? ''}</li>
+              {/each}
+            </ol>
+          {/if}
+        {:else}
+          <h2>尚無可引用的判決原文</h2>
+          <p class="ans">{result.answer}</p>
+          {#if result.abstention?.detail}<p class="hint">原因：{result.abstention.reason} — {result.abstention.detail}</p>{/if}
+        {/if}
     {/if}
   {/if}
 </main>
@@ -1438,6 +1495,24 @@ const rows = articleRows;
   .law-t { white-space: pre-wrap; }   /* 保留全形空白的縮排語意 */
 
   .tx { color: var(--body); white-space: pre-wrap; }
+  /* 判決原文引用區塊（spec 004 T022）：與 model commentary 視覺分離，
+     並保留原文的 CRLF / U+3000。 */
+  .judgment-block {
+    border-left: 3px solid var(--primary);
+    background: var(--surface-soft);
+    padding: var(--sm) var(--md);
+    margin: var(--sm) 0;
+  }
+  .judgment-text {
+    white-space: pre-wrap;
+    color: var(--ink);
+    font: var(--body-md);
+    margin-bottom: var(--xs);
+  }
+  .judgment-cite {
+    font: var(--caption);
+    color: var(--muted-text);
+  }
   /* 一個「項」一個元素（block）。
    *
    * 對應司法院的 `<div class="line-0000 show-number">`：實測第6條的三個項

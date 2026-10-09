@@ -1,0 +1,51 @@
+{
+ "protocol": "B2-C: recompute frozen verified graphs + gate verdicts; no services, no LLM, deterministic",
+ "verified_set": {
+  "cases": 8,
+  "extraction": {
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "tp": 16,
+   "fp": 0,
+   "fn": 0
+  },
+  "by_type": {
+   "DISPOSITION": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 4,
+    "fp": 0,
+    "fn": 0
+   },
+   "REASONING": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 10,
+    "fp": 0,
+    "fn": 0
+   },
+   "HOLDING": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 2,
+    "fp": 0,
+    "fn": 0
+   }
+  },
+  "span_validity": {
+   "valid": 16,
+   "total": 16,
+   "rate": 1.0
+  },
+  "truncation": {
+   "incomplete_flags": 0
+  },
+  "provenance": {
+   "complete": 16,
+   "total": 16,
+   "rate": 1.0
+  }
+ },
+ "gate_recomputation_mismatches": []
+}

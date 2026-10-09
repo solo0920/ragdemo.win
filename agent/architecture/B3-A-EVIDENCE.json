@@ -1,0 +1,43 @@
+{
+ "protocol": "B3-A: verified-set metrics + B2-C node re-attribution + corpus sentence profile; no services, no LLM, deterministic",
+ "verified_set": {
+  "cases": 12,
+  "accuracy": {
+   "correct": 12,
+   "wrong": 0,
+   "rate": 1.0
+  },
+  "court_recall": {
+   "found": 1,
+   "missed": 0
+  },
+  "contamination": {
+   "party": 0,
+   "quoted_judgment": 0,
+   "quoted_statute": 0,
+   "target": "0 material party contamination"
+  },
+  "unresolved": 1
+ },
+ "gate_Q1_Q8_verified_items": {
+  "verdict": "PASS",
+  "failures": []
+ },
+ "b2c_node_reattribution": {
+  "nodes": 16,
+  "by_attribution": {
+   "COURT_VOICE": 16
+  }
+ },
+ "corpus_sentence_profile": {
+  "sentences": 2801,
+  "by_attribution": {
+   "PROCEDURAL_DESCRIPTION": 287,
+   "COURT_VOICE": 403,
+   "UNRESOLVED_ATTRIBUTION": 1644,
+   "QUOTED_STATUTE": 122,
+   "PARTY_VOICE": 231,
+   "QUOTED_OTHER_JUDGMENT": 114
+  }
+ }
+}

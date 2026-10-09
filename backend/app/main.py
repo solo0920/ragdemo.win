@@ -16,6 +16,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +25,7 @@ from pydantic import BaseModel
 
 import httpx
 
-from . import cloud_probe, host_settings, rag, readiness, registry, rules_store as rules
+from . import b1_serve, b2d_answer, b4b_compose, cloud_probe, host_settings, rag, readiness, registry, rules_store as rules
 from . import usage
 
 logger = logging.getLogger("ragdemo")
@@ -211,6 +212,7 @@ async def query(q: Query):
         # HTTPStatusError。標錯會把 qdrant 的 400 顯示成「LLM 故障」，排查時被帶去錯的方向
         # （2026-09-26 實測踩過）。改用實際請求的 host。
         host = e.response.request.url.host
+        rag.log_upstream_failure("/query", e.response, host)
         return JSONResponse(
             status_code=e.response.status_code,
             content={"ok": False,
@@ -246,6 +248,96 @@ async def query(q: Query):
 #    `test_the_backend_comment_does_not_overclaim_protection` 會紅。
 class DefaultModelIn(BaseModel):
     model: str | None = None  # null／空字串＝清除，回到 LLM_MODEL
+
+
+class JudgmentQueryIn(BaseModel):
+    question: str = ""
+    recall: int = 50
+    top_k: int = 5
+
+
+@app.post("/judgments/query")
+async def judgments_query(body: JudgmentQueryIn):
+    """B1 judgement serving path — explicit non-default endpoint.
+
+    `/query` (statutes) is untouched. This path is extractive-only (no LLM
+    generation): quotes + corpus-verified statute text + mechanical gate, or
+    `insufficient_evidence`. Until the document-store reader is wired
+    (B1-FOLLOWUPS.md F1), live calls abstain honestly instead of quoting.
+    """
+    try:
+        return await b1_serve.serve_live(
+            body.question, recall=body.recall, top_k=body.top_k
+        )
+    except Exception as e:  # noqa: BLE001 - unexpected bug surface, never a fabricated answer
+        if isinstance(e, httpx.HTTPStatusError):
+            try:
+                _host = e.response.request.url.host
+            except Exception:
+                _host = "?"
+            rag.log_upstream_failure("judgments/query", e.response, _host)
+        logger.error("judgments/query 失敗：%s", e)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": "judgement serving failed"},
+        )
+
+
+class JudgmentAnswerIn(BaseModel):
+    question: str = ""
+    recall: int = 50
+    top_k: int = 5
+    require_statutes: bool = False
+    answer_mode: Literal["single", "sectioned"] = "single"
+    sections: list[str] | None = None
+
+
+@app.post("/judgments/answer")
+async def judgments_answer(body: JudgmentAnswerIn):
+    """B2-D evidence-grounded answer — explicit non-default endpoint.
+
+    `/query` (statutes) and `/judgments/query` (B1 extractive quotes) are
+    untouched. This path composes B2-R1 selection + B2-C graph + B2-B
+    statutes into a gated answer, or abstains. Until the document store and
+    structural roles are wired for live chunks (follow-up), live calls abstain
+    honestly instead of answering from incomplete evidence.
+
+    answer_mode "single" (default) preserves the existing response contract;
+    "sectioned" returns the B4-B multi-evidence composition. Invalid
+    mode/section combinations are rejected here with 400 — never silently
+    downgraded to single mode.
+    """
+    if body.answer_mode == "single" and body.sections is not None:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error",
+                     "detail": "sections requires answer_mode='sectioned'"},
+        )
+    if body.answer_mode == "sectioned" and body.sections is not None and (
+            not body.sections
+            or any(s not in b4b_compose.SECTION_KINDS for s in body.sections)):
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error",
+                     "detail": f"sections must be a non-empty list of {list(b4b_compose.SECTION_KINDS)}"},
+        )
+    try:
+        return await b2d_answer.serve_live(
+            body.question, recall=body.recall, top_k=body.top_k,
+            require_statutes=body.require_statutes,
+            answer_mode=body.answer_mode, sections=body.sections)
+    except Exception as e:  # noqa: BLE001 - unexpected bug surface, never a fabricated answer
+        if isinstance(e, httpx.HTTPStatusError):
+            try:
+                _host = e.response.request.url.host
+            except Exception:
+                _host = "?"
+            rag.log_upstream_failure("judgments/answer", e.response, _host)
+        logger.error("judgments/answer 失敗：%s", e)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "detail": "judgement answer failed"},
+        )
 
 
 @app.get("/settings/default-model")

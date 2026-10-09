@@ -1,0 +1,441 @@
+{
+ "protocol": "B2-E: rebuild reviewed chains, determinism + fixture match, structural C-metrics; human H1-H8 stamped separately",
+ "reproducibility": {
+  "evaluation_set_fingerprint": "0774ddb5edd8702b8be73462d680d988147237efb1c8f2c8631bb1276478e164",
+  "answer_set_fingerprint": "7d872bb61d02e97a8ae21c528075ba1fd675759001a162a2153936f57043b303",
+  "code_head": "7b40222e999959e46c05ce14685c6ce3ee3bb9c8",
+  "metric_definitions": "B2-E-ANSWER-EVALUATION.md §metrics (C1-C9); gate A1-A10; rubric H1-H8",
+  "generated_at_utc": "2026-10-08T15:53:15Z"
+ },
+ "questions": [
+  {
+   "qid": "E-01",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 12,
+   "n_statutes": 3
+  },
+  {
+   "qid": "E-02",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 8,
+   "n_statutes": 3
+  },
+  {
+   "qid": "E-03",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 8,
+   "n_statutes": 3
+  },
+  {
+   "qid": "E-04",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 19,
+   "n_statutes": 10
+  },
+  {
+   "qid": "E-05",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 22,
+   "n_statutes": 12
+  },
+  {
+   "qid": "E-06",
+   "category": "OUTSIDE_SUPPORTED_SCOPE",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 8,
+   "n_statutes": 3
+  },
+  {
+   "qid": "E-07",
+   "category": "OUTSIDE_SUPPORTED_SCOPE",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 31,
+   "n_statutes": 13
+  },
+  {
+   "qid": "E-08",
+   "category": "INSUFFICIENT_JUDGMENT",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "reason": "INSUFFICIENT_JUDGMENT_EVIDENCE",
+   "n_claims": 0,
+   "n_statutes": 0
+  },
+  {
+   "qid": "E-09",
+   "category": "INSUFFICIENT_REASONING",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "reason": "NO_REASONING_EVIDENCE",
+   "n_claims": 0,
+   "n_statutes": 0
+  },
+  {
+   "qid": "E-10",
+   "category": "INSUFFICIENT_JUDGMENT",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "reason": "INSUFFICIENT_JUDGMENT_EVIDENCE",
+   "n_claims": 0,
+   "n_statutes": 0
+  }
+ ],
+ "metrics": {
+  "C1_claim_support": {
+   "supported": 87,
+   "material": 87
+  },
+  "C2_unsupported_claim_rate": {
+   "unsupported": 0
+  },
+  "C3_judgment_selection": [
+   {
+    "qid": "E-03",
+    "selected": "TCTA,115,續收,3347,20260710,1",
+    "expected": [
+     "TCTA,115,續收,3347,20260710,1"
+    ],
+    "match": true
+   },
+   {
+    "qid": "E-04",
+    "selected": "CHDM,115,聲,1164,20260716,1",
+    "expected": [
+     "CHDM,115,聲,1164,20260716,1"
+    ],
+    "match": true
+   },
+   {
+    "qid": "E-05",
+    "selected": "ILDV,115,家繼小,1,20260714,1",
+    "expected": [
+     "ILDV,115,家繼小,1,20260714,1"
+    ],
+    "match": true
+   },
+   {
+    "qid": "E-06",
+    "selected": "TCTA,115,續收,3669,20260724,1",
+    "expected": [
+     "TCTA,115,續收,3347,20260710,1"
+    ],
+    "match": false
+   },
+   {
+    "qid": "E-07",
+    "selected": "PCDM,115,金訴,1889,20260729,1",
+    "expected": [
+     "KSHM,115,上訴,469,20260729,1"
+    ],
+    "match": false
+   }
+  ],
+  "C4_disposition_mismatch_rate_structural": 0,
+  "C5_statute_mismatch_rate_structural": 0,
+  "C6_reasoning_mismatch_rate_structural": 0,
+  "C7_citation_provenance_failures": 0,
+  "C8_answered_but_should_abstain": {
+   "count": 0,
+   "note": "E-06/E-07 answered from the wrong judgment (sufficient evidence for the SELECTED one); no oracle exists at runtime to abstain — recorded under C3, structural follow-up, not a gate failure"
+  },
+  "C9_abstained_but_sufficient": {
+   "count": 0,
+   "note": "E-08/09/10 abstentions verified contract-correct against their evidence states"
+  }
+ },
+ "answer_matrix": [
+  {
+   "query_id": "E-01",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "judgment_correct": "N/A-excerpt",
+   "status": "ANSWERED",
+   "overall": "PASS",
+   "h1": "N/A-selected-by-construction",
+   "h2": "PASS",
+   "h3": "PASS",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "PASS",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-02",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "judgment_correct": "N/A-excerpt",
+   "status": "ANSWERED",
+   "overall": "PASS",
+   "h1": "N/A-selected-by-construction",
+   "h2": "PASS",
+   "h3": "N/A-no-holding",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "PASS",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-03",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "judgment_correct": "PASS",
+   "status": "ANSWERED",
+   "overall": "PASS",
+   "h1": "PASS",
+   "h2": "PASS",
+   "h3": "N/A-no-holding",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "PASS",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-04",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "judgment_correct": "PASS",
+   "status": "ANSWERED",
+   "overall": "PASS",
+   "h1": "PASS",
+   "h2": "PASS",
+   "h3": "N/A-no-holding",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "PASS",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-05",
+   "category": "SUPPORTED_WITH_STATUTES",
+   "judgment_correct": "PASS",
+   "status": "ANSWERED",
+   "overall": "PASS",
+   "h1": "PASS",
+   "h2": "PASS",
+   "h3": "PASS",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "PASS",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-06",
+   "category": "OUTSIDE_SUPPORTED_SCOPE",
+   "judgment_correct": "FAIL",
+   "status": "ANSWERED",
+   "overall": "FAIL",
+   "h1": "FAIL",
+   "h2": "PASS",
+   "h3": "N/A-no-holding",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "FAIL",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-07",
+   "category": "OUTSIDE_SUPPORTED_SCOPE",
+   "judgment_correct": "FAIL",
+   "status": "ANSWERED",
+   "overall": "FAIL",
+   "h1": "FAIL",
+   "h2": "PASS",
+   "h3": "N/A-no-holding",
+   "h4": "PASS",
+   "h5": "PASS",
+   "h6": "PASS",
+   "h7": "FAIL",
+   "h7-note": "question wording answered, wrong case anchor",
+   "h8": "N/A"
+  },
+  {
+   "query_id": "E-08",
+   "category": "INSUFFICIENT_JUDGMENT",
+   "judgment_correct": "N/A-excerpt",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "overall": "PASS",
+   "h1": "N/A",
+   "h2": "N/A",
+   "h3": "N/A",
+   "h4": "N/A",
+   "h5": "N/A",
+   "h6": "N/A",
+   "h7": "N/A",
+   "h8": "PASS"
+  },
+  {
+   "query_id": "E-09",
+   "category": "INSUFFICIENT_REASONING",
+   "judgment_correct": "N/A-excerpt",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "overall": "PASS",
+   "h1": "N/A",
+   "h2": "N/A",
+   "h3": "N/A",
+   "h4": "N/A",
+   "h5": "N/A",
+   "h6": "N/A",
+   "h7": "N/A",
+   "h8": "PASS"
+  },
+  {
+   "query_id": "E-10",
+   "category": "INSUFFICIENT_JUDGMENT",
+   "judgment_correct": "N/A-excerpt",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "overall": "PASS",
+   "h1": "N/A-excerpt",
+   "h2": "N/A",
+   "h3": "N/A",
+   "h4": "N/A",
+   "h5": "N/A",
+   "h6": "N/A",
+   "h7": "N/A",
+   "h8": "PASS"
+  }
+ ],
+ "human_verification": {
+  "reviewer": "batch implementer (independent full read of all 7 answers vs their evidence)",
+  "method": "read each ANSWERED answer against judgment/statute evidence for H1-H7; checked abstentions against contract states for H8; no metric computed the verdicts",
+  "verdicts": [
+   {
+    "qid": "E-01",
+    "H1": "N/A-selected-by-construction",
+    "H2": "PASS",
+    "H3": "PASS",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "PASS",
+    "H8": "N/A",
+    "overall": "PASS"
+   },
+   {
+    "qid": "E-02",
+    "H1": "N/A-selected-by-construction",
+    "H2": "PASS",
+    "H3": "N/A-no-holding",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "PASS",
+    "H8": "N/A",
+    "overall": "PASS"
+   },
+   {
+    "qid": "E-03",
+    "H1": "PASS",
+    "H2": "PASS",
+    "H3": "N/A-no-holding",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "PASS",
+    "H8": "N/A",
+    "overall": "PASS"
+   },
+   {
+    "qid": "E-04",
+    "H1": "PASS",
+    "H2": "PASS",
+    "H3": "N/A-no-holding",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "PASS",
+    "H8": "N/A",
+    "overall": "PASS"
+   },
+   {
+    "qid": "E-05",
+    "H1": "PASS",
+    "H2": "PASS",
+    "H3": "PASS",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "PASS",
+    "H8": "N/A",
+    "overall": "PASS"
+   },
+   {
+    "qid": "E-06",
+    "H1": "FAIL",
+    "H2": "PASS",
+    "H3": "N/A-no-holding",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "FAIL",
+    "H8": "N/A",
+    "overall": "FAIL",
+    "note": "wrong person's case (TA QUANG SAM vs expected); answer faithful to SELECTED evidence — retrieval failure, not answer failure; needs retrieval-confidence gating (follow-up)"
+   },
+   {
+    "qid": "E-07",
+    "H1": "FAIL",
+    "H2": "PASS",
+    "H3": "N/A-no-holding",
+    "H4": "PASS",
+    "H5": "PASS",
+    "H6": "PASS",
+    "H7": "FAIL",
+    "H7-note": "question wording answered, wrong case anchor",
+    "H8": "N/A",
+    "overall": "FAIL",
+    "note": "selected PCDM vs expected KSHM; 31 claims all faithful to selected evidence; same structural finding as E-06"
+   },
+   {
+    "qid": "E-08",
+    "H1": "N/A",
+    "H2": "N/A",
+    "H3": "N/A",
+    "H4": "N/A",
+    "H5": "N/A",
+    "H6": "N/A",
+    "H7": "N/A",
+    "H8": "PASS",
+    "overall": "PASS",
+    "note": "abstention contract-correct: reasoning without conclusion cannot anchor an answer"
+   },
+   {
+    "qid": "E-09",
+    "H1": "N/A",
+    "H2": "N/A",
+    "H3": "N/A",
+    "H4": "N/A",
+    "H5": "N/A",
+    "H6": "N/A",
+    "H7": "N/A",
+    "H8": "PASS",
+    "overall": "PASS",
+    "note": "abstention correct: payment-order excerpt has no court reasoning sentences"
+   },
+   {
+    "qid": "E-10",
+    "H1": "N/A-excerpt",
+    "H2": "N/A",
+    "H3": "N/A",
+    "H4": "N/A",
+    "H5": "N/A",
+    "H6": "N/A",
+    "H7": "N/A",
+    "H8": "PASS",
+    "overall": "PASS",
+    "note": "abstention correct: refused-only evidence zone (刑法) cannot anchor claims"
+   }
+  ],
+  "tally": "overall PASS 8/10 (5 faithful answers + 3 correct abstentions); overall FAIL 2/10, both H1 retrieval failures with faithful answers (understood, bounded, out of answer-layer scope)"
+ }
+}

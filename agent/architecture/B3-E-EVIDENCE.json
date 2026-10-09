@@ -1,0 +1,70 @@
+{
+ "protocol": "B3-E: reviewed-set recomputation + corpus-wide application relations with real graphs; no services, no LLM",
+ "rule_id": "holding-containment-v1",
+ "reviewed_set": {
+  "cases": 10,
+  "all_match": true,
+  "rows": [
+   {
+    "case_id": "A-01-applied-184",
+    "match": true
+   },
+   {
+    "case_id": "A-02-applied-195",
+    "match": true
+   },
+   {
+    "case_id": "A-03-mention-not-applied",
+    "match": true
+   },
+   {
+    "case_id": "A-04-party-17-1",
+    "match": true
+   },
+   {
+    "case_id": "A-05-prosecutor-21-1",
+    "match": true
+   },
+   {
+    "case_id": "A-06-appendix-339-4",
+    "match": true
+   },
+   {
+    "case_id": "A-07-unresolved-436-18",
+    "match": true
+   },
+   {
+    "case_id": "A-08-costs-78",
+    "match": true
+   },
+   {
+    "case_id": "A-09-cross-chunk",
+    "match": true
+   },
+   {
+    "case_id": "A-10-detention-conclusion",
+    "match": true
+   }
+  ],
+  "applied_precision": "2/2 reviewed APPLIED relations correct",
+  "false_applications": 0
+ },
+ "corpus_relations": {
+  "citations": 1023,
+  "by_relation": {
+   "APPLICATION_UNRESOLVED": 1016,
+   "COURT_EXPLICIT_APPLICATION": 7
+  },
+  "applied": 7,
+  "unresolved_rate": 0.9932,
+  "by_reason": {
+   "citation-inside-conclusory-holding": 7,
+   "covering-not-holding": 119,
+   "not-court-used": 897
+  },
+  "non_court_applied": 0,
+  "party_or_prosecutor_applied": 0,
+  "quoted_applied": 0
+ },
+ "claim_eligibility": "A11 gate unit-pinned (forged applied citation/evidence/attribution rejected; UNRESOLVED passes through)"
+}

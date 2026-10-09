@@ -1,0 +1,22 @@
+# B2-B production footprint (extends B1/B2-A/B2-R1 manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b2b_cite.py
+backend/app/b1_serve.py
+tests/test_b2b_extract.py
+tests/test_b2b_safety.py
+tests/test_b2b_resolve.py
+tests/test_b2b_chain.py
+tests/fixtures/b2b_citation_set.json
+tests/fixtures/b2b_chain.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B2-B-JUDGMENT-STATUTE.md
+agent/architecture/B2-B-VALIDATION-REPORT.md
+agent/architecture/B2-B-FOLLOWUPS.md
+agent/architecture/B2-B-CHANGES.txt
+agent/architecture/B2-B-EVIDENCE.json
+agent/scripts/build_b2b_set.py
+agent/scripts/b2b_evaluate.py
+# b1_serve.py change is ADDITIVE ONLY (span-aware extractor + wrapper with
+# identical behavior; B1 suite re-verified green).
+# No serving behavior, retrieval baseline, or frozen artifact modified.

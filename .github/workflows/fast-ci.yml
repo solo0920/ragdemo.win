@@ -203,16 +203,32 @@ jobs:
           set -o pipefail
           out="$(.venv/bin/pytest -q -p no:cacheprovider 2>&1 | tee /dev/stderr)"
           # FR-019：把實際跑到的數字印出來。「測試有跑」與「測試被 skip」在
-          # 都是綠燈的情況下長得一模一樣，只有數字看得出來。預期基線見下方
-          # 註解 —— 若這裡的數字掉了，先確認是不是工具鏈沒裝好。
+          # 都是綠燈的情況下長得一模一樣，只有數字看得出來。對照值見下方
+          # 註解 —— 若數字掉了，先確認是不是工具鏈沒裝好。
           #
-          # 預期（2026-10-07，乾淨 clone + node/sops/age-keygen 齊全）：
-          #   674 passed / 115 skipped / 2 deselected
-          # 其中 skip 全是「缺環境」，不是缺陷、也不該去「修」：
-          #   · node 那一批（本機沒 node；CI 有，所以 CI 這裡是 0）
-          #   · data/laws/laws_flat.jsonl（被 gitignore，跑過 sync_daily 才有）
-          #   · 本機 qdrant（/healthz 免驗證、/collections 要驗證這個安全前提
-          #     只在有真實 stack 的機器上驗）
+          # ⚠️ 這裡有**兩個**基準，不要混為一談：
+          #
+          # (1) 本機（開發主機，2026-10-07 實測）：
+          #       674 passed / 115 skipped / 2 deselected  in 16.7 秒
+          #     115 個 skip 幾乎全是「這台沒有 node」。本機**有** .env、有 age
+          #     加密器、有 laws_flat.jsonl，所以那幾組在本機是跑到的。
+          #
+          # (2) CI（乾淨 clone，2026-10-07 首次實測，run 37562791616）：
+          #       770 passed /  19 skipped / 2 deselected  in 27.0 秒
+          #     CI 有 node、有 sops/age-keygen，但**沒有**下面三樣東西，所以
+          #     skip 數反而少得多（115 → 19）：
+          #       · test_backup_env.py ×10 —— 它要的是 age **加密器**，而這份
+          #         workflow 刻意只裝 age-keygen（見第 7 步的理由）。這是已知且
+          #         刻意留下的缺口，別當成新問題。
+          #       · 4 個要 .env 的（乾淨 clone 刻意不放）
+          #       · data/laws/laws_flat.jsonl（gitignore，跑過 sync_daily 才有）
+          #     另外 qdrant / 本機 stack 那 4 個在兩邊都 skip —— 那是
+          #     /healthz 免驗證、/collections 要驗證這個**安全前提**，
+          #     只在有真實 stack 的機器上驗，CI 不該假裝驗過。
+          #
+          # (2) 是**一次觀測**，不是不變量：node 裝好、`.env` 的測試改寫、
+          # 或有人加了新的環境相關測試，數字都會變。判斷基準是「skip 的**理由**
+          # 是否可解釋」，不是數字本身 —— 那正是把這個數字印出來的原因。
           echo "::notice title=pytest 實際執行數::$(printf '%s' "$out" | tail -1)"
 
   # ── frontend：安裝 + build ────────────────────────────────────────────────────────

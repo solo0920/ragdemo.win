@@ -29,6 +29,7 @@ import { readCookie, verifySession } from '$lib/google';
 // **寫下這段是為了別有人只加字串就以為修好了** —— 那正是這個漏洞第一次發生的方式。
 const SENSITIVE = new Set([
   'query',
+  'judgments',
   'ingest',
   'eval',
   'rules',

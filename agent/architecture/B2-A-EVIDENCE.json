@@ -1,0 +1,2076 @@
+{
+ "protocol": "B2-A: read frozen files only; no retrieval executed; no baseline recomputed",
+ "inputs": {
+  "golden_queries": 76,
+  "corpus_records": 430,
+  "golden_fp": "58e01c798c647b0ebbbf5f7b93f1c61c0aad9908be3cf7ff8ce5c94a339e7f2c",
+  "corpus_fp": "893d40b68907e6221c548b721cd93991bd85e6f370c584eb662497a3f6071a8d"
+ },
+ "identity_audit": {
+  "GQ-001": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-002": {
+   "valid": true,
+   "issues": [],
+   "observations": [
+    "target_hard_negative_overlap:['CHDM,115,聲,1164,20260716,1#C001']"
+   ],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-003": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-004": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-005": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-006": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-007": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-008": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-009": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-010": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-011": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-012": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-013": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-014": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-015": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-016": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-017": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-018": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-019": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-020": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-021": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-022": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-023": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-024": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-025": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-026": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-027": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-028": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-029": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-030": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-031": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-032": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-033": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-034": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-035": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-036": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-037": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-038": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-039": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-040": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-041": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-042": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-043": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-044": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-045": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 3,
+   "n_hard_negatives": 0
+  },
+  "GQ-046": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 3,
+   "n_hard_negatives": 0
+  },
+  "GQ-047": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-048": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-049": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-050": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 2
+  },
+  "GQ-051": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-052": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-053": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-054": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-055": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-056": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-057": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-058": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-059": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-060": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-061": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-062": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-063": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-064": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-065": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-066": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 3,
+   "n_hard_negatives": 1
+  },
+  "GQ-067": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 0
+  },
+  "GQ-068": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-069": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-070": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  },
+  "GQ-072": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 2,
+   "n_hard_negatives": 1
+  },
+  "GQ-073": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-074": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-075": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-076": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 1
+  },
+  "GQ-071": {
+   "valid": true,
+   "issues": [],
+   "observations": [],
+   "n_targets": 1,
+   "n_hard_negatives": 0
+  }
+ },
+ "runs_agree_bm25": true,
+ "reference_metrics_cited": {
+  "recall_at_1": {
+   "bm25": 0.38,
+   "bge_m3": 0.3244444444444444,
+   "embedding2": 0.24
+  },
+  "recall_at_5": {
+   "bm25": 0.6733333333333333,
+   "bge_m3": 0.6088888888888888,
+   "embedding2": 0.62
+  },
+  "recall_at_10": {
+   "bm25": 0.72,
+   "bge_m3": 0.6666666666666666,
+   "embedding2": 0.6466666666666666
+  },
+  "recall_at_20": {
+   "bm25": 0.8133333333333334,
+   "bge_m3": 0.7533333333333333,
+   "embedding2": 0.7733333333333333
+  },
+  "graded_recall_at_10": {
+   "bm25": 0.7483552631578947,
+   "bge_m3": 0.6851973684210527,
+   "embedding2": 0.6444078947368421
+  },
+  "ndcg_at_5": {
+   "bm25": 0.58009288617381,
+   "bge_m3": 0.5352775448055884,
+   "embedding2": 0.4974256559917225
+  },
+  "ndcg_at_10": {
+   "bm25": 0.6026324240130851,
+   "bge_m3": 0.5539772542937813,
+   "embedding2": 0.5074150023167983
+  },
+  "ndcg_at_20": {
+   "bm25": 0.62304249218503,
+   "bge_m3": 0.5781096646118916,
+   "embedding2": 0.5399870166596529
+  },
+  "mrr_single_high_only": {
+   "bm25": 0.6483088906558294,
+   "bge_m3": 0.6193832583538466,
+   "embedding2": 0.5403027323983206
+  },
+  "evidence_coverage_at_10": {
+   "bm25": 0.9166666666666667,
+   "bge_m3": 0.8903508771929826,
+   "embedding2": 0.8245614035087719
+  },
+  "target_coverage_at_10": {
+   "bm25": 0.7543859649122807,
+   "bge_m3": 0.6885964912280702,
+   "embedding2": 0.6425438596491229
+  },
+  "disposition_recall_at_10": {
+   "bm25": 0.7906976744186046,
+   "bge_m3": 0.7674418604651163,
+   "embedding2": 0.627906976744186
+  },
+  "disposition_contradiction_at_10": {
+   "bm25": 0.8269230769230769,
+   "bge_m3": 0.9230769230769231,
+   "embedding2": 0.7115384615384616
+  },
+  "hard_negative_rate_at_10": {
+   "bm25": 0.14473684210526316,
+   "bge_m3": 0.14473684210526316,
+   "embedding2": 0.11842105263157894
+  },
+  "quoted_contamination_at_10": {
+   "bm25": 0.2631578947368421,
+   "bge_m3": 0.25,
+   "embedding2": 0.2236842105263158
+  },
+  "wrong_current_judgement_at_10": {
+   "bm25": 0.9736842105263158,
+   "bge_m3": 1.0,
+   "embedding2": 0.9868421052631579
+  },
+  "full_multi_chunk_coverage_rate_at_10": {
+   "bm25": 0.42857142857142855,
+   "bge_m3": 0.42857142857142855,
+   "embedding2": 0.42857142857142855
+  },
+  "partial_multi_chunk_coverage_rate_at_10": {
+   "bm25": 0.42857142857142855,
+   "bge_m3": 0.3142857142857143,
+   "embedding2": 0.22857142857142856
+  }
+ },
+ "hard_negative_reference": {
+  "bm25": {
+   "recall1_failures": 39,
+   "hn_outranks": 3,
+   "hn_share_of_failures": 0.07692307692307693
+  },
+  "bge_m3": {
+   "recall1_failures": 42,
+   "hn_outranks": 3,
+   "hn_share_of_failures": 0.07142857142857142
+  },
+  "embeddinggemma2": {
+   "recall1_failures": 49,
+   "hn_outranks": 3,
+   "hn_share_of_failures": 0.061224489795918366
+  }
+ },
+ "hard_negative_rates_cited": {
+  "Disposition contradiction@1": {
+   "bm25": 0.19230769230769232,
+   "bge_m3": 0.3076923076923077,
+   "embedding2": 0.21153846153846154
+  },
+  "Disposition contradiction@5": {
+   "bm25": 0.7115384615384616,
+   "bge_m3": 0.7884615384615384,
+   "embedding2": 0.5961538461538461
+  },
+  "Disposition contradiction@10": {
+   "bm25": 0.8269230769230769,
+   "bge_m3": 0.9230769230769231,
+   "embedding2": 0.7115384615384616
+  },
+  "Disposition contradiction@20": {
+   "bm25": 0.9615384615384616,
+   "bge_m3": 0.9615384615384616,
+   "embedding2": 0.9038461538461539
+  },
+  "Hard-negative rate@1": {
+   "bm25": 0.039473684210526314,
+   "bge_m3": 0.05263157894736842,
+   "embedding2": 0.05263157894736842
+  },
+  "Hard-negative rate@5": {
+   "bm25": 0.11842105263157894,
+   "bge_m3": 0.10526315789473684,
+   "embedding2": 0.10526315789473684
+  },
+  "Hard-negative rate@10": {
+   "bm25": 0.14473684210526316,
+   "bge_m3": 0.14473684210526316,
+   "embedding2": 0.11842105263157894
+  },
+  "Hard-negative rate@20": {
+   "bm25": 0.19736842105263158,
+   "bge_m3": 0.19736842105263158,
+   "embedding2": 0.19736842105263158
+  },
+  "Quoted contamination@1": {
+   "bm25": 0.013157894736842105,
+   "bge_m3": 0.039473684210526314,
+   "embedding2": 0.039473684210526314
+  },
+  "Quoted contamination@5": {
+   "bm25": 0.13157894736842105,
+   "bge_m3": 0.17105263157894737,
+   "embedding2": 0.13157894736842105
+  },
+  "Quoted contamination@10": {
+   "bm25": 0.2631578947368421,
+   "bge_m3": 0.25,
+   "embedding2": 0.2236842105263158
+  },
+  "Quoted contamination@20": {
+   "bm25": 0.5394736842105263,
+   "bge_m3": 0.42105263157894735,
+   "embedding2": 0.4868421052631579
+  },
+  "Wrong-current-judgement@1": {
+   "bm25": 0.27631578947368424,
+   "bge_m3": 0.4342105263157895,
+   "embedding2": 0.47368421052631576
+  },
+  "Wrong-current-judgement@5": {
+   "bm25": 0.9210526315789473,
+   "bge_m3": 0.9736842105263158,
+   "embedding2": 0.9868421052631579
+  },
+  "Wrong-current-judgement@10": {
+   "bm25": 0.9736842105263158,
+   "bge_m3": 1.0,
+   "embedding2": 0.9868421052631579
+  },
+  "Wrong-current-judgement@20": {
+   "bm25": 1.0,
+   "bge_m3": 1.0,
+   "embedding2": 1.0
+  }
+ },
+ "failure_tables": {
+  "bm25": [
+   {
+    "query_id": "GQ-001",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TCTA,115,續收,3347,20260710,1#C001",
+    "rank_of_target": 4,
+    "evidence": "rank-1 TCTA,115,續收,3347,20260710,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-005",
+    "category": "unknown",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C001",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-008",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TYDV,115,消債聲,68,20260724,1#C001",
+    "rank_of_target": 4,
+    "evidence": "rank-1 TYDV,115,消債聲,68,20260724,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-009",
+    "category": "unknown",
+    "expected": "KSHM,115,上訴,469,20260729,1",
+    "top_result": "KSHM,115,上訴,469,20260729,1#C001",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-012",
+    "category": "wrong_judgement",
+    "expected": "TNDM,115,訴,697,20260708,3",
+    "top_result": "TNDM,115,訴,697,20260708,3#C002",
+    "rank_of_target": 18,
+    "evidence": "rank-1 doc TNDM,115,訴,697,20260708,3 not in expected ['ILDV,115,家繼小,1,20260714,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-013",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台非,106,20260723,1",
+    "top_result": "TPSM,115,台非,106,20260723,1#C005",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TPSM,115,台非,106,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-015",
+    "category": "target_below_cutoff",
+    "expected": "CYDV,115,訴,476,20260708,1",
+    "top_result": "CYDV,115,訴,476,20260708,1#C001",
+    "rank_of_target": 5,
+    "evidence": "target at rank 5",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-016",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,469,20260729,1",
+    "top_result": "KSHM,115,上訴,469,20260729,1#C009",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc KSHM,115,上訴,469,20260729,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-020",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3669,20260724,1",
+    "top_result": "TCTA,115,續收,3669,20260724,1#C002",
+    "rank_of_target": 8,
+    "evidence": "rank-1 doc TCTA,115,續收,3669,20260724,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-022",
+    "category": "wrong_judgement",
+    "expected": "TPDM,115,審訴,414,20260730,1",
+    "top_result": "TPDM,115,審訴,414,20260730,1#C004",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPDM,115,審訴,414,20260730,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-025",
+    "category": "wrong_judgement",
+    "expected": "TNDV,114,重訴,219,20260710,2",
+    "top_result": "TNDV,114,重訴,219,20260710,2#C003",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TNDV,114,重訴,219,20260710,2 not in expected ['ILDV,115,家繼小,1,20260714,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-026",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C012",
+    "rank_of_target": 4,
+    "evidence": "target at rank 4",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-028",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C002",
+    "rank_of_target": 2,
+    "evidence": "target at rank 2",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-030",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C006",
+    "rank_of_target": 2,
+    "evidence": "target at rank 2",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-032",
+    "category": "unknown",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C001",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-035",
+    "category": "wrong_judgement",
+    "expected": "PCDM,115,金訴,1889,20260729,1",
+    "top_result": "PCDM,115,金訴,1889,20260729,1#C003",
+    "rank_of_target": 10,
+    "evidence": "rank-1 doc PCDM,115,金訴,1889,20260729,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-038",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C011",
+    "rank_of_target": 8,
+    "evidence": "target at rank 8",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-040",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台上,2634,20260723,1",
+    "top_result": "TPSM,115,台上,2634,20260723,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPSM,115,台上,2634,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-044",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,322,20260723,1",
+    "top_result": "KSHM,115,上訴,322,20260723,1#C001",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc KSHM,115,上訴,322,20260723,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-045",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,322,20260723,1",
+    "top_result": "KSHM,115,上訴,322,20260723,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc KSHM,115,上訴,322,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-046",
+    "category": "wrong_judgement",
+    "expected": "TPDM,115,審訴,414,20260730,1",
+    "top_result": "TPDM,115,審訴,414,20260730,1#C001",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPDM,115,審訴,414,20260730,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-048",
+    "category": "target_below_cutoff",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C006",
+    "rank_of_target": 5,
+    "evidence": "target at rank 5",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-050",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,322,20260723,1",
+    "top_result": "KSHM,115,上訴,322,20260723,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc KSHM,115,上訴,322,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-052",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C002",
+    "rank_of_target": 2,
+    "evidence": "target at rank 2",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-053",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C002",
+    "rank_of_target": 5,
+    "evidence": "target at rank 5",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-056",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C002",
+    "rank_of_target": 14,
+    "evidence": "target at rank 14",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-058",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上易,1077,20260730,1",
+    "top_result": "TPHM,115,上易,1077,20260730,1#C002",
+    "rank_of_target": 4,
+    "evidence": "target at rank 4",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-059",
+    "category": "wrong_judgement",
+    "expected": "TPTA,115,續收,5464,20260721,1",
+    "top_result": "TPTA,115,續收,5464,20260721,1#C002",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPTA,115,續收,5464,20260721,1 not in expected ['SSEV,115,新小,380,20260715,1', 'TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-060",
+    "category": "wrong_judgement",
+    "expected": "PTDM,115,易,351,20260729,1",
+    "top_result": "PTDM,115,易,351,20260729,1#C005",
+    "rank_of_target": 6,
+    "evidence": "rank-1 doc PTDM,115,易,351,20260729,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-061",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台上,1175,20260701,1",
+    "top_result": "TPSM,115,台上,1175,20260701,1#C002",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TPSM,115,台上,1175,20260701,1 not in expected ['KSHM,115,上訴,469,20260729,1', 'TPHM,115,上訴,2702,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-062",
+    "category": "wrong_judgement",
+    "expected": "CYDV,115,訴,476,20260708,1",
+    "top_result": "CYDV,115,訴,476,20260708,1#C003",
+    "rank_of_target": 6,
+    "evidence": "rank-1 doc CYDV,115,訴,476,20260708,1 not in expected ['TYDV,115,消債聲,68,20260724,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-064",
+    "category": "target_below_cutoff",
+    "expected": "CYDV,115,訴,476,20260708,1",
+    "top_result": "CYDV,115,訴,476,20260708,1#C004",
+    "rank_of_target": 18,
+    "evidence": "target at rank 18",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-065",
+    "category": "missing_judgement",
+    "expected": null,
+    "top_result": "TYDM,112,訴,1067,20260730,2#C011",
+    "rank_of_target": null,
+    "evidence": "no chunk of any expected judgement in ranking",
+    "confidence": "high",
+    "retrieval_status": "MISS:missing_judgement"
+   },
+   {
+    "query_id": "GQ-066",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台上,1175,20260701,1",
+    "top_result": "TPSM,115,台上,1175,20260701,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPSM,115,台上,1175,20260701,1 not in expected ['KSHM,115,上訴,469,20260729,1', 'TPHM,115,上易,1077,20260730,1', 'TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-067",
+    "category": "wrong_judgement",
+    "expected": "KSTA,115,續收,2800,20260708,1",
+    "top_result": "KSTA,115,續收,2800,20260708,1#C002",
+    "rank_of_target": 8,
+    "evidence": "rank-1 doc KSTA,115,續收,2800,20260708,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-072",
+    "category": "wrong_judgement",
+    "expected": "PCDV,115,司促,17332,20260713,1",
+    "top_result": "PCDV,115,司促,17332,20260713,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc PCDV,115,司促,17332,20260713,1 not in expected ['NHEV,115,湖簡,711,20260720,1', 'NTEV,115,投小,190,20260723,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-075",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台上,2634,20260723,1",
+    "top_result": "TPSM,115,台上,2634,20260723,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPSM,115,台上,2634,20260723,1 not in expected ['TPSM,115,台上,1175,20260701,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-076",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TPSM,115,台抗,1470,20260730,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 TPSM,115,台抗,1470,20260730,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-071",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C012",
+    "rank_of_target": 2,
+    "evidence": "target at rank 2",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   }
+  ],
+  "bge_m3": [
+   {
+    "query_id": "GQ-001",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TCTA,115,續收,3347,20260710,1#C001",
+    "rank_of_target": 8,
+    "evidence": "rank-1 TCTA,115,續收,3347,20260710,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-004",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3669,20260724,1",
+    "top_result": "TCTA,115,續收,3669,20260724,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TCTA,115,續收,3669,20260724,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-005",
+    "category": "unknown",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C001",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-006",
+    "category": "wrong_judgement",
+    "expected": "TYDM,112,訴,1067,20260730,2",
+    "top_result": "TYDM,112,訴,1067,20260730,2#C001",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TYDM,112,訴,1067,20260730,2 not in expected ['NTEV,115,投小,190,20260723,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-007",
+    "category": "target_below_cutoff",
+    "expected": "JCCC,115,審裁,1187,20260713",
+    "top_result": "JCCC,115,審裁,1187,20260713#C001",
+    "rank_of_target": 2,
+    "evidence": "target at rank 2",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-008",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TYDV,115,消債聲,68,20260724,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 TYDV,115,消債聲,68,20260724,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-009",
+    "category": "wrong_judgement",
+    "expected": "PCDM,115,金訴,1889,20260729,1",
+    "top_result": "PCDM,115,金訴,1889,20260729,1#C004",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc PCDM,115,金訴,1889,20260729,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-010",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['TPHM,115,上易,1077,20260730,1', 'TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-013",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,金上更一,12,20260723,1",
+    "top_result": "TCHM,115,金上更一,12,20260723,1#C007",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TCHM,115,金上更一,12,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-015",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,金上更一,12,20260723,1",
+    "top_result": "TCHM,115,金上更一,12,20260723,1#C003",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc TCHM,115,金上更一,12,20260723,1 not in expected ['CYDV,115,訴,476,20260708,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-016",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,469,20260729,1",
+    "top_result": "KSHM,115,上訴,469,20260729,1#C009",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc KSHM,115,上訴,469,20260729,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-020",
+    "category": "wrong_judgement",
+    "expected": "KSTA,115,續收,2800,20260708,1",
+    "top_result": "KSTA,115,續收,2800,20260708,1#C002",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc KSTA,115,續收,2800,20260708,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-022",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,金上更一,12,20260723,1",
+    "top_result": "TCHM,115,金上更一,12,20260723,1#C005",
+    "rank_of_target": 17,
+    "evidence": "rank-1 doc TCHM,115,金上更一,12,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-024",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['TPHM,115,上易,1077,20260730,1', 'TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-026",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C011",
+    "rank_of_target": 12,
+    "evidence": "target at rank 12",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-032",
+    "category": "wrong_judgement",
+    "expected": "TPHV,114,重家上,110,20260729,2",
+    "top_result": "TPHV,114,重家上,110,20260729,2#C001",
+    "rank_of_target": 16,
+    "evidence": "rank-1 doc TPHV,114,重家上,110,20260729,2 not in expected ['ILDV,115,家繼小,1,20260714,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-035",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台非,106,20260723,1",
+    "top_result": "TPSM,115,台非,106,20260723,1#C001",
+    "rank_of_target": 5,
+    "evidence": "rank-1 doc TPSM,115,台非,106,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-037",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3669,20260724,1",
+    "top_result": "TCTA,115,續收,3669,20260724,1#C002",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc TCTA,115,續收,3669,20260724,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-038",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C011",
+    "rank_of_target": 13,
+    "evidence": "target at rank 13",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-043",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C002",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-044",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,322,20260723,1",
+    "top_result": "KSHM,115,上訴,322,20260723,1#C001",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc KSHM,115,上訴,322,20260723,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-045",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C001",
+    "rank_of_target": 5,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-046",
+    "category": "missing_judgement",
+    "expected": null,
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C008",
+    "rank_of_target": null,
+    "evidence": "no chunk of any expected judgement in ranking",
+    "confidence": "high",
+    "retrieval_status": "MISS:missing_judgement"
+   },
+   {
+    "query_id": "GQ-047",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3739,20260729,1",
+    "top_result": "TCTA,115,續收,3739,20260729,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TCTA,115,續收,3739,20260729,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-048",
+    "category": "wrong_judgement",
+    "expected": "KSYV,115,司家聲,30,20260708,1",
+    "top_result": "KSYV,115,司家聲,30,20260708,1#C003",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc KSYV,115,司家聲,30,20260708,1 not in expected ['ILDV,115,家繼小,1,20260714,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-050",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C001",
+    "rank_of_target": 7,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-053",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上易,1077,20260730,1",
+    "top_result": "TPHM,115,上易,1077,20260730,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPHM,115,上易,1077,20260730,1 not in expected ['TPHM,115,上訴,2702,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-054",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C001",
+    "rank_of_target": 10,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-055",
+    "category": "target_below_cutoff",
+    "expected": "KSHM,115,上訴,469,20260729,1",
+    "top_result": "KSHM,115,上訴,469,20260729,1#C010",
+    "rank_of_target": 17,
+    "evidence": "target at rank 17",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-056",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C007",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['KSHM,115,上訴,469,20260729,1', 'TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-058",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上易,1077,20260730,1",
+    "top_result": "TPHM,115,上易,1077,20260730,1#C002",
+    "rank_of_target": 18,
+    "evidence": "target at rank 18",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-059",
+    "category": "wrong_judgement",
+    "expected": "KSTA,115,續收,2800,20260708,1",
+    "top_result": "KSTA,115,續收,2800,20260708,1#C002",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc KSTA,115,續收,2800,20260708,1 not in expected ['SSEV,115,新小,380,20260715,1', 'TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-060",
+    "category": "missing_judgement",
+    "expected": null,
+    "top_result": "PTDM,115,易,351,20260729,1#C005",
+    "rank_of_target": null,
+    "evidence": "no chunk of any expected judgement in ranking",
+    "confidence": "high",
+    "retrieval_status": "MISS:missing_judgement"
+   },
+   {
+    "query_id": "GQ-061",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上易,1077,20260730,1",
+    "top_result": "TPHM,115,上易,1077,20260730,1#C002",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TPHM,115,上易,1077,20260730,1 not in expected ['KSHM,115,上訴,469,20260729,1', 'TPHM,115,上訴,2702,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-062",
+    "category": "wrong_judgement",
+    "expected": "PCDV,115,消債聲,65,20260706,1",
+    "top_result": "PCDV,115,消債聲,65,20260706,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc PCDV,115,消債聲,65,20260706,1 not in expected ['TYDV,115,消債聲,68,20260724,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-064",
+    "category": "wrong_judgement",
+    "expected": "PCDM,115,金訴,1889,20260729,1",
+    "top_result": "PCDM,115,金訴,1889,20260729,1#C006",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc PCDM,115,金訴,1889,20260729,1 not in expected ['CYDV,115,訴,476,20260708,1', 'TPEV,115,北簡,4179,20260720,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-065",
+    "category": "missing_judgement",
+    "expected": null,
+    "top_result": "TPSM,115,台非,106,20260723,1#C003",
+    "rank_of_target": null,
+    "evidence": "no chunk of any expected judgement in ranking",
+    "confidence": "high",
+    "retrieval_status": "MISS:missing_judgement"
+   },
+   {
+    "query_id": "GQ-067",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3739,20260729,1",
+    "top_result": "TCTA,115,續收,3739,20260729,1#C001",
+    "rank_of_target": 6,
+    "evidence": "rank-1 doc TCTA,115,續收,3739,20260729,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-069",
+    "category": "wrong_judgement",
+    "expected": "JCCC,115,審裁,1177,20260713",
+    "top_result": "JCCC,115,審裁,1177,20260713#C001",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc JCCC,115,審裁,1177,20260713 not in expected ['JCCC,115,審裁,1187,20260713']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-072",
+    "category": "wrong_judgement",
+    "expected": "TNDV,115,司促,12115,20260720,1",
+    "top_result": "TNDV,115,司促,12115,20260720,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TNDV,115,司促,12115,20260720,1 not in expected ['NHEV,115,湖簡,711,20260720,1', 'NTEV,115,投小,190,20260723,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-076",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TPSM,115,台抗,1470,20260730,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 TPSM,115,台抗,1470,20260730,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-071",
+    "category": "wrong_judgement",
+    "expected": "TPDM,115,審訴,414,20260730,1",
+    "top_result": "TPDM,115,審訴,414,20260730,1#C007",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPDM,115,審訴,414,20260730,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   }
+  ],
+  "embeddinggemma2": [
+   {
+    "query_id": "GQ-001",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TCTA,115,續收,3347,20260710,1#C001",
+    "rank_of_target": 6,
+    "evidence": "rank-1 TCTA,115,續收,3347,20260710,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-004",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3739,20260729,1",
+    "top_result": "TCTA,115,續收,3739,20260729,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TCTA,115,續收,3739,20260729,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-005",
+    "category": "unknown",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C001",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-006",
+    "category": "target_below_cutoff",
+    "expected": "NTEV,115,投小,190,20260723,1",
+    "top_result": "NTEV,115,投小,190,20260723,1#C002",
+    "rank_of_target": 11,
+    "evidence": "target at rank 11",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-007",
+    "category": "target_below_cutoff",
+    "expected": "JCCC,115,審裁,1187,20260713",
+    "top_result": "JCCC,115,審裁,1187,20260713#C001",
+    "rank_of_target": 3,
+    "evidence": "target at rank 3",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-008",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TYDV,115,消債聲,68,20260724,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 TYDV,115,消債聲,68,20260724,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-009",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台非,106,20260723,1",
+    "top_result": "TPSM,115,台非,106,20260723,1#C008",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPSM,115,台非,106,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-013",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,金上更一,12,20260723,1",
+    "top_result": "TCHM,115,金上更一,12,20260723,1#C007",
+    "rank_of_target": 14,
+    "evidence": "rank-1 doc TCHM,115,金上更一,12,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-015",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,附民,247,20260715,1",
+    "top_result": "TCHM,115,附民,247,20260715,1#C002",
+    "rank_of_target": 14,
+    "evidence": "rank-1 doc TCHM,115,附民,247,20260715,1 not in expected ['CYDV,115,訴,476,20260708,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-017",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3739,20260729,1",
+    "top_result": "TCTA,115,續收,3739,20260729,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TCTA,115,續收,3739,20260729,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-020",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3669,20260724,1",
+    "top_result": "TCTA,115,續收,3669,20260724,1#C002",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TCTA,115,續收,3669,20260724,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-021",
+    "category": "wrong_judgement",
+    "expected": "PCDV,115,消債聲,65,20260706,1",
+    "top_result": "PCDV,115,消債聲,65,20260706,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc PCDV,115,消債聲,65,20260706,1 not in expected ['TYDV,115,消債聲,68,20260724,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-022",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,金上更一,12,20260723,1",
+    "top_result": "TCHM,115,金上更一,12,20260723,1#C007",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TCHM,115,金上更一,12,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-024",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,2702,20260716,1",
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPHM,115,上訴,2702,20260716,1 not in expected ['TPHM,115,上易,1077,20260730,1', 'TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-026",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C012",
+    "rank_of_target": 2,
+    "evidence": "target at rank 2",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-027",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,附民,247,20260715,1",
+    "top_result": "TCHM,115,附民,247,20260715,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TCHM,115,附民,247,20260715,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-028",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C002",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc TPHM,115,上訴,3770,20260721,1 not in expected ['TPHM,115,上訴,2702,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-030",
+    "category": "target_below_cutoff",
+    "expected": "CYDM,113,訴,218,20260721,1",
+    "top_result": "CYDM,113,訴,218,20260721,1#C009",
+    "rank_of_target": 3,
+    "evidence": "target at rank 3",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-032",
+    "category": "unknown",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C001",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-035",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C005",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc TPHM,115,上訴,3770,20260721,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-037",
+    "category": "wrong_judgement",
+    "expected": "TPTA,115,續收,5361,20260720,1",
+    "top_result": "TPTA,115,續收,5361,20260720,1#C002",
+    "rank_of_target": 13,
+    "evidence": "rank-1 doc TPTA,115,續收,5361,20260720,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-038",
+    "category": "wrong_judgement",
+    "expected": "TNDM,115,交簡,2156,20260703,1",
+    "top_result": "TNDM,115,交簡,2156,20260703,1#C002",
+    "rank_of_target": 14,
+    "evidence": "rank-1 doc TNDM,115,交簡,2156,20260703,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-040",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台上,2634,20260723,1",
+    "top_result": "TPSM,115,台上,2634,20260723,1#C004",
+    "rank_of_target": 11,
+    "evidence": "rank-1 doc TPSM,115,台上,2634,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-044",
+    "category": "wrong_judgement",
+    "expected": "TCEV,115,中簡,468,20260703,1",
+    "top_result": "TCEV,115,中簡,468,20260703,1#C002",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TCEV,115,中簡,468,20260703,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-045",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,322,20260723,1",
+    "top_result": "KSHM,115,上訴,322,20260723,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc KSHM,115,上訴,322,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-046",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C002",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc TPHM,115,上訴,3770,20260721,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-047",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3739,20260729,1",
+    "top_result": "TCTA,115,續收,3739,20260729,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TCTA,115,續收,3739,20260729,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-048",
+    "category": "target_below_cutoff",
+    "expected": "ILDV,115,家繼小,1,20260714,1",
+    "top_result": "ILDV,115,家繼小,1,20260714,1#C001",
+    "rank_of_target": 17,
+    "evidence": "target at rank 17",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-050",
+    "category": "wrong_judgement",
+    "expected": "KSHM,115,上訴,322,20260723,1",
+    "top_result": "KSHM,115,上訴,322,20260723,1#C001",
+    "rank_of_target": 4,
+    "evidence": "rank-1 doc KSHM,115,上訴,322,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-051",
+    "category": "wrong_judgement",
+    "expected": "TPEV,115,北簡,4179,20260720,1",
+    "top_result": "TPEV,115,北簡,4179,20260720,1#C003",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPEV,115,北簡,4179,20260720,1 not in expected ['TPHM,115,上易,1077,20260730,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-053",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C002",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPHM,115,上訴,3770,20260721,1 not in expected ['TPHM,115,上訴,2702,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-054",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C005",
+    "rank_of_target": 14,
+    "evidence": "rank-1 doc TPHM,115,上訴,3770,20260721,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-055",
+    "category": "target_below_cutoff",
+    "expected": "KSHM,115,上訴,469,20260729,1",
+    "top_result": "KSHM,115,上訴,469,20260729,1#C022",
+    "rank_of_target": 4,
+    "evidence": "target at rank 4",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-056",
+    "category": "wrong_judgement",
+    "expected": "TCHM,115,金上更一,12,20260723,1",
+    "top_result": "TCHM,115,金上更一,12,20260723,1#C007",
+    "rank_of_target": 13,
+    "evidence": "rank-1 doc TCHM,115,金上更一,12,20260723,1 not in expected ['KSHM,115,上訴,469,20260729,1', 'TPHM,115,上訴,3770,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-058",
+    "category": "target_below_cutoff",
+    "expected": "TPHM,115,上易,1077,20260730,1",
+    "top_result": "TPHM,115,上易,1077,20260730,1#C007",
+    "rank_of_target": 3,
+    "evidence": "target at rank 3",
+    "confidence": "high",
+    "retrieval_status": "MISS:target_below_cutoff"
+   },
+   {
+    "query_id": "GQ-059",
+    "category": "wrong_judgement",
+    "expected": "TCTA,115,續收,3739,20260729,1",
+    "top_result": "TCTA,115,續收,3739,20260729,1#C002",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TCTA,115,續收,3739,20260729,1 not in expected ['SSEV,115,新小,380,20260715,1', 'TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-060",
+    "category": "wrong_judgement",
+    "expected": "PCDM,115,金訴,1889,20260729,1",
+    "top_result": "PCDM,115,金訴,1889,20260729,1#C005",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc PCDM,115,金訴,1889,20260729,1 not in expected ['KSHM,115,上訴,469,20260729,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-061",
+    "category": "wrong_judgement",
+    "expected": "TPHM,115,上易,1077,20260730,1",
+    "top_result": "TPHM,115,上易,1077,20260730,1#C002",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc TPHM,115,上易,1077,20260730,1 not in expected ['KSHM,115,上訴,469,20260729,1', 'TPHM,115,上訴,2702,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-062",
+    "category": "wrong_judgement",
+    "expected": "PCDV,115,消債聲,65,20260706,1",
+    "top_result": "PCDV,115,消債聲,65,20260706,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc PCDV,115,消債聲,65,20260706,1 not in expected ['TYDV,115,消債聲,68,20260724,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-064",
+    "category": "wrong_judgement",
+    "expected": "SLDM,115,聲,1089,20260724,1",
+    "top_result": "SLDM,115,聲,1089,20260724,1#C001",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc SLDM,115,聲,1089,20260724,1 not in expected ['CYDV,115,訴,476,20260708,1', 'TPEV,115,北簡,4179,20260720,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-065",
+    "category": "missing_judgement",
+    "expected": null,
+    "top_result": "TPHM,115,上訴,2702,20260716,1#C012",
+    "rank_of_target": null,
+    "evidence": "no chunk of any expected judgement in ranking",
+    "confidence": "high",
+    "retrieval_status": "MISS:missing_judgement"
+   },
+   {
+    "query_id": "GQ-066",
+    "category": "unknown",
+    "expected": "TPHM,115,上訴,3770,20260721,1",
+    "top_result": "TPHM,115,上訴,3770,20260721,1#C005",
+    "rank_of_target": null,
+    "evidence": "no mechanical rule fires; cause unproven",
+    "confidence": "low",
+    "retrieval_status": "MISS:unknown"
+   },
+   {
+    "query_id": "GQ-067",
+    "category": "wrong_judgement",
+    "expected": "KSTA,115,續收,2800,20260708,1",
+    "top_result": "KSTA,115,續收,2800,20260708,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc KSTA,115,續收,2800,20260708,1 not in expected ['TCTA,115,續收,3347,20260710,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-069",
+    "category": "missing_judgement",
+    "expected": null,
+    "top_result": "SLDM,115,聲,1089,20260724,1#C001",
+    "rank_of_target": null,
+    "evidence": "no chunk of any expected judgement in ranking",
+    "confidence": "high",
+    "retrieval_status": "MISS:missing_judgement"
+   },
+   {
+    "query_id": "GQ-070",
+    "category": "wrong_judgement",
+    "expected": "SLDM,115,聲,1089,20260724,1",
+    "top_result": "SLDM,115,聲,1089,20260724,1#C001",
+    "rank_of_target": 3,
+    "evidence": "rank-1 doc SLDM,115,聲,1089,20260724,1 not in expected ['CHDM,115,聲,1164,20260716,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-072",
+    "category": "wrong_judgement",
+    "expected": "TPEV,115,北簡,4179,20260720,1",
+    "top_result": "TPEV,115,北簡,4179,20260720,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPEV,115,北簡,4179,20260720,1 not in expected ['NHEV,115,湖簡,711,20260720,1', 'NTEV,115,投小,190,20260723,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-075",
+    "category": "wrong_judgement",
+    "expected": "TPSM,115,台上,2634,20260723,1",
+    "top_result": "TPSM,115,台上,2634,20260723,1#C002",
+    "rank_of_target": 2,
+    "evidence": "rank-1 doc TPSM,115,台上,2634,20260723,1 not in expected ['TPSM,115,台上,1175,20260701,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   },
+   {
+    "query_id": "GQ-076",
+    "category": "hard_negative_outranks_target",
+    "expected": null,
+    "top_result": "TPSM,115,台抗,1470,20260730,1#C001",
+    "rank_of_target": 2,
+    "evidence": "rank-1 TPSM,115,台抗,1470,20260730,1#C001 is a declared hard negative",
+    "confidence": "high",
+    "retrieval_status": "MISS:hard_negative_outranks_target"
+   },
+   {
+    "query_id": "GQ-071",
+    "category": "wrong_judgement",
+    "expected": "PCDM,115,金訴,1889,20260729,1",
+    "top_result": "PCDM,115,金訴,1889,20260729,1#C007",
+    "rank_of_target": null,
+    "evidence": "rank-1 doc PCDM,115,金訴,1889,20260729,1 not in expected ['CYDM,113,訴,218,20260721,1']",
+    "confidence": "high",
+    "retrieval_status": "MISS:wrong_judgement"
+   }
+  ]
+ },
+ "provenance_problems": {},
+ "provenance_notes": [
+  "document_id null in record (chunk_id still identifies doc)"
+ ],
+ "gates": {
+  "R1": {
+   "verdict": "PASS",
+   "satisfied": true,
+   "evidence": "76/76 queries identity-valid"
+  },
+  "R2": {
+   "verdict": "PASS",
+   "satisfied": true,
+   "evidence": "frozen run1==run2 ranked lists"
+  },
+  "R3": {
+   "verdict": "STOP",
+   "satisfied": false,
+   "evidence": "no hard-negative threshold declared; reference rates recorded {'bm25': 0.07692307692307693, 'bge_m3': 0.07142857142857142, 'embeddinggemma2': 0.061224489795918366}; no candidate retriever in this batch to regress"
+  },
+  "R4": {
+   "verdict": "PASS",
+   "satisfied": true,
+   "evidence": "130/130 failures classified with evidence"
+  },
+  "R5": {
+   "verdict": "PASS",
+   "satisfied": true,
+   "evidence": "all ranked records carry chunk_id+score"
+  }
+ }
+}

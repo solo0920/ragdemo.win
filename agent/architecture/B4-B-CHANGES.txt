@@ -1,0 +1,23 @@
+# B4-B production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b4b_compose.py
+backend/app/b2d_answer.py
+tests/test_b4b_compose.py
+tests/test_b4b_serve.py
+tests/test_b4b_eval.py
+tests/fixtures/b4b_answer_eval.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B4-B-MULTI-EVIDENCE-ANSWER.md
+agent/architecture/B4-B-VALIDATION-REPORT.md
+agent/architecture/B4-B-FOLLOWUPS.md
+agent/architecture/B4-B-CHANGES.txt
+agent/architecture/B4-B-EVIDENCE.json
+agent/scripts/build_b4b_set.py
+agent/scripts/b4b_evaluate.py
+# b2d_answer.py change is NARROW: _synthesis_decomposes helper + answer_gate
+# evidence_texts param + explicit synthesis failure + postcheck exemption for
+# verified synthesis + serve_question answer_mode/sections wiring (default
+# single; fail-fast ValueError on unknown mode). Composer default path
+# untouched (prior suites pin it). No ranking, model, frozen, corpus,
+# weights, or policy change.

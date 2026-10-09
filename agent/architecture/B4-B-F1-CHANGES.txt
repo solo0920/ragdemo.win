@@ -1,0 +1,19 @@
+# B4-B-F1 production footprint (extends manifest pattern).
+
+# Modified repo code:
+backend/app/main.py
+backend/app/b2d_answer.py
+# New tests:
+tests/test_b4b_f1_live.py
+# Reports/evidence/scripts (this batch):
+agent/architecture/B4-B-F1-LIVE-ADOPTION.md
+agent/architecture/B4-B-F1-VALIDATION-REPORT.md
+agent/architecture/B4-B-F1-FOLLOWUPS.md
+agent/architecture/B4-B-F1-CHANGES.txt
+agent/architecture/B4-B-F1-EVIDENCE.json
+agent/scripts/b4b_f1_evaluate.py
+# main.py change is NARROW: Literal answer_mode + sections schema fields,
+# 400-rejections for invalid combinations, forwarding to serve_live.
+# b2d_answer.py change is NARROW: serve_live mode/sections params + forwarding
+# + single+sections ValueError; serve_question single+sections ValueError.
+# No composer, gate, ranking, model, frozen, corpus, weights, or policy change.

@@ -1,0 +1,870 @@
+{
+ "verification_status": "AUTHOR_REVIEWED",
+ "provenance": "real frozen corpus chunks + real B1 demo excerpts; expectations reviewed by author",
+ "cases": [
+  {
+   "case_id": "A-01-applied-184",
+   "note": "holding conclusion on cited articles",
+   "chunk_text": "於見\r\n    聞被告系爭言論及行為後，並無心生畏懼之情。依上情狀，\r\n    原告並未受有實際損害，則原告請求被告負侵權行為損害賠\r\n    償責任，難認有據。\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。\r\n四、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    本院斟酌後，核於判決結果不生影響，爰不逐一論述，併此\r\n    敘明。\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r\n    3條第3項",
+   "source_chunk_id": null,
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:93-103",
+    "raw_text": "民法第184條第1項",
+    "normalized": {
+     "law_name": "民法",
+     "article": "第184條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 93,
+     "end": 103,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回"
+   },
+   "nodes": [
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:29-81",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 29,
+      "end": 81,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "conclusory_pattern",
+      "marker": "難認有據",
+      "heuristic": true
+     }
+    },
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:81-196",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 81,
+      "end": 196,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "conclusory_pattern",
+      "marker": "為無理由",
+      "heuristic": true
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:29-81",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 29,
+      "end": 81,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "難認"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:81-196",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 81,
+      "end": 196,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "綜上"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:196-267",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 196,
+      "end": 267,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "爰"
+     }
+    }
+   ],
+   "attribution_map": {
+    "holding:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:29-81": "COURT_VOICE",
+    "holding:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:81-196": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:29-81": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:81-196": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:196-267": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "applied:73e707fef57cfbb6",
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:93-103",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "relation_type": "COURT_EXPLICIT_APPLICATION",
+    "citation_evidence": {
+     "chunk_id": "STEV,115,店小,450,20260713,1#chunk0",
+     "source_span": {
+      "start": 93,
+      "end": 103,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "民法第184條第1項"
+    },
+    "application_evidence": {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-A-01-applied-184:81-196",
+     "evidence_type": "HOLDING",
+     "attribution": "COURT_VOICE",
+     "chunk_ids": [
+      "STEV,115,店小,450,20260713,1#demo-A-01-applied-184"
+     ],
+     "source_spans": [
+      {
+       "start": 81,
+       "end": 196,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      }
+     ],
+     "verbatim_text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。",
+     "conclusory_marker": "為無理由"
+    },
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "citation-inside-conclusory-holding"
+   }
+  },
+  {
+   "case_id": "A-02-applied-195",
+   "note": "scoped citation inside conclusory holding",
+   "chunk_text": "於見\r\n    聞被告系爭言論及行為後，並無心生畏懼之情。依上情狀，\r\n    原告並未受有實際損害，則原告請求被告負侵權行為損害賠\r\n    償責任，難認有據。\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。\r\n四、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    本院斟酌後，核於判決結果不生影響，爰不逐一論述，併此\r\n    敘明。\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r\n    3條第3項",
+   "source_chunk_id": null,
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:104-112",
+    "raw_text": "第195條第1項",
+    "normalized": {
+     "law_name": "民法",
+     "article": "第195條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 104,
+     "end": 112,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回"
+   },
+   "nodes": [
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:29-81",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 29,
+      "end": 81,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "conclusory_pattern",
+      "marker": "難認有據",
+      "heuristic": true
+     }
+    },
+    {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:81-196",
+     "evidence_type": "HOLDING",
+     "source_span": {
+      "start": 81,
+      "end": 196,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "conclusory_pattern",
+      "marker": "為無理由",
+      "heuristic": true
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:29-81",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 29,
+      "end": 81,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "難認"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:81-196",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 81,
+      "end": 196,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "綜上"
+     }
+    },
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:196-267",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 196,
+      "end": 267,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "爰"
+     }
+    }
+   ],
+   "attribution_map": {
+    "holding:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:29-81": "COURT_VOICE",
+    "holding:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:81-196": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:29-81": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:81-196": "COURT_VOICE",
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:196-267": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "applied:b936b631f8f084d6",
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:104-112",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "relation_type": "COURT_EXPLICIT_APPLICATION",
+    "citation_evidence": {
+     "chunk_id": "STEV,115,店小,450,20260713,1#chunk0",
+     "source_span": {
+      "start": 104,
+      "end": 112,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "第195條第1項"
+    },
+    "application_evidence": {
+     "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-A-02-applied-195:81-196",
+     "evidence_type": "HOLDING",
+     "attribution": "COURT_VOICE",
+     "chunk_ids": [
+      "STEV,115,店小,450,20260713,1#demo-A-02-applied-195"
+     ],
+     "source_spans": [
+      {
+       "start": 81,
+       "end": 196,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      }
+     ],
+     "verbatim_text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。",
+     "conclusory_marker": "為無理由"
+    },
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "citation-inside-conclusory-holding"
+   }
+  },
+  {
+   "case_id": "A-03-mention-not-applied",
+   "note": "definitional mention (定有明文), no conclusion",
+   "chunk_text": null,
+   "source_chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "citation": {
+    "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:181-200",
+    "raw_text": "家庭暴力防治法第2條第1款",
+    "normalized": {
+     "law_name": "家庭暴力防治法",
+     "article": "第2條",
+     "paragraph": null,
+     "subparagraph": "第1款"
+    },
+    "source_span": {
+     "start": 181,
+     "end": 200,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n二、按家庭暴力者，指家庭成員間實施身體、精神或經濟上之騷\r\n    擾、控制、脅迫或其他不法侵害行為，家庭暴力防治法第2\r\n    條第1款定有明文"
+   },
+   "nodes": [
+    {
+     "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 128,
+      "end": 205,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "查/按/核(句中)"
+     }
+    },
+    {
+     "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 205,
+      "end": 271,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "查"
+     }
+    },
+    {
+     "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 360,
+      "end": 475,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "核"
+     }
+    },
+    {
+     "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 475,
+      "end": 559,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "審酌"
+     }
+    }
+   ],
+   "attribution_map": {
+    "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205": "COURT_VOICE",
+    "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271": "COURT_VOICE",
+    "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475": "COURT_VOICE",
+    "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:CHDM,115,簡,1769,20260730,1#c0:181-200",
+    "judgement_id": "CHDM,115,簡,1769,20260730,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "CHDM,115,簡,1769,20260730,1#chunk0",
+     "source_span": {
+      "start": 181,
+      "end": 200,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "家庭暴力防治法第2條第1款"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "covering-not-holding"
+   }
+  },
+  {
+   "case_id": "A-04-party-17-1",
+   "note": "party-framed citation",
+   "chunk_text": null,
+   "source_chunk_id": "KSHM,115,上訴,322,20260723,1#C004",
+   "judgement_id": "KSHM,115,上訴,322,20260723,1",
+   "citation": {
+    "citation_id": "cit:KSHM,115,上訴,322,20260723,1#c0:98-119",
+    "raw_text": "毒品危害防制條例第17條第1項",
+    "normalized": {
+     "law_name": "毒品危害防制條例",
+     "article": "第17條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 98,
+     "end": 119,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　⒋上訴意旨主張附表所示之罪，應依毒品危害防制條例第17條\r\n    第1項減輕其刑部分：\r\n　⑴按犯第4條至第8條、第10條或第11條之罪，供出毒品來 源，\r\n    因而查獲其他正犯或共犯者，減輕或免除其刑，毒品危害防\r\n    制條例第17條第1項定有明文"
+   },
+   "nodes": [
+    {
+     "evidence_id": "reasoning:KSHM,115,上訴,322,20260723,1#C004:0-79",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 0,
+      "end": 79,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "REASONING",
+      "structural_labels": [
+       "REASONING"
+      ],
+      "method": "court_voice_marker",
+      "marker": "爰"
+     }
+    }
+   ],
+   "attribution_map": {
+    "reasoning:KSHM,115,上訴,322,20260723,1#C004:0-79": "UNRESOLVED_ATTRIBUTION"
+   },
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:KSHM,115,上訴,322,20260723,1#c0:98-119",
+    "judgement_id": "KSHM,115,上訴,322,20260723,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "KSHM,115,上訴,322,20260723,1#chunk0",
+     "source_span": {
+      "start": 98,
+      "end": 119,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "毒品危害防制條例第17條第1項"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  },
+  {
+   "case_id": "A-05-prosecutor-21-1",
+   "note": "indictment charge theory, rejected by court",
+   "chunk_text": null,
+   "source_chunk_id": "TPHM,115,上訴,2702,20260716,1#C011",
+   "judgement_id": "TPHM,115,上訴,2702,20260716,1",
+   "citation": {
+    "citation_id": "cit:TPHM,115,上訴,2702,20260716,1#c0:226-238",
+    "raw_text": "洗錢防制法第21條第1項",
+    "normalized": {
+     "law_name": "洗錢防制法",
+     "article": "第21條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 226,
+     "end": 238,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　㈡公訴意旨雖認被告就本案犯行亦涉犯洗錢防制法第21條第1項\r\n    第5款之非法收集他人帳戶罪，惟觀該條之立法理由載明：\r\n    「現行實務上查獲收集帳戶、帳號之犯罪集團成員，於尚未\r\n    有犯罪所得匯入所收受、持有或使用之帳戶帳號內時，依現\r\n    行法尚無法可罰，而生處罰漏洞"
+   },
+   "nodes": [],
+   "attribution_map": {},
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:TPHM,115,上訴,2702,20260716,1#c0:226-238",
+    "judgement_id": "TPHM,115,上訴,2702,20260716,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "TPHM,115,上訴,2702,20260716,1#chunk0",
+     "source_span": {
+      "start": 226,
+      "end": 238,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "洗錢防制法第21條第1項"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  },
+  {
+   "case_id": "A-06-appendix-339-4",
+   "note": "appendix reproduction",
+   "chunk_text": null,
+   "source_chunk_id": "CTDM,115,訴,1694,20260731,1#C006",
+   "judgement_id": "CTDM,115,訴,1694,20260731,1",
+   "citation": {
+    "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c0:12-25",
+    "raw_text": "中華民國刑法第339條之4",
+    "normalized": {
+     "law_name": "中華民國刑法",
+     "article": "第339條之4",
+     "paragraph": null,
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 12,
+     "end": 25,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n附錄本案所犯法條\r\n中華民國刑法第339條之4\r\n犯第 339 條詐欺罪而有下列情形之一者，處 1 年以上 7 年以\r\n下有期徒刑，得併科 1 百萬元以下罰金：\r\n一、冒用政府機關或公務員名義犯之"
+   },
+   "nodes": [],
+   "attribution_map": {},
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:CTDM,115,訴,1694,20260731,1#c0:12-25",
+    "judgement_id": "CTDM,115,訴,1694,20260731,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "CTDM,115,訴,1694,20260731,1#chunk0",
+     "source_span": {
+      "start": 12,
+      "end": 25,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "中華民國刑法第339條之4"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  },
+  {
+   "case_id": "A-07-unresolved-436-18",
+   "note": "no holding cover (audited exclusion)",
+   "chunk_text": "院判決如下\r\n：\r\n　　主　文\r\n原告之訴駁回。\r\n訴訟費用由原告負擔。\r\n　　理由要領\r\n一、本件為小額訴訟事件，依民事訴訟法第436條之18第1項之規\r\n    定，僅記載主文及理由要領。\r\n二、查原告起訴時聲明：「被告應給付原告新臺幣（下同）60,0\r\n    00元，及自起訴狀繕本送達翌日起至清償日止按年息5%計算\r\n    之利息。」，嗣於民國115年6月22日減縮請求金額為：被告\r\n    應給付原告30,000元（見本院卷第55），依民事訴訟法第25\r\n    5條第1項第3款、第436條第2項、第436條之23規定，應予准\r\n    許。\r\n三、原告主張略以：被告於114年4月2日19",
+   "source_chunk_id": null,
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:59-75",
+    "raw_text": "民事訴訟法第436條之18第1項",
+    "normalized": {
+     "law_name": "民事訴訟法",
+     "article": "第436條之18",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 59,
+     "end": 75,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n　　理由要領\r\n一、本件為小額訴訟事件，依民事訴訟法第436條之18第1項之規\r\n    定，僅記載主文及理由要領"
+   },
+   "nodes": [
+    {
+     "evidence_id": "disposition:STEV,115,店小,450,20260713,1#demo-A-07-unresolved-436-18:12-40",
+     "evidence_type": "DISPOSITION",
+     "source_span": {
+      "start": 12,
+      "end": 40,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "zhu_wen_marker",
+      "open_ended": false
+     }
+    }
+   ],
+   "attribution_map": {
+    "disposition:STEV,115,店小,450,20260713,1#demo-A-07-unresolved-436-18:12-40": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:59-75",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "STEV,115,店小,450,20260713,1#chunk0",
+     "source_span": {
+      "start": 59,
+      "end": 75,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "民事訴訟法第436條之18第1項"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  },
+  {
+   "case_id": "A-08-costs-78",
+   "note": "costs-basis mention, no conclusory holding",
+   "chunk_text": " 本院斟酌後，核於判決結果不生影響，爰不逐一論述，併此\r\n    敘明。\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r\n    3條第3項。　\r\n中　　華　　民　　國　　115 　年　　7 　　月　　13　　日\r\n　　　　　　　　　臺灣臺北地方法院新店簡易庭\r\n　　　　　　　　　　　　　　　法　官　蔡寶樺\r\n以上正本係照原本作成。\r\n對於本件判決如有不服，應於收受送達後20日內向本院提出上訴\r\n書狀，上訴於本院合議庭，並按他造當事人之人數附具繕本。\r\n當事人之上訴，非以判決違背法令為理由不得為之，上訴狀應記\r\n載上訴理由，表明下列各款事項：\r\n㈠原判決所違背之法令及其具體內容。\r\n㈡依訴訟資",
+   "source_chunk_id": null,
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:50-59",
+    "raw_text": "民事訴訟法第78條",
+    "normalized": {
+     "law_name": "民事訴訟法",
+     "article": "第78條",
+     "paragraph": null,
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 50,
+     "end": 59,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": "\r\n五、訴訟費用負擔之依據：民事訴訟法第78條、刑事訴訟法第50\r\n    3條第3項"
+   },
+   "nodes": [
+    {
+     "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-A-08-costs-78:0-36",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 0,
+      "end": 36,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "FACTS",
+      "structural_labels": [
+       "FACTS"
+      ],
+      "method": "court_voice_marker",
+      "marker": "爰"
+     }
+    }
+   ],
+   "attribution_map": {
+    "reasoning:STEV,115,店小,450,20260713,1#demo-A-08-costs-78:0-36": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c0:50-59",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "STEV,115,店小,450,20260713,1#chunk0",
+     "source_span": {
+      "start": 50,
+      "end": 59,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "民事訴訟法第78條"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  },
+  {
+   "case_id": "A-09-cross-chunk",
+   "note": "citation and conclusion in different chunks (deliberately unpaired texts)",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "citation": {
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c900:59-75",
+    "raw_text": "民事訴訟法第436條之18第1項",
+    "normalized": {
+     "law_name": "民事訴訟法",
+     "article": "第436條之18",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 59,
+     "end": 75,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED"
+   },
+   "nodes": [],
+   "attribution_map": {
+    "holding:STEV,115,店小,450,20260713,1#demo-x:29-81": "COURT_VOICE",
+    "holding:STEV,115,店小,450,20260713,1#demo-x:81-196": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:STEV,115,店小,450,20260713,1#c900:59-75",
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "STEV,115,店小,450,20260713,1#chunk900",
+     "source_span": {
+      "start": 59,
+      "end": 75,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "民事訴訟法第436條之18第1項"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  },
+  {
+   "case_id": "A-10-detention-conclusion",
+   "note": "checkbox conclusion without holding pattern",
+   "chunk_text": null,
+   "source_chunk_id": "TCTA,115,續收,3347,20260710,1#C002",
+   "judgement_id": "TCTA,115,續收,3347,20260710,1",
+   "citation": {
+    "citation_id": "cit:TCTA,115,續收,3347,20260710,1#c0:88-102",
+    "raw_text": "入出國及移民法第38條第1項",
+    "normalized": {
+     "law_name": "入出國及移民法",
+     "article": "第38條",
+     "paragraph": "第1項",
+     "subparagraph": null
+    },
+    "source_span": {
+     "start": 88,
+     "end": 102,
+     "unit": "code_point",
+     "basis": "chunk_text"
+    },
+    "resolution_status": "RESOLVED",
+    "evidence_text": " 具收容事由 受收容人有下列得收容之事由（入出國及移民法第38條第1項）： ☐無相關旅行證件，不能依規定執行"
+   },
+   "nodes": [
+    {
+     "evidence_id": "reasoning:TCTA,115,續收,3347,20260710,1#C002:122-147",
+     "evidence_type": "REASONING",
+     "source_span": {
+      "start": 122,
+      "end": 147,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "provenance": {
+      "structural_role": "REASONING",
+      "structural_labels": [
+       "REASONING"
+      ],
+      "method": "court_voice_marker",
+      "marker": "足認"
+     }
+    }
+   ],
+   "attribution_map": {
+    "reasoning:TCTA,115,續收,3347,20260710,1#C002:122-147": "COURT_VOICE"
+   },
+   "relation": {
+    "relation_id": "",
+    "citation_id": "cit:TCTA,115,續收,3347,20260710,1#c0:88-102",
+    "judgement_id": "TCTA,115,續收,3347,20260710,1",
+    "relation_type": "APPLICATION_UNRESOLVED",
+    "citation_evidence": {
+     "chunk_id": "TCTA,115,續收,3347,20260710,1#chunk0",
+     "source_span": {
+      "start": 88,
+      "end": 102,
+      "unit": "code_point",
+      "basis": "chunk_text"
+     },
+     "raw_text": "入出國及移民法第38條第1項"
+    },
+    "application_evidence": null,
+    "rule_id": "holding-containment-v1",
+    "verification_status": "COMPUTED",
+    "reason": "not-court-used"
+   }
+  }
+ ]
+}

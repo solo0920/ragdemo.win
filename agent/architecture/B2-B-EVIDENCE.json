@@ -1,0 +1,74 @@
+{
+ "protocol": "B2-B: verified-set metrics + corpus profile + chain rollup; no services, no LLM, deterministic",
+ "verified_set": {
+  "cases": 11,
+  "extraction": {
+   "precision": 1.0,
+   "recall": 1.0,
+   "f1": 1.0,
+   "tp": 35,
+   "fp": 0,
+   "fn": 0
+  },
+  "resolution": {
+   "exact_resolution_rate": 1.0,
+   "resolved_correct": 32,
+   "expected_resolved": 32,
+   "unresolved_count": 3,
+   "false_resolutions": 0
+  },
+  "provenance": {
+   "with_span_and_chunk": 35,
+   "total": 35,
+   "rate": 1.0
+  }
+ },
+ "gate_S1_S8_full_set": {
+  "verdict": "PASS",
+  "failures": []
+ },
+ "corpus_profile_430": {
+  "chunks": 430,
+  "with_citations": 212,
+  "resolved": 672,
+  "unresolved": 351,
+  "unresolved_reasons": {
+   "unknown_alias": 350,
+   "no_corpus_match": 1
+  },
+  "by_law_source": {
+   "verbatim": 673,
+   "unresolved": 350
+  }
+ },
+ "chain": [
+  {
+   "query_id": "GQ-001",
+   "judgement_id": "TCTA,115,續收,3347,20260710,1",
+   "n_citations": 3,
+   "n_resolved": 3,
+   "n_unresolved": 0,
+   "gate": "PASS",
+   "failures": []
+  },
+  {
+   "query_id": "GQ-002",
+   "judgement_id": "CHDM,115,聲,1164,20260716,1",
+   "n_citations": 16,
+   "n_resolved": 14,
+   "n_unresolved": 2,
+   "gate": "PASS",
+   "failures": []
+  },
+  {
+   "query_id": "GQ-005",
+   "judgement_id": "ILDV,115,家繼小,1,20260714,1",
+   "n_citations": 24,
+   "n_resolved": 24,
+   "n_unresolved": 0,
+   "gate": "PASS",
+   "failures": []
+  }
+ ],
+ "no_applied_decisive_labels": true
+}

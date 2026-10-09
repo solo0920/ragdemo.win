@@ -1,0 +1,99 @@
+{
+ "protocol": "B4-B: rebuild reviewed sectioned answers, determinism + fixture match, per-dimension §13 metrics",
+ "reproducibility": {
+  "evaluation_set_fingerprint": "720745aa2d67e8ab1700057df09fd85065ee81c6644a5c294224560814f18bb9",
+  "answer_set_fingerprint": "7d872bb61d02e97a8ae21c528075ba1fd675759001a162a2153936f57043b303",
+  "code_head": "7b40222e999959e46c05ce14685c6ce3ee3bb9c8",
+  "metric_definitions": "B4-B-MULTI-EVIDENCE-ANSWER.md §metrics; gate A1-A10; rubric H1-H10",
+  "generated_at_utc": "2026-10-09T01:43:09Z"
+ },
+ "questions": [
+  {
+   "qid": "M-01-demo-dismissal",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 15,
+   "n_sections": 4,
+   "n_synthesis": 3
+  },
+  {
+   "qid": "M-02-detention-cause",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 9,
+   "n_sections": 3,
+   "n_synthesis": 1
+  },
+  {
+   "qid": "M-03-demo-partial",
+   "status": "ANSWERED",
+   "reason": null,
+   "n_claims": 10,
+   "n_sections": 3,
+   "n_synthesis": 2
+  },
+  {
+   "qid": "M-04-reasoning-only-abstain",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "reason": "INSUFFICIENT_JUDGMENT_EVIDENCE",
+   "n_claims": 0,
+   "n_sections": 0,
+   "n_synthesis": 0
+  },
+  {
+   "qid": "M-05-payment-order-abstain",
+   "status": "INSUFFICIENT_EVIDENCE",
+   "reason": "NO_REASONING_EVIDENCE",
+   "n_claims": 0,
+   "n_sections": 0,
+   "n_synthesis": 0
+  }
+ ],
+ "metrics": {
+  "material_claims_supported": 26,
+  "material_claims_total": 26,
+  "unsupported_material_claims": 0,
+  "claims_missing_or_invalid_ids": 0,
+  "attribution_violations": 0,
+  "continuity_violations": 0,
+  "statute_overclaim_violations": 0,
+  "temporal_limitation_violations": 0,
+  "contradiction_escapes": 0,
+  "forbidden_claim_types": 0,
+  "partial_handling": "M-03 statutes omitted explicitly; mandatory evidence still enforced",
+  "correct_answer_rate": "3/3 ANSWERED human-verified (see human_verification)",
+  "correct_abstention_rate": "2/2 with exact reasons"
+ },
+ "human_verification": {
+  "reviewer": "batch implementer (independent full read of all 3 answers vs their evidence)",
+  "method": "read each ANSWERED answer against judgment/statute evidence for judgment identity, disposition, holding, reasoning/statute fidelity, attribution, continuity, completeness, claim/evidence links; checked abstentions against contract states; no metric computed the verdicts",
+  "verdicts": [
+   {
+    "qid": "M-01-demo-dismissal",
+    "verdict": "PASS",
+    "notes": "Disposition 駁回 verbatim; holdings 難認有據/為無理由應予駁回 answer the question as quoted; reasoning verbatim; statutes 184/195/436-18 exact with 明確引用 framing + non-decisive limitation; 3 synthesis claims decompose exactly; no court invented; no decisive claim; completeness: full (4 sections)."
+   },
+   {
+    "qid": "M-02-detention-cause",
+    "verdict": "PASS",
+    "notes": "Disposition 續予收容 verbatim; 足認勾選項 directly answers; statutes 38/38-1/237-14 exact; HOLDING omitted explicitly (none exists); 1 synthesis (STATUTES x3); no overclaim."
+   },
+   {
+    "qid": "M-03-demo-partial",
+    "verdict": "PASS",
+    "notes": "Subset scope honored: statutes absent from claims/answer/citations; omitted_sections correctly empty (STATUTES not requested, not 'omitted'); disposition+reasoning answer the narrower question; 2 synthesis claims decompose; partial scope explicit via sections metadata."
+   },
+   {
+    "qid": "M-04-reasoning-only-abstain",
+    "verdict": "PASS",
+    "notes": "Abstention contract-correct with exact reason; sections [] and all kinds omitted with the same reason; nothing composed."
+   },
+   {
+    "qid": "M-05-payment-order-abstain",
+    "verdict": "PASS",
+    "notes": "Abstention correct: flagged disposition without court reasoning; exact reason NO_REASONING_EVIDENCE."
+   }
+  ],
+  "overall": "5/5 PASS"
+ }
+}

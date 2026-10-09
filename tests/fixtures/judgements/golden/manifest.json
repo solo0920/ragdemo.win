@@ -1,0 +1,20 @@
+{
+  "docs_civil_6field.json": {
+    "archive_entry": "docs\\civil_6field.json",
+    "size": 484,
+    "crc32": "C5EB3575",
+    "sha256": "c353a353ef429f58c22d45fdbdf205efe881b6ed3997f424450d0953de2a9801"
+  },
+  "docs_constitutional_5field_empty_jpdf.json": {
+    "archive_entry": "docs\\constitutional_5field_empty_jpdf.json",
+    "size": 287,
+    "crc32": "E8A73072",
+    "sha256": "c96d866eaec04aad39f3c93be418517a923e4abe027ee75a9007e1e9fa2e52dd"
+  },
+  "docs_criminal_6field.json": {
+    "archive_entry": "docs\\criminal_6field.json",
+    "size": 346,
+    "crc32": "C849E446",
+    "sha256": "c98a5ec2ce09b8ca0e4d0755acffd03fbc4e230423be2c93152059c63a6571b1"
+  }
+}

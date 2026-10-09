@@ -1,0 +1,14 @@
+# B2-A production footprint (extends B1-CHANGES.txt pattern).
+
+# New repo code (pure evaluation helpers + evidence runner + tests + evidence):
+backend/app/b2a_eval.py
+agent/scripts/b2a_analyze.py
+agent/architecture/B2-A-EVIDENCE.json
+tests/test_b2a_eval.py
+tests/test_b2a_gate.py
+# Reports (this batch):
+agent/architecture/B2-A-JUDICIAL-RETRIEVAL.md
+agent/architecture/B2-A-VALIDATION-REPORT.md
+agent/architecture/B2-A-FOLLOWUPS.md
+agent/architecture/B2-A-CHANGES.txt
+# No production serving path modified in B2-A.

@@ -1,0 +1,210 @@
+{
+ "verification_status": "AUTHOR_REVIEWED",
+ "provenance": "real B2-B citations x real/absent JDATEs; expected = reviewed rule outcomes",
+ "cases": [
+  {
+   "case_id": "T-01",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "jdate": "20260713",
+   "citation": {
+    "citation_id": "cit:demo#c0:1-2",
+    "raw_text": "民法第184條",
+    "resolution_status": "RESOLVED"
+   },
+   "normalized": {
+    "law_name": "民法",
+    "article": "第184條"
+   },
+   "row_ref": "B0000001#219",
+   "law_meta_present": true,
+   "expected_status": "CURRENT_ONLY",
+   "record": {
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "judgement_date": "20260713",
+    "citation_id": "cit:demo#c0:1-2",
+    "law_id": "B0000001",
+    "law_name": "民法",
+    "article": "第184條",
+    "statute_version_id": null,
+    "effective_from": null,
+    "effective_to": null,
+    "status": "CURRENT_ONLY",
+    "validity": "UNKNOWN",
+    "text_version": "CURRENT_TEXT_ONLY",
+    "provenance": {
+     "statute_source": "data/laws/laws_flat.jsonl",
+     "corpus_sync": {
+      "sha256": "ebb5965501c001ac27eead923323c4c2ad5822d1cff50764aa2c9aac1f577bcb",
+      "update_date": "2026/9/24 上午 12:00:00",
+      "applied_at": "2026-10-03T08:24:54"
+     },
+     "validation_rule": "T4-no-history",
+     "law_modified_date": "20260817",
+     "law_effective_date": "99991231"
+    }
+   }
+  },
+  {
+   "case_id": "T-02",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "jdate": "20260713",
+   "citation": {
+    "citation_id": "cit:demo#c0:3-4",
+    "raw_text": "民法第195條",
+    "resolution_status": "RESOLVED"
+   },
+   "normalized": {
+    "law_name": "民法",
+    "article": "第195條"
+   },
+   "row_ref": "B0000001#233",
+   "law_meta_present": true,
+   "expected_status": "CURRENT_ONLY",
+   "record": {
+    "judgement_id": "STEV,115,店小,450,20260713,1",
+    "judgement_date": "20260713",
+    "citation_id": "cit:demo#c0:3-4",
+    "law_id": "B0000001",
+    "law_name": "民法",
+    "article": "第195條",
+    "statute_version_id": null,
+    "effective_from": null,
+    "effective_to": null,
+    "status": "CURRENT_ONLY",
+    "validity": "UNKNOWN",
+    "text_version": "CURRENT_TEXT_ONLY",
+    "provenance": {
+     "statute_source": "data/laws/laws_flat.jsonl",
+     "corpus_sync": {
+      "sha256": "ebb5965501c001ac27eead923323c4c2ad5822d1cff50764aa2c9aac1f577bcb",
+      "update_date": "2026/9/24 上午 12:00:00",
+      "applied_at": "2026-10-03T08:24:54"
+     },
+     "validation_rule": "T4-no-history",
+     "law_modified_date": "20260817",
+     "law_effective_date": "99991231"
+    }
+   }
+  },
+  {
+   "case_id": "T-03",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "jdate": "",
+   "citation": {
+    "citation_id": "cit:x#c0:1-2",
+    "raw_text": "家庭暴力防治法第3條",
+    "resolution_status": "RESOLVED"
+   },
+   "normalized": {
+    "law_name": "家庭暴力防治法",
+    "article": "第3條"
+   },
+   "row_ref": "D0050071#4",
+   "law_meta_present": true,
+   "expected_status": "TEMPORALLY_UNKNOWN",
+   "record": {
+    "judgement_id": "CHDM,115,簡,1769,20260730,1",
+    "judgement_date": "",
+    "citation_id": "cit:x#c0:1-2",
+    "law_id": "D0050071",
+    "law_name": "家庭暴力防治法",
+    "article": "第3條",
+    "statute_version_id": null,
+    "effective_from": null,
+    "effective_to": null,
+    "status": "TEMPORALLY_UNKNOWN",
+    "validity": "UNKNOWN",
+    "text_version": "UNAVAILABLE",
+    "provenance": {
+     "statute_source": "data/laws/laws_flat.jsonl",
+     "corpus_sync": {
+      "sha256": "ebb5965501c001ac27eead923323c4c2ad5822d1cff50764aa2c9aac1f577bcb",
+      "update_date": "2026/9/24 上午 12:00:00",
+      "applied_at": "2026-10-03T08:24:54"
+     },
+     "validation_rule": "T-date-missing"
+    }
+   }
+  },
+  {
+   "case_id": "T-04",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "jdate": "2026-13-40",
+   "citation": {
+    "citation_id": "cit:x#c0:1-2",
+    "raw_text": "家庭暴力防治法第3條",
+    "resolution_status": "RESOLVED"
+   },
+   "normalized": {
+    "law_name": "家庭暴力防治法",
+    "article": "第3條"
+   },
+   "row_ref": "D0050071#4",
+   "law_meta_present": true,
+   "expected_status": "TEMPORALLY_UNKNOWN",
+   "record": {
+    "judgement_id": "CHDM,115,簡,1769,20260730,1",
+    "judgement_date": "2026-13-40",
+    "citation_id": "cit:x#c0:1-2",
+    "law_id": "D0050071",
+    "law_name": "家庭暴力防治法",
+    "article": "第3條",
+    "statute_version_id": null,
+    "effective_from": null,
+    "effective_to": null,
+    "status": "TEMPORALLY_UNKNOWN",
+    "validity": "UNKNOWN",
+    "text_version": "UNAVAILABLE",
+    "provenance": {
+     "statute_source": "data/laws/laws_flat.jsonl",
+     "corpus_sync": {
+      "sha256": "ebb5965501c001ac27eead923323c4c2ad5822d1cff50764aa2c9aac1f577bcb",
+      "update_date": "2026/9/24 上午 12:00:00",
+      "applied_at": "2026-10-03T08:24:54"
+     },
+     "validation_rule": "T-date-missing"
+    }
+   }
+  },
+  {
+   "case_id": "T-05",
+   "judgement_id": "JX",
+   "jdate": "20260713",
+   "citation": {
+    "citation_id": "cit:x#c0:1-2",
+    "raw_text": "民法第9999條",
+    "resolution_status": "UNRESOLVED:no_corpus_match"
+   },
+   "normalized": {
+    "law_name": "民法",
+    "article": "第9999條"
+   },
+   "row_ref": null,
+   "law_meta_present": true,
+   "expected_status": "TEMPORALLY_UNKNOWN",
+   "record": {
+    "judgement_id": "JX",
+    "judgement_date": "20260713",
+    "citation_id": "cit:x#c0:1-2",
+    "law_id": "",
+    "law_name": "民法",
+    "article": "第9999條",
+    "statute_version_id": null,
+    "effective_from": null,
+    "effective_to": null,
+    "status": "TEMPORALLY_UNKNOWN",
+    "validity": "UNKNOWN",
+    "text_version": "UNAVAILABLE",
+    "provenance": {
+     "statute_source": "data/laws/laws_flat.jsonl",
+     "corpus_sync": {
+      "sha256": "ebb5965501c001ac27eead923323c4c2ad5822d1cff50764aa2c9aac1f577bcb",
+      "update_date": "2026/9/24 上午 12:00:00",
+      "applied_at": "2026-10-03T08:24:54"
+     },
+     "validation_rule": "T-no-record"
+    }
+   }
+  }
+ ]
+}

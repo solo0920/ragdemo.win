@@ -1,0 +1,52 @@
+{
+ "protocol": "B4-A: recompute reviewed assemblies + corpus adjacency census; no services, no LLM",
+ "reviewed_set": {
+  "cases": 5,
+  "all_match": true,
+  "rows": [
+   {
+    "case_id": "G-01-contiguous-reasoning",
+    "status": "ORDERED_GAPPED",
+    "expected": "ORDERED_GAPPED",
+    "match": true
+   },
+   {
+    "case_id": "G-01b-whitespace-continuous",
+    "status": "CONTIGUOUS",
+    "expected": "CONTIGUOUS",
+    "match": true
+   },
+   {
+    "case_id": "G-02-clean-boundary",
+    "status": "CONTIGUOUS",
+    "expected": "CONTIGUOUS",
+    "match": true
+   },
+   {
+    "case_id": "G-04-attribution-boundary",
+    "status": "SEPARATE_EVIDENCE",
+    "expected": "SEPARATE_EVIDENCE",
+    "match": true
+   },
+   {
+    "case_id": "G-03-synthetic-gap",
+    "status": "ORDERED_GAPPED",
+    "expected": "ORDERED_GAPPED",
+    "match": true
+   }
+  ],
+  "false_concatenations": 0,
+  "attribution_contaminations": 0
+ },
+ "corpus_census": {
+  "documents": 74,
+  "multi_chunk_documents": 73,
+  "adjacent_pairs_contiguous": 356,
+  "adjacent_pairs_gapped": 0
+ },
+ "ordering_probe": {
+  "reversed_input_sorted": true,
+  "status": "CONTIGUOUS"
+ },
+ "continuity_gate": "M1-M10 unit-pinned (test_b4a_gate.py)"
+}

@@ -1,0 +1,37 @@
+{
+ "protocol": "B3-C: fixture recomputation + multi-doc false-alarm scan; no services, no LLM",
+ "fixture": {
+  "cases": 3,
+  "rows": [
+   {
+    "case_id": "MC-01-opposed",
+    "expected": "DIRECT",
+    "direct": 1,
+    "gate": "FAIL",
+    "match": true
+   },
+   {
+    "case_id": "MC-02-compatible",
+    "expected": "no-DIRECT",
+    "direct": 0,
+    "gate": "PASS",
+    "match": true
+   },
+   {
+    "case_id": "NC-01-single",
+    "expected": "no-DIRECT",
+    "direct": 0,
+    "gate": "PASS",
+    "match": true
+   }
+  ],
+  "all_match": true
+ },
+ "false_contradiction": {
+  "docs_with_pairs": 5,
+  "pairs_checked": 5,
+  "direct_findings": 0,
+  "rate": 0.0
+ },
+ "resolution_audit": "module exposes no resolve/adjudicate API (test-pinned)"
+}

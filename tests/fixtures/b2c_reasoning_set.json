@@ -1,0 +1,855 @@
+{
+ "verification_status": "AUTHOR_REVIEWED",
+ "provenance": "real frozen corpus chunks + real B1 demo excerpts",
+ "cases": [
+  {
+   "case_id": "R-01-dismissal-header",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "chunks": [
+    {
+     "chunk_id": "CHDM,115,簡,1769,20260730,1#C001",
+     "document_id": "CHDM,115,簡,1769,20260730,1",
+     "structural_role": "HEADER",
+     "structural_labels": [
+      "DISPOSITION",
+      "HEADER"
+     ],
+     "carries_declared_disposition_unit": true,
+     "text": "臺灣彰化地方法院刑事簡易判決 \r\n 115年度簡字第1769號\r\n公  訴  人  臺灣彰化地方檢察署檢察官 \r\n被      告  羅仕竤\r\n\r\n\r\n上列被告因傷害案件，經檢察官提起公訴（115年度偵字第9807\r\n號），因被告自白犯罪，本院認宜以簡易判決處刑，爰不經通常\r\n訴訟程序（原案號：115年度易字第1015號），逕以簡易判決處\r\n刑如下： \r\n　　主　　　文\r\n羅仕竤犯傷害罪，處拘役肆拾日，如易科罰金，以新臺幣壹仟元\r\n折算壹日。",
+     "span": {
+      "start": 0,
+      "end": 223,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 1
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "disposition:CHDM,115,簡,1769,20260730,1#C001:181-223",
+      "evidence_type": "DISPOSITION",
+      "judgement_id": "CHDM,115,簡,1769,20260730,1",
+      "document_id": "CHDM,115,簡,1769,20260730,1",
+      "chunk_id": "CHDM,115,簡,1769,20260730,1#C001",
+      "text": "主　　　文\r\n羅仕竤犯傷害罪，處拘役肆拾日，如易科罰金，以新臺幣壹仟元\r\n折算壹日。",
+      "source_span": {
+       "start": 181,
+       "end": 223,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "HEADER",
+       "structural_labels": [
+        "DISPOSITION",
+        "HEADER"
+       ],
+       "method": "zhu_wen_marker",
+       "open_ended": true
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "disposition:CHDM,115,簡,1769,20260730,1#C001:181-223",
+      "to": "judgement:CHDM,115,簡,1769,20260730,1",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-02-home-violence-reasoning",
+   "judgement_id": "CHDM,115,簡,1769,20260730,1",
+   "chunks": [
+    {
+     "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+     "document_id": "CHDM,115,簡,1769,20260730,1",
+     "structural_role": "FACTS",
+     "structural_labels": [
+      "FACTS"
+     ],
+     "carries_declared_disposition_unit": false,
+     "text": "\r\n　　事實及理由\r\n一、本件犯罪事實及證據，除犯罪事實欄第1行關於「羅仕竤與\r\n    陳秋蓁是叔嫂關係」之記載後，應補充記載「，彼此間具有\r\n    家庭暴力防治法第3條第5款所定之家庭成員關係」外，其餘\r\n    均引用檢察官起訴書之記載（如附件）。\r\n二、按家庭暴力者，指家庭成員間實施身體、精神或經濟上之騷\r\n    擾、控制、脅迫或其他不法侵害行為，家庭暴力防治法第2\r\n    條第1款定有明文。查被告與告訴人為叔嫂關係，渠等間具\r\n    有家庭暴力防治法第3條第5款所定之家庭成員關係，業據被\r\n    告、告訴人陳述明確。則被告傷害告訴人之行為，已屬家庭\r\n    成員間實施身體上不法侵害之行為，檢察官聲請簡易判決處\r\n    刑書漏未援引家庭暴力防治法之相關規定，尚有未洽，應予\r\n    補充。核被告所為，係犯刑法第277條第1項之傷害罪，並同\r\n    時構成家庭暴力防治法第2條第2款之家庭暴力罪，惟因家庭\r\n    暴力防治法上開條文並無科處刑罰之規定，是以被告所為仍\r\n    應依刑法關於傷害罪之規定予以論罪科刑。\r\n三、爰以行為人之責任為基礎，審酌被告羅仕竤不思以理性方式\r\n    解決紛爭，因細故即為本案傷害犯行，致告訴人受有如起訴\r\n    書犯罪事實欄所載傷勢，自應非難；考量被告犯後坦承犯行\r\n    、惟未與告訴人達成和解或賠償損害，兼衡被告無前科之素\r\n    行、犯罪之動機、目的、手段、造成之傷害，及被告於警詢\r\n    時自述之教育程度、職業、家庭經濟狀況等一切情狀，量處\r\n    如主文所示之刑，並諭知易科罰金之折算標準。\r\n四、依刑事訴訟法第449條第2項、第3項、第454條第2項，逕以\r\n    簡易判決處刑如主文。\r\n五、如不服本判決，得自收受送達之日起20日內，以書狀敘明理\r\n    由，向本院提出上訴（須附繕本）。\r\n本案經檢察官林俊杰提起公訴。",
+     "span": {
+      "start": 223,
+      "end": 1034,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 2
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+      "evidence_type": "REASONING",
+      "judgement_id": "CHDM,115,簡,1769,20260730,1",
+      "document_id": "CHDM,115,簡,1769,20260730,1",
+      "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+      "text": "\r\n二、按家庭暴力者，指家庭成員間實施身體、精神或經濟上之騷\r\n    擾、控制、脅迫或其他不法侵害行為，家庭暴力防治法第2\r\n    條第1款定有明文。",
+      "source_span": {
+       "start": 128,
+       "end": 205,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "查/按/核(句中)"
+      }
+     },
+     {
+      "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+      "evidence_type": "REASONING",
+      "judgement_id": "CHDM,115,簡,1769,20260730,1",
+      "document_id": "CHDM,115,簡,1769,20260730,1",
+      "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+      "text": "查被告與告訴人為叔嫂關係，渠等間具\r\n    有家庭暴力防治法第3條第5款所定之家庭成員關係，業據被\r\n    告、告訴人陳述明確。",
+      "source_span": {
+       "start": 205,
+       "end": 271,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "查"
+      }
+     },
+     {
+      "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "evidence_type": "REASONING",
+      "judgement_id": "CHDM,115,簡,1769,20260730,1",
+      "document_id": "CHDM,115,簡,1769,20260730,1",
+      "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+      "text": "核被告所為，係犯刑法第277條第1項之傷害罪，並同\r\n    時構成家庭暴力防治法第2條第2款之家庭暴力罪，惟因家庭\r\n    暴力防治法上開條文並無科處刑罰之規定，是以被告所為仍\r\n    應依刑法關於傷害罪之規定予以論罪科刑。",
+      "source_span": {
+       "start": 360,
+       "end": 475,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "核"
+      }
+     },
+     {
+      "evidence_id": "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559",
+      "evidence_type": "REASONING",
+      "judgement_id": "CHDM,115,簡,1769,20260730,1",
+      "document_id": "CHDM,115,簡,1769,20260730,1",
+      "chunk_id": "CHDM,115,簡,1769,20260730,1#C002",
+      "text": "\r\n三、爰以行為人之責任為基礎，審酌被告羅仕竤不思以理性方式\r\n    解決紛爭，因細故即為本案傷害犯行，致告訴人受有如起訴\r\n    書犯罪事實欄所載傷勢，自應非難；",
+      "source_span": {
+       "start": 475,
+       "end": 559,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "審酌"
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+      "to": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+      "to": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+      "to": "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+      "to": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+      "to": "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "to": "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+      "to": "cit:CHDM,115,簡,1769,20260730,1#c2:181-200",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+      "to": "cit:CHDM,115,簡,1769,20260730,1#c2:229-242",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "to": "cit:CHDM,115,簡,1769,20260730,1#c2:368-378",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "to": "cit:CHDM,115,簡,1769,20260730,1#c2:394-407",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:128-205",
+      "to": "judgement:CHDM,115,簡,1769,20260730,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:205-271",
+      "to": "judgement:CHDM,115,簡,1769,20260730,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:360-475",
+      "to": "judgement:CHDM,115,簡,1769,20260730,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:CHDM,115,簡,1769,20260730,1#C002:475-559",
+      "to": "judgement:CHDM,115,簡,1769,20260730,1",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-03-payment-order-flagged",
+   "judgement_id": "PCDV,115,司促,17332,20260713,1",
+   "chunks": [
+    {
+     "chunk_id": "PCDV,115,司促,17332,20260713,1#C001",
+     "document_id": "PCDV,115,司促,17332,20260713,1",
+     "structural_role": "HEADER",
+     "structural_labels": [
+      "DISPOSITION_PROXY",
+      "HEADER"
+     ],
+     "carries_declared_disposition_unit": true,
+     "text": "臺灣新北地方法院支付命令\r\n115年度司促字第17332號\r\n債  權  人  國泰世華商業銀行股份有限公司\r\n\r\n法定代理人  即副董事長蔡宗翰\r\n\r\n\r\n\r\n債  務  人  徐玉玲  \r\n\r\n\r\n一、債務人應向債權人清償新臺幣貳拾玖萬柒仟參佰貳拾貳元，\r\n    及自民國115年4月27日起至清償日止，按年息百分之十六計\r\n    算之利息，暨自民國115年4月28日起至清償日止，其逾期在\r\n    六個月以內部分，按前述利率之百分之十，逾期超過六個月\r\n    至九個月以內部分，按前述利率之百分之二十，計算之違約\r\n    金，並賠償督促程序費用新臺幣伍佰元，否則應於本命令送\r\n    達後二十日之不變期間內，向本院提出異議。\r\n二、債權人請求之原因事實：\r\n    聲請人前董事長郭明鑑日前辭任。依公司法第208條第3項規\r\n    定：「董事長對內為股東會、董事會及常務董事會主席，對\r\n    外代表公司。董事長請假或因故不能行使職權時，由副董事\r\n    長代理之。」又依最高法院107年度台上字第97號民事判決\r\n    意旨，董事長缺位而尚未補選完成前，得類推適用上開規定\r\n    由副董事長代理董事長職務。故聲請人現由副董事長蔡宗翰\r\n    代理董事長職務，並依法對外代表公司。一、緣債務人與債\r\n    權人成立貸款契約書，於自民國112年9月27日向債權人借款\r\n    500,000元，借款利率依年利率16%計算，債務人若未依約按\r\n    期繳款時，除喪失期限利益外，另本金逾期在六個月以內部\r\n    分，按前述利率百分之十，逾期超過六個月部分，按前述利\r\n    率百分之二十，按期計收違約金，每次違約狀態最高連續收\r\n    取期數為9期。詎債務人未依約繳款，現仍積欠債權人借款2\r\n    97,322元及相關之利息及違約金未償付。另債務人與債權人\r\n    成立之貸款契約書，因係透過電子及通訊設備向債權人申請\r\n    所成立，其內容需透過科技設備始能呈現，爰依民事訴訟法\r\n    第363第2項規定提出呈現其申請內容之書面，併予陳明。二\r\n    、茲債權人屢次催討無效，實有督促其履行之必要，特依民\r\n    事訴訟法第五百零八條規定，狀請    鈞院迅賜對債務人核\r\n    發支付命令，實感法便。釋明文件：證據清單\r\n三、債務人未於不變期間內提出異議時，債權人得依法院核發之\r\n    支付命令及確定證明書聲請強制執行。\r\n",
+     "span": {
+      "start": 0,
+      "end": 1045,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 1
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+      "evidence_type": "DISPOSITION",
+      "judgement_id": "PCDV,115,司促,17332,20260713,1",
+      "document_id": "PCDV,115,司促,17332,20260713,1",
+      "chunk_id": "PCDV,115,司促,17332,20260713,1#C001",
+      "text": "臺灣新北地方法院支付命令\r\n115年度司促字第17332號\r\n債  權  人  國泰世華商業銀行股份有限公司\r\n\r\n法定代理人  即副董事長蔡宗翰\r\n\r\n\r\n\r\n債  務  人  徐玉玲  \r\n\r\n\r\n一、債務人應向債權人清償新臺幣貳拾玖萬柒仟參佰貳拾貳元，\r\n    及自民國115年4月27日起至清償日止，按年息百分之十六計\r\n    算之利息，暨自民國115年4月28日起至清償日止，其逾期在\r\n    六個月以內部分，按前述利率之百分之十，逾期超過六個月\r\n    至九個月以內部分，按前述利率之百分之二十，計算之違約\r\n    金，並賠償督促程序費用新臺幣伍佰元，否則應於本命令送\r\n    達後二十日之不變期間內，向本院提出異議。\r\n二、債權人請求之原因事實：\r\n    聲請人前董事長郭明鑑日前辭任。依公司法第208條第3項規\r\n    定：「董事長對內為股東會、董事會及常務董事會主席，對\r\n    外代表公司。董事長請假或因故不能行使職權時，由副董事\r\n    長代理之。」又依最高法院107年度台上字第97號民事判決\r\n    意旨，董事長缺位而尚未補選完成前，得類推適用上開規定\r\n    由副董事長代理董事長職務。故聲請人現由副董事長蔡宗翰\r\n    代理董事長職務，並依法對外代表公司。一、緣債務人與債\r\n    權人成立貸款契約書，於自民國112年9月27日向債權人借款\r\n    500,000元，借款利率依年利率16%計算，債務人若未依約按\r\n    期繳款時，除喪失期限利益外，另本金逾期在六個月以內部\r\n    分，按前述利率百分之十，逾期超過六個月部分，按前述利\r\n    率百分之二十，按期計收違約金，每次違約狀態最高連續收\r\n    取期數為9期。詎債務人未依約繳款，現仍積欠債權人借款2\r\n    97,322元及相關之利息及違約金未償付。另債務人與債權人\r\n    成立之貸款契約書，因係透過電子及通訊設備向債權人申請\r\n    所成立，其內容需透過科技設備始能呈現，爰依民事訴訟法\r\n    第363第2項規定提出呈現其申請內容之書面，併予陳明。二\r\n    、茲債權人屢次催討無效，實有督促其履行之必要，特依民\r\n    事訴訟法第五百零八條規定，狀請    鈞院迅賜對債務人核\r\n    發支付命令，實感法便。釋明文件：證據清單\r\n三、債務人未於不變期間內提出異議時，債權人得依法院核發之\r\n    支付命令及確定證明書聲請強制執行。\r\n",
+      "source_span": {
+       "start": 0,
+       "end": 1045,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "HEADER",
+       "structural_labels": [
+        "DISPOSITION_PROXY",
+        "HEADER"
+       ],
+       "method": "marker_absent_flagged_chunk",
+       "note": "labeled disposition unit without in-chunk marker"
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "disposition:PCDV,115,司促,17332,20260713,1#C001:0-1045",
+      "to": "judgement:PCDV,115,司促,17332,20260713,1",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-04-detention-full-doc",
+   "judgement_id": "TCTA,115,續收,3347,20260710,1",
+   "chunks": [
+    {
+     "chunk_id": "TCTA,115,續收,3347,20260710,1#C001",
+     "document_id": "TCTA,115,續收,3347,20260710,1",
+     "structural_role": "HEADER",
+     "structural_labels": [
+      "DISPOSITION",
+      "HEADER"
+     ],
+     "carries_declared_disposition_unit": true,
+     "text": "臺中高等行政法院裁定\r\n　　　　　　　　　　　　　　　　　　　　　地方行政訴訟庭\r\n115年度續收字第3347號\r\n聲  請  人  內政部移民署 \r\n\r\n代  表  人  林宏恩    \r\n代  理  人  莊淑惠    \r\n相  對  人  \r\n即受收容人  CHIN CHENG KIT（馬來西亞國籍）\r\n\r\n\r\n                       (在內政部移民署南區事務大隊雲林縣專勤隊臨時收容所收容)    \r\n上列當事人間聲請續予收容事件，本院裁定如下：\r\n　　主　文\r\nCHIN CHENG KIT續予收容。",
+     "span": {
+      "start": 0,
+      "end": 267,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 1
+    },
+    {
+     "chunk_id": "TCTA,115,續收,3347,20260710,1#C002",
+     "document_id": "TCTA,115,續收,3347,20260710,1",
+     "structural_role": "REASONING",
+     "structural_labels": [
+      "REASONING"
+     ],
+     "carries_declared_disposition_unit": false,
+     "text": "\r\n　　理　由\r\n收容期間 受收容人自民國115年7月1日起暫予收容，聲請人於該期間屆滿（即115年7月15日）之5日前聲請續予收容。 具收容事由 受收容人有下列得收容之事由（入出國及移民法第38條第1項）： ☐無相關旅行證件，不能依規定執行。 ☑有事實足認有行方不明、逃逸或不願自行出國之虞。 ☐受外國政府通緝。 無得不予收容之情形 受收容人無入出國及移民法第38條之1第1項各款情形。 收容必要性 受收容人具收容事由，且無其他具體有效足供擔保日後執行驅逐出境之收容替代處分，非予收容顯難強制驅逐出國。 結論 本件聲請為有理由，應准續予收容，依行政訴訟法第237條之14第2項後段，裁定如主文。 ",
+     "span": {
+      "start": 267,
+      "end": 566,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 2
+    },
+    {
+     "chunk_id": "TCTA,115,續收,3347,20260710,1#C003",
+     "document_id": "TCTA,115,續收,3347,20260710,1",
+     "structural_role": "CLOSING",
+     "structural_labels": [
+      "CLOSING"
+     ],
+     "carries_declared_disposition_unit": false,
+     "text": "\r\n中　　華　　民　　國　　115　 年　　7　　月　　10　　 日\r\n　　　　　　　　　　　　　　　法　官 李嘉益\r\n上為正本係照原本作成。\r\n如不服本裁定，應於送達後5日內，以書狀敘明理由向本院提出抗告狀（須按他造人數附繕本）。　　　　　　　　　　　　　\r\n中　　華　　民　　國　　115 　年　　7 　　月　　10　　日\r\n　　　　　　　　　　　　　　　書記官　葉郁庭",
+     "span": {
+      "start": 566,
+      "end": 753,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 3
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "disposition:TCTA,115,續收,3347,20260710,1#C001:243-267",
+      "evidence_type": "DISPOSITION",
+      "judgement_id": "TCTA,115,續收,3347,20260710,1",
+      "document_id": "TCTA,115,續收,3347,20260710,1",
+      "chunk_id": "TCTA,115,續收,3347,20260710,1#C001",
+      "text": "主　文\r\nCHIN CHENG KIT續予收容。",
+      "source_span": {
+       "start": 243,
+       "end": 267,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "HEADER",
+       "structural_labels": [
+        "DISPOSITION",
+        "HEADER"
+       ],
+       "method": "zhu_wen_marker",
+       "open_ended": true
+      }
+     },
+     {
+      "evidence_id": "reasoning:TCTA,115,續收,3347,20260710,1#C002:122-147",
+      "evidence_type": "REASONING",
+      "judgement_id": "TCTA,115,續收,3347,20260710,1",
+      "document_id": "TCTA,115,續收,3347,20260710,1",
+      "chunk_id": "TCTA,115,續收,3347,20260710,1#C002",
+      "text": " ☑有事實足認有行方不明、逃逸或不願自行出國之虞。",
+      "source_span": {
+       "start": 122,
+       "end": 147,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "REASONING",
+       "structural_labels": [
+        "REASONING"
+       ],
+       "method": "court_voice_marker",
+       "marker": "足認"
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "disposition:TCTA,115,續收,3347,20260710,1#C001:243-267",
+      "to": "judgement:TCTA,115,續收,3347,20260710,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:TCTA,115,續收,3347,20260710,1#C002:122-147",
+      "to": "judgement:TCTA,115,續收,3347,20260710,1",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-05-constitutional-review",
+   "judgement_id": "JCCC,115,審裁,1177,20260713",
+   "chunks": [
+    {
+     "chunk_id": "JCCC,115,審裁,1177,20260713#C002",
+     "document_id": "JCCC,115,審裁,1177,20260713",
+     "structural_role": "REASONING",
+     "structural_labels": [
+      "REASONING"
+     ],
+     "carries_declared_disposition_unit": false,
+     "text": "\r\n    理  由\r\n一、本件聲請人以加害人涉犯妨害性自主罪嫌提出告訴，經高雄\r\n    市政府警察局旗山分局移送臺灣高雄少年及家事法院（下稱\r\n    高少家法院），高少家法院以被告已滿 20 歲，裁定移送臺\r\n    灣橋頭地方檢察署檢察官偵辦，經該署檢察官不起訴，聲請\r\n    人不服聲請再議，復經臺灣高等檢察署高雄檢察分署駁回其\r\n    聲請，聲請人仍不服，向高少家法院聲請准許提起自訴，經\r\n    高少家法院 112 年度少聲字第 8 號刑事裁定（下稱系爭確\r\n    定終局裁定）以被告於行為時為未滿 18 歲之少年，因少年\r\n    刑事案件不適用刑事訴訟法關於自訴之規定，而予駁回確定\r\n    。\r\n二、聲請人認系爭確定終局裁定所適用之少年事件處理法第 65\r\n    條第 2 項規定（下稱系爭規定）使少年刑事案件之被害人\r\n    ，對檢察官不起訴及上級檢察署檢察長駁回再議之處分，不\r\n    得聲請准許提起自訴，違反憲法第 8 條正當法律程序及第\r\n    16 條保障訴訟權之意旨；系爭確定終局裁定因適用系爭規\r\n    定，亦有違憲疑義，爰聲請裁判及法規範憲法審查等語。\r\n三、按人民於其憲法上所保障之權利遭受不法侵害，經依法定程\r\n    序用審級救濟程序，對於所受不利確定終局裁判，或該裁判\r\n    及其所適用之法規範，認有牴觸憲法者，得聲請憲法法庭為\r\n    宣告違憲之判決；聲請不合程式或不備其他要件者，審查庭\r\n    得以一致決裁定不受理，憲法訴訟法（下稱憲訴法）第 59\r\n    條第 1 項及第 15 條第 2 項第 7 款分別定有明文。又，\r\n    憲訴法第 59 條第 1 項所定裁判憲法審查制度，係賦予人\r\n    民就其依法定程序用盡審級救濟之案件，認確定終局裁判解\r\n    釋及適用法律，有誤認或忽略基本權利重要意義，或違反通\r\n    常情況下所理解之憲法價值等牴觸憲法之情形時（憲訴法第\r\n    59 條第 1 項規定立法理由參照），得聲請憲法法庭為宣告\r\n    違憲之判決。\r\n四、核聲請意旨所陳，聲請人僅係以一己之見，泛言系爭規定有\r\n    違憲疑義，尚難謂已具體指摘系爭規定有何牴觸憲法之處，\r\n    亦未敘明系爭確定終局裁定對其據為裁判基礎之法律的解釋\r\n    、適用，有如何之誤認或忽略相關基本權利重要意義與關聯\r\n    性，或違反通常情況下所理解之憲法價值等牴觸憲法之情形\r\n    ，核與憲訴法第 59 條第 1 項規定不合，本庭爰依同法第\r\n    15 條第 2 項第 7 款以一致決裁定不受理。",
+     "span": {
+      "start": 159,
+      "end": 1261,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 2
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "reasoning:JCCC,115,審裁,1177,20260713#C002:504-612",
+      "evidence_type": "REASONING",
+      "judgement_id": "JCCC,115,審裁,1177,20260713",
+      "document_id": "JCCC,115,審裁,1177,20260713",
+      "chunk_id": "JCCC,115,審裁,1177,20260713#C002",
+      "text": "\r\n三、按人民於其憲法上所保障之權利遭受不法侵害，經依法定程\r\n    序用審級救濟程序，對於所受不利確定終局裁判，或該裁判\r\n    及其所適用之法規範，認有牴觸憲法者，得聲請憲法法庭為\r\n    宣告違憲之判決；",
+      "source_span": {
+       "start": 504,
+       "end": 612,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "REASONING",
+       "structural_labels": [
+        "REASONING"
+       ],
+       "method": "court_voice_marker",
+       "marker": "查/按/核(句中)"
+      }
+     },
+     {
+      "evidence_id": "reasoning:JCCC,115,審裁,1177,20260713#C002:879-1102",
+      "evidence_type": "REASONING",
+      "judgement_id": "JCCC,115,審裁,1177,20260713",
+      "document_id": "JCCC,115,審裁,1177,20260713",
+      "chunk_id": "JCCC,115,審裁,1177,20260713#C002",
+      "text": "\r\n四、核聲請意旨所陳，聲請人僅係以一己之見，泛言系爭規定有\r\n    違憲疑義，尚難謂已具體指摘系爭規定有何牴觸憲法之處，\r\n    亦未敘明系爭確定終局裁定對其據為裁判基礎之法律的解釋\r\n    、適用，有如何之誤認或忽略相關基本權利重要意義與關聯\r\n    性，或違反通常情況下所理解之憲法價值等牴觸憲法之情形\r\n    ，核與憲訴法第 59 條第 1 項規定不合，本庭爰依同法第\r\n    15 條第 2 項第 7 款以一致決裁定不受理。",
+      "source_span": {
+       "start": 879,
+       "end": 1102,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "REASONING",
+       "structural_labels": [
+        "REASONING"
+       ],
+       "method": "court_voice_marker",
+       "marker": "難謂"
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "reasoning:JCCC,115,審裁,1177,20260713#C002:504-612",
+      "to": "reasoning:JCCC,115,審裁,1177,20260713#C002:879-1102",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:JCCC,115,審裁,1177,20260713#C002:504-612",
+      "to": "judgement:JCCC,115,審裁,1177,20260713",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:JCCC,115,審裁,1177,20260713#C002:879-1102",
+      "to": "judgement:JCCC,115,審裁,1177,20260713",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-06-demo-disposition",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunks": [
+    {
+     "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+     "document_id": "STEV,115,店小,450,20260713,1",
+     "structural_role": "FACTS",
+     "structural_labels": [
+      "FACTS"
+     ],
+     "text": "院114年度附民字第1519號\r\n移送審理），於民國115年6月22日言詞辯論終結，本院判決如下\r\n：\r\n　　主　文\r\n原告之訴駁回。\r\n訴訟費用由原告負擔。\r\n　　理由要領\r\n一、本件為小額訴訟事件，依民事訴訟法第436條之18第1項之規\r\n    定，僅記載主文及理由要領。\r\n二、查原告起訴時聲明：「被告應給付原告新臺幣（下同）60,0\r\n    00元，及自起訴狀繕本送達翌日起至清償日止按年息5%計算\r\n    之利息。」，嗣於民國115年6月22日減縮請求金額為：被告\r\n    應給付原告30,000元（見本院卷第55",
+     "span": {},
+     "chunk_index": 900
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "disposition:STEV,115,店小,450,20260713,1#demo-demo:55-83",
+      "evidence_type": "DISPOSITION",
+      "judgement_id": "STEV,115,店小,450,20260713,1",
+      "document_id": "STEV,115,店小,450,20260713,1",
+      "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+      "text": "主　文\r\n原告之訴駁回。\r\n訴訟費用由原告負擔。\r\n　　",
+      "source_span": {
+       "start": 55,
+       "end": 83,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "zhu_wen_marker",
+       "open_ended": false
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "disposition:STEV,115,店小,450,20260713,1#demo-demo:55-83",
+      "to": "judgement:STEV,115,店小,450,20260713,1",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-07-demo-holding",
+   "judgement_id": "STEV,115,店小,450,20260713,1",
+   "chunks": [
+    {
+     "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+     "document_id": "STEV,115,店小,450,20260713,1",
+     "structural_role": "FACTS",
+     "structural_labels": [
+      "FACTS"
+     ],
+     "text": "第49-59頁勘驗筆錄及截圖），可見原告於見\r\n    聞被告系爭言論及行為後，並無心生畏懼之情。依上情狀，\r\n    原告並未受有實際損害，則原告請求被告負侵權行為損害賠\r\n    償責任，難認有據。\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。\r\n四、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    本院斟酌後，核於判決結果不生影響，爰",
+     "span": {},
+     "chunk_index": 900
+    }
+   ],
+   "graph": {
+    "nodes": [
+     {
+      "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "evidence_type": "HOLDING",
+      "judgement_id": "STEV,115,店小,450,20260713,1",
+      "document_id": "STEV,115,店小,450,20260713,1",
+      "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+      "text": "依上情狀，\r\n    原告並未受有實際損害，則原告請求被告負侵權行為損害賠\r\n    償責任，難認有據。",
+      "source_span": {
+       "start": 49,
+       "end": 101,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "conclusory_pattern",
+       "marker": "難認有據",
+       "heuristic": true
+      }
+     },
+     {
+      "evidence_id": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "evidence_type": "HOLDING",
+      "judgement_id": "STEV,115,店小,450,20260713,1",
+      "document_id": "STEV,115,店小,450,20260713,1",
+      "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+      "text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。",
+      "source_span": {
+       "start": 101,
+       "end": 216,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "conclusory_pattern",
+       "marker": "為無理由",
+       "heuristic": true
+      }
+     },
+     {
+      "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "evidence_type": "REASONING",
+      "judgement_id": "STEV,115,店小,450,20260713,1",
+      "document_id": "STEV,115,店小,450,20260713,1",
+      "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+      "text": "依上情狀，\r\n    原告並未受有實際損害，則原告請求被告負侵權行為損害賠\r\n    償責任，難認有據。",
+      "source_span": {
+       "start": 49,
+       "end": 101,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "難認"
+      }
+     },
+     {
+      "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "evidence_type": "REASONING",
+      "judgement_id": "STEV,115,店小,450,20260713,1",
+      "document_id": "STEV,115,店小,450,20260713,1",
+      "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+      "text": "\r\n　㈡綜上所述，原告依民法第184條第1項、第195條第1項前之規\r\n    定，請求被告給付原告精神上損害3萬元，及自刑事附帶民\r\n    事起訴狀繕本送達翌日起至清償日止按年息5%計算之利息，\r\n    為無理由，應予駁回。",
+      "source_span": {
+       "start": 101,
+       "end": 216,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "綜上"
+      }
+     },
+     {
+      "evidence_id": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:216-270",
+      "evidence_type": "REASONING",
+      "judgement_id": "STEV,115,店小,450,20260713,1",
+      "document_id": "STEV,115,店小,450,20260713,1",
+      "chunk_id": "STEV,115,店小,450,20260713,1#demo-demo",
+      "text": "\r\n四、本件事證已臻明確，兩造其餘攻擊防禦方法及所提證據，經\r\n    本院斟酌後，核於判決結果不生影響，爰",
+      "source_span": {
+       "start": 216,
+       "end": 270,
+       "unit": "code_point",
+       "basis": "chunk_text"
+      },
+      "provenance": {
+       "structural_role": "FACTS",
+       "structural_labels": [
+        "FACTS"
+       ],
+       "method": "court_voice_marker",
+       "marker": "爰"
+      }
+     }
+    ],
+    "edges": [
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:216-270",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:216-270",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:216-270",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:216-270",
+      "relation": "same_chunk"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "cit:STEV,115,店小,450,20260713,1#c900:113-123",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "cit:STEV,115,店小,450,20260713,1#c900:124-132",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "cit:STEV,115,店小,450,20260713,1#c900:113-123",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "cit:STEV,115,店小,450,20260713,1#c900:124-132",
+      "relation": "contains_citation"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "judgement:STEV,115,店小,450,20260713,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "holding:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "judgement:STEV,115,店小,450,20260713,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:49-101",
+      "to": "judgement:STEV,115,店小,450,20260713,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:101-216",
+      "to": "judgement:STEV,115,店小,450,20260713,1",
+      "relation": "same_document"
+     },
+     {
+      "from": "reasoning:STEV,115,店小,450,20260713,1#demo-demo:216-270",
+      "to": "judgement:STEV,115,店小,450,20260713,1",
+      "relation": "same_document"
+     }
+    ]
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  },
+  {
+   "case_id": "R-08-appendix-empty",
+   "judgement_id": "CTDM,115,訴,1694,20260731,1",
+   "chunks": [
+    {
+     "chunk_id": "CTDM,115,訴,1694,20260731,1#C006",
+     "document_id": "CTDM,115,訴,1694,20260731,1",
+     "structural_role": "APPENDIX",
+     "structural_labels": [
+      "APPENDIX"
+     ],
+     "carries_declared_disposition_unit": false,
+     "text": "\r\n附錄本案所犯法條\r\n中華民國刑法第339條之4\r\n犯第 339 條詐欺罪而有下列情形之一者，處 1 年以上 7 年以\r\n下有期徒刑，得併科 1 百萬元以下罰金：\r\n一、冒用政府機關或公務員名義犯之。\r\n二、三人以上共同犯之。\r\n三、以廣播電視、電子通訊、網際網路或其他媒體等傳播工具，\r\n　　對公眾散布而犯之。\r\n四、以電腦合成或其他科技方法製作關於他人不實影像、聲音或\r\n　　電磁紀錄之方法犯之。\r\n前項之未遂犯罰之。\r\n \r\n洗錢防制法第19條\r\n有第 2 條各款所列洗錢行為者，處 3 年以上 10 年以下有期徒\r\n刑，併科新臺幣 1 億元以下罰金。其洗錢之財物或財產上利益\r\n未達新臺幣一億元者，處 6 月以上 5 年以下有期徒刑，併科新\r\n臺幣 5 千萬元以下罰金。\r\n前項之未遂犯罰之。\r\n \r\n　　　\r\n附件：\r\n臺灣橋頭地方檢察署檢察官起訴書\r\n　　　　　　　　　　　　　　　　　　115年度偵字第10478號\r\n　　被　　　告　王俊傑\r\n\r\n\r\n　　　　　　　　陳淑榕\r\n\r\n\r\n上列被告因詐欺等案件，業經偵查終結，認應提起公訴，茲將犯\r\n罪事實及證據並所犯法條分敘如下：\r\n　　　　犯罪事實\r\n",
+     "span": {
+      "start": 2537,
+      "end": 3046,
+      "unit": "code_point",
+      "basis": "content.raw_text"
+     },
+     "chunk_index": 6
+    }
+   ],
+   "graph": {
+    "nodes": [],
+    "edges": []
+   },
+   "gate": {
+    "verdict": "PASS",
+    "failures": []
+   }
+  }
+ ]
+}

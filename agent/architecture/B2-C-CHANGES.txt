@@ -1,0 +1,18 @@
+# B2-C production footprint (extends manifest pattern).
+
+# New repo code + tests + fixtures:
+backend/app/b2c_evidence.py
+tests/test_b2c_structure.py
+tests/test_b2c_safety.py
+tests/test_b2c_chain.py
+tests/fixtures/b2c_reasoning_set.json
+# Reports/evidence/scripts (this batch):
+agent/architecture/B2-C-JUDGMENT-REASONING.md
+agent/architecture/B2-C-VALIDATION-REPORT.md
+agent/architecture/B2-C-FOLLOWUPS.md
+agent/architecture/B2-C-CHANGES.txt
+agent/architecture/B2-C-EVIDENCE.json
+agent/scripts/build_b2c_set.py
+agent/scripts/b2c_evaluate.py
+# No serving behavior, retrieval baseline, statute corpus, B2-B set, or frozen
+# artifact modified. B2-B/B1 modules untouched by B2-C.

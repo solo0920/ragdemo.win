@@ -130,6 +130,251 @@ async def _points_query(body: dict) -> list[dict]:
                    json=body, timeout=30)
     r.raise_for_status()
     return r.json()["result"]["points"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 判決檢索（spec 004 T018）
+#
+# 這一節與上面的 laws 路徑**完全分離**。理由與設計約束：
+#
+# 1. **不同的 collection。** laws 用 `COLLECTION`（env，預設 "laws"）；
+#    判決用 `JUDGMENTS_COLLECTION`（固定 "judgements"）。兩者不共用變數 ——
+#    若共用，`COLLECTION=judgements` 會讓法條檢索整個打到判決庫，而症狀是
+#    「回傳看起來合理的判決片段」，不會報錯。
+#
+# 2. **不碰 laws 的 filter。** `_BASE_FILTER` 帶著 laws 特有的條件（廢止／中止
+#    旗標），那些欄位在判決 payload 裡不存在。判決用自己的 `_judgment_filter()`。
+#
+# 3. **Qdrant 是 derived。** 這個 collection 可以整個刪掉重建，而 authoritative
+#    chain（archive → document → JFULL → chunk）不受影響。沒有任何從 Qdrant
+#    回頭改寫原文的路徑。
+#
+# 4. **不做 statute resolution。** 查詢字串裡出現「銀行法第XX條」不會觸發任何
+#    外部查詢或名單比對 —— T012–T014 已建立 candidate ≠ resolved 的邊界，
+#    檢索層不得跨越。
+# ═══════════════════════════════════════════════════════════════════════════
+
+# 判決 collection 名稱。刻意**不**讀環境變數：
+#   - `COLLECTION` 已被 laws 占用（env 預設 "laws"）
+#   - 新增一個 env 變數要改 `.env.example`，而那會牽動 scripts/env-audit.py
+#     的讀取處計數（見 ingest/judgements/store.py 的說明）
+# 這個名稱是 tasks.md T017/T018 明定的，不是設定。
+JUDGMENTS_COLLECTION = "judgements"
+
+# 判決 point ID 由 ingest/judgements/chunk.py 定義（spec T015/T017）：
+#   sha256(entry_path | chunk_index)
+#
+# 這個模組**不重新產生** ID —— 它只驗證進來的 point 帶的 ID 與 payload 一致。
+# 若在這裡再算一次，兩邊的公式會各自漂移，而那會讓重跑變成新增而非覆寫。
+JUDGMENT_PAYLOAD_FIELDS: tuple[str, ...] = (
+    "entry_path", "jid", "chunk_index", "start_offset", "end_offset",
+    "content_hash", "jyear", "jdate", "jcase",
+)
+
+# payload **不得**出現的欄位。理由與 ingest/judgements/index_load.py 相同：
+#   - court / case_type / statute_name：推論或猜測（FR-016 / FR-037）
+#   - citation_status / resolved_citation：T012–T014 的 candidate 不是 resolved
+#   - score / rank：那是查詢時算出來的，不是存進去的
+JUDGMENT_FORBIDDEN_FIELDS: tuple[str, ...] = (
+    "court", "case_type", "branch", "statute", "statute_name", "law",
+    "article_number", "citation_status", "resolved_citation",
+    "score", "rank", "embedding", "summary",
+)
+
+
+class JudgmentPayloadError(ValueError):
+    """判決 payload 不符合 T017 的契約。"""
+
+
+def validate_judgment_payload(payload: dict) -> None:
+    """驗證一份判決 payload。
+
+    這是**可呼叫的**，不只是測試用 —— 載入與檢索兩端都可以各驗一次。
+    """
+    keys = set(payload)
+    forbidden = keys & set(JUDGMENT_FORBIDDEN_FIELDS)
+    if forbidden:
+        raise JudgmentPayloadError(
+            f"payload 含禁止欄位 {sorted(forbidden)} —— "
+            "court/statute 類欄位會被誤認為已查證的司法內容"
+        )
+    if keys != set(JUDGMENT_PAYLOAD_FIELDS):
+        raise JudgmentPayloadError(
+            f"payload 欄位不符：多了 {sorted(keys - set(JUDGMENT_PAYLOAD_FIELDS))}，"
+            f"少了 {sorted(set(JUDGMENT_PAYLOAD_FIELDS) - keys)}"
+        )
+
+
+def _judgment_filter(*, jid: str | None = None,
+                     jyear: str | None = None,
+                     jdate: str | None = None) -> dict:
+    """判決查詢的 filter。
+
+    只接受 **source 實際提供的**欄位（FR-014）。可用的 filter key 就是 payload
+    的欄位：`jid` / `jyear` / `jdate` / `jcase`。
+
+    ⚠️ **沒有 court。** spec §Court 記載 source 沒有這個欄位，而從 `JFULL`
+    line 0 推論它是 FR-016 禁止的。FR-015 說 metadata 必須含 court，但同一份
+    spec 的 §Court 結尾寫著 `court` remains UNKNOWN/INFERRED and MUST NOT
+    enter an authoritative contract —— 兩者矛盾，本層採後者。
+    這是 maintainer decision，不是實作細節；`specs/004-judicial-source-fidelity/`
+    記錄了那個矛盾。
+
+    ⚠️ **`jcase` 刻意不作為 filter 參數。** 它是 opaque 代碼，把它當成
+    「案件類型」來篩選是一個語意推論（FR-016）。目前 corpus 裡它的 1,336 個
+    取值只被觀察過 0.46%，任何「某個代碼 = 某類案件」的對應都是未經驗證的。
+    要用它篩選，先得有人回答「這個代碼是什麼」—— 那不是檢索層該決定的。
+    """
+    must: list[dict] = []
+    if jid is not None:
+        must.append({"key": "jid", "match": {"value": jid}})
+    if jyear is not None:
+        must.append({"key": "jyear", "match": {"value": jyear}})
+    if jdate is not None:
+        must.append({"key": "jdate", "match": {"value": jdate}})
+    return {"must": must}
+
+
+def judgment_sort_key(hit: dict) -> tuple:
+    """判決 hit 的 deterministic 排序鍵。
+
+    ## 為什麼需要它
+
+    Qdrant 的 dense 分數是浮點近似，且同分結果的順序**不保證穩定**。
+    若只按 score 排，同分的 hit 順序會隨引擎內部狀態變動 —— 那讓「同一個
+    query 重跑得到相同結果」這條性質失效。
+
+    排序鍵是 `(score 降冪, jid, start_offset, chunk_index)`。前三段是 tie-break：
+    兩個不同 hit 若分數相同，`jid` 提供文件層級的穩定順序，`start_offset`
+    提供文件內的穩定順序，最後 `chunk_index` 收尾（同一文件同一 offset 的
+    兩個 chunk 在正常情況下不存在，但排序鍵必須是全序才能保證 deterministic）。
+
+    分數量化到 6 位小數：浮點表示誤差在 1e-7 等級，量化後**相同**分數會
+    真的視為相同而進入 tie-break，而不是因為末位位元差異分成兩組。
+    """
+    score = float(hit.get("score") or 0.0)
+    p = hit.get("payload") or {}
+    return (
+        -round(score, 6),
+        str(p.get("jid") or ""),
+        int(p.get("start_offset") or 0),
+        int(p.get("chunk_index") or 0),
+    )
+
+
+def judgment_hit_view(hit: dict) -> dict:
+    """把一個判決 hit 轉成前端/回答層用的視圖。
+
+    **不**重組文字。`text` 若存在就是 payload 裡的原樣字串；這裡不做任何
+    strip / 換行轉換（FR-036）。
+
+    `has_text` 讓呼叫端知道 chunk 文字是否隨 payload 一起存了。T017 的 payload
+    契約**不含** chunk text（那會讓每個 point 帶 750 字 × N 筆），所以實務上
+    `text` 通常是 `None`，而回答層需要從 `JFULL[start:end]` 切出來 —— 那個切片
+    發生在有 document 的那一側，不是在檢索層。
+    """
+    p = hit.get("payload") or {}
+    validate_judgment_payload(p)
+    return {
+        "id": hit.get("id"),
+        "score": hit.get("score"),
+        "entry_path": p["entry_path"],
+        "jid": p["jid"],
+        "chunk_index": p["chunk_index"],
+        "start_offset": p["start_offset"],
+        "end_offset": p["end_offset"],
+        "content_hash": p["content_hash"],
+        "jyear": p["jyear"],
+        "jdate": p["jdate"],
+        "jcase": p["jcase"],
+        "text": p.get("text"),
+        "has_text": "text" in p,
+    }
+
+
+async def search_judgments(
+    question: str,
+    vector: list[float],
+    *,
+    limit: int = 50,
+    jid: str | None = None,
+    jyear: str | None = None,
+    jdate: str | None = None,
+) -> list[dict]:
+    """判決 chunk 召回。只回傳**來源 chunk**，絕不回傳生成文字（FR-011）。
+
+    ## 與 laws `search()` 的差異
+
+    * 打的是 `JUDGMENTS_COLLECTION`，用 `_judgment_filter()`。
+    * 沒有條號精準分支 —— 那是 laws 專屬的（`article_no` 欄位在判決 payload
+      裡不存在）。
+    * 排序多一層 deterministic tie-break（`judgment_sort_key`）。
+    * **不做任何 statute 名稱比對。** query 裡的「銀行法第XX條」不會觸發外部
+      查詢或名單比對（T012–T014 的 candidate ≠ resolved 邊界）。
+
+    ## 空結果
+
+    回傳 `[]`，不拋錯。零結果是合法狀態（T020 會把它變成明確的拒絕）。
+    """
+    if limit <= 0:
+        return []
+    prefetch = max(limit, 200)
+    # Qdrant /points/query 只收 raw vector + `using`（2026-10-09 實測：
+    # `{"name","vector"}` 物件形一律 400）。_HAS_NAMED 是 laws collection
+    # 決定的全域旗標，不可用它來選判決查詢的 body 形狀。
+    body: dict = {
+        "query": vector,
+        "using": "dense",
+        "limit": prefetch,
+        "filter": _judgment_filter(jid=jid, jyear=jyear, jdate=jdate),
+        "with_payload": True,
+    }
+
+    pts = await _judgment_points_query(body)
+    for p in pts:
+        validate_judgment_payload(p.get("payload") or {})
+
+    hits = [
+        {"id": p["id"], "payload": p["payload"], "score": p.get("score")}
+        for p in pts
+    ]
+    hits.sort(key=judgment_sort_key)
+    return hits[:limit]
+
+
+async def _judgment_points_query(body: dict) -> list[dict]:
+    r = await gateway._req("qdrant", gateway.QDRANT_URLS, "post",
+                           f"/collections/{JUDGMENTS_COLLECTION}/points/query",
+                           json=body, timeout=30)
+    r.raise_for_status()
+    return r.json()["result"]["points"]
+
+
+def validate_judgment_point_id(point_id: str, payload: dict) -> None:
+    """驗證 point ID 與 payload 一致 —— 也就是「ID 確實由 payload 決定」。
+
+    這條不重算 T015 的公式（那是 `ingest/judgements/chunk.py` 的職責），
+    而是檢查 **ID 不是隨機／時間戳產生**：若同一個 `(entry_path, chunk_index)`
+    在不同時間載入兩次，ID 必須相同。檢索層無法直接驗證「跨時間」，
+    但它可以驗證 ID 不是 UUID 格式的隨機值 —— 那是最常見的破壞形狀。
+
+    具體驗的是：`point_id` 是 64 位 hex（`sha256(...).hexdigest()` 的形狀），
+    而非 Qdrant 自動產生的 UUID v4。
+    """
+    v = str(point_id)
+    if len(v) != 64:
+        raise JudgmentPayloadError(
+            f"point ID 應為 64 位 hex（sha256），收到 {v!r}"
+        )
+    try:
+        int(v, 16)
+    except ValueError as exc:
+        raise JudgmentPayloadError(f"point ID 不是 hex：{v!r}") from exc
+
+    p = payload
+    if "entry_path" not in p or "chunk_index" not in p:
+        raise JudgmentPayloadError("payload 缺少 entry_path / chunk_index")
+
 def _fusion_sort(hits: list[dict]) -> list[dict]:
     """本端 DBSF 融合（決定性）：dense 餘弦與 sparse idf-score 各自 min-max 正規化後加總。
     不用 RRF：RRF 只看排名，熱門條號(如「第11條」)兩腿都被灌滿時，真身(e.g. 證交法11)

@@ -1,0 +1,40 @@
+{
+ "protocol": "B3-B: recompute reviewed temporal statuses + gate; corpus capability profile; no services, no LLM",
+ "reviewed_set": {
+  "cases": 5,
+  "all_match": true,
+  "false_historical_claims": 0,
+  "statuses": {
+   "T-01": "CURRENT_ONLY",
+   "T-02": "CURRENT_ONLY",
+   "T-03": "TEMPORALLY_UNKNOWN",
+   "T-04": "TEMPORALLY_UNKNOWN",
+   "T-05": "TEMPORALLY_UNKNOWN"
+  }
+ },
+ "gate_T1_T8_fixture": {
+  "verdict": "PASS",
+  "failures": []
+ },
+ "capability": {
+  "statute_rows_have_intervals": false,
+  "statute_rows_have_versions": false,
+  "law_level_modified_dates": "1347/1347",
+  "law_level_effective_dates": "90/1347",
+  "law_histories_free_text": "1347/1347 (unparsed by design)",
+  "single_promulgation_laws": "286/1347 (future VERIFIED pool only with a structured source)",
+  "corpus_sync": {
+   "sha256": "ebb5965501c001ac27eead923323c4c2ad5822d1cff50764aa2c9aac1f577bcb",
+   "update_date": "2026/9/24 上午 12:00:00",
+   "applied_at": "2026-10-03T08:24:54"
+  },
+  "reachable_on_real_data": [
+   "CURRENT_ONLY",
+   "TEMPORALLY_UNKNOWN"
+  ],
+  "unreachable_without_versioned_corpus": [
+   "HISTORICAL_VERIFIED",
+   "TEMPORALLY_INVALID"
+  ]
+ }
+}
