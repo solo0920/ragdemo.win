@@ -593,6 +593,85 @@ def test_review_bundle_section_has_everything_a_human_needs():
         assert needle in bundle, f"審閱包缺 {needle}"
 
 
+def test_review_bundle_index_lists_forced_documents():
+    """索引表必須**列全**有 FORCED 的卷，且不含沒有的卷。
+
+    為什麼這條要獨立測：索引是「該從哪看起」的入口，它若漏列一卷，那一卷就
+    永遠不會有人看——而那正是整批資料唯一有結構條件可看的地方。
+
+    golden 那三個檔是**短文件**，結構切得乾淨（本來就沒有 FORCED），
+    所以這裡改用真實長卷宗：從 manifest 取。manifest 進版控，所以在沒有
+    RAR 的機器上也讀得到。
+    """
+    man = json.loads(
+        (
+            ROOT / "specs" / "006-m1-judicial-selection-profile" / "profile-manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    expected = {
+        e["jid"] for e in man["entries"] if e["forced_break_chunk_indexes"]
+    }
+    assert expected, "manifest 應該記錄了有 FORCED 的卷；若真的沒有，這條要重估"
+
+    # 索引的產生不依賴 archive，所以用 golden 的真實渲染結果驗**結構**；
+    # 「列全 37 卷」這件事交給 live 的 review-bundle（下面用 manifest 交叉核對）。
+    from golden import stage_results  # noqa: PLC0415
+
+    bundle = PB.render_review_bundle(stage_results())
+    assert "全部卷宗（依 size 降冪）" in bundle
+    body_at = bundle.index("全部卷宗（依 size 降冪）")
+
+    # golden 是短文件、沒有 FORCED → 索引表不該出現（否則是空表）
+    assert "索引：有 FORCED 斷點的" not in bundle
+    assert body_at > 0
+
+    # 交叉核對：manifest 記的 37 卷，每一卷的 JID 都必須能在包內找到章節，
+    # 且該卷確實帶 forced 索引（否則 manifest 與審閱包對不上）。
+    live_bundle = (PB.PROFILE_DIR / "review-bundle.md")
+    if not live_bundle.is_file():
+        return  # 尚未跑過 live；此時只驗上面的離線結構
+    with live_bundle.open(encoding="utf-8", newline="") as fh:
+        live = fh.read()
+    live_idx_start = live.index("索引：有 FORCED 斷點的")
+    live_body = live.index("全部卷宗（依 size 降冪）")
+    live_index = live[live_idx_start:live_body]
+    listed = {
+        ln.split("|")[1].strip()
+        for ln in live_index.splitlines()
+        if ln.startswith("| ") and "---" not in ln and "JID" not in ln
+    }
+    assert listed == expected, f"索引漏列或多列：{listed ^ expected}"
+    assert live_idx_start < live_body, "索引必須在正文之前，否則人得翻完整份才看到"
+
+
+def test_review_bundle_index_is_omitted_when_no_forced():
+    """沒有 FORCED 時**不該**留一個空索引表——那會讓人誤以為漏了東西。"""
+    r = PB.EntryResult(
+        entry=PB.Entry(
+            path="202607\\x\\a.json",
+            path_posix="202607/x/a.json",
+            unpacked_size=10,
+            crc32="0" * 8,
+        )
+    )
+    # 造一個 chunked 但無 FORCED 的結果（用 golden 的一卷，strip 掉索引）
+    from golden import stage_results  # noqa: PLC0415
+
+    src = stage_results()[0]
+    r2 = PB.EntryResult(
+        entry=src.entry,
+        extracted=True,
+        size_crc_ok=True,
+        schema_valid=True,
+        chunked=True,
+        chunks=src.chunks,
+        doc=src.doc,
+    )
+    bundle = PB.render_review_bundle([r2])
+    assert "索引：有 FORCED 斷點的" not in bundle
+    assert "全部卷宗（依 size 降冪）" in bundle
+
+
 def test_review_bundle_sorted_by_size_desc():
     """依 size 降冪：最長的卷宗最可能切出跨 chunk holding，先看它們。"""
     from golden import stage_results  # noqa: PLC0415

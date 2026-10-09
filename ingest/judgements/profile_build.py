@@ -756,10 +756,15 @@ def render_review_bundle(results: list[EntryResult]) -> str:
     ok = [r for r in results if r.chunked]
     ok.sort(key=lambda r: (-r.entry.unpacked_size, r.entry.path))
 
+    # 有 FORCED 斷點的卷排前面當索引表——**不重排正文**。正文的 size 降冪是
+    # 有意義的資訊（最長的卷宗最可能切出多段），把它打亂只為了「好找」會讓
+    # 排序本身失去意義。索引是另一件事：它回答「該從哪看起」。
+    with_forced = [r for r in ok if r.forced_break_chunk_indexes]
+
     out = [
         "# M1 選樣審閱包（人可讀）",
         "",
-        f"共 {len(ok)} 卷（已解壓驗證並切塊），依 `unpacked_size` 降冪。",
+        f"共 {len(ok)} 卷（已解壓驗證並切塊），正文依 `unpacked_size` 降冪。",
         "",
         "**這份檔怎麼用**：每節看兩件事 ——（1）`forced_break` 列出的 chunk 索引，",
         "那些位置是硬切出來的，**holding 有可能被切斷**；（2）`JFULL` 全文與下方",
@@ -768,7 +773,37 @@ def render_review_bundle(results: list[EntryResult]) -> str:
         "**判定寫到** `specs/006-m1-judicial-selection-profile/review-verdicts.md`",
         "（未審＝留空，不要刪列）。",
         "",
+    ]
+
+    if with_forced:
+        out += [
+            "---",
+            "",
+            f"## 索引：有 FORCED 斷點的 {len(with_forced)} 卷（先看這些）",
+            "",
+            "**只有這些卷**存在「holding 可能被切斷」的結構條件——切點是硬切的，",
+            "不是找得到自然邊界才切的。**先審這批**，它們是跨 chunk 正例唯一可能",
+            "出現的地方。剩下的卷結構都切得乾淨（`natural`／`exact`），",
+            "除非你要看的是別的性質，否則不必逐卷看。",
+            "",
+            "| JID | size | chunk 數 | FORCED 處數 | 首個硬切點 |",
+            "|---|---|---|---|---|",
+        ]
+        for r in sorted(
+            with_forced, key=lambda r: (-len(r.forced_break_chunk_indexes), r.entry.jid)
+        ):
+            first = r.forced_break_chunk_indexes[0]
+            out.append(
+                f"| {r.entry.jid} | {r.entry.unpacked_size} | {r.chunk_count} "
+                f"| {len(r.forced_break_chunk_indexes)} | chunk {first} "
+                f"（offset {r.chunks[first].start_offset}） |"
+            )
+        out.append("")
+
+    out += [
         "---",
+        "",
+        "## 全部卷宗（依 size 降冪）",
         "",
     ]
 
