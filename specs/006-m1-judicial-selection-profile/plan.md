@@ -144,10 +144,14 @@ data/judgements/profile-m1/  # 新增目錄（整個 gitignore）
 
 ## 待確認（不阻擋 plan，tasks 前需一句話）
 
-1. **對庫層自檢掛哪**：FR-010(b) 的「由 archive 重算比對」預設**只由 pipeline 呼叫**
-   （已是 FR-001 的前置閘門）。**不**掛 `.githooks/pre-push`（每次推銷都要讀 284M，
-   數十秒，且多數 commit 不碰 allowlist）；**不**塞 `host-doctor.sh`（那是 M6 的檔位，
-   屬跨 scope）。若 maintainer 要 warn 級檢查，需另開 scope 並由 ops agent 處理。
+1. **對庫層自檢掛哪**：FR-010(b) 的「由 archive 重算比對」**保留在預設測試套件**
+   （`@pytest.mark.judgement_corpus` ＋ 每條測試自己的 `skipif`，marker **不**加進
+   `addopts`），同時是 pipeline 的前置閘門（FR-001）。這是 maintainer 於 plan 後
+   追認的預設，並**駁回**了本 plan 初稿「不放進預設 pytest」的寫法——後者與
+   `pyproject.toml` 已記載的決策相反（理由見 FR-010(b)）。
+   **不**掛 `.githooks/pre-push`（每次推銷都要讀 284M，數十秒，且多數 commit 不碰
+   allowlist）；**不**塞 `host-doctor.sh`（那是 M6 的檔位，屬跨 scope，需另開 scope
+   並由 ops agent 處理）。
 2. **P2 審閱包的粒度**：100 卷全部渲染成單一 `review-bundle.md`（可能數 MB），
    或是每卷一檔＋索引。預設單檔（排序＝size 降冪，便於從最長的看起）。
 

@@ -73,9 +73,11 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
   `path` 無重複；74 個被排除 JID 唯一且與 `entries` **零交集**；`crc32` 為 8 hex。
   此層**不依賴 RAR**，因此 fresh clone 也必跑，且必為 fail-closed（不得 skip 冒充通過）。
   **(b) 對庫層（需要 284M RAR）**：由 archive 重算選樣結果比對 `entries_sha256`。
-  **不得放進預設 pytest**——RAR 是 gitignored 檔，fresh clone 沒有它，条件跳過會變成
-  「靜默 skip」這個本專案最厭惡的失效模式；它屬顯式指令（M1 pipeline 的前置閘門，
-  見 FR-001）。
+  **保留在預設測試套件內**，標 `@pytest.mark.judgement_corpus` ＋ 每條測試自己的
+  `skipif(not HAS_REAL, reason=...)`（**沿用 `tests/test_judgement_inventory.py` 現有樣式**）；
+  **marker 不得加進 `addopts`**——`pyproject.toml` 已記載理由：「靠的是每條測試自己的
+  skipif，不是靠 marker 過濾。把 marker 加進 addopts 只會讓真正的外部錨點永遠不被
+  執行，那正好抵消了它的作用。」同一函式同時是 FR-001 的 pipeline 前置閘門。
 
 ### Key Entities
 
