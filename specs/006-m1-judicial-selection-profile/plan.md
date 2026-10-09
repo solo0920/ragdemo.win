@@ -62,7 +62,7 @@ digest 不變）→ T008 `schema.py`／T009 `document.py`／T010 `text.py` → T
 | **V** 測行為不測實作 | ✅ | 測試對**檔案內容與退出碼**斷言（可觀察行為），不對內部函式呼叫序斷言。SC-008 的 5 個注入錯誤是「行為測試」的具體化。 |
 | **VI** RAG 正確與可追溯 | ✅（不適用邊界內） | 本 feature **不產生、不檢索、不生成**任何答案，故不可能偽造引用。可追溯性落在：每 chunk 帶 `start_offset/end_offset/boundary_kind`，且審閱包讓人能**重新切片對照**原文（=XI 要求的 re-slice 證明）。 |
 | **VII** 安全與資料邊界 | ✅ | 本批含**當事人姓名**：審閱包與 bytes 一律 gitignore（FR-005／007），版控內只留無個資的結論（FR-008／SC-007 以 grep 驗）。不碰任何憑證、不新增網路服務。 |
-| **VIII** 可重現環境 | ⚠ **有前置缺口** | 零新依賴、零新服務 ✅。但**284M RAR 本身不在 repo 且不可重建**（`data/judgements/raw/*` gitignored，無 sync 機制；T006 的 494 筆 manifest 也在 repo 外）。本 feature 因此只在**持有該 artifact 且 sha256 相符**的機器可跑（`artifact.py` 已釘 `ef35ce44…`）。此缺口是既有的，plan 只如實標記，不假裝已解決。 |
+| **VIII** 可重現環境 | ⚠ **有前置缺口** | 零新依賴、零新服務 ✅。**M1 自身做到各地部署可跑**（FR-011：repo 相對路徑、新程式碼零絕對路徑、外部資料以 env 提供且缺失可誠實降級）。但**284M RAR 本身不在 repo 且不可重建**（`data/judgements/raw/*` gitignored，無 sync 機制；T006 的 494 筆 manifest 也在 repo 外）。本 feature 因此只在**持有該 artifact 且 sha256 相符**的機器可跑（`artifact.py` 已釘 `ef35ce44…`）。⚠ **另已量到 `agent/` 下 20 個檔案寫死 `/home/solo/…`**（評測腳本與 `validate_runtime_arch.py`），那些屬 M5／agent 檔位且 A-01~A-11 凍結中，**本 feature 不碰**，建議另開 scope。 |
 | **IX** 可觀測可診斷 | ✅ | manifest 逐階段計數：`allowlisted → extracted → size_crc_ok → schema_valid → chunked`，失敗卷附 `stage`＋`reason`。CLI 逐階段印行，失敗可定位到階段（呼應 IX「failures SHOULD identify the failed stage」）。 |
 | **X** AI agent 紀律 | ✅ | 檔案範圍鎖定於 `ingest/judgements/`、`scripts/`、`tests/`、`.gitignore`、`specs/006-…/`。**凍結 430 語料、B2/B3/B4 判定、Qdrant、frontend 一律不碰**。發現必要的外溢 → 停下報告，不自行擴張。 |
 | **XI** 司法來源不可變（NON-NEGO） | ✅ | ①`JFULL` 經 T010 `LosslessText`，**無 normalize/trim/collapse 方法**（該檔既有斷言 CRLF／U+3000 計數不變）；②每 chunk 滿足 `text == jfull[start:end]`（既有重組斷言）；③解壓以 size＋CRC32 `%08X` 逐筆比對，artifact digest 前後不變；④審閱包**逐字輸出 `JFULL`**，不得摻格式化或清洗。 |
@@ -79,16 +79,29 @@ excluded_frozen_in_pool,pool_after_exclusion}`／`excluded_frozen_document_ids`�
 
 **② `profile-manifest.json`（新）**：
 `schema:"m1-profile-manifest/1"`／`generated_at`／`allowlist{sha256,count}`／
-`artifact{sha256}`／`decoder{version,source_url,source_sha256}`／
+`artifact{sha256}`（**只存 sha，不存路徑**）／`decoder{version,source_url,source_sha256}`／
 `chunker{module_sha256,params}`／`counts{allowlisted,extracted,size_crc_ok,schema_valid,chunked}`／
 `entries[]`（每筆：`path`／`sha256`／`size`／`crc32_expected`／`crc32_actual`／
 `stages{extracted,size_crc_ok,schema_valid,chunked}`／`chunk_count`／
 `boundary_kind_histogram`／`forced_break_chunk_indexes`／`fail{stage,reason}`）／
-`frozen_corpus{seed_snapshot_sha256,unchanged:bool}`。
+`frozen_corpus{seed_tree_sha256,external_snapshot}`。
 
 **③ `review-verdicts.md`（新，進版控）**：表頭固定為
 `| jid | 判定（正例／負例） | 理由 | 審閱者 | 日期 |`，**不含全文與姓名**；
 未審＝空值而非省略（，讓「沒審」與「審了說不是」可區分）。
+
+### 機器無關的欄位定義（analyze A3／A5 裁決）
+
+- **`seed_tree_sha256`**：`data/judgements/seed/` 下所有檔案，
+  取 `sorted(相對路徑 + "\0" + 檔案 sha256)` 以 `\n` 連接後再 sha256。
+  **只含 repo 相對路徑** → 任何 clone、任何機器都算得出同樣的值。
+- **`external_snapshot`**：`{pattern,present,sha256}`。
+  `pattern` 為**形如 `<ARTIFACTS_ROOT>/t007e05cb/out/corpus_snapshot.json` 的佔位形式**
+  （**絕對路徑不進版控**）；`ARTIFACTS_ROOT` 由環境變數提供；
+  缺失時 `present:false`、`sha256:null`，**該欄仍然存在**（不得省略）。
+  有了它，「有快照的機器」與「沒快照的機器」產出的 manifest **可比較**——
+  前者多一個 sha 可供比對，後者明確宣告自己沒有。
+- **`artifact`**：只存 `sha256`。**禁止**存或比對絕對／機器相關路徑。
 
 ## Project Structure
 
@@ -159,6 +172,7 @@ data/judgements/profile-m1/  # 新增目錄（整個 gitignore）
 
 - SC-001～SC-008 全部有**實跑輸出或注入錯誤的紅燈證據**（非推論）。
 - `pytest -q` 全綠（基準 1723 passed 不回歸，且新增測試通過）。
-- manifest 的 `frozen_corpus.unchanged` 為 `true`，且 `data/judgements/seed/` sha 前後一致。
+- `seed_tree_sha256` 全輪前後一致（`data/judgements/seed/` 逐檔 sha 不變）；
+  `external_snapshot` 三欄恆存在；T114 的檢索零引用斷言成立。
 - `git status` 乾淨；**不 push**。
 - 誠實報告：掉數、Drift、FORCED 斷點為 0 等結果一律照實寫入 commit 訊息與 manifest。

@@ -1,6 +1,6 @@
 # Feature Specification: M1 司法選樣解壓與 profile 建立（DRAFT）
 
-- Status: Draft（**clarify 已完成**：5 題全答，見〈Clarifications〉；未 plan／tasks／analyze／implement）
+- Status: Draft（**clarify 已完成**：7 題全答，見〈Clarifications〉；未 tasks→implement 之實作）
 - Scope: SCOPE.md 待開 M1（北部民事 100 卷跨 chunk 正例候選池）。
   前置已定：(1) UnRAR 7.13 安裝完成（`~/.local/bin/unrar`，已驗收）；
   (2) T007 `specs/004-judicial-source-fidelity/scope.md`（100 paths 可重現）。
@@ -28,8 +28,11 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 凍結 corpus。**本 spec 不建、不寫任何 Qdrant collection**（索引屬後續 scope），
 因此「collection 名分離」不在此列。
 
-驗收：凍結快照 sha 不變；新 profile 有獨立 fingerprint；預設檢索路徑
-零引用新 profile（grep＋測試斷言）。
+驗收：**凍結語料的錨點必須是 repo 內、任何機器都算得出來的量**
+（`data/judgements/seed/` 的 tree digest，見 FR-011）——**不得**以「某台機器上
+`/home/<user>/artifacts/` 的快照」作為唯一錨點；repo 外的快照**只在存在時**記錄
+其 sha，**不存在就記 `present: false`**，不得靜默略過。新 profile 有獨立 fingerprint；
+預設檢索路徑零引用新 profile（T114 的 grep ＋ 測試斷言）。
 
 ### Edge Cases
 
@@ -49,6 +52,8 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
   （含反斜線）**，另存 forward-slash 版供顯示，沿用 `selection.py` 的 `backslash()`／
   `forward_slash()`（不自寫正規化）。**解壓前先比對 `entries_sha256`**，不符即中止
   （清單漂移不該等到解壓一半才發現）。
+  ⚠ **禁止比對路徑字面**：JSON 的 `artifact.path` 是 repo **相對**路徑，
+  `artifact.ARTIFACT_PATH` 是**絕對**路徑，兩者字面永不相等 → **只比 `sha256`**。
 - FR-002：沿用 T005 向量（size＋CRC32 `%08X`＋artifact digest 前後不變）。
 - FR-003：沿用 T008–T010（schema／frozen document／lossless text），Drift 即跳過。
 - FR-004：沿用凍結 `chunk.py`（不改參數），chunk 產物帶 offsets＋boundary_kind。
@@ -66,6 +71,15 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
   （`specs/006-m1-judicial-selection-profile/review-verdicts.md`），與 gitignore 的
   全文包分離——repo 內只留無個資的結論，可 diff 出「誰在何時改了結論」。
 - FR-009：P2 審閱本身在本 spec 之外；本 spec 不產 gold、不升級 APPLIED。
+- FR-011：**路徑可攜性（各地部署都能跑）**——本 feature 新增與寫出的任何路徑
+  都必須**與機器無關**：
+  ① repo 內一律用 **repo 相對**路徑，比對時以 `__file__` 解析 repo 根
+  （沿用 `agent/scripts/eval_judgements_slice.py` 的既有慣例）；
+  ② **新程式碼不得出現任何 `/home/<user>/…` 絕對路徑**（含字串常數），以 grep 驗證；
+  ③ 必須讀取 repo 外資料時，路徑來自**環境變數**，未設則記錄
+  `present: false` 並**繼續**（該資料不是本 feature 的必要輸入），**不得**因此
+  中止整輪，也不得假裝它存在；
+  ④ manifest 內的路徑欄位一律存**相對**形式，絕對路徑**不進版控**。
 - FR-010：**allowlist 自檢分兩層，且兩層的失敗語義不同**（照
   `tests/test_judgement_artifact.py` 的正向＋反向雙向斷言樣式）——
   **(a) 離線層（永遠跑）**：`count` == `len(entries)`；
@@ -106,6 +120,10 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 - SC-008：allowlist 自檢可被**故意破壞而抓得到**——離線層至少 5 個注入錯誤
   （改一筆 path／刪一筆／sha 欄位造假／塞重複／讓某筆與凍結清單重疊）
   **全部紅燈**，且還原後全綠；**在沒有 RAR 的環境跑也不會 skip**。
+- SC-009：**在三台機器上跑出同樣結果**——`profile-m1` 產物與 manifest 的
+  **路徑欄位全部為 repo 相對**；新程式碼對 `/home/` 的 grep 命中數 **0**；
+  `seed_tree_sha256` 在任何 clone 都算得出同樣的值（只含相對路徑）；
+  外部快照缺失時 manifest 記 `present: false` 而非省略該欄。
 
 ## Clarifications（2026-10-09，clarify 階段，5/5 已答）
 
@@ -116,7 +134,16 @@ profile manifest fingerprint 已記錄；凍結 430 語料零寫入。
 | Q3 | allowlist 機器可讀檔住哪 | `specs/004-judicial-source-fidelity/allowlist-m1.json`（與 T007 同居，**不放 006**） | FR-001 |
 | Q4 | 重跑要不要跳過已驗過的卷 | **每次全量重解覆寫**，不保存「上次驗過」的憑證 | FR-006 |
 | Q5 | 審閱包與審閱結論哪個進版控 | 審閱包 gitignore；**審閱結論進版控**（小、無個資、可 diff） | FR-007／008、SC-007 |
-| Q6 | `entries_sha256` 從「手動命令」升級為「每次都被檢查」 | 兩層自檢（離線層必跑 ＋ 對庫層顯式指令），**不放預設 pytest** | FR-010、SC-008 |
+| Q6 | `entries_sha256` 從「手動命令」升級為「每次都被檢查」 | 兩層自檢（離線層必跑 ＋ 對庫層 `@pytest.mark.judgement_corpus`），**marker 不加進 `addopts`** | FR-010、SC-008 |
+| Q7 | A5：凍結語料的錨點要不要依賴 repo 外快照 | **不依賴**。錨點改為 repo 內 `seed_tree_sha256`；repo 外快照只在存在時記 sha，不存在記 `present: false`。**全程機器無關，各地部署都能跑** | FR-011、US2、SC-004、SC-009 |
+| Q8 | 跨機一致性要做到什麼程度 | **新程式碼零絕對路徑**（`/home/<user>/…` grep 命中 0）；repo 內路徑一律 repo 相對；外部資料路徑來自環境變數且缺失可誠實降級 | FR-011、SC-009 |
+
+**Q7／Q8 的背景（analyze 發現，非本次新增需求）**：`agent/` 下有 **20 個檔案**
+寫死 `/home/solo/...`（`b2a/b2b/b3a/b3d/b3e/b4a` 系列、`build_b2*/b3*/b4a*` 系列、
+`b2f_calibrate.py` 的 `/home/solo/projects/b2r1/out`、
+`agent/architecture/validate_runtime_arch.py`）。那些是 **M5 評測／agent 檔位**，
+且 B2/B3/B4 的 A-01~A-11 閘門凍結中——**本 feature 不碰**（憲法 X），
+僅如實記錄並建議另開 scope。**M1 自身能做到的部分一律做到**（FR-011）。
 
 **為什麼 Q1／Q5 這樣切**：repo 追蹤「決策、指紋、結論」，不追蹤「可由 RAR 確定性
 重建的 bytes」。這同時修掉 T006 留下的老毛病——它的 494 筆 manifest（重現的錨點）

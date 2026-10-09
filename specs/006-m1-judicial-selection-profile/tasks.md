@@ -32,6 +32,7 @@
 | **INV-COUNT** | 任何通過率**無下限**，不得以補位／重抽讓分母湊滿（FR-001／SC-001） |
 | **INV-NOSKIP** | 環境或輸入不符 → 非零退出；**不得以 skip 冒充通過**（FR-010／IX） |
 | **INV-PII** | 版控內**不含**判決全文與當事人姓名（FR-008／VII） |
+| **INV-PATH** | 新程式碼與 manifest 的路徑**與機器無關**：repo 相對、零 `/home/<user>/` 絕對路徑、外部資料缺失可誠實降級（FR-011／VIII／analyze A5＋Q7／Q8） |
 
 ## Fixture strategy
 
@@ -83,6 +84,8 @@
   - 74 個 `excluded_frozen_document_ids` 唯一，且與 `entries` 的 JID **零交集**
   - `crc32` 為 8 位 hex；`unpacked_size` 為正整數
   - `artifact.sha256 == ingest.judgements.artifact.ARTIFACT_SHA256`（單一事實來源）
+  - ⚠ **只比 `sha256`，禁止比對路徑字面**：JSON 的 `artifact.path` 是 repo 相對、
+    `ARTIFACT_PATH` 是絕對，兩者字面永不相等（analyze A4）
 - **Verification**: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_judgement_profile_build.py`
 - **FR**: FR-001, FR-010 · **INV**: INV-PROV, INV-NOSKIP
 - **Note**: **不讀** `scope.md` 散文、**不讀** repo 外檔案（FR-001 明令）
@@ -160,15 +163,20 @@
 - **Purpose**: 證明整輪執行沒有改動任何 [A] 資料（FR-005 禁寫凍結路徑）
 - **Dependencies**: T105
 - **Files**: `tests/test_judgement_profile_build.py`（修改）
-- **Input**: `artifact.ARTIFACT_PATH`、`data/judgements/seed/`、既有 frozen snapshot sha
-- **Output**: 前後比對的斷言
+- **Input**: `artifact.ARTIFACT_PATH`、`data/judgements/seed/`（**repo 相對路徑**）
+- **Output**: 前後比對的斷言 ＋ 機器無關的 `seed_tree_sha256`
 - **Acceptance**:
   - RAR 的 `sha256` 全輪前後一致
   - `raw/` 與 `seed/` 的檔案清單與 mtime 全部未變（沿用 `test_inventory.py` 既有做法）
-  - `/home/solo/artifacts/` 未被寫入
+  - **`seed_tree_sha256`**：`seed/` 下所有檔案取
+    `sorted(相對路徑 + "\0" + 檔案 sha256)` 以 `\n` 連接後 sha256
+    —— **只含 repo 相對路徑**，任何 clone／任何機器算得出同樣的值（analyze A3＋A5）
+  - 外部快照 `<ARTIFACTS_ROOT>/t007e05cb/out/corpus_snapshot.json`：
+    存在 → 記 sha；不存在 → 記 **`present: false` 且欄位仍在**，
+    **不得**因此中止整輪，也不得假裝它存在（FR-011③）
   - **反向**：把 seed 檔案清單改動注入時該斷言必須紅
 - **Verification**: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_judgement_profile_build.py`
-- **FR**: FR-005 · **INV**: INV-FROZEN, INV-SRC
+- **FR**: FR-005, FR-011 · **INV**: INV-FROZEN, INV-SRC, INV-PATH
 
 ---
 
@@ -224,10 +232,13 @@
   - 欄位**完全**符合 plan.md 契約②（不多不少，避免日後漂移）
   - `chunker.module_sha256` 與 `params` 記錄在案
   - `counts` 五段計數相加關係自洽（`chunked ≤ schema_valid ≤ size_crc_ok ≤ allowlisted`）
-  - `frozen_corpus.unchanged == true`（T106 的結果）
+  - `frozen_corpus.seed_tree_sha256` 等於 T106 實算值；`external_snapshot` 三欄
+    （`pattern`／`present`／`sha256`）**恆存在**，缺檔時為 `false`／`null`（FR-011④）
+  - **路徑欄位全部為 repo 相對**，無絕對路徑；`artifact` **只存 sha256**、不存路徑
+    （機器無關定義見 plan.md〈機器無關的欄位定義〉）
   - **重跑必覆寫**（FR-006），且 manifest 內不得出現「上次已驗過」之類狀態欄
 - **Verification**: 讀回 JSON 並以 `python -m json.tool` 驗可解析；欄位集與契約逐鍵比對
-- **FR**: FR-005, FR-006 · **INV**: INV-PROV, INV-COUNT
+- **FR**: FR-005, FR-006, FR-011 · **INV**: INV-PROV, INV-COUNT, INV-PATH
 
 ### T110 — 人可讀審閱包
 
@@ -326,6 +337,31 @@
   **已知弱點（不隱瞞）**：清單是靜態的，日後新增的檢索模組不在其中就不受保護；
   根治要靠「從『讀判決 JSON 的地方』反推清單」，屬另開 scope 的重構，本次不做。
 
+### T115 — 路徑可攜性守則（各地部署都能跑）
+
+- **Layer**: [D] 12
+- **Purpose**: 把「各機一致」從口號變成 grep 與斷言（FR-011、SC-009；analyze A5＋Q7／Q8）
+- **Dependencies**: T102, T109
+- **Files**: `tests/test_judgement_profile_build.py`（修改）
+- **Input**: 本 feature 新增的三個檔案（`profile_build.py`、`scripts/build-m1-profile.py`、
+  自己的測試檔）＋ 產出的 `profile-manifest.json`
+- **Output**: 一條 grep 型斷言 ＋ 一條 manifest 路徑欄位斷言
+- **Acceptance**:
+  - 上述三個檔案對 `/home/` 的命中數 **== 0**（連註解與字串常數都算）——
+    **反向**：在 tmp 副本注入一行 `Path("/home/x/artifacts")` 時斷言必須紅
+  - `profile-manifest.json` 的所有路徑欄位皆為 **repo 相對**；**無**絕對路徑
+  - `frozen_corpus.external_snapshot.pattern` 是**佔位形式**
+    （含 `<ARTIFACTS_ROOT>` 字樣），**不是** `/home/solo/...`
+  - `external_snapshot` 欄位**恆存在**（`present:false` 時也在），不得因缺檔而省略
+  - **反向**：把 manifest 的某個路徑欄位改成絕對路徑時該斷言必須紅
+- **Verification**: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_judgement_profile_build.py -k portable`
+- **FR**: FR-011 · **INV**: INV-PATH
+- **Note**: 本 task 只驗**本 feature 自己新增的檔案**。`agent/` 下另有 **20 個檔案**
+  寫死 `/home/solo/...`（評測腳本與 `agent/architecture/validate_runtime_arch.py`），
+  屬 **M5／agent 檔位且 A-01~A-11 閘門凍結中**——依憲法 X 本 feature **不碰**，
+  已如實記錄於 spec〈Clarifications〉與 plan 憲法 VIII 條，建議另開 scope。
+  **切勿**把這條測試擴大到那些檔案（那等於用 M1 偷改凍結閘門的檔位）。
+
 ---
 
 ## Dependencies & Execution Order
@@ -335,6 +371,7 @@
 ```text
 Phase 1 (T101, T102, T103)  ──┬──> Phase 3 (T105 ──> T106, T107 ──> T108)
 T102 ──> T104 ────────────────┤
+T102, T109 ──> T115 ──────────┤
                               └──> Phase 5 (T109 ──> T110, T111, T114)
                                         └──> T112 ──> T113
 ```
@@ -344,7 +381,8 @@ T102 ──> T104 ────────────────┤
 - **T101／T102／T103** 可並行（檔案互不重疊：`.gitignore`／模組／測試檔）
 - **T104** 需 T102 完成後可與 T105 併行
 - **T106**（零寫入斷言）與 **T107**（schema 串接）可並行
-- **T110／T111／T114** 可並行（不同檔案；T114 只讀檢索模組，其餘不碰）
+- **T110／T111／T114／T115** 可並行（不同檔案；T114 只讀檢索模組、T115 只讀本 feature
+  的新檔案，其餘不碰）
 
 ### Critical path
 
@@ -380,6 +418,11 @@ gold 標註 · P2 審閱本體（FR-009）· 改 `chunk.py` 參數 · 改 T005/T
 | 失敗語義不被吞掉 | **PASS** — INV-NOSKIP 由 T102／T103／T112 三處把關；manifest 逐筆帶 `stage`＋`reason` |
 | analyze A1（覆蓋缺口）已補 | **PASS** — US2／SC-004 的「預設檢索零引用」原無任何 task 承載，已新增 **T114**（grep ＋ 行為斷言 ＋ 反向注入） |
 | analyze A2（錯誤驗證手段）已修 | **PASS** — T112 原寫 `bash -n`／拒絕 `-x`（shell 專用，對 `.py` 必然報錯），已改為 `py_compile` ＋「輸出不含憑證值」，並註明 repo 無 linter 故不得新增相依 |
+| analyze A3（契約欄位歧義）已定 | **PASS** — `seed_snapshot_sha256`（定義不明）改為 **`seed_tree_sha256`**，算法寫死在 T106／plan.md：sorted(相對路徑\0檔案 sha256) 以 `\n` 連接後 sha256 |
+| analyze A4（路徑不可比對）已定 | **PASS** — T102／T109 明令**只比 sha256、禁止比路徑字面**（JSON 相對 vs `ARTIFACT_PATH` 絕對，字面永不相等） |
+| analyze A5（凍結快照無 repo 錨點）已解 | **PASS** — 錨點改為 repo 內 `seed_tree_sha256`（任何機器可算）；外部快照以 `external_snapshot{pattern,present,sha256}` 記錄，缺失記 `present:false` 而非省略；FR-011＋T115 另加可攜性守則 |
+| analyze A6（SC-006 不可自動化）已接受 | **PASS（接受限制）** — SC-006 前半「開箱判讀」屬人的判斷，由 P2 人工閉環；後半（`JFULL` 逐字比對）由 T110 機械驗證。**不再列為缺陷** |
+| 跨機一致性（Q7／Q8）已落實 | **PASS（限 M1 檔位）** — T115 驗本 feature 新增檔案對 `/home/` 命中 0 ＋ manifest 路徑全相對；`agent/` 那 20 個檔案屬 M5／agent 且閘門凍結，**不碰**並已記錄 |
 
 ### 刻意留白（不做）
 
