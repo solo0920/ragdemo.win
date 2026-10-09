@@ -49,11 +49,17 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import artifact as _artifact
+import chunk as _chunk
+import document as _document
+import extract as _extract
+import inventory as _inventory
+import schema as _schema
 import selection as _selection
+import text as _text
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -276,3 +282,321 @@ def verify_allowlist(al: Allowlist) -> list[str]:
         )
 
     return problems
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Phase 2／3：對庫層自檢、逐筆解壓、schema、切塊
+# ═══════════════════════════════════════════════════════════════════════════
+
+#: 逐階段計數的固定順序（FR-004／plan.md 契約②）。**順序有意義**：它是管線的
+#: 真實順序，數字必須能互相比較（`chunked ≤ schema_valid ≤ size_crc_ok ≤
+#: allowlisted`）。
+STAGES = ("extracted", "size_crc_ok", "schema_valid", "chunked")
+
+#: 解壓目的地**必須**在 raw/ 之外（T002 既有約束，沿用 `artifact.assert_outside_raw`，
+#: 不重寫一份）。這裡在呼叫前就先擋，錯誤訊息會比 extract 深處的清楚。
+PROFILE_RAW_SUBDIR = "raw"
+
+
+def verify_selection_against_archive(
+    al: Allowlist, archive: Path | None = None
+) -> list[str]:
+    """**對庫層**自檢（FR-010b）：由 archive 重算選樣並比對 allowlist。
+
+    這是「清單確實是那個選樣規則算出來的」的外部證據，與 `verify_allowlist` 的
+    內部自洽互補：後者證明清單自己一致，前者證明清單對得上那份 bytes。
+
+    比對三樣東西，缺一不可：
+
+    1. `entries_sha256`（順序敏感的整體 digest）
+    2. 每筆的 `unpacked_size`
+    3. 每筆的 `crc32`（%08X）——只比 path 的話，**換了內容也看不出來**
+
+    需要持有真實 artifact；沒有時呼叫端應誠實 skip，不該假裝通過。
+    """
+    problems: list[str] = []
+    arch = _artifact.ARTIFACT_PATH if archive is None else Path(archive)
+    if not arch.is_file():
+        return [f"artifact 不存在：{arch}"]
+
+    entries = [e for e in _inventory.inventory(arch) if not e.is_dir]
+    want_courts = set(al.selection.get("courts", []))
+    frozen = set(al.excluded_frozen)
+
+    def court_of(p: str) -> str:
+        parts = _selection.forward_slash(p).split("/")
+        return parts[1] if len(parts) > 1 else parts[0]
+
+    def jid_of(p: str) -> str:
+        return _selection.forward_slash(p).rsplit("/", 1)[-1][:-len(".json")]
+
+    pool = [
+        e
+        for e in entries
+        if court_of(e.path) in want_courts and jid_of(e.path) not in frozen
+    ]
+    # 排序定義來自 scope.md（FR-001）：size 降冪、path 字典序 tiebreak。
+    pool.sort(key=lambda e: (-e.unpacked_size, e.path))
+    sel = pool[: len(al.entries)]
+
+    if len(sel) != len(al.entries):
+        problems.append(f"重算筆數不符：{len(sel)} != {len(al.entries)}")
+        return problems
+
+    recomputed = entries_digest([e.path for e in sel])
+    if recomputed != al.entries_sha256:
+        problems.append(
+            f"重算 entries_sha256 不符：{recomputed[:16]}… != "
+            f"記載 {al.entries_sha256[:16]}…（選樣結果已漂移）"
+        )
+
+    by_path = {e.path: e for e in entries}
+    for i, want in enumerate(al.entries):
+        got = by_path.get(want.path)
+        if got is None:
+            problems.append(f"entries[{i}] 在 archive 中不存在：{want.path}")
+            continue
+        if got.unpacked_size != want.unpacked_size:
+            problems.append(
+                f"entries[{i}] unpacked_size 不符：{want.unpacked_size} != "
+                f"{got.unpacked_size}"
+            )
+        got_crc = "%08X" % got.crc32
+        if got_crc != want.crc32:
+            problems.append(
+                f"entries[{i}] crc32 不符：allowlist {want.crc32} != archive {got_crc}"
+            )
+
+    return problems
+
+
+@dataclass
+class EntryResult:
+    """一筆 entry 走完管線的結果。
+
+    每個階段一個旗標，失敗時記 `fail = (stage, reason)` —— **不中斷整批**
+    （FR-001／INV-COUNT）。分開存旗標而不是只存最終狀態，是為了讓
+    「解壓成功但 schema drift」與「解壓就失敗」在 manifest 裡是兩種看得見的東西。
+    """
+
+    entry: Entry
+    extracted: bool = False
+    size_crc_ok: bool = False
+    schema_valid: bool = False
+    chunked: bool = False
+    sha256: str | None = None
+    crc32_actual: str | None = None
+    dest_path: Path | None = field(default=None, repr=False)
+    doc: object | None = field(default=None, repr=False)
+    chunks: tuple = field(default=(), repr=False)
+    fail: tuple[str, str] | None = None
+
+    @property
+    def chunk_count(self) -> int:
+        return len(self.chunks)
+
+    @property
+    def boundary_kind_histogram(self) -> dict[str, int]:
+        hist: dict[str, int] = {}
+        for c in self.chunks:
+            key = getattr(c.boundary_kind, "value", str(c.boundary_kind))
+            hist[key] = hist.get(key, 0) + 1
+        return hist
+
+    @property
+    def forced_break_chunk_indexes(self) -> tuple[int, ...]:
+        """哪些 chunk 的**起點**是強制斷點。
+
+        這是 S2 hunting 的唯一訊號來源，所以定義寫死在這裡：FORCED 表示
+        「上一段找不到自然邊界，被硬切」，因此斷點落在**該 chunk 的開頭**。
+        第 0 個 chunk 沒有前一段，故不算。
+        """
+        out = []
+        for c in self.chunks:
+            kind = getattr(c.boundary_kind, "value", str(c.boundary_kind))
+            if kind == "forced" and c.chunk_index > 0:
+                out.append(c.chunk_index)
+        return tuple(out)
+
+
+def seed_tree_sha256(seed_dir: Path | None = None) -> str:
+    """`data/judgements/seed/` 的 tree digest（FR-011／機器無關）。
+
+    定義：`sorted(相對路徑 + "\\0" + 檔案 sha256)` 以 `\\n` 連接後 sha256。
+
+    **只含 repo 相對路徑** —— 這是它能取代「某台機器上的快照 sha」的原因：
+    任何 clone、任何機器、任何使用者帳號都算得出同一個值。
+    """
+    d = SEED_DIR if seed_dir is None else Path(seed_dir)
+    if not d.is_dir():
+        raise AllowlistError(f"seed 目錄不存在：{d}")
+    rows = []
+    for p in sorted(d.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(d).as_posix()
+        rows.append(f"{rel}\0{hashlib.sha256(p.read_bytes()).hexdigest()}")
+    return hashlib.sha256("\n".join(rows).encode("utf-8")).hexdigest()
+
+
+def external_snapshot_fingerprint(snapshot: Path | None = None) -> dict:
+    """repo 外的 T006 凍結快照指紋（FR-011③）。
+
+    路徑**由呼叫端提供** —— 沿用 `extract.py` 對 decoder 的既有原則：不搜尋
+    PATH、不假設存在、不設環境變數預設值（那是 T003 就定下的：自行搜尋只會讓
+    同一段程式在不同機器上行為不同）。
+
+    ⚠ 這一條是實測換來的：原本用 `ARTIFACTS_ROOT` 環境變數，結果被
+    `env-audit` 的「從程式碼反查」抓到——快照缺了這個鍵、CI 兩條測試紅燈。
+    那個紅燈是**對的**：憑空多一個環境變數就是憑空多一個跨機不一致的來源。
+    改成 caller 傳入之後，不需要任何宣告，跨機行為也一樣明確。
+
+    欄位**恆存在**：找不到就 `present: false` / `sha256: null`，不省略。
+    為什麼要有這個欄位：讓「持有快照的機器」與「沒有的機器」產出的 manifest
+    **仍然可比較** —— 前者多一個 sha 可供比對，後者明確宣告自己沒有，而不是
+    兩邊欄位不同就看不出差異在哪。
+    """
+    pattern = EXTERNAL_SNAPSHOT_RELPATTERN
+    if snapshot is None:
+        return {"pattern": pattern, "present": False, "sha256": None}
+    p = Path(snapshot)
+    if not p.is_file():
+        return {"pattern": pattern, "present": False, "sha256": None}
+    return {
+        "pattern": pattern,
+        "present": True,
+        "sha256": hashlib.sha256(p.read_bytes()).hexdigest(),
+    }
+
+
+def process_entry(
+    entry: Entry,
+    *,
+    profile_dir: Path | None = None,
+    decoder: Path | None = None,
+    archive: Path | None = None,
+) -> EntryResult:
+    """跑完一筆 entry 的整條管線：解壓 → CRC → schema → chunk。
+
+    任一階段失敗就記 `fail=(stage, reason)` 並回傳，**不丟例外、不影響其他筆**
+    （FR-001／Edge Cases）。唯一會往外拋的是「環境不對」（例如目的地在 raw/ 之下），
+    因為那是整輪的設定錯誤，不是這一筆的資料問題。
+    """
+    base = PROFILE_DIR if profile_dir is None else Path(profile_dir)
+    dest = base / PROFILE_RAW_SUBDIR
+    res = EntryResult(entry=entry)
+
+    # 環境層：目的地不得在 raw/ 之下（T002）。先擋，錯誤訊息更清楚。
+    _artifact.assert_outside_raw(dest)
+
+    try:
+        ex = _extract.extract_one(
+            entry.path, archive=archive, dest=dest, decoder=decoder
+        )
+    except Exception as exc:  # noqa: BLE001 — 逐筆記錄，不是吞掉
+        res.fail = ("extracted", f"{type(exc).__name__}: {exc}")
+        return res
+    res.extracted = True
+    res.sha256 = ex.sha256
+    res.crc32_actual = "%08X" % ex.crc32
+    res.dest_path = ex.destination
+
+    return _run_stages(res, ex.data)
+
+
+def _run_stages(res: EntryResult, data: bytes) -> EntryResult:
+    """從**已取得的 bytes** 繼續跑：size/CRC 比對 → schema → chunk。
+
+    拆開這一段的理由不是好看，是**可測性**（原則 V）：解壓之後的三個階段不必
+    靠 archive 就能驗證單元測試（餵 bytes 即可），而 `extract` 那一段則用
+    `tests/fixtures/judgements/fixture.rar` 的 store entry 測 —— 兩邊都不需要
+    那 284MB 的 artifact。
+    """
+    entry = res.entry
+
+    # size + CRC32：allowlist 記的是 archive header 的值，解出來的是實際值。
+    # 兩者都對得上才算過 —— 只比其中一邊會漏掉「header 本身是壞的」。
+    size = len(data)
+    if size != entry.unpacked_size:
+        res.fail = (
+            "size_crc_ok",
+            f"size 不符：allowlist {entry.unpacked_size} != 解壓 {size}",
+        )
+        return res
+    if res.crc32_actual != entry.crc32:
+        res.fail = (
+            "size_crc_ok",
+            f"crc32 不符：allowlist {entry.crc32} != 解壓 {res.crc32_actual}",
+        )
+        return res
+    res.size_crc_ok = True
+
+    # schema（FR-003）。Drift 記錄，不靜默丟棄。
+    parsed = _schema.parse_and_validate(data)
+    if not parsed.valid:
+        res.fail = ("schema_valid", _describe_drift(parsed))
+        return res
+    res.schema_valid = True
+
+    doc = _document.from_extracted(
+        _ShimExtracted(res.entry.path, data), entry_path=res.entry.path
+    )
+    res.doc = doc
+
+    # chunk（FR-004）。**不傳 chunk_size** —— 用凍結的預設值；調參數屬改
+    # 行為，必須停下回報（憲法 X），不是這裡能悄悄決定的。
+    chunks = _chunk.chunk_text(
+        _text.LosslessText.from_string(doc.jfull),
+        source_document=res.entry.path_posix,
+        jid=doc.jid,
+    )
+    # 重組斷言（INV-SUB）：每個 chunk 必須逐字等於原文切片。這是「切塊沒有改寫
+    # 原文」的機器證明，不是相信 chunker 的註解。
+    for c in chunks:
+        if c.text != doc.jfull[c.start_offset : c.end_offset]:
+            res.fail = (
+                "chunked",
+                f"chunk {c.chunk_index} 重組不一致（INV-SUB 被違反）",
+            )
+            return res
+    res.chunks = tuple(chunks)
+    res.chunked = True
+    return res
+
+
+@dataclass(frozen=True)
+class _ShimExtracted:
+    """給 `document.from_extracted` 的最小介面。
+
+    `from_extracted` 實際讀的是 `.data` / `.path` / `.sha256`（後者進 provenance）。
+    刻意不去 subclass `extract.ExtractedEntry`：那是 dataclass，而我們手上沒有
+    一個真的解壓結果（bytes 是外部餵進來的）。這個 shim 只滿足契約，不擴張它 ——
+    若 `from_extracted` 哪天多讀一個欄位，這裡會在測試中立刻爆掉，那正是
+    「契約變了要有人知道」的樣子。
+    """
+
+    path: str
+    data: bytes
+
+    @property
+    def sha256(self) -> str:
+        return hashlib.sha256(self.data).hexdigest()
+
+
+def _describe_drift(parsed) -> str:
+    """把 schema 驗證結果壓成一句可讀的原因（進 manifest 的 `fail.reason`）。
+
+    `schema.validate` **不拋例外**（drift 是資料的狀態，不是程式的錯誤），所以
+    這裡必須自己把 `Drift.reasons` 收斂成一句，否則 manifest 裡會塞進一整個
+    例外物件。
+    """
+    reasons = tuple(getattr(parsed, "reasons", ()) or ())
+    if not reasons:
+        return "schema 驗證未通過（無 reasons）"
+    head = "；".join(reasons[:3])
+    more = f"；…共 {len(reasons)} 項" if len(reasons) > 3 else ""
+    severity = getattr(getattr(parsed, "severity", None), "value", None) or getattr(
+        parsed, "severity", None
+    )
+    return f"drift[{severity}] {head}{more}"
+
