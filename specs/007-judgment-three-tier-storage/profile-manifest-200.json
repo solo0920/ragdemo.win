@@ -1,0 +1,5903 @@
+{
+  "schema": "m1-profile-manifest/1",
+  "generated_at": "2026-10-10T12:32:46+08:00",
+  "allowlist": {
+    "sha256": "9c3461a0aeca178df9bbca67b236bcf5487fc5cc90ec39b2be3d81f52c5c6fd9",
+    "count": 200
+  },
+  "artifact": {
+    "sha256": "ef35ce4401d7d751bbe7cbeab93cb92949f5971a26947cbde80c64e9722fea4c"
+  },
+  "decoder": {
+    "version": "7.13",
+    "source_url": "https://www.rarlab.com/rar/unrarsrc-7.1.10.tar.gz",
+    "source_sha256": "72a9ccca146174f41876e8b21ab27e973f039c6d10b13aabcb320e7055b9bb98",
+    "binary_name": "unrar",
+    "binary_provided": true
+  },
+  "chunker": {
+    "module_sha256": "b3023217ffe9fe09c95ee07978ee1c8034507f6dd2e941da1c91a4b91dc9420c",
+    "params": {
+      "chunk_size": 750,
+      "passed_explicitly": false
+    }
+  },
+  "counts": {
+    "allowlisted": 200,
+    "allowlist_total": 200,
+    "limited": false,
+    "extracted": 200,
+    "size_crc_ok": 200,
+    "schema_valid": 200,
+    "chunked": 200
+  },
+  "forced_break_documents": 72,
+  "total_chunks": 9016,
+  "entries": [
+    {
+      "jid": "SJEM,115,重秩,84,20260716,1",
+      "path": "202607\\三重簡易庭刑事\\SJEM,115,重秩,84,20260716,1.json",
+      "path_posix": "202607/三重簡易庭刑事/SJEM,115,重秩,84,20260716,1.json",
+      "size": 6984,
+      "sha256": "b5129ee61ee984ce34d08c924468f4567fadbcb049162cc13f9cd0db07339bd7",
+      "crc32_expected": "5324EC9F",
+      "crc32_actual": "5324EC9F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SJEV,113,重保險簡,4,20260715,2",
+      "path": "202607\\三重簡易庭民事\\SJEV,113,重保險簡,4,20260715,2.json",
+      "path_posix": "202607/三重簡易庭民事/SJEV,113,重保險簡,4,20260715,2.json",
+      "size": 44502,
+      "sha256": "ce55381bcffba07734f577cb372379df243217a2d310ebeca84ed59b88a18370",
+      "crc32_expected": "88F14015",
+      "crc32_actual": "88F14015",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 25,
+      "boundary_kind_histogram": {
+        "natural": 23,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SJEV,114,重簡,310,20260731,2",
+      "path": "202607\\三重簡易庭民事\\SJEV,114,重簡,310,20260731,2.json",
+      "path_posix": "202607/三重簡易庭民事/SJEV,114,重簡,310,20260731,2.json",
+      "size": 43164,
+      "sha256": "f14c7d64b4e786694ce200edc07627e8bca01b346a1ab811a6d9515e7093dc85",
+      "crc32_expected": "F43D5B01",
+      "crc32_actual": "F43D5B01",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 24,
+      "boundary_kind_histogram": {
+        "natural": 19,
+        "forced": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        18,
+        19,
+        20,
+        22
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CLEM,115,壢秩,80,20260714,1",
+      "path": "202607\\中壢簡易庭刑事\\CLEM,115,壢秩,80,20260714,1.json",
+      "path_posix": "202607/中壢簡易庭刑事/CLEM,115,壢秩,80,20260714,1.json",
+      "size": 9416,
+      "sha256": "aada96c399e515152289ded2c82229f44491c7c82a21073c717104c313ca876c",
+      "crc32_expected": "DC689A92",
+      "crc32_actual": "DC689A92",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CLEV,114,壢簡,2077,20260708,2",
+      "path": "202607\\中壢簡易庭民事\\CLEV,114,壢簡,2077,20260708,2.json",
+      "path_posix": "202607/中壢簡易庭民事/CLEV,114,壢簡,2077,20260708,2.json",
+      "size": 35777,
+      "sha256": "76300254676d5fdf14b1f64c48d76929b61e09bc4adf61f29e263d08711d3957",
+      "crc32_expected": "4353F8DD",
+      "crc32_actual": "4353F8DD",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 20,
+      "boundary_kind_histogram": {
+        "natural": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CLEV,112,壢簡,1702,20260717,1",
+      "path": "202607\\中壢簡易庭民事\\CLEV,112,壢簡,1702,20260717,1.json",
+      "path_posix": "202607/中壢簡易庭民事/CLEV,112,壢簡,1702,20260717,1.json",
+      "size": 25841,
+      "sha256": "56452456e49b90b2b7bebe7ae3e5293a76449955c5f2f8a94c849bc0460e923b",
+      "crc32_expected": "3542EF4D",
+      "crc32_actual": "3542EF4D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 15,
+      "boundary_kind_histogram": {
+        "natural": 14,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NHEM,115,湖秩更一,1,20260709,1",
+      "path": "202607\\內湖簡易庭刑事\\NHEM,115,湖秩更一,1,20260709,1.json",
+      "path_posix": "202607/內湖簡易庭刑事/NHEM,115,湖秩更一,1,20260709,1.json",
+      "size": 6732,
+      "sha256": "8484cd803922be343b6913846ab25d75f7e541a5d123c978dbb1cd818c6fccde",
+      "crc32_expected": "D892F4B7",
+      "crc32_actual": "D892F4B7",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NHEV,115,湖簡,209,20260722,1",
+      "path": "202607\\內湖簡易庭民事\\NHEV,115,湖簡,209,20260722,1.json",
+      "path_posix": "202607/內湖簡易庭民事/NHEV,115,湖簡,209,20260722,1.json",
+      "size": 23202,
+      "sha256": "35062f9f41212b58e5235d80e0d3b019f8286fd283cf81f8159d838f9573fc2e",
+      "crc32_expected": "249977B4",
+      "crc32_actual": "249977B4",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 12,
+      "boundary_kind_histogram": {
+        "natural": 11,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NHEV,115,湖簡,22,20260729,1",
+      "path": "202607\\內湖簡易庭民事\\NHEV,115,湖簡,22,20260729,1.json",
+      "path_posix": "202607/內湖簡易庭民事/NHEV,115,湖簡,22,20260729,1.json",
+      "size": 17305,
+      "sha256": "9bdad2b968e4c10ccc7e1b4e8e1f36009e1a4ba11355d84e075d9c96525006ad",
+      "crc32_expected": "38E267F6",
+      "crc32_actual": "38E267F6",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 10,
+      "boundary_kind_histogram": {
+        "natural": 8,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PDEV,115,斗訴,1,20260731,1",
+      "path": "202607\\北斗簡易庭民事\\PDEV,115,斗訴,1,20260731,1.json",
+      "path_posix": "202607/北斗簡易庭民事/PDEV,115,斗訴,1,20260731,1.json",
+      "size": 24786,
+      "sha256": "ebe7e31d7aae1ec5a67ad4055ad0e81af79b4822fcab4bf65ed19e838e062852",
+      "crc32_expected": "F16D5784",
+      "crc32_actual": "F16D5784",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 14,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PKEV,113,港簡,98,20260728,3",
+      "path": "202607\\北港簡易庭民事\\PKEV,113,港簡,98,20260728,3.json",
+      "path_posix": "202607/北港簡易庭民事/PKEV,113,港簡,98,20260728,3.json",
+      "size": 30500,
+      "sha256": "fe2536901b2a620b8b47331b52161f143db6e75df2877009be9d7c6dfe2e9394",
+      "crc32_expected": "9E78CF20",
+      "crc32_actual": "9E78CF20",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 21,
+      "boundary_kind_histogram": {
+        "natural": 13,
+        "exact": 1,
+        "forced": 6,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        11,
+        12,
+        13,
+        14,
+        17,
+        19
+      ],
+      "fail": null
+    },
+    {
+      "jid": "NTEM,115,投秩,8,20260729,1",
+      "path": "202607\\南投簡易庭(含埔里)刑事\\NTEM,115,投秩,8,20260729,1.json",
+      "path_posix": "202607/南投簡易庭(含埔里)刑事/NTEM,115,投秩,8,20260729,1.json",
+      "size": 7256,
+      "sha256": "637037d34399a1c9f5b4fbe5d1e21e252a68d403d2162c87ed44e1edc4dbe29f",
+      "crc32_expected": "F5548A34",
+      "crc32_actual": "F5548A34",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NTEV,114,投簡,121,20260731,1",
+      "path": "202607\\南投簡易庭(含埔里)民事\\NTEV,114,投簡,121,20260731,1.json",
+      "path_posix": "202607/南投簡易庭(含埔里)民事/NTEV,114,投簡,121,20260731,1.json",
+      "size": 21954,
+      "sha256": "88d5f710d780d08e914dd3944d87ef0421714b518239ba59e1d7dd1bdb8ab036",
+      "crc32_expected": "F09C2760",
+      "crc32_actual": "F09C2760",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 12,
+      "boundary_kind_histogram": {
+        "natural": 11,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPCM,115,台覆,26,20260722,1",
+      "path": "202607\\司法院刑事補償法庭\\TPCM,115,台覆,26,20260722,1.json",
+      "path_posix": "202607/司法院刑事補償法庭/TPCM,115,台覆,26,20260722,1.json",
+      "size": 9132,
+      "sha256": "d699ababe4014a520b0fd1be8c35e58152e7fddde6f49c894734065f3b7faad3",
+      "crc32_expected": "819B9A91",
+      "crc32_actual": "819B9A91",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "OLEV,115,員簡,225,20260731,1",
+      "path": "202607\\員林簡易庭民事\\OLEV,115,員簡,225,20260731,1.json",
+      "path_posix": "202607/員林簡易庭民事/OLEV,115,員簡,225,20260731,1.json",
+      "size": 32163,
+      "sha256": "d49a0a94c724cf9d3fb206017c447d325ff10021cc57870fedf0788963218f91",
+      "crc32_expected": "6C9A1E34",
+      "crc32_actual": "6C9A1E34",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 18,
+      "boundary_kind_histogram": {
+        "natural": 17,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CYEM,115,嘉秩,14,20260729,1",
+      "path": "202607\\嘉義簡易庭(含朴子)刑事\\CYEM,115,嘉秩,14,20260729,1.json",
+      "path_posix": "202607/嘉義簡易庭(含朴子)刑事/CYEM,115,嘉秩,14,20260729,1.json",
+      "size": 5037,
+      "sha256": "e0663d506d8ef9fe3b31af4b61eaf612eb229fd54efa598b626bd5d13faaa0f1",
+      "crc32_expected": "7E0FF6D8",
+      "crc32_actual": "7E0FF6D8",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CYEV,114,嘉簡,352,20260721,1",
+      "path": "202607\\嘉義簡易庭(含朴子)民事\\CYEV,114,嘉簡,352,20260721,1.json",
+      "path_posix": "202607/嘉義簡易庭(含朴子)民事/CYEV,114,嘉簡,352,20260721,1.json",
+      "size": 51800,
+      "sha256": "82c066f03de5625a804909c1004585b5268451311bd9aa34e1b6264b5bce3d70",
+      "crc32_expected": "D458DA20",
+      "crc32_actual": "D458DA20",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 29,
+      "boundary_kind_histogram": {
+        "natural": 19,
+        "forced": 9,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SLEM,115,士簡,800,20260724,1",
+      "path": "202607\\士林簡易庭刑事\\SLEM,115,士簡,800,20260724,1.json",
+      "path_posix": "202607/士林簡易庭刑事/SLEM,115,士簡,800,20260724,1.json",
+      "size": 14139,
+      "sha256": "b5a941380ac466a6433df12660b4ea1d71dd1ba76b76a710a6608f4134e53418",
+      "crc32_expected": "63074173",
+      "crc32_actual": "63074173",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 8,
+      "boundary_kind_histogram": {
+        "natural": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SLEM,115,士簡,749,20260703,1",
+      "path": "202607\\士林簡易庭刑事\\SLEM,115,士簡,749,20260703,1.json",
+      "path_posix": "202607/士林簡易庭刑事/SLEM,115,士簡,749,20260703,1.json",
+      "size": 11556,
+      "sha256": "accfa1eff55f4c0a8b189aa9c384b6d1880f5676bd0b9f18307430b281a2be4c",
+      "crc32_expected": "79515C71",
+      "crc32_actual": "79515C71",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 6,
+      "boundary_kind_histogram": {
+        "natural": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SLEV,114,士簡,20,20260723,1",
+      "path": "202607\\士林簡易庭民事\\SLEV,114,士簡,20,20260723,1.json",
+      "path_posix": "202607/士林簡易庭民事/SLEV,114,士簡,20,20260723,1.json",
+      "size": 38877,
+      "sha256": "2f51245e6f50f9091f1a6cb7470b136ca690d07ee50ddc74c830c89f5ce78601",
+      "crc32_expected": "A3FD528C",
+      "crc32_actual": "A3FD528C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 21,
+      "boundary_kind_histogram": {
+        "natural": 18,
+        "forced": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        17,
+        18
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SLEV,113,士簡,1589,20260730,3",
+      "path": "202607\\士林簡易庭民事\\SLEV,113,士簡,1589,20260730,3.json",
+      "path_posix": "202607/士林簡易庭民事/SLEV,113,士簡,1589,20260730,3.json",
+      "size": 26793,
+      "sha256": "624cc0d37b5fce0c5051bb9199e5cc23b24a9c252ba34d07c27f6cbcd609bc8f",
+      "crc32_expected": "272EB8E5",
+      "crc32_actual": "272EB8E5",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 16,
+      "boundary_kind_histogram": {
+        "natural": 10,
+        "forced": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "fail": null
+    },
+    {
+      "jid": "ILEV,114,宜簡,304,20260716,1",
+      "path": "202607\\宜蘭簡易庭民事\\ILEV,114,宜簡,304,20260716,1.json",
+      "path_posix": "202607/宜蘭簡易庭民事/ILEV,114,宜簡,304,20260716,1.json",
+      "size": 35762,
+      "sha256": "e757a63584f4d3ebc5363ac98f1607c5f71f251b28f6ecb994b1f8d403a1d51a",
+      "crc32_expected": "9BA76654",
+      "crc32_actual": "9BA76654",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 22,
+      "boundary_kind_histogram": {
+        "natural": 17,
+        "exact": 1,
+        "forced": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        17,
+        18,
+        19
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PTEM,115,屏秩抗,1,20260731,1",
+      "path": "202607\\屏東簡易庭刑事\\PTEM,115,屏秩抗,1,20260731,1.json",
+      "path_posix": "202607/屏東簡易庭刑事/PTEM,115,屏秩抗,1,20260731,1.json",
+      "size": 6534,
+      "sha256": "643627731acf2a87ce91cde4ecb25e4c322171c172f401d3794ee6059e251df5",
+      "crc32_expected": "8F840AF0",
+      "crc32_actual": "8F840AF0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PTEV,114,屏簡,622,20260731,2",
+      "path": "202607\\屏東簡易庭民事\\PTEV,114,屏簡,622,20260731,2.json",
+      "path_posix": "202607/屏東簡易庭民事/PTEV,114,屏簡,622,20260731,2.json",
+      "size": 48567,
+      "sha256": "09a54b8eb81abe3df2e126ae7e2047949d6bbda01c23224f343fcdb931d09979",
+      "crc32_expected": "6D18CE47",
+      "crc32_actual": "6D18CE47",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 26,
+      "boundary_kind_histogram": {
+        "natural": 25,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "GSEM,115,岡秩,17,20260720,1",
+      "path": "202607\\岡山簡易庭刑事\\GSEM,115,岡秩,17,20260720,1.json",
+      "path_posix": "202607/岡山簡易庭刑事/GSEM,115,岡秩,17,20260720,1.json",
+      "size": 4614,
+      "sha256": "414a54686a49c3ea6d62b343944d86bb5d324ef875c4a7b4e97bf3e101d7ce6d",
+      "crc32_expected": "A728A023",
+      "crc32_actual": "A728A023",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "GSEV,114,岡簡,444,20260730,1",
+      "path": "202607\\岡山簡易庭民事\\GSEV,114,岡簡,444,20260730,1.json",
+      "path_posix": "202607/岡山簡易庭民事/GSEV,114,岡簡,444,20260730,1.json",
+      "size": 30232,
+      "sha256": "e0c62384775c64901eea54f2d847e2468aab49b2ba75ed3462fa689f85856814",
+      "crc32_expected": "A1C56060",
+      "crc32_actual": "A1C56060",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 16,
+      "boundary_kind_histogram": {
+        "natural": 15,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CHEV,114,彰簡,786,20260714,1",
+      "path": "202607\\彰化簡易庭民事\\CHEV,114,彰簡,786,20260714,1.json",
+      "path_posix": "202607/彰化簡易庭民事/CHEV,114,彰簡,786,20260714,1.json",
+      "size": 36017,
+      "sha256": "ee3dc3eae428bc8e5498eb6ffadda6b39a48a8f38da78ed631636c687ad11865",
+      "crc32_expected": "00BED439",
+      "crc32_actual": "00BED439",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 21,
+      "boundary_kind_histogram": {
+        "natural": 18,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "JCCC,115,審裁,1207,20260720",
+      "path": "202607\\憲法法庭憲法\\JCCC,115,審裁,1207,20260720.json",
+      "path_posix": "202607/憲法法庭憲法/JCCC,115,審裁,1207,20260720.json",
+      "size": 9002,
+      "sha256": "11307aa51d869f8433761c85a150ef511860cd73c9d1ca635fc1e8937db8771a",
+      "crc32_expected": "2B73C78B",
+      "crc32_actual": "2B73C78B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPPP,115,清,36,20260729,1",
+      "path": "202607\\懲戒法院-懲戒法庭\\TPPP,115,清,36,20260729,1.json",
+      "path_posix": "202607/懲戒法院-懲戒法庭/TPPP,115,清,36,20260729,1.json",
+      "size": 23293,
+      "sha256": "080776a6572f38e95033dc444a94bc6a4c568e5a3d41e232c9af3a4d5589d310",
+      "crc32_expected": "2D413499",
+      "crc32_actual": "2D413499",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 14,
+      "boundary_kind_histogram": {
+        "natural": 6,
+        "forced": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TPJP,114,懲,6,20260709,1",
+      "path": "202607\\懲戒法院-職務法庭\\TPJP,114,懲,6,20260709,1.json",
+      "path_posix": "202607/懲戒法院-職務法庭/TPJP,114,懲,6,20260709,1.json",
+      "size": 75408,
+      "sha256": "a87295e889c35cb781779962174598bba70c43a5102c5da7493285c6af506f0b",
+      "crc32_expected": "1ABADCA2",
+      "crc32_actual": "1ABADCA2",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 40,
+      "boundary_kind_histogram": {
+        "natural": 35,
+        "exact": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TLEV,114,六簡,307,20260702,1",
+      "path": "202607\\斗六簡易庭民事\\TLEV,114,六簡,307,20260702,1.json",
+      "path_posix": "202607/斗六簡易庭民事/TLEV,114,六簡,307,20260702,1.json",
+      "size": 46300,
+      "sha256": "4050522fe89fcd58f5f1e5e7baf5b837208bc6b65f6dc567c40595a331418eeb",
+      "crc32_expected": "59EE837E",
+      "crc32_actual": "59EE837E",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 25,
+      "boundary_kind_histogram": {
+        "natural": 23,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SSEM,115,新秩,18,20260713,1",
+      "path": "202607\\新市簡易庭刑事\\SSEM,115,新秩,18,20260713,1.json",
+      "path_posix": "202607/新市簡易庭刑事/SSEM,115,新秩,18,20260713,1.json",
+      "size": 5698,
+      "sha256": "f49f301c56d58632170a5ce32d83bd8c379bb903ce56c8e1df2df057d8f9b63c",
+      "crc32_expected": "F4CA02EB",
+      "crc32_actual": "F4CA02EB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SSEV,114,新簡,290,20260722,2",
+      "path": "202607\\新市簡易庭民事\\SSEV,114,新簡,290,20260722,2.json",
+      "path_posix": "202607/新市簡易庭民事/SSEV,114,新簡,290,20260722,2.json",
+      "size": 27544,
+      "sha256": "01c1efbe4f1819e2aaa102c06009ae120025d0931ff31926c4dc9581124908db",
+      "crc32_expected": "D3CA7075",
+      "crc32_actual": "D3CA7075",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 15,
+      "boundary_kind_histogram": {
+        "natural": 13,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "STEM,115,店秩,18,20260713,1",
+      "path": "202607\\新店簡易庭刑事\\STEM,115,店秩,18,20260713,1.json",
+      "path_posix": "202607/新店簡易庭刑事/STEM,115,店秩,18,20260713,1.json",
+      "size": 6780,
+      "sha256": "8f85f7335caba1f23814df8201ded1cca4e99bd73c92ec14cf3c3b0e22ba5ea8",
+      "crc32_expected": "2F795FD6",
+      "crc32_actual": "2F795FD6",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "STEV,114,店簡,1088,20260729,2",
+      "path": "202607\\新店簡易庭民事\\STEV,114,店簡,1088,20260729,2.json",
+      "path_posix": "202607/新店簡易庭民事/STEV,114,店簡,1088,20260729,2.json",
+      "size": 34786,
+      "sha256": "b5e69072de9d35ef6c8a2209c7e08bc540a3e61596e2127cb884871d4a770760",
+      "crc32_expected": "1A89A3EB",
+      "crc32_actual": "1A89A3EB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 19,
+      "boundary_kind_histogram": {
+        "natural": 17,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "STEV,114,店簡,1087,20260727,2",
+      "path": "202607\\新店簡易庭民事\\STEV,114,店簡,1087,20260727,2.json",
+      "path_posix": "202607/新店簡易庭民事/STEV,114,店簡,1087,20260727,2.json",
+      "size": 31711,
+      "sha256": "6ba829699e0d05fa603c86365d0652e03d4236d1763da14a43342ddc1f352235",
+      "crc32_expected": "94C171F7",
+      "crc32_actual": "94C171F7",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 18,
+      "boundary_kind_histogram": {
+        "natural": 17,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CSEM,115,旗秩,7,20260716,1",
+      "path": "202607\\旗山簡易庭刑事\\CSEM,115,旗秩,7,20260716,1.json",
+      "path_posix": "202607/旗山簡易庭刑事/CSEM,115,旗秩,7,20260716,1.json",
+      "size": 4868,
+      "sha256": "36eac99cd0a3c370e1736e155f09ef55f5d95e8e1b62d63fb4a251f2dbebff2e",
+      "crc32_expected": "B12FE140",
+      "crc32_actual": "B12FE140",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CSEV,113,旗國簡,2,20260730,2",
+      "path": "202607\\旗山簡易庭民事\\CSEV,113,旗國簡,2,20260730,2.json",
+      "path_posix": "202607/旗山簡易庭民事/CSEV,113,旗國簡,2,20260730,2.json",
+      "size": 15036,
+      "sha256": "b102b32527ea8faf601c11dedb45cc4a55be2532d7d48dbaf4e7605ba2f78dc7",
+      "crc32_expected": "76C5B015",
+      "crc32_actual": "76C5B015",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 8,
+      "boundary_kind_histogram": {
+        "natural": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "IPCM,114,刑智上易,51,20260716,1",
+      "path": "202607\\智慧財產及商業法院刑事\\IPCM,114,刑智上易,51,20260716,1.json",
+      "path_posix": "202607/智慧財產及商業法院刑事/IPCM,114,刑智上易,51,20260716,1.json",
+      "size": 57311,
+      "sha256": "59dbb2fc231e40963e78972f30296e5278a0ae369f3984d54fa4703ff91c02fd",
+      "crc32_expected": "10A6A149",
+      "crc32_actual": "10A6A149",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 29,
+      "boundary_kind_histogram": {
+        "natural": 28,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "IPCV,112,民專上更一,6,20260728,3",
+      "path": "202607\\智慧財產及商業法院民事\\IPCV,112,民專上更一,6,20260728,3.json",
+      "path_posix": "202607/智慧財產及商業法院民事/IPCV,112,民專上更一,6,20260728,3.json",
+      "size": 125899,
+      "sha256": "8a2d5f2de157683976430fbd64dadd446e88883711430371dad95d343baa07a2",
+      "crc32_expected": "DA6FEA81",
+      "crc32_actual": "DA6FEA81",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 67,
+      "boundary_kind_histogram": {
+        "natural": 61,
+        "exact": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "IPCA,114,行專訴,39,20260714,4",
+      "path": "202607\\智慧財產及商業法院行政\\IPCA,114,行專訴,39,20260714,4.json",
+      "path_posix": "202607/智慧財產及商業法院行政/IPCA,114,行專訴,39,20260714,4.json",
+      "size": 114325,
+      "sha256": "07bbae2eaf6cd569b6ae66bc0cfaad40a4ad4c821c99bffa7cb84b02760d2d31",
+      "crc32_expected": "3271A2CE",
+      "crc32_actual": "3271A2CE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 61,
+      "boundary_kind_histogram": {
+        "natural": 57,
+        "exact": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPSM,115,台上,1903,20260702,1",
+      "path": "202607\\最高法院刑事\\TPSM,115,台上,1903,20260702,1.json",
+      "path_posix": "202607/最高法院刑事/TPSM,115,台上,1903,20260702,1.json",
+      "size": 89745,
+      "sha256": "779bfc0d40d1492787399390344994961a3dad8ac7c7d310343faf06159f4938",
+      "crc32_expected": "FAA2F3E0",
+      "crc32_actual": "FAA2F3E0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 47,
+      "boundary_kind_histogram": {
+        "natural": 46,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPSM,114,台上,5817,20260729,1",
+      "path": "202607\\最高法院刑事\\TPSM,114,台上,5817,20260729,1.json",
+      "path_posix": "202607/最高法院刑事/TPSM,114,台上,5817,20260729,1.json",
+      "size": 54573,
+      "sha256": "d6f51786927f36d567942ece086f679400f4c1cf2be7cd11aa783d3a54a08bfb",
+      "crc32_expected": "2406F121",
+      "crc32_actual": "2406F121",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 29,
+      "boundary_kind_histogram": {
+        "natural": 28,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPSU,115,台抗,514,20260702,1",
+      "path": "202607\\最高法院家事\\TPSU,115,台抗,514,20260702,1.json",
+      "path_posix": "202607/最高法院家事/TPSU,115,台抗,514,20260702,1.json",
+      "size": 2319,
+      "sha256": "19a2d36b49276531f1d7d59887ac4611ab5a333f29499832b16b6c603a8bc0dd",
+      "crc32_expected": "C8EED09E",
+      "crc32_actual": "C8EED09E",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 2,
+      "boundary_kind_histogram": {
+        "natural": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPSV,114,台上,1182,20260729,1",
+      "path": "202607\\最高法院民事\\TPSV,114,台上,1182,20260729,1.json",
+      "path_posix": "202607/最高法院民事/TPSV,114,台上,1182,20260729,1.json",
+      "size": 27161,
+      "sha256": "c808cc17168bd0fde6b238471b3b63e6c52797179d588f1c789059c110cc4423",
+      "crc32_expected": "D7A79DAC",
+      "crc32_actual": "D7A79DAC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 11,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        3
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TPSV,115,台上,306,20260729,1",
+      "path": "202607\\最高法院民事\\TPSV,115,台上,306,20260729,1.json",
+      "path_posix": "202607/最高法院民事/TPSV,115,台上,306,20260729,1.json",
+      "size": 22606,
+      "sha256": "d76f52b220eb092a75e8469b7a008a38c244e87e9e72feee0954063baaabb2d7",
+      "crc32_expected": "8EAA6286",
+      "crc32_actual": "8EAA6286",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 11,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPAA,113,上,533,20260723,1",
+      "path": "202607\\最高行政法院行政\\TPAA,113,上,533,20260723,1.json",
+      "path_posix": "202607/最高行政法院行政/TPAA,113,上,533,20260723,1.json",
+      "size": 43180,
+      "sha256": "409891b13c77eb4773daac9cab7888235abc0cba514317a90252192f22ef2f96",
+      "crc32_expected": "38ECF14E",
+      "crc32_actual": "38ECF14E",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 23,
+      "boundary_kind_histogram": {
+        "natural": 21,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PCEM,115,板秩,112,20260709,1",
+      "path": "202607\\板橋簡易庭刑事\\PCEM,115,板秩,112,20260709,1.json",
+      "path_posix": "202607/板橋簡易庭刑事/PCEM,115,板秩,112,20260709,1.json",
+      "size": 8186,
+      "sha256": "06bc5412cb9020596a346af1e2697c3960df334be66a61f8ae7712b6c27f6b3d",
+      "crc32_expected": "8B9B4D39",
+      "crc32_actual": "8B9B4D39",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        3
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PCEV,114,板簡,2533,20260714,1",
+      "path": "202607\\板橋簡易庭民事\\PCEV,114,板簡,2533,20260714,1.json",
+      "path_posix": "202607/板橋簡易庭民事/PCEV,114,板簡,2533,20260714,1.json",
+      "size": 61422,
+      "sha256": "87bd2dfe54e438f3f043633e34965ae8e14e60bbddf717cb43b2850b1f28f3b8",
+      "crc32_expected": "728EBE00",
+      "crc32_actual": "728EBE00",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 33,
+      "boundary_kind_histogram": {
+        "natural": 31,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PCEV,113,板簡,190,20260713,5",
+      "path": "202607\\板橋簡易庭民事\\PCEV,113,板簡,190,20260713,5.json",
+      "path_posix": "202607/板橋簡易庭民事/PCEV,113,板簡,190,20260713,5.json",
+      "size": 60122,
+      "sha256": "d77e1ff12796c40d8cb3423093fe8e7a9d4733cc5d555279b0599ff972e3cbe3",
+      "crc32_expected": "893C2690",
+      "crc32_actual": "893C2690",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 34,
+      "boundary_kind_histogram": {
+        "natural": 25,
+        "exact": 2,
+        "forced": 6,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        25,
+        27,
+        29,
+        30,
+        31,
+        32
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SYEM,115,營秩,9,20260703,1",
+      "path": "202607\\柳營簡易庭刑事\\SYEM,115,營秩,9,20260703,1.json",
+      "path_posix": "202607/柳營簡易庭刑事/SYEM,115,營秩,9,20260703,1.json",
+      "size": 4480,
+      "sha256": "8c2a03345b0a41278349660801031c0278b0979be23e7c5a8f1050c8b1044703",
+      "crc32_expected": "C73EA6B5",
+      "crc32_actual": "C73EA6B5",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SYEV,115,營簡,126,20260731,3",
+      "path": "202607\\柳營簡易庭民事\\SYEV,115,營簡,126,20260731,3.json",
+      "path_posix": "202607/柳營簡易庭民事/SYEV,115,營簡,126,20260731,3.json",
+      "size": 26476,
+      "sha256": "2899abc47f03c52ff8a7aa188c8d4d9bae6d095f330627d65e9b64cfa05d4139",
+      "crc32_expected": "44A51674",
+      "crc32_actual": "44A51674",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 14,
+      "boundary_kind_histogram": {
+        "natural": 13,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TYEM,115,桃秩,114,20260731,1",
+      "path": "202607\\桃園簡易庭刑事\\TYEM,115,桃秩,114,20260731,1.json",
+      "path_posix": "202607/桃園簡易庭刑事/TYEM,115,桃秩,114,20260731,1.json",
+      "size": 6352,
+      "sha256": "968c657b4a3f104e47e16835b2316fe2b792e3bc35f7b8bb82324aa231e29c3e",
+      "crc32_expected": "A432B6BC",
+      "crc32_actual": "A432B6BC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TYEV,114,桃簡,836,20260724,1",
+      "path": "202607\\桃園簡易庭民事\\TYEV,114,桃簡,836,20260724,1.json",
+      "path_posix": "202607/桃園簡易庭民事/TYEV,114,桃簡,836,20260724,1.json",
+      "size": 37070,
+      "sha256": "2639c39356d4683dbfcb73d2bc23560b6c51244fb8bc8001898a3f0bc44fac64",
+      "crc32_expected": "8DFBF01F",
+      "crc32_actual": "8DFBF01F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 20,
+      "boundary_kind_histogram": {
+        "natural": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TYEV,113,桃簡,1579,20260731,1",
+      "path": "202607\\桃園簡易庭民事\\TYEV,113,桃簡,1579,20260731,1.json",
+      "path_posix": "202607/桃園簡易庭民事/TYEV,113,桃簡,1579,20260731,1.json",
+      "size": 32936,
+      "sha256": "b15ec0e94d13b4bfd647fa07317b8dd3139969949d1a9e91022ef84c18b90c43",
+      "crc32_expected": "D410271C",
+      "crc32_actual": "D410271C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 17,
+      "boundary_kind_histogram": {
+        "natural": 16,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CDEM,115,橋秩抗,1,20260724,1",
+      "path": "202607\\橋頭簡易庭刑事\\CDEM,115,橋秩抗,1,20260724,1.json",
+      "path_posix": "202607/橋頭簡易庭刑事/CDEM,115,橋秩抗,1,20260724,1.json",
+      "size": 5799,
+      "sha256": "0e6dbaf910afa49e35fd957d4aed49e7ab9068e249bf3414d862484190c4d725",
+      "crc32_expected": "79A97465",
+      "crc32_actual": "79A97465",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CDEV,114,橋簡,1094,20260721,1",
+      "path": "202607\\橋頭簡易庭民事\\CDEV,114,橋簡,1094,20260721,1.json",
+      "path_posix": "202607/橋頭簡易庭民事/CDEV,114,橋簡,1094,20260721,1.json",
+      "size": 21334,
+      "sha256": "4313961386de010dcdb829ad6afa9adb50471ace94f80fb04d5e70070db09dcf",
+      "crc32_expected": "B03AA615",
+      "crc32_actual": "B03AA615",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 12,
+      "boundary_kind_histogram": {
+        "natural": 10,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CDEV,114,橋簡,830,20260702,1",
+      "path": "202607\\橋頭簡易庭民事\\CDEV,114,橋簡,830,20260702,1.json",
+      "path_posix": "202607/橋頭簡易庭民事/CDEV,114,橋簡,830,20260702,1.json",
+      "size": 19163,
+      "sha256": "27bf899b401a5d3541bd389fa99903e20048035e384ab028bc575a045c9f8174",
+      "crc32_expected": "5F290240",
+      "crc32_actual": "5F290240",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 10,
+      "boundary_kind_histogram": {
+        "natural": 9,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SDEM,115,沙金簡,22,20260707,1",
+      "path": "202607\\沙鹿簡易庭刑事\\SDEM,115,沙金簡,22,20260707,1.json",
+      "path_posix": "202607/沙鹿簡易庭刑事/SDEM,115,沙金簡,22,20260707,1.json",
+      "size": 8155,
+      "sha256": "f1b45f5e0db93a4bf6aaf96e138eb54f7c39064dbe7ef29019086ec5bd561f82",
+      "crc32_expected": "80E34A47",
+      "crc32_actual": "80E34A47",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SDEV,114,沙小,847,20260710,1",
+      "path": "202607\\沙鹿簡易庭民事\\SDEV,114,沙小,847,20260710,1.json",
+      "path_posix": "202607/沙鹿簡易庭民事/SDEV,114,沙小,847,20260710,1.json",
+      "size": 15496,
+      "sha256": "ad4e28918f57e22c7e3b2a09753189c001b87c50dbf31773683901eb2fa265a2",
+      "crc32_expected": "2873A780",
+      "crc32_actual": "2873A780",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 8,
+      "boundary_kind_histogram": {
+        "natural": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CCEM,115,潮秩,11,20260703,1",
+      "path": "202607\\潮州簡易庭刑事\\CCEM,115,潮秩,11,20260703,1.json",
+      "path_posix": "202607/潮州簡易庭刑事/CCEM,115,潮秩,11,20260703,1.json",
+      "size": 8036,
+      "sha256": "fc386e77ec09e02f9454b709b484314762909186e64317a9bec0cb265ed779af",
+      "crc32_expected": "208EE6E2",
+      "crc32_actual": "208EE6E2",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        3
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CCEV,115,潮簡,128,20260723,1",
+      "path": "202607\\潮州簡易庭民事\\CCEV,115,潮簡,128,20260723,1.json",
+      "path_posix": "202607/潮州簡易庭民事/CCEV,115,潮簡,128,20260723,1.json",
+      "size": 23263,
+      "sha256": "a0237b440c5703de66cc2a824eb05e9a3db98ee2070d15a867cd3956ae5b3506",
+      "crc32_expected": "4ED19F92",
+      "crc32_actual": "4ED19F92",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "LCDM,113,訴,9,20260722,2",
+      "path": "202607\\福建連江地方法院刑事\\LCDM,113,訴,9,20260722,2.json",
+      "path_posix": "202607/福建連江地方法院刑事/LCDM,113,訴,9,20260722,2.json",
+      "size": 68927,
+      "sha256": "ed56ed2f395b2820c6cdd52eb71640e3876cb0d296e1609deb4b3e203a29d010",
+      "crc32_expected": "31D8625B",
+      "crc32_actual": "31D8625B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 34,
+      "boundary_kind_histogram": {
+        "natural": 27,
+        "exact": 1,
+        "forced": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        24,
+        25,
+        26,
+        27,
+        28
+      ],
+      "fail": null
+    },
+    {
+      "jid": "LCDV,115,消債更,2,20260722,2",
+      "path": "202607\\福建連江地方法院民事\\LCDV,115,消債更,2,20260722,2.json",
+      "path_posix": "202607/福建連江地方法院民事/LCDV,115,消債更,2,20260722,2.json",
+      "size": 10085,
+      "sha256": "43a6b3a5b93d5b35b838b0d030d76056d5c510bb3d46ee224b2ecef331859223",
+      "crc32_expected": "107C122F",
+      "crc32_actual": "107C122F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 6,
+      "boundary_kind_histogram": {
+        "exact": 3,
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KMDM,115,訴,22,20260729,2",
+      "path": "202607\\福建金門地方法院刑事\\KMDM,115,訴,22,20260729,2.json",
+      "path_posix": "202607/福建金門地方法院刑事/KMDM,115,訴,22,20260729,2.json",
+      "size": 20644,
+      "sha256": "cbbc0ff5f6d662d8ed3a63b2b688b09e7714c0f7e0a7fe6bb3b10304681a104a",
+      "crc32_expected": "33CF3326",
+      "crc32_actual": "33CF3326",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 11,
+      "boundary_kind_histogram": {
+        "natural": 8,
+        "exact": 1,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        5
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KMDV,114,重訴,1,20260724,2",
+      "path": "202607\\福建金門地方法院民事\\KMDV,114,重訴,1,20260724,2.json",
+      "path_posix": "202607/福建金門地方法院民事/KMDV,114,重訴,1,20260724,2.json",
+      "size": 23583,
+      "sha256": "787eb947341bb44f83e02442715e98dc5e5b060888c74acc2b5ac9b39cf8efb4",
+      "crc32_expected": "D4485799",
+      "crc32_actual": "D4485799",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KMHM,114,上訴,21,20260721,2",
+      "path": "202607\\福建高等法院金門分院刑事\\KMHM,114,上訴,21,20260721,2.json",
+      "path_posix": "202607/福建高等法院金門分院刑事/KMHM,114,上訴,21,20260721,2.json",
+      "size": 32487,
+      "sha256": "0e50749ee8a48cfd726df0898e129020b0cb2fbb7ebef3b6aa7127b80ec53a24",
+      "crc32_expected": "A0DF3019",
+      "crc32_actual": "A0DF3019",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 17,
+      "boundary_kind_histogram": {
+        "natural": 16,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KMHV,114,重上,5,20260714,1",
+      "path": "202607\\福建高等法院金門分院民事\\KMHV,114,重上,5,20260714,1.json",
+      "path_posix": "202607/福建高等法院金門分院民事/KMHV,114,重上,5,20260714,1.json",
+      "size": 69636,
+      "sha256": "3efc7c9a42ec3840706eb71363fb2d3de6400837b1862a6889b667cb2d5c18e8",
+      "crc32_expected": "AF464A11",
+      "crc32_actual": "AF464A11",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 38,
+      "boundary_kind_histogram": {
+        "natural": 36,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CPEM,114,竹東簡,145,20260730,1",
+      "path": "202607\\竹北簡易庭(含竹東)刑事\\CPEM,114,竹東簡,145,20260730,1.json",
+      "path_posix": "202607/竹北簡易庭(含竹東)刑事/CPEM,114,竹東簡,145,20260730,1.json",
+      "size": 16446,
+      "sha256": "5c1f17baea98abea8ab85651e54558956956787ff1f00dc6e4481e7af145fcad",
+      "crc32_expected": "4D5E76D4",
+      "crc32_actual": "4D5E76D4",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 9,
+      "boundary_kind_histogram": {
+        "natural": 6,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CPEV,115,竹東簡,50,20260703,1",
+      "path": "202607\\竹北簡易庭(含竹東)民事\\CPEV,115,竹東簡,50,20260703,1.json",
+      "path_posix": "202607/竹北簡易庭(含竹東)民事/CPEV,115,竹東簡,50,20260703,1.json",
+      "size": 50314,
+      "sha256": "1ecb15a6f3fba9f5cabbca9eb415d5253b7afb3f33b3858071559816e496f0f1",
+      "crc32_expected": "947FF92D",
+      "crc32_actual": "947FF92D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 35,
+      "boundary_kind_histogram": {
+        "natural": 6,
+        "forced": 28,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33
+      ],
+      "fail": null
+    },
+    {
+      "jid": "LTEV,114,羅簡,299,20260730,1",
+      "path": "202607\\羅東簡易庭民事\\LTEV,114,羅簡,299,20260730,1.json",
+      "path_posix": "202607/羅東簡易庭民事/LTEV,114,羅簡,299,20260730,1.json",
+      "size": 58670,
+      "sha256": "a18bbf034ff3d82e71e4e5f1aec4f824e0ecb5b7f47bf72fa4aa056d52b28fd2",
+      "crc32_expected": "90410E1F",
+      "crc32_actual": "90410E1F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 30,
+      "boundary_kind_histogram": {
+        "natural": 29,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TCEM,115,中秩聲,4,20260706,1",
+      "path": "202607\\臺中簡易庭刑事\\TCEM,115,中秩聲,4,20260706,1.json",
+      "path_posix": "202607/臺中簡易庭刑事/TCEM,115,中秩聲,4,20260706,1.json",
+      "size": 9355,
+      "sha256": "857fef2be9b416acbf88df8f91882502b6a771448d50f8ee8c71959c6add5ee3",
+      "crc32_expected": "76FA378D",
+      "crc32_actual": "76FA378D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TCEV,114,中簡,3007,20260729,1",
+      "path": "202607\\臺中簡易庭民事\\TCEV,114,中簡,3007,20260729,1.json",
+      "path_posix": "202607/臺中簡易庭民事/TCEV,114,中簡,3007,20260729,1.json",
+      "size": 45122,
+      "sha256": "a916d964b665c9f4e6930257eedb1a57b990b62d78ccf9bffce7878ab07f547a",
+      "crc32_expected": "143AA8AD",
+      "crc32_actual": "143AA8AD",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 24,
+      "boundary_kind_histogram": {
+        "natural": 21,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TCEV,114,中簡,1081,20260717,1",
+      "path": "202607\\臺中簡易庭民事\\TCEV,114,中簡,1081,20260717,1.json",
+      "path_posix": "202607/臺中簡易庭民事/TCEV,114,中簡,1081,20260717,1.json",
+      "size": 43772,
+      "sha256": "0f491fc8a6d2fb6412d8f3b20a50053b1fb0d408c0dd06006fd47ae7e7bb18cb",
+      "crc32_expected": "EAF4B52E",
+      "crc32_actual": "EAF4B52E",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 24,
+      "boundary_kind_histogram": {
+        "natural": 23,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TCTA,113,地訴,14,20260710,1",
+      "path": "202607\\臺中高等行政法院 地方庭行政\\TCTA,113,地訴,14,20260710,1.json",
+      "path_posix": "202607/臺中高等行政法院 地方庭行政/TCTA,113,地訴,14,20260710,1.json",
+      "size": 51435,
+      "sha256": "4ff4c9bfa4cfa223c666309c03580c62e75a493a2ac43aab7954c183f251f9e1",
+      "crc32_expected": "4BA9AC81",
+      "crc32_actual": "4BA9AC81",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 26,
+      "boundary_kind_histogram": {
+        "natural": 23,
+        "forced": 1,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        14
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCTA,114,交,704,20260716,1",
+      "path": "202607\\臺中高等行政法院 地方庭行政\\TCTA,114,交,704,20260716,1.json",
+      "path_posix": "202607/臺中高等行政法院 地方庭行政/TCTA,114,交,704,20260716,1.json",
+      "size": 49009,
+      "sha256": "60a8f0ff12b9b2f8795924d05cce6026996781ab0a0aebf80e8a2ba328209526",
+      "crc32_expected": "F4E9E11D",
+      "crc32_actual": "F4E9E11D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 27,
+      "boundary_kind_histogram": {
+        "natural": 24,
+        "exact": 1,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        25
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCBA,113,訴,88,20260723,3",
+      "path": "202607\\臺中高等行政法院行政\\TCBA,113,訴,88,20260723,3.json",
+      "path_posix": "202607/臺中高等行政法院行政/TCBA,113,訴,88,20260723,3.json",
+      "size": 80181,
+      "sha256": "ee25e46b1237f9108102d724119f35b7a2796eed89fdc4f3a52452cc0ea14ec4",
+      "crc32_expected": "1181647C",
+      "crc32_actual": "1181647C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 44,
+      "boundary_kind_histogram": {
+        "exact": 4,
+        "natural": 38,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        25
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TPEM,115,北秩聲,16,20260731,1",
+      "path": "202607\\臺北簡易庭刑事\\TPEM,115,北秩聲,16,20260731,1.json",
+      "path_posix": "202607/臺北簡易庭刑事/TPEM,115,北秩聲,16,20260731,1.json",
+      "size": 7950,
+      "sha256": "040256cd9ed7c6e70fe2f4e4cc2b294ae546f0c4a04a18a77fec6aea12bf7535",
+      "crc32_expected": "30F61AA4",
+      "crc32_actual": "30F61AA4",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 5,
+      "boundary_kind_histogram": {
+        "natural": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPEV,115,北簡更一,4,20260730,1",
+      "path": "202607\\臺北簡易庭民事\\TPEV,115,北簡更一,4,20260730,1.json",
+      "path_posix": "202607/臺北簡易庭民事/TPEV,115,北簡更一,4,20260730,1.json",
+      "size": 83251,
+      "sha256": "270a704b2d4e3001737fe6d9ccb3daa71f8f15705c3e5f58ca390295589d0d4f",
+      "crc32_expected": "B2BCDACA",
+      "crc32_actual": "B2BCDACA",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 43,
+      "boundary_kind_histogram": {
+        "natural": 39,
+        "exact": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPEV,115,北小,1733,20260702,1",
+      "path": "202607\\臺北簡易庭民事\\TPEV,115,北小,1733,20260702,1.json",
+      "path_posix": "202607/臺北簡易庭民事/TPEV,115,北小,1733,20260702,1.json",
+      "size": 80817,
+      "sha256": "498809ac2b6745de8613258f9d73b70739980b95ce4bb947f44f248ef30924dc",
+      "crc32_expected": "57D7B87C",
+      "crc32_actual": "57D7B87C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 41,
+      "boundary_kind_histogram": {
+        "natural": 37,
+        "exact": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPTA,114,交,2444,20260707,1",
+      "path": "202607\\臺北高等行政法院 地方庭行政\\TPTA,114,交,2444,20260707,1.json",
+      "path_posix": "202607/臺北高等行政法院 地方庭行政/TPTA,114,交,2444,20260707,1.json",
+      "size": 72344,
+      "sha256": "90071680898a2a7c8cb94fcfe07b83c8525cee5f9c314a7b12a7a2ad75ce30a7",
+      "crc32_expected": "F4FEB236",
+      "crc32_actual": "F4FEB236",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 39,
+      "boundary_kind_histogram": {
+        "natural": 37,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPTA,113,地訴,61,20260729,1",
+      "path": "202607\\臺北高等行政法院 地方庭行政\\TPTA,113,地訴,61,20260729,1.json",
+      "path_posix": "202607/臺北高等行政法院 地方庭行政/TPTA,113,地訴,61,20260729,1.json",
+      "size": 57372,
+      "sha256": "c9691de09eb22a5dc1479216fda1112bd752989e3e19eb29433efc34300bd33f",
+      "crc32_expected": "837A70ED",
+      "crc32_actual": "837A70ED",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 30,
+      "boundary_kind_histogram": {
+        "natural": 29,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPBA,115,訴,355,20260709,1",
+      "path": "202607\\臺北高等行政法院行政\\TPBA,115,訴,355,20260709,1.json",
+      "path_posix": "202607/臺北高等行政法院行政/TPBA,115,訴,355,20260709,1.json",
+      "size": 86245,
+      "sha256": "c903a05f70fc331fb2b014d015359f16a992e7ae6c6c66ef90b9c57ed2ed4bf9",
+      "crc32_expected": "831BC0CF",
+      "crc32_actual": "831BC0CF",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 45,
+      "boundary_kind_histogram": {
+        "natural": 43,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPBA,114,訴,972,20260723,1",
+      "path": "202607\\臺北高等行政法院行政\\TPBA,114,訴,972,20260723,1.json",
+      "path_posix": "202607/臺北高等行政法院行政/TPBA,114,訴,972,20260723,1.json",
+      "size": 78246,
+      "sha256": "393d7ae5ba73e56218079d0c43515d8c0eac04f4035da2c6bfc253c077656d80",
+      "crc32_expected": "0DA2E718",
+      "crc32_actual": "0DA2E718",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 41,
+      "boundary_kind_histogram": {
+        "natural": 39,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TNEM,115,南秩,52,20260728,1",
+      "path": "202607\\臺南簡易庭刑事\\TNEM,115,南秩,52,20260728,1.json",
+      "path_posix": "202607/臺南簡易庭刑事/TNEM,115,南秩,52,20260728,1.json",
+      "size": 7373,
+      "sha256": "3358de88956c865c59084e0bc3b78fbd6945fa51b8fa1647490701cd1265ed63",
+      "crc32_expected": "F358C669",
+      "crc32_actual": "F358C669",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TNEV,114,南簡,1194,20260724,2",
+      "path": "202607\\臺南簡易庭民事\\TNEV,114,南簡,1194,20260724,2.json",
+      "path_posix": "202607/臺南簡易庭民事/TNEV,114,南簡,1194,20260724,2.json",
+      "size": 41918,
+      "sha256": "acca1dd143e20aac27a23162e331cb26d2bf9325d4bbe2c9bf4a910758885350",
+      "crc32_expected": "882AC986",
+      "crc32_actual": "882AC986",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 23,
+      "boundary_kind_histogram": {
+        "natural": 22,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TNEV,114,南勞簡,44,20260717,2",
+      "path": "202607\\臺南簡易庭民事\\TNEV,114,南勞簡,44,20260717,2.json",
+      "path_posix": "202607/臺南簡易庭民事/TNEV,114,南勞簡,44,20260717,2.json",
+      "size": 39834,
+      "sha256": "2d5eb3c9adb9b6f7e7a4a9f9faab5452ed858434d1daef9d9cec67c04694d4bb",
+      "crc32_expected": "C9DE66CC",
+      "crc32_actual": "C9DE66CC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 27,
+      "boundary_kind_histogram": {
+        "natural": 6,
+        "exact": 1,
+        "forced": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TTEV,115,東小,28,20260717,2",
+      "path": "202607\\臺東簡易庭民事\\TTEV,115,東小,28,20260717,2.json",
+      "path_posix": "202607/臺東簡易庭民事/TTEV,115,東小,28,20260717,2.json",
+      "size": 19135,
+      "sha256": "9a300575e2697f0af6c5ed6d920915fb57e0742d34af397c826b6f4af1a29de7",
+      "crc32_expected": "BA87D9FB",
+      "crc32_actual": "BA87D9FB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 10,
+      "boundary_kind_histogram": {
+        "natural": 9,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NTDM,115,訴,7,20260716,3",
+      "path": "202607\\臺灣南投地方法院刑事\\NTDM,115,訴,7,20260716,3.json",
+      "path_posix": "202607/臺灣南投地方法院刑事/NTDM,115,訴,7,20260716,3.json",
+      "size": 45842,
+      "sha256": "f5d483c2d2d0413fb3f07be682df10f61beb7ed57ec8dc9899b9e7dc40f1800a",
+      "crc32_expected": "2F0C39F2",
+      "crc32_actual": "2F0C39F2",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 25,
+      "boundary_kind_histogram": {
+        "natural": 22,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NTDM,114,侵訴,13,20260710,4",
+      "path": "202607\\臺灣南投地方法院刑事\\NTDM,114,侵訴,13,20260710,4.json",
+      "path_posix": "202607/臺灣南投地方法院刑事/NTDM,114,侵訴,13,20260710,4.json",
+      "size": 38937,
+      "sha256": "399c3e0c986034db6394334a103a2212724e1eec20175d15e5fcb5d994394675",
+      "crc32_expected": "198EDB36",
+      "crc32_actual": "198EDB36",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 20,
+      "boundary_kind_histogram": {
+        "natural": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NTDV,108,建,15,20260731,6",
+      "path": "202607\\臺灣南投地方法院民事\\NTDV,108,建,15,20260731,6.json",
+      "path_posix": "202607/臺灣南投地方法院民事/NTDV,108,建,15,20260731,6.json",
+      "size": 43211,
+      "sha256": "a3a80e798bdce6d096b5cd8eeb4a096f4fe7c220ed384de1011ae2290e434c9a",
+      "crc32_expected": "99A3F19D",
+      "crc32_actual": "99A3F19D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 24,
+      "boundary_kind_histogram": {
+        "natural": 23,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "NTDV,113,重訴,60,20260707,1",
+      "path": "202607\\臺灣南投地方法院民事\\NTDV,113,重訴,60,20260707,1.json",
+      "path_posix": "202607/臺灣南投地方法院民事/NTDV,113,重訴,60,20260707,1.json",
+      "size": 37700,
+      "sha256": "fccc47cfeae7f091814a7c556b35fb6b4a07c67d83e10a37c824e7399c513da1",
+      "crc32_expected": "2E1E21BC",
+      "crc32_actual": "2E1E21BC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 20,
+      "boundary_kind_histogram": {
+        "natural": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CYDM,113,金訴,459,20260728,2",
+      "path": "202607\\臺灣嘉義地方法院刑事\\CYDM,113,金訴,459,20260728,2.json",
+      "path_posix": "202607/臺灣嘉義地方法院刑事/CYDM,113,金訴,459,20260728,2.json",
+      "size": 275671,
+      "sha256": "47523039d60d861341098e5fab4fc4bfd4eb43f344379bf00aa086406fde3c01",
+      "crc32_expected": "1DD4E376",
+      "crc32_actual": "1DD4E376",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 151,
+      "boundary_kind_histogram": {
+        "natural": 88,
+        "forced": 62,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        80,
+        81,
+        82,
+        83,
+        87,
+        88,
+        90,
+        92,
+        93,
+        96,
+        102,
+        103,
+        104,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        128,
+        129,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        143,
+        144,
+        146,
+        147
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CYDM,114,金訴,1073,20260728,1",
+      "path": "202607\\臺灣嘉義地方法院刑事\\CYDM,114,金訴,1073,20260728,1.json",
+      "path_posix": "202607/臺灣嘉義地方法院刑事/CYDM,114,金訴,1073,20260728,1.json",
+      "size": 275607,
+      "sha256": "6964a7c5506c5003eaae9d135c259c9f722085e9c3a97adfccd75dc9e5b9c894",
+      "crc32_expected": "616528FD",
+      "crc32_actual": "616528FD",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 151,
+      "boundary_kind_histogram": {
+        "natural": 88,
+        "forced": 62,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        80,
+        81,
+        82,
+        83,
+        87,
+        88,
+        90,
+        92,
+        93,
+        96,
+        102,
+        103,
+        104,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        128,
+        129,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        143,
+        144,
+        146,
+        147
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CYDV,110,建,25,20260728,1",
+      "path": "202607\\臺灣嘉義地方法院民事\\CYDV,110,建,25,20260728,1.json",
+      "path_posix": "202607/臺灣嘉義地方法院民事/CYDV,110,建,25,20260728,1.json",
+      "size": 125977,
+      "sha256": "7a7c18fe943e99291858645640bc3b1da061374bdc935ce64280da05bb048bfa",
+      "crc32_expected": "7A0CEAD0",
+      "crc32_actual": "7A0CEAD0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 69,
+      "boundary_kind_histogram": {
+        "natural": 66,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CYDV,112,重訴,88,20260706,2",
+      "path": "202607\\臺灣嘉義地方法院民事\\CYDV,112,重訴,88,20260706,2.json",
+      "path_posix": "202607/臺灣嘉義地方法院民事/CYDV,112,重訴,88,20260706,2.json",
+      "size": 112624,
+      "sha256": "02c879669038249da290b8479702cee6ce619a221ce25651ed0d863aae0fadb7",
+      "crc32_expected": "151DBC7F",
+      "crc32_actual": "151DBC7F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 60,
+      "boundary_kind_histogram": {
+        "natural": 58,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KLDM,115,訴,26,20260713,1",
+      "path": "202607\\臺灣基隆地方法院刑事\\KLDM,115,訴,26,20260713,1.json",
+      "path_posix": "202607/臺灣基隆地方法院刑事/KLDM,115,訴,26,20260713,1.json",
+      "size": 77556,
+      "sha256": "0a7162c8fe9b18d9697c671acae34236d2c71a1dadb39b64ef208c99036f293e",
+      "crc32_expected": "F89C2D63",
+      "crc32_actual": "F89C2D63",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 40,
+      "boundary_kind_histogram": {
+        "natural": 39,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KLDM,115,基金簡,67,20260708,1",
+      "path": "202607\\臺灣基隆地方法院刑事\\KLDM,115,基金簡,67,20260708,1.json",
+      "path_posix": "202607/臺灣基隆地方法院刑事/KLDM,115,基金簡,67,20260708,1.json",
+      "size": 63584,
+      "sha256": "535472f2f8893a275cc2b1e1e84cf94fa6f4a96cf2ab6db6f78963b2275a73df",
+      "crc32_expected": "9ADAFA00",
+      "crc32_actual": "9ADAFA00",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 36,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "forced": 23,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KLDV,114,訴,207,20260715,1",
+      "path": "202607\\臺灣基隆地方法院民事\\KLDV,114,訴,207,20260715,1.json",
+      "path_posix": "202607/臺灣基隆地方法院民事/KLDV,114,訴,207,20260715,1.json",
+      "size": 52301,
+      "sha256": "085e8cb93034ed73b67964e80db0d0a9eb9327f354ec59843ce750543ecccac1",
+      "crc32_expected": "5430B6FE",
+      "crc32_actual": "5430B6FE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 27,
+      "boundary_kind_histogram": {
+        "natural": 26,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KLDV,115,海商,2,20260713,2",
+      "path": "202607\\臺灣基隆地方法院民事\\KLDV,115,海商,2,20260713,2.json",
+      "path_posix": "202607/臺灣基隆地方法院民事/KLDV,115,海商,2,20260713,2.json",
+      "size": 51187,
+      "sha256": "edb31c9d834661f9ae75a1e5454d7206d894794ed7ab3d6a2f394f956557d85e",
+      "crc32_expected": "1FF320B3",
+      "crc32_actual": "1FF320B3",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 29,
+      "boundary_kind_histogram": {
+        "natural": 27,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SLDM,114,金重訴,4,20260714,7",
+      "path": "202607\\臺灣士林地方法院刑事\\SLDM,114,金重訴,4,20260714,7.json",
+      "path_posix": "202607/臺灣士林地方法院刑事/SLDM,114,金重訴,4,20260714,7.json",
+      "size": 235359,
+      "sha256": "ec33c513d3b2bb04051db03402a9af8f7a755c681ee8b531b42afcc9b8ca0e1e",
+      "crc32_expected": "B043C246",
+      "crc32_actual": "B043C246",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 130,
+      "boundary_kind_histogram": {
+        "natural": 116,
+        "exact": 6,
+        "forced": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        120,
+        122,
+        123,
+        124,
+        126,
+        127,
+        128
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SLDM,114,金重訴,5,20260716,5",
+      "path": "202607\\臺灣士林地方法院刑事\\SLDM,114,金重訴,5,20260716,5.json",
+      "path_posix": "202607/臺灣士林地方法院刑事/SLDM,114,金重訴,5,20260716,5.json",
+      "size": 214377,
+      "sha256": "70733d074ea762d0d7c3c4d2c97b8d9f4dfd9387db5b923f9c7367f2dfc7c0ad",
+      "crc32_expected": "2B35A9DB",
+      "crc32_actual": "2B35A9DB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 120,
+      "boundary_kind_histogram": {
+        "exact": 6,
+        "natural": 100,
+        "forced": 13,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        102,
+        104,
+        106,
+        107,
+        109,
+        110,
+        111,
+        112,
+        114,
+        115,
+        116,
+        117,
+        118
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SLDV,113,婚,297,20260729,1",
+      "path": "202607\\臺灣士林地方法院民事\\SLDV,113,婚,297,20260729,1.json",
+      "path_posix": "202607/臺灣士林地方法院民事/SLDV,113,婚,297,20260729,1.json",
+      "size": 58489,
+      "sha256": "1de7cfbbd0fe9af65618d4eb72227c5327861f352ed39015a07b7a899cc16a98",
+      "crc32_expected": "654C8796",
+      "crc32_actual": "654C8796",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 33,
+      "boundary_kind_histogram": {
+        "natural": 32,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SLDV,113,婚,312,20260729,1",
+      "path": "202607\\臺灣士林地方法院民事\\SLDV,113,婚,312,20260729,1.json",
+      "path_posix": "202607/臺灣士林地方法院民事/SLDV,113,婚,312,20260729,1.json",
+      "size": 58489,
+      "sha256": "9dd587163d44c2ea983b0d33de52ecc0effe383a1be56c8a6bcbbd4b2016b707",
+      "crc32_expected": "6B19747F",
+      "crc32_actual": "6B19747F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 33,
+      "boundary_kind_histogram": {
+        "natural": 32,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "ILDM,114,原訴,13,20260707,2",
+      "path": "202607\\臺灣宜蘭地方法院刑事\\ILDM,114,原訴,13,20260707,2.json",
+      "path_posix": "202607/臺灣宜蘭地方法院刑事/ILDM,114,原訴,13,20260707,2.json",
+      "size": 101127,
+      "sha256": "0037dfe832c59ed74fdc1ddda9b0fe94f0b296fca0970fc2ca851e84f29d2b8a",
+      "crc32_expected": "B9399E3E",
+      "crc32_actual": "B9399E3E",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 54,
+      "boundary_kind_histogram": {
+        "natural": 52,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "ILDM,114,原訴,37,20260707,2",
+      "path": "202607\\臺灣宜蘭地方法院刑事\\ILDM,114,原訴,37,20260707,2.json",
+      "path_posix": "202607/臺灣宜蘭地方法院刑事/ILDM,114,原訴,37,20260707,2.json",
+      "size": 101127,
+      "sha256": "554dbb8000d707c25f4f9236560dafdc86b6d9cc1da32246acf93f810ffbb13e",
+      "crc32_expected": "F0C631EB",
+      "crc32_actual": "F0C631EB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 54,
+      "boundary_kind_histogram": {
+        "natural": 52,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "ILDV,113,重訴,60,20260703,1",
+      "path": "202607\\臺灣宜蘭地方法院民事\\ILDV,113,重訴,60,20260703,1.json",
+      "path_posix": "202607/臺灣宜蘭地方法院民事/ILDV,113,重訴,60,20260703,1.json",
+      "size": 54759,
+      "sha256": "ca21e3a5f3a633803c78a4e5c1401fef9cfecd967e335a59bc8fafe660cd4c18",
+      "crc32_expected": "659756DA",
+      "crc32_actual": "659756DA",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 31,
+      "boundary_kind_histogram": {
+        "natural": 29,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        28
+      ],
+      "fail": null
+    },
+    {
+      "jid": "ILDV,113,勞訴,13,20260723,1",
+      "path": "202607\\臺灣宜蘭地方法院民事\\ILDV,113,勞訴,13,20260723,1.json",
+      "path_posix": "202607/臺灣宜蘭地方法院民事/ILDV,113,勞訴,13,20260723,1.json",
+      "size": 40486,
+      "sha256": "93c992eb81e0c0724c9c8b9f74915885f0426f4541287b9889f02f69a2be2bb9",
+      "crc32_expected": "D500AFDD",
+      "crc32_actual": "D500AFDD",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 22,
+      "boundary_kind_histogram": {
+        "natural": 21,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PTDM,115,原訴,137,20260731,1",
+      "path": "202607\\臺灣屏東地方法院刑事\\PTDM,115,原訴,137,20260731,1.json",
+      "path_posix": "202607/臺灣屏東地方法院刑事/PTDM,115,原訴,137,20260731,1.json",
+      "size": 131471,
+      "sha256": "2fb525309ae6405bdd814b740873f74498e92814c27d69fe42d8daf1593962ac",
+      "crc32_expected": "1B02A6C7",
+      "crc32_actual": "1B02A6C7",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 76,
+      "boundary_kind_histogram": {
+        "natural": 30,
+        "exact": 1,
+        "forced": 44,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        18,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        39,
+        40,
+        43,
+        44,
+        45,
+        46,
+        47,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PTDM,115,原訴,97,20260731,2",
+      "path": "202607\\臺灣屏東地方法院刑事\\PTDM,115,原訴,97,20260731,2.json",
+      "path_posix": "202607/臺灣屏東地方法院刑事/PTDM,115,原訴,97,20260731,2.json",
+      "size": 131100,
+      "sha256": "d7577175ad1178f1f4d46cdabaa769bc72d48301083c547203b3f9b5d1624561",
+      "crc32_expected": "936378D1",
+      "crc32_actual": "936378D1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 75,
+      "boundary_kind_histogram": {
+        "natural": 28,
+        "exact": 2,
+        "forced": 44,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        17,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        38,
+        39,
+        42,
+        43,
+        44,
+        45,
+        46,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PTDV,112,建,12,20260717,2",
+      "path": "202607\\臺灣屏東地方法院民事\\PTDV,112,建,12,20260717,2.json",
+      "path_posix": "202607/臺灣屏東地方法院民事/PTDV,112,建,12,20260717,2.json",
+      "size": 42155,
+      "sha256": "81923d0f090dc823c2e700a1b649d9d56e0d6fb6f4307f2cdc48e3681fde04dc",
+      "crc32_expected": "169818F5",
+      "crc32_actual": "169818F5",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 23,
+      "boundary_kind_histogram": {
+        "natural": 22,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PTDV,113,保險,1,20260727,1",
+      "path": "202607\\臺灣屏東地方法院民事\\PTDV,113,保險,1,20260727,1.json",
+      "path_posix": "202607/臺灣屏東地方法院民事/PTDV,113,保險,1,20260727,1.json",
+      "size": 33669,
+      "sha256": "d482f217a1c3f1287dec9bd2a50cba5a16a1ab5935ba0f47a53e72fc533cc67c",
+      "crc32_expected": "051E6828",
+      "crc32_actual": "051E6828",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 21,
+      "boundary_kind_histogram": {
+        "natural": 16,
+        "forced": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        15,
+        16,
+        17,
+        18
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CHDM,112,訴,781,20260730,2",
+      "path": "202607\\臺灣彰化地方法院刑事\\CHDM,112,訴,781,20260730,2.json",
+      "path_posix": "202607/臺灣彰化地方法院刑事/CHDM,112,訴,781,20260730,2.json",
+      "size": 260988,
+      "sha256": "ca337bf1adc821c0e05f1d5a59ea3ea1900225e503fd4a43d21ffaf2fb344bb8",
+      "crc32_expected": "312E22B1",
+      "crc32_actual": "312E22B1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 137,
+      "boundary_kind_histogram": {
+        "natural": 88,
+        "exact": 2,
+        "forced": 46,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        55,
+        60,
+        64,
+        66,
+        67,
+        69,
+        70,
+        71,
+        72,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        82,
+        83,
+        84,
+        85,
+        86,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        106,
+        107,
+        127,
+        128,
+        129,
+        131,
+        132,
+        133
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CHDM,112,易,1326,20260730,1",
+      "path": "202607\\臺灣彰化地方法院刑事\\CHDM,112,易,1326,20260730,1.json",
+      "path_posix": "202607/臺灣彰化地方法院刑事/CHDM,112,易,1326,20260730,1.json",
+      "size": 260975,
+      "sha256": "e038a7a25b0e8a428815957e370108ebaf4e87a08fb89aa26a4059b2a62dd15d",
+      "crc32_expected": "9E4D3B9F",
+      "crc32_actual": "9E4D3B9F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 137,
+      "boundary_kind_histogram": {
+        "natural": 87,
+        "exact": 3,
+        "forced": 46,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        55,
+        60,
+        64,
+        66,
+        67,
+        69,
+        70,
+        71,
+        72,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        82,
+        83,
+        84,
+        85,
+        86,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        106,
+        107,
+        127,
+        128,
+        129,
+        131,
+        132,
+        133
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CHDV,111,家繼訴,62,20260713,1",
+      "path": "202607\\臺灣彰化地方法院民事\\CHDV,111,家繼訴,62,20260713,1.json",
+      "path_posix": "202607/臺灣彰化地方法院民事/CHDV,111,家繼訴,62,20260713,1.json",
+      "size": 81292,
+      "sha256": "c3f37249fbada425494a1ac2f3af90ac339f259ef47e2696db623b3bb2f2e9ec",
+      "crc32_expected": "8A4C163F",
+      "crc32_actual": "8A4C163F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 42,
+      "boundary_kind_histogram": {
+        "natural": 40,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CHDV,113,訴,1085,20260706,1",
+      "path": "202607\\臺灣彰化地方法院民事\\CHDV,113,訴,1085,20260706,1.json",
+      "path_posix": "202607/臺灣彰化地方法院民事/CHDV,113,訴,1085,20260706,1.json",
+      "size": 49402,
+      "sha256": "da2342346e49bf2d9390fb40b82afe4a6503cefddb0ad47c1d0fdbd0eedd06dd",
+      "crc32_expected": "427A3D91",
+      "crc32_actual": "427A3D91",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 28,
+      "boundary_kind_histogram": {
+        "natural": 21,
+        "forced": 6,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        1,
+        22,
+        23,
+        24,
+        25,
+        26
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PCDM,114,金訴,2261,20260716,5",
+      "path": "202607\\臺灣新北地方法院刑事\\PCDM,114,金訴,2261,20260716,5.json",
+      "path_posix": "202607/臺灣新北地方法院刑事/PCDM,114,金訴,2261,20260716,5.json",
+      "size": 268559,
+      "sha256": "1485e7dca62f69882b97ed3c27ecb7f2d26e2c6f668cd409e34c43ebf15c9eb5",
+      "crc32_expected": "A15DAEF0",
+      "crc32_actual": "A15DAEF0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 142,
+      "boundary_kind_histogram": {
+        "exact": 9,
+        "natural": 132,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PCDM,114,金訴,14,20260729,1",
+      "path": "202607\\臺灣新北地方法院刑事\\PCDM,114,金訴,14,20260729,1.json",
+      "path_posix": "202607/臺灣新北地方法院刑事/PCDM,114,金訴,14,20260729,1.json",
+      "size": 182929,
+      "sha256": "033fc8aa86e67ab9f53cfcffff66d26dc887325a0667927aacd19406a1941132",
+      "crc32_expected": "85CA07C0",
+      "crc32_actual": "85CA07C0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 102,
+      "boundary_kind_histogram": {
+        "natural": 85,
+        "exact": 4,
+        "forced": 12,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        86,
+        87,
+        88,
+        89,
+        91,
+        92,
+        93,
+        96,
+        97,
+        98,
+        99,
+        100
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PCDV,111,原訴,15,20260731,1",
+      "path": "202607\\臺灣新北地方法院民事\\PCDV,111,原訴,15,20260731,1.json",
+      "path_posix": "202607/臺灣新北地方法院民事/PCDV,111,原訴,15,20260731,1.json",
+      "size": 111002,
+      "sha256": "f3b2e61bbff284483f528fd3dabeba48cd49f7377021dac44fb1ce947b6a3fcc",
+      "crc32_expected": "A5162D23",
+      "crc32_actual": "A5162D23",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 67,
+      "boundary_kind_histogram": {
+        "natural": 44,
+        "forced": 22,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        17,
+        18,
+        29,
+        33,
+        34,
+        36,
+        37,
+        39,
+        41,
+        43,
+        44,
+        46,
+        47,
+        49,
+        50,
+        52,
+        54,
+        56,
+        58,
+        60,
+        64,
+        65
+      ],
+      "fail": null
+    },
+    {
+      "jid": "PCDV,114,訴,2226,20260720,1",
+      "path": "202607\\臺灣新北地方法院民事\\PCDV,114,訴,2226,20260720,1.json",
+      "path_posix": "202607/臺灣新北地方法院民事/PCDV,114,訴,2226,20260720,1.json",
+      "size": 104141,
+      "sha256": "fc730ba33bd7dd8e3ce5b0791db8524fd67044d95b3b403ede3c90d81f4bcf94",
+      "crc32_expected": "175D6FE4",
+      "crc32_actual": "175D6FE4",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 56,
+      "boundary_kind_histogram": {
+        "natural": 51,
+        "forced": 2,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        5,
+        6
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SCDM,113,訴,382,20260713,2",
+      "path": "202607\\臺灣新竹地方法院刑事\\SCDM,113,訴,382,20260713,2.json",
+      "path_posix": "202607/臺灣新竹地方法院刑事/SCDM,113,訴,382,20260713,2.json",
+      "size": 606368,
+      "sha256": "11954d5c1e8ec9103bb2d0a60b8f699f9f12406bd854d99075bd18b3b3cecc0c",
+      "crc32_expected": "0449CB91",
+      "crc32_actual": "0449CB91",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 321,
+      "boundary_kind_histogram": {
+        "natural": 306,
+        "exact": 12,
+        "forced": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        298,
+        312
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SCDM,115,訴,507,20260709,4",
+      "path": "202607\\臺灣新竹地方法院刑事\\SCDM,115,訴,507,20260709,4.json",
+      "path_posix": "202607/臺灣新竹地方法院刑事/SCDM,115,訴,507,20260709,4.json",
+      "size": 86883,
+      "sha256": "3b68e46f371f965d56f4d48d5cf008d29a4027332affddf2f28037137351426f",
+      "crc32_expected": "8F2DB8C7",
+      "crc32_actual": "8F2DB8C7",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 50,
+      "boundary_kind_histogram": {
+        "natural": 24,
+        "forced": 25,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        22,
+        23,
+        24,
+        25,
+        26,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        45,
+        46,
+        48
+      ],
+      "fail": null
+    },
+    {
+      "jid": "SCDV,114,重訴,102,20260713,2",
+      "path": "202607\\臺灣新竹地方法院民事\\SCDV,114,重訴,102,20260713,2.json",
+      "path_posix": "202607/臺灣新竹地方法院民事/SCDV,114,重訴,102,20260713,2.json",
+      "size": 70509,
+      "sha256": "6ed60b3abd4d46c0f004437565ed79686ee9f46455840a26fa0644469463968f",
+      "crc32_expected": "AB535822",
+      "crc32_actual": "AB535822",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 38,
+      "boundary_kind_histogram": {
+        "natural": 33,
+        "exact": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "SCDV,114,訴,789,20260724,1",
+      "path": "202607\\臺灣新竹地方法院民事\\SCDV,114,訴,789,20260724,1.json",
+      "path_posix": "202607/臺灣新竹地方法院民事/SCDV,114,訴,789,20260724,1.json",
+      "size": 64169,
+      "sha256": "b7ed680790fbbb26fa34a56057ee5a34104b1ce1eacc0b1419dcd70a208f82ee",
+      "crc32_expected": "BA46A527",
+      "crc32_actual": "BA46A527",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 34,
+      "boundary_kind_histogram": {
+        "natural": 29,
+        "forced": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        29,
+        30,
+        31,
+        32
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TYDM,113,重訴,4,20260727,1",
+      "path": "202607\\臺灣桃園地方法院刑事\\TYDM,113,重訴,4,20260727,1.json",
+      "path_posix": "202607/臺灣桃園地方法院刑事/TYDM,113,重訴,4,20260727,1.json",
+      "size": 265350,
+      "sha256": "2bd0a8aecb51fbb788fea09231ff6ed163d0e5c5f59809299c28428c992ea3b1",
+      "crc32_expected": "62E2D7DC",
+      "crc32_actual": "62E2D7DC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 137,
+      "boundary_kind_histogram": {
+        "natural": 133,
+        "exact": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TYDM,112,重訴,30,20260727,1",
+      "path": "202607\\臺灣桃園地方法院刑事\\TYDM,112,重訴,30,20260727,1.json",
+      "path_posix": "202607/臺灣桃園地方法院刑事/TYDM,112,重訴,30,20260727,1.json",
+      "size": 265304,
+      "sha256": "34eb8f7825d45df4080c293465030a14ca819270ff25b02c977de18e99896728",
+      "crc32_expected": "454EA3CC",
+      "crc32_actual": "454EA3CC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 137,
+      "boundary_kind_histogram": {
+        "natural": 129,
+        "exact": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TYDV,112,消,6,20260731,1",
+      "path": "202607\\臺灣桃園地方法院民事\\TYDV,112,消,6,20260731,1.json",
+      "path_posix": "202607/臺灣桃園地方法院民事/TYDV,112,消,6,20260731,1.json",
+      "size": 83356,
+      "sha256": "99a35d79d71541ae4f121d3a5c7829b7e6869e5aa4d5e31f2388dd179c8ab40d",
+      "crc32_expected": "E4B081F8",
+      "crc32_actual": "E4B081F8",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 46,
+      "boundary_kind_histogram": {
+        "natural": 43,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TYDV,114,勞訴,161,20260731,2",
+      "path": "202607\\臺灣桃園地方法院民事\\TYDV,114,勞訴,161,20260731,2.json",
+      "path_posix": "202607/臺灣桃園地方法院民事/TYDV,114,勞訴,161,20260731,2.json",
+      "size": 52094,
+      "sha256": "95ad6ab8cb9a3b11d1fe009fa2ae137fb4dfe0e426ac5d77fafe9048a4c9fafa",
+      "crc32_expected": "76887417",
+      "crc32_actual": "76887417",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 29,
+      "boundary_kind_histogram": {
+        "natural": 27,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        26
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CTDM,112,訴,189,20260720,1",
+      "path": "202607\\臺灣橋頭地方法院刑事\\CTDM,112,訴,189,20260720,1.json",
+      "path_posix": "202607/臺灣橋頭地方法院刑事/CTDM,112,訴,189,20260720,1.json",
+      "size": 248828,
+      "sha256": "4a9863ae40bbed3a3569f0d061d37a56a57e0589424bccc58d28e0689bb331e6",
+      "crc32_expected": "E05DEA23",
+      "crc32_actual": "E05DEA23",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 137,
+      "boundary_kind_histogram": {
+        "natural": 66,
+        "exact": 3,
+        "forced": 67,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        65,
+        66,
+        67,
+        68,
+        70,
+        71,
+        72,
+        73,
+        74,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        133,
+        134,
+        135
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CTDM,114,訴,80,20260720,1",
+      "path": "202607\\臺灣橋頭地方法院刑事\\CTDM,114,訴,80,20260720,1.json",
+      "path_posix": "202607/臺灣橋頭地方法院刑事/CTDM,114,訴,80,20260720,1.json",
+      "size": 248809,
+      "sha256": "3c1be47ef0a842bddb4d7379e7a96643bc5a6ac24c5fef48fdfd4025d6cc359a",
+      "crc32_expected": "45866BB8",
+      "crc32_actual": "45866BB8",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 137,
+      "boundary_kind_histogram": {
+        "natural": 66,
+        "exact": 3,
+        "forced": 67,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        65,
+        66,
+        67,
+        68,
+        70,
+        71,
+        72,
+        73,
+        74,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        133,
+        134,
+        135
+      ],
+      "fail": null
+    },
+    {
+      "jid": "CTDV,114,訴,169,20260709,1",
+      "path": "202607\\臺灣橋頭地方法院民事\\CTDV,114,訴,169,20260709,1.json",
+      "path_posix": "202607/臺灣橋頭地方法院民事/CTDV,114,訴,169,20260709,1.json",
+      "size": 44529,
+      "sha256": "94f4e2f1bc117e59bb22efa7e050d74efc2fc09df9270f62e96d8a9d7fad6f18",
+      "crc32_expected": "328C1B7A",
+      "crc32_actual": "328C1B7A",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 23,
+      "boundary_kind_histogram": {
+        "natural": 22,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "CTDV,114,訴,1164,20260706,1",
+      "path": "202607\\臺灣橋頭地方法院民事\\CTDV,114,訴,1164,20260706,1.json",
+      "path_posix": "202607/臺灣橋頭地方法院民事/CTDV,114,訴,1164,20260706,1.json",
+      "size": 37175,
+      "sha256": "ee969e6b181e47f1639ac7c832886c96c92e490d7bef683b60c717673813b075",
+      "crc32_expected": "F1216C96",
+      "crc32_actual": "F1216C96",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 21,
+      "boundary_kind_histogram": {
+        "natural": 20,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PHDM,115,訴,35,20260731,1",
+      "path": "202607\\臺灣澎湖地方法院刑事\\PHDM,115,訴,35,20260731,1.json",
+      "path_posix": "202607/臺灣澎湖地方法院刑事/PHDM,115,訴,35,20260731,1.json",
+      "size": 61264,
+      "sha256": "3d69c85282e9c063cda451501d6984bd03088e5ef37972a1f073cdd0a81cb3b9",
+      "crc32_expected": "F1ED67B0",
+      "crc32_actual": "F1ED67B0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 32,
+      "boundary_kind_histogram": {
+        "forced": 1,
+        "natural": 29,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "PHDV,114,親,3,20260706,1",
+      "path": "202607\\臺灣澎湖地方法院民事\\PHDV,114,親,3,20260706,1.json",
+      "path_posix": "202607/臺灣澎湖地方法院民事/PHDV,114,親,3,20260706,1.json",
+      "size": 19457,
+      "sha256": "a5e3fd4517804072da72cc749aeb30207bf47c69fc0ea67af74525dfd7d75e1f",
+      "crc32_expected": "BBAECBE1",
+      "crc32_actual": "BBAECBE1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 11,
+      "boundary_kind_histogram": {
+        "natural": 9,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TCDM,110,金重訴,77,20260729,1",
+      "path": "202607\\臺灣臺中地方法院刑事\\TCDM,110,金重訴,77,20260729,1.json",
+      "path_posix": "202607/臺灣臺中地方法院刑事/TCDM,110,金重訴,77,20260729,1.json",
+      "size": 162898,
+      "sha256": "5b636a2d70849e78d812728eb7ac66dc4c83a03113f754be12f2a6a3c8637021",
+      "crc32_expected": "89F99937",
+      "crc32_actual": "89F99937",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 88,
+      "boundary_kind_histogram": {
+        "natural": 77,
+        "exact": 2,
+        "forced": 8,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        77,
+        78,
+        79,
+        80,
+        81,
+        83,
+        84,
+        85
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCDM,111,金重訴,685,20260722,2",
+      "path": "202607\\臺灣臺中地方法院刑事\\TCDM,111,金重訴,685,20260722,2.json",
+      "path_posix": "202607/臺灣臺中地方法院刑事/TCDM,111,金重訴,685,20260722,2.json",
+      "size": 158258,
+      "sha256": "9dfec876f91c08634f55a8248677fd9d99955e33a9baa47a8802554dc3620bce",
+      "crc32_expected": "0D703672",
+      "crc32_actual": "0D703672",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 88,
+      "boundary_kind_histogram": {
+        "natural": 55,
+        "forced": 29,
+        "exact": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        1,
+        2,
+        56,
+        57,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        79,
+        80,
+        83,
+        84,
+        85,
+        86
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCDV,114,勞訴,88,20260710,2",
+      "path": "202607\\臺灣臺中地方法院民事\\TCDV,114,勞訴,88,20260710,2.json",
+      "path_posix": "202607/臺灣臺中地方法院民事/TCDV,114,勞訴,88,20260710,2.json",
+      "size": 80161,
+      "sha256": "ca75b0207d2f93a9328d3990627c37872cf2a0bdc314637d6ca1bb6b809e27a8",
+      "crc32_expected": "AFA133B0",
+      "crc32_actual": "AFA133B0",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 45,
+      "boundary_kind_histogram": {
+        "natural": 43,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TCDV,113,重家繼訴,52,20260731,2",
+      "path": "202607\\臺灣臺中地方法院民事\\TCDV,113,重家繼訴,52,20260731,2.json",
+      "path_posix": "202607/臺灣臺中地方法院民事/TCDV,113,重家繼訴,52,20260731,2.json",
+      "size": 58737,
+      "sha256": "6a24fadf4d8f156308960e84e3a27ef4f373cd675b0583b15652e9265bde703e",
+      "crc32_expected": "11FB15EE",
+      "crc32_actual": "11FB15EE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 31,
+      "boundary_kind_histogram": {
+        "natural": 29,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPDM,111,金訴,45,20260729,7",
+      "path": "202607\\臺灣臺北地方法院刑事\\TPDM,111,金訴,45,20260729,7.json",
+      "path_posix": "202607/臺灣臺北地方法院刑事/TPDM,111,金訴,45,20260729,7.json",
+      "size": 262541,
+      "sha256": "5759fa43627c02310058c06ef368665201ad63aba4bd14ea050a944ce13a0375",
+      "crc32_expected": "356821C9",
+      "crc32_actual": "356821C9",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 140,
+      "boundary_kind_histogram": {
+        "natural": 117,
+        "exact": 3,
+        "forced": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        53,
+        55,
+        56,
+        58,
+        59,
+        62,
+        63,
+        66,
+        67,
+        68,
+        73,
+        77,
+        78,
+        123,
+        124,
+        125,
+        126,
+        127,
+        131
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TPDM,112,金訴,10,20260731,1",
+      "path": "202607\\臺灣臺北地方法院刑事\\TPDM,112,金訴,10,20260731,1.json",
+      "path_posix": "202607/臺灣臺北地方法院刑事/TPDM,112,金訴,10,20260731,1.json",
+      "size": 213228,
+      "sha256": "65a43cd6547e7efb08bc97f01aaeecb1ab8c8b97605e0b16d0e7eff7b89accdc",
+      "crc32_expected": "3437F680",
+      "crc32_actual": "3437F680",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 112,
+      "boundary_kind_histogram": {
+        "natural": 105,
+        "exact": 6,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPDV,109,金,24,20260731,4",
+      "path": "202607\\臺灣臺北地方法院民事\\TPDV,109,金,24,20260731,4.json",
+      "path_posix": "202607/臺灣臺北地方法院民事/TPDV,109,金,24,20260731,4.json",
+      "size": 156818,
+      "sha256": "6d785ad74e9956ca618e2526bf7af8c1380a19e0d87bf9e54c6a788b823b3092",
+      "crc32_expected": "80EC72C4",
+      "crc32_actual": "80EC72C4",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 82,
+      "boundary_kind_histogram": {
+        "natural": 77,
+        "exact": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPDV,114,重訴,619,20260708,1",
+      "path": "202607\\臺灣臺北地方法院民事\\TPDV,114,重訴,619,20260708,1.json",
+      "path_posix": "202607/臺灣臺北地方法院民事/TPDV,114,重訴,619,20260708,1.json",
+      "size": 88958,
+      "sha256": "4440935789d69c54c966c8eacd670a0e4c2e046da9af0ed2fb6eeffbfbb34f39",
+      "crc32_expected": "1806BC6C",
+      "crc32_actual": "1806BC6C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 46,
+      "boundary_kind_histogram": {
+        "natural": 45,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TNDM,114,原訴,2,20260709,18",
+      "path": "202607\\臺灣臺南地方法院刑事\\TNDM,114,原訴,2,20260709,18.json",
+      "path_posix": "202607/臺灣臺南地方法院刑事/TNDM,114,原訴,2,20260709,18.json",
+      "size": 153227,
+      "sha256": "08db8a72957deb4b2e7e8d6db47bc62dd0ba3bdeb66dd1e99646474831476342",
+      "crc32_expected": "ECEFF8A7",
+      "crc32_actual": "ECEFF8A7",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 84,
+      "boundary_kind_histogram": {
+        "natural": 41,
+        "forced": 42,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        34,
+        35,
+        36,
+        37,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        62,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        78,
+        81,
+        82
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TNDM,115,訴,1095,20260731,1",
+      "path": "202607\\臺灣臺南地方法院刑事\\TNDM,115,訴,1095,20260731,1.json",
+      "path_posix": "202607/臺灣臺南地方法院刑事/TNDM,115,訴,1095,20260731,1.json",
+      "size": 124043,
+      "sha256": "8a37ad0b35810427f9c9e2234f4b30a0e7f78086f8f29d5a398eaf93ddfc1f23",
+      "crc32_expected": "67D07793",
+      "crc32_actual": "67D07793",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 66,
+      "boundary_kind_histogram": {
+        "natural": 17,
+        "forced": 48,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        64
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TNDV,114,國,17,20260708,1",
+      "path": "202607\\臺灣臺南地方法院民事\\TNDV,114,國,17,20260708,1.json",
+      "path_posix": "202607/臺灣臺南地方法院民事/TNDV,114,國,17,20260708,1.json",
+      "size": 65968,
+      "sha256": "fc002805a2aded2bd13ebc8f510d3ccbb9de124d705d9c1a4ac24d9ca8a05cfa",
+      "crc32_expected": "8B2F0297",
+      "crc32_actual": "8B2F0297",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 36,
+      "boundary_kind_histogram": {
+        "natural": 34,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TNDV,115,消債職聲免,2,20260708,2",
+      "path": "202607\\臺灣臺南地方法院民事\\TNDV,115,消債職聲免,2,20260708,2.json",
+      "path_posix": "202607/臺灣臺南地方法院民事/TNDV,115,消債職聲免,2,20260708,2.json",
+      "size": 63766,
+      "sha256": "416baed9c7f4f6b9d09edb578acbc65cc204cfaa4e8344c8ddb18ac588148557",
+      "crc32_expected": "2B8B2D41",
+      "crc32_actual": "2B8B2D41",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 33,
+      "boundary_kind_histogram": {
+        "natural": 24,
+        "forced": 8,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        18,
+        22,
+        23,
+        24,
+        25,
+        29,
+        30,
+        31
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TTDM,115,簡,89,20260720,1",
+      "path": "202607\\臺灣臺東地方法院刑事\\TTDM,115,簡,89,20260720,1.json",
+      "path_posix": "202607/臺灣臺東地方法院刑事/TTDM,115,簡,89,20260720,1.json",
+      "size": 81257,
+      "sha256": "f7a4d3746fde134a8af0e77f262516e30dab10ef5001df539028de83530ae621",
+      "crc32_expected": "27E7F785",
+      "crc32_actual": "27E7F785",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 48,
+      "boundary_kind_histogram": {
+        "natural": 9,
+        "exact": 1,
+        "forced": 37,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        5,
+        7,
+        8,
+        9,
+        10,
+        12,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        28,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TTDM,114,侵訴,16,20260731,4",
+      "path": "202607\\臺灣臺東地方法院刑事\\TTDM,114,侵訴,16,20260731,4.json",
+      "path_posix": "202607/臺灣臺東地方法院刑事/TTDM,114,侵訴,16,20260731,4.json",
+      "size": 77898,
+      "sha256": "3e434d343f3f4418313b9cc05fc5ba321e9d7f8201a7dac43ff807b71f37cf30",
+      "crc32_expected": "6FDED618",
+      "crc32_actual": "6FDED618",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 40,
+      "boundary_kind_histogram": {
+        "natural": 30,
+        "forced": 8,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        13,
+        14,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TTDV,115,家調裁,22,20260703,1",
+      "path": "202607\\臺灣臺東地方法院民事\\TTDV,115,家調裁,22,20260703,1.json",
+      "path_posix": "202607/臺灣臺東地方法院民事/TTDV,115,家調裁,22,20260703,1.json",
+      "size": 25646,
+      "sha256": "17bafd5f730d932fda5e710fd37fd279815b2ebe45b9803fc06a1c2a5a9fda1a",
+      "crc32_expected": "13160EC2",
+      "crc32_actual": "13160EC2",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TTDV,115,家調裁,24,20260731,1",
+      "path": "202607\\臺灣臺東地方法院民事\\TTDV,115,家調裁,24,20260731,1.json",
+      "path_posix": "202607/臺灣臺東地方法院民事/TTDV,115,家調裁,24,20260731,1.json",
+      "size": 25179,
+      "sha256": "723ef0a4ab0281816edca3e3c24fb35ec3fec63d20323cf717542432bccc7090",
+      "crc32_expected": "5257EDE8",
+      "crc32_actual": "5257EDE8",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "HLDM,113,原訴,82,20260714,1",
+      "path": "202607\\臺灣花蓮地方法院刑事\\HLDM,113,原訴,82,20260714,1.json",
+      "path_posix": "202607/臺灣花蓮地方法院刑事/HLDM,113,原訴,82,20260714,1.json",
+      "size": 61470,
+      "sha256": "145172e1ee09e049539d13d6af4ff78cbbf848a23730e2b8bb9b9fad256df500",
+      "crc32_expected": "C147E261",
+      "crc32_actual": "C147E261",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 32,
+      "boundary_kind_histogram": {
+        "natural": 31,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "HLDM,114,原金訴,164,20260702,1",
+      "path": "202607\\臺灣花蓮地方法院刑事\\HLDM,114,原金訴,164,20260702,1.json",
+      "path_posix": "202607/臺灣花蓮地方法院刑事/HLDM,114,原金訴,164,20260702,1.json",
+      "size": 59704,
+      "sha256": "afbb7676779b5d3a0a6795214f174de5a82cfa4c560f6468fa6c7ee5bc3d091c",
+      "crc32_expected": "0E1D5C4B",
+      "crc32_actual": "0E1D5C4B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 33,
+      "boundary_kind_histogram": {
+        "natural": 26,
+        "exact": 1,
+        "forced": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        24,
+        25,
+        27,
+        29,
+        30
+      ],
+      "fail": null
+    },
+    {
+      "jid": "HLDV,114,原勞訴,1,20260730,1",
+      "path": "202607\\臺灣花蓮地方法院民事\\HLDV,114,原勞訴,1,20260730,1.json",
+      "path_posix": "202607/臺灣花蓮地方法院民事/HLDV,114,原勞訴,1,20260730,1.json",
+      "size": 35105,
+      "sha256": "55eb2ee5671acefb0722483ca3f504cd7c34608d2246bf341ebc6422c0aa2ee8",
+      "crc32_expected": "AB297A81",
+      "crc32_actual": "AB297A81",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 19,
+      "boundary_kind_histogram": {
+        "natural": 18,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "HLDV,112,勞訴,20,20260730,2",
+      "path": "202607\\臺灣花蓮地方法院民事\\HLDV,112,勞訴,20,20260730,2.json",
+      "path_posix": "202607/臺灣花蓮地方法院民事/HLDV,112,勞訴,20,20260730,2.json",
+      "size": 24039,
+      "sha256": "d142041559591dc3a5b11af0077c5e29c95742827035adfadceee2bd31da82fa",
+      "crc32_expected": "13D37505",
+      "crc32_actual": "13D37505",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 14,
+      "boundary_kind_histogram": {
+        "natural": 7,
+        "exact": 1,
+        "forced": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "fail": null
+    },
+    {
+      "jid": "MLDM,114,訴,705,20260724,1",
+      "path": "202607\\臺灣苗栗地方法院刑事\\MLDM,114,訴,705,20260724,1.json",
+      "path_posix": "202607/臺灣苗栗地方法院刑事/MLDM,114,訴,705,20260724,1.json",
+      "size": 57779,
+      "sha256": "10d5835da43ea11853a37636fd90e1b89c6a9594c684d816fd905c298c76328e",
+      "crc32_expected": "B4E9DD5A",
+      "crc32_actual": "B4E9DD5A",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 30,
+      "boundary_kind_histogram": {
+        "natural": 28,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "MLDM,114,訴,504,20260716,1",
+      "path": "202607\\臺灣苗栗地方法院刑事\\MLDM,114,訴,504,20260716,1.json",
+      "path_posix": "202607/臺灣苗栗地方法院刑事/MLDM,114,訴,504,20260716,1.json",
+      "size": 55620,
+      "sha256": "611f5bc476882fa3d2ae74a38fbe4b46dd90b983b199eb120169b39b9b8bc9f9",
+      "crc32_expected": "FC8C86BF",
+      "crc32_actual": "FC8C86BF",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 28,
+      "boundary_kind_histogram": {
+        "natural": 24,
+        "exact": 1,
+        "forced": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        25,
+        26
+      ],
+      "fail": null
+    },
+    {
+      "jid": "MLDV,113,國,2,20260713,2",
+      "path": "202607\\臺灣苗栗地方法院民事\\MLDV,113,國,2,20260713,2.json",
+      "path_posix": "202607/臺灣苗栗地方法院民事/MLDV,113,國,2,20260713,2.json",
+      "size": 107789,
+      "sha256": "22add19eda90fa1765dc354cb3860dbd77fc19ca23cbae8e9e0b93b551e835c1",
+      "crc32_expected": "B945CB71",
+      "crc32_actual": "B945CB71",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 60,
+      "boundary_kind_histogram": {
+        "natural": 37,
+        "exact": 2,
+        "forced": 20,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        50,
+        51,
+        52,
+        53,
+        55
+      ],
+      "fail": null
+    },
+    {
+      "jid": "MLDV,113,簡上,87,20260715,1",
+      "path": "202607\\臺灣苗栗地方法院民事\\MLDV,113,簡上,87,20260715,1.json",
+      "path_posix": "202607/臺灣苗栗地方法院民事/MLDV,113,簡上,87,20260715,1.json",
+      "size": 45033,
+      "sha256": "cb8501246d477a0fbcdb67ed13a86701952f0b1b8dda0499025106beaaadead3",
+      "crc32_expected": "3D68E1E6",
+      "crc32_actual": "3D68E1E6",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 24,
+      "boundary_kind_histogram": {
+        "natural": 20,
+        "forced": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        18,
+        19,
+        20
+      ],
+      "fail": null
+    },
+    {
+      "jid": "ULDM,114,訴,948,20260715,2",
+      "path": "202607\\臺灣雲林地方法院刑事\\ULDM,114,訴,948,20260715,2.json",
+      "path_posix": "202607/臺灣雲林地方法院刑事/ULDM,114,訴,948,20260715,2.json",
+      "size": 282487,
+      "sha256": "30680db8a3c3b772dca299ee9c028c8c7d4719c497001d7d8ae3e0435d20db3f",
+      "crc32_expected": "DF3078E2",
+      "crc32_actual": "DF3078E2",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 152,
+      "boundary_kind_histogram": {
+        "natural": 144,
+        "exact": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "ULDM,114,原訴,21,20260715,2",
+      "path": "202607\\臺灣雲林地方法院刑事\\ULDM,114,原訴,21,20260715,2.json",
+      "path_posix": "202607/臺灣雲林地方法院刑事/ULDM,114,原訴,21,20260715,2.json",
+      "size": 282347,
+      "sha256": "952227d2f67971e803211d02bed6a746ce0c47f4a596ad05eca1ee02b78a21ff",
+      "crc32_expected": "06CE39D1",
+      "crc32_actual": "06CE39D1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 152,
+      "boundary_kind_histogram": {
+        "natural": 147,
+        "exact": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "ULDV,114,簡上,55,20260715,1",
+      "path": "202607\\臺灣雲林地方法院民事\\ULDV,114,簡上,55,20260715,1.json",
+      "path_posix": "202607/臺灣雲林地方法院民事/ULDV,114,簡上,55,20260715,1.json",
+      "size": 72630,
+      "sha256": "3eb54d4a98596712a057b3f6273504cfd2a1b3278a033d2cf16c0c4b57568dc8",
+      "crc32_expected": "531C10BB",
+      "crc32_actual": "531C10BB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 40,
+      "boundary_kind_histogram": {
+        "natural": 39,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "ULDV,114,重訴,50,20260717,6",
+      "path": "202607\\臺灣雲林地方法院民事\\ULDV,114,重訴,50,20260717,6.json",
+      "path_posix": "202607/臺灣雲林地方法院民事/ULDV,114,重訴,50,20260717,6.json",
+      "size": 41627,
+      "sha256": "780b31f3852e0860e88799fc25419ce935d3954aace831a21c13a8eacc35b6c9",
+      "crc32_expected": "6A52379B",
+      "crc32_actual": "6A52379B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 23,
+      "boundary_kind_histogram": {
+        "natural": 22,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPHA,115,訴願,13,20260707,1",
+      "path": "202607\\臺灣高等法院--訴願決定\\TPHA,115,訴願,13,20260707,1.json",
+      "path_posix": "202607/臺灣高等法院--訴願決定/TPHA,115,訴願,13,20260707,1.json",
+      "size": 4964,
+      "sha256": "63f5e2c86c9e4806686f5721db8fe2c1aaa1d12638398ba6ccba7a7bf0f6149a",
+      "crc32_expected": "151AA1A1",
+      "crc32_actual": "151AA1A1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 3,
+      "boundary_kind_histogram": {
+        "natural": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPHM,111,金上重訴,42,20260717,10",
+      "path": "202607\\臺灣高等法院刑事\\TPHM,111,金上重訴,42,20260717,10.json",
+      "path_posix": "202607/臺灣高等法院刑事/TPHM,111,金上重訴,42,20260717,10.json",
+      "size": 777963,
+      "sha256": "793540984ac6e4c1af8489f661bd62361e4200601f2c9bd4dc165bb753c0e5ec",
+      "crc32_expected": "0E77015B",
+      "crc32_actual": "0E77015B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 429,
+      "boundary_kind_histogram": {
+        "exact": 18,
+        "natural": 410,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPHM,114,侵上訴,331,20260701,1",
+      "path": "202607\\臺灣高等法院刑事\\TPHM,114,侵上訴,331,20260701,1.json",
+      "path_posix": "202607/臺灣高等法院刑事/TPHM,114,侵上訴,331,20260701,1.json",
+      "size": 265000,
+      "sha256": "5748495d537cda4db087de3d6a3c629769271d3371753d01b6ce559a22479265",
+      "crc32_expected": "216CF20D",
+      "crc32_actual": "216CF20D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 146,
+      "boundary_kind_histogram": {
+        "natural": 88,
+        "exact": 6,
+        "forced": 51,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        75,
+        76,
+        79,
+        80,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        143,
+        144
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TPHV,112,消上,10,20260728,2",
+      "path": "202607\\臺灣高等法院民事\\TPHV,112,消上,10,20260728,2.json",
+      "path_posix": "202607/臺灣高等法院民事/TPHV,112,消上,10,20260728,2.json",
+      "size": 300095,
+      "sha256": "e2747584bdd608db7ec8fc27511c58b31292aabc59db00636f89efa4cfad8c48",
+      "crc32_expected": "007505A8",
+      "crc32_actual": "007505A8",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 173,
+      "boundary_kind_histogram": {
+        "natural": 162,
+        "exact": 10,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "TPHV,114,重上,495,20260721,1",
+      "path": "202607\\臺灣高等法院民事\\TPHV,114,重上,495,20260721,1.json",
+      "path_posix": "202607/臺灣高等法院民事/TPHV,114,重上,495,20260721,1.json",
+      "size": 152415,
+      "sha256": "52bdbf319cc580cd86971b444a704f1396facef7841039ecaa7d24963f7d1016",
+      "crc32_expected": "CED6683C",
+      "crc32_actual": "CED6683C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 86,
+      "boundary_kind_histogram": {
+        "natural": 80,
+        "exact": 2,
+        "forced": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        40,
+        42,
+        84
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCHM,114,上訴,1363,20260721,1",
+      "path": "202607\\臺灣高等法院臺中分院刑事\\TCHM,114,上訴,1363,20260721,1.json",
+      "path_posix": "202607/臺灣高等法院臺中分院刑事/TCHM,114,上訴,1363,20260721,1.json",
+      "size": 225353,
+      "sha256": "9d975f71713a2f5cbde638711b2f9d0fc956b621e4897e605ad27db9d9792b5c",
+      "crc32_expected": "74175622",
+      "crc32_actual": "74175622",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 126,
+      "boundary_kind_histogram": {
+        "natural": 103,
+        "exact": 3,
+        "forced": 19,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        109,
+        110,
+        113,
+        115,
+        118,
+        119,
+        121,
+        123,
+        124
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCHM,115,金上訴,1097,20260721,1",
+      "path": "202607\\臺灣高等法院臺中分院刑事\\TCHM,115,金上訴,1097,20260721,1.json",
+      "path_posix": "202607/臺灣高等法院臺中分院刑事/TCHM,115,金上訴,1097,20260721,1.json",
+      "size": 127212,
+      "sha256": "e3294501e9fa66187218327fa5b3a2ffe41d2325f10c62bb9866963236b689fd",
+      "crc32_expected": "FF12DE3D",
+      "crc32_actual": "FF12DE3D",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 72,
+      "boundary_kind_histogram": {
+        "natural": 26,
+        "forced": 45,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        4,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TCHV,110,建上,54,20260715,1",
+      "path": "202607\\臺灣高等法院臺中分院民事\\TCHV,110,建上,54,20260715,1.json",
+      "path_posix": "202607/臺灣高等法院臺中分院民事/TCHV,110,建上,54,20260715,1.json",
+      "size": 122793,
+      "sha256": "3a3cf788686db539e9a5d56faf9f3d5f52a11c012c9dabf0d9264e2a8505ab36",
+      "crc32_expected": "014294AE",
+      "crc32_actual": "014294AE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 66,
+      "boundary_kind_histogram": {
+        "natural": 61,
+        "exact": 3,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        64
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TNHM,114,金上訴,2577,20260729,4",
+      "path": "202607\\臺灣高等法院臺南分院刑事\\TNHM,114,金上訴,2577,20260729,4.json",
+      "path_posix": "202607/臺灣高等法院臺南分院刑事/TNHM,114,金上訴,2577,20260729,4.json",
+      "size": 212283,
+      "sha256": "6b0b3f9ea47d9ded970bafff005b627a3f81e600688cc325db4b6b8d0a75be07",
+      "crc32_expected": "6D14FC03",
+      "crc32_actual": "6D14FC03",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 111,
+      "boundary_kind_histogram": {
+        "natural": 60,
+        "exact": 2,
+        "forced": 48,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        35,
+        36,
+        37,
+        39,
+        40,
+        42,
+        43,
+        45,
+        46,
+        47,
+        49,
+        51,
+        53,
+        54,
+        55,
+        57,
+        58,
+        60,
+        61,
+        62,
+        64,
+        67,
+        68,
+        70,
+        71,
+        73,
+        77,
+        79,
+        81,
+        83,
+        84,
+        85,
+        88,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        100,
+        102,
+        103,
+        104,
+        108,
+        109
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TNHM,114,金上訴,2578,20260729,6",
+      "path": "202607\\臺灣高等法院臺南分院刑事\\TNHM,114,金上訴,2578,20260729,6.json",
+      "path_posix": "202607/臺灣高等法院臺南分院刑事/TNHM,114,金上訴,2578,20260729,6.json",
+      "size": 212280,
+      "sha256": "c69f54851604861dbcc7df700cffc1e4e82380419601b630a2c8f14d863aae0a",
+      "crc32_expected": "3818DD63",
+      "crc32_actual": "3818DD63",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 111,
+      "boundary_kind_histogram": {
+        "natural": 60,
+        "exact": 2,
+        "forced": 48,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        35,
+        36,
+        37,
+        39,
+        40,
+        42,
+        43,
+        45,
+        46,
+        47,
+        49,
+        51,
+        53,
+        54,
+        55,
+        57,
+        58,
+        60,
+        61,
+        62,
+        64,
+        67,
+        68,
+        70,
+        71,
+        73,
+        77,
+        79,
+        81,
+        83,
+        84,
+        85,
+        88,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        100,
+        102,
+        103,
+        104,
+        108,
+        109
+      ],
+      "fail": null
+    },
+    {
+      "jid": "TNHV,114,重勞上,3,20260729,1",
+      "path": "202607\\臺灣高等法院臺南分院民事\\TNHV,114,重勞上,3,20260729,1.json",
+      "path_posix": "202607/臺灣高等法院臺南分院民事/TNHV,114,重勞上,3,20260729,1.json",
+      "size": 117650,
+      "sha256": "9c8f58f19281a657db66ad80e7e4f5a8b0996ce942774141803d2e384bbae1da",
+      "crc32_expected": "664DCC5A",
+      "crc32_actual": "664DCC5A",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 63,
+      "boundary_kind_histogram": {
+        "natural": 57,
+        "exact": 3,
+        "forced": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        58,
+        61
+      ],
+      "fail": null
+    },
+    {
+      "jid": "HLHM,111,上訴,61,20260730,1",
+      "path": "202607\\臺灣高等法院花蓮分院刑事\\HLHM,111,上訴,61,20260730,1.json",
+      "path_posix": "202607/臺灣高等法院花蓮分院刑事/HLHM,111,上訴,61,20260730,1.json",
+      "size": 128368,
+      "sha256": "d6c74a50c527208e1afd37070505a6c03fdeea6555e68a740e19e32e16cef0a9",
+      "crc32_expected": "BCF6743F",
+      "crc32_actual": "BCF6743F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 68,
+      "boundary_kind_histogram": {
+        "natural": 66,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "HLHV,112,上,24,20260724,1",
+      "path": "202607\\臺灣高等法院花蓮分院民事\\HLHV,112,上,24,20260724,1.json",
+      "path_posix": "202607/臺灣高等法院花蓮分院民事/HLHV,112,上,24,20260724,1.json",
+      "size": 98437,
+      "sha256": "1de00ef94c1fc56e0b2b5a811fbb49ac2656545c64dba61db70fc46d9b687968",
+      "crc32_expected": "2DE89E51",
+      "crc32_actual": "2DE89E51",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 54,
+      "boundary_kind_histogram": {
+        "natural": 52,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSHM,112,金上重訴,5,20260714,11",
+      "path": "202607\\臺灣高等法院高雄分院刑事\\KSHM,112,金上重訴,5,20260714,11.json",
+      "path_posix": "202607/臺灣高等法院高雄分院刑事/KSHM,112,金上重訴,5,20260714,11.json",
+      "size": 349791,
+      "sha256": "f7a2ae877e2cc54887a2af4b4e4593c69b98dfb3edcdc04c6b9f9c8af0c6874b",
+      "crc32_expected": "729A921B",
+      "crc32_actual": "729A921B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 184,
+      "boundary_kind_histogram": {
+        "natural": 176,
+        "exact": 3,
+        "forced": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        179,
+        180,
+        181,
+        182
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSHM,114,上重訴,2,20260728,1",
+      "path": "202607\\臺灣高等法院高雄分院刑事\\KSHM,114,上重訴,2,20260728,1.json",
+      "path_posix": "202607/臺灣高等法院高雄分院刑事/KSHM,114,上重訴,2,20260728,1.json",
+      "size": 119842,
+      "sha256": "71a41984455609cd116f4c7e233c8d8def43361202db4204b9269fb619c4aae0",
+      "crc32_expected": "75B69BBE",
+      "crc32_actual": "75B69BBE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 66,
+      "boundary_kind_histogram": {
+        "natural": 62,
+        "exact": 1,
+        "forced": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        59,
+        62
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSHV,114,金上更一,3,20260715,2",
+      "path": "202607\\臺灣高等法院高雄分院民事\\KSHV,114,金上更一,3,20260715,2.json",
+      "path_posix": "202607/臺灣高等法院高雄分院民事/KSHV,114,金上更一,3,20260715,2.json",
+      "size": 94731,
+      "sha256": "aa601a7b0b2fd8871cade3a56bf9f354994c20605ca17b3da1e0c9b74a580c56",
+      "crc32_expected": "654846F1",
+      "crc32_actual": "654846F1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 51,
+      "boundary_kind_histogram": {
+        "natural": 47,
+        "exact": 2,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        49
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSDM,113,金重訴,6,20260731,4",
+      "path": "202607\\臺灣高雄地方法院刑事\\KSDM,113,金重訴,6,20260731,4.json",
+      "path_posix": "202607/臺灣高雄地方法院刑事/KSDM,113,金重訴,6,20260731,4.json",
+      "size": 363376,
+      "sha256": "d01d055379e7c74c7ad70caefbeeefd1146589236f818e10130a99687f92aabf",
+      "crc32_expected": "6EF2AACB",
+      "crc32_actual": "6EF2AACB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 194,
+      "boundary_kind_histogram": {
+        "natural": 186,
+        "exact": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSDM,113,金訴,287,20260721,1",
+      "path": "202607\\臺灣高雄地方法院刑事\\KSDM,113,金訴,287,20260721,1.json",
+      "path_posix": "202607/臺灣高雄地方法院刑事/KSDM,113,金訴,287,20260721,1.json",
+      "size": 362835,
+      "sha256": "48f228a1673253edace367f881bfadd2e5dfcb84c9cb5c4b96bcbea7be1cb64c",
+      "crc32_expected": "EA5CF31F",
+      "crc32_actual": "EA5CF31F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 197,
+      "boundary_kind_histogram": {
+        "exact": 4,
+        "natural": 126,
+        "forced": 66,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        80,
+        82,
+        83,
+        84,
+        85,
+        87,
+        88,
+        89,
+        90,
+        91,
+        94,
+        96,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        179,
+        181,
+        182,
+        183,
+        184,
+        186,
+        187,
+        188,
+        189,
+        190,
+        193,
+        195
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSDV,111,訴,1288,20260713,1",
+      "path": "202607\\臺灣高雄地方法院民事\\KSDV,111,訴,1288,20260713,1.json",
+      "path_posix": "202607/臺灣高雄地方法院民事/KSDV,111,訴,1288,20260713,1.json",
+      "size": 163124,
+      "sha256": "232a26fd91c86da6f3b437f414853fee0d95d5ec0b19c14769220ae32627c400",
+      "crc32_expected": "8CC6D380",
+      "crc32_actual": "8CC6D380",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 83,
+      "boundary_kind_histogram": {
+        "natural": 78,
+        "exact": 4,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSDV,115,簡,8,20260724,1",
+      "path": "202607\\臺灣高雄地方法院民事\\KSDV,115,簡,8,20260724,1.json",
+      "path_posix": "202607/臺灣高雄地方法院民事/KSDV,115,簡,8,20260724,1.json",
+      "size": 83036,
+      "sha256": "4c0b190d629530c20501b819f8f9459859d0dc284f859a76ebd7e17ae4d23b95",
+      "crc32_expected": "299A45CC",
+      "crc32_actual": "299A45CC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 43,
+      "boundary_kind_histogram": {
+        "natural": 37,
+        "exact": 2,
+        "forced": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        39,
+        40,
+        41
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSYV,114,家繼訴,8,20260703,1",
+      "path": "202607\\臺灣高雄少年及家事法院民事\\KSYV,114,家繼訴,8,20260703,1.json",
+      "path_posix": "202607/臺灣高雄少年及家事法院民事/KSYV,114,家繼訴,8,20260703,1.json",
+      "size": 45420,
+      "sha256": "6c9372de593b1c970955c7c13d945f2a9bba23ed87157126dda30403afc5d499",
+      "crc32_expected": "767E8EAE",
+      "crc32_actual": "767E8EAE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 25,
+      "boundary_kind_histogram": {
+        "natural": 22,
+        "exact": 1,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        23
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSYV,113,家親聲,499,20260731,1",
+      "path": "202607\\臺灣高雄少年及家事法院民事\\KSYV,113,家親聲,499,20260731,1.json",
+      "path_posix": "202607/臺灣高雄少年及家事法院民事/KSYV,113,家親聲,499,20260731,1.json",
+      "size": 44417,
+      "sha256": "351849bc55948156f1bb2f0144efb2cdffd9e60e2b178e4956cbf04186384d5d",
+      "crc32_expected": "2D7C5520",
+      "crc32_actual": "2D7C5520",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 26,
+      "boundary_kind_histogram": {
+        "natural": 18,
+        "exact": 1,
+        "forced": 6,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        13,
+        15,
+        17,
+        19,
+        21,
+        23
+      ],
+      "fail": null
+    },
+    {
+      "jid": "HLEV,114,花簡,7,20260717,1",
+      "path": "202607\\花蓮簡易庭(含玉里)民事\\HLEV,114,花簡,7,20260717,1.json",
+      "path_posix": "202607/花蓮簡易庭(含玉里)民事/HLEV,114,花簡,7,20260717,1.json",
+      "size": 30145,
+      "sha256": "b7e570d860c0ec7661fcb3efd97d7e2f48e3937e985ca990a2243ef92a38df84",
+      "crc32_expected": "5B7D6641",
+      "crc32_actual": "5B7D6641",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 17,
+      "boundary_kind_histogram": {
+        "natural": 15,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        15
+      ],
+      "fail": null
+    },
+    {
+      "jid": "HUEV,115,虎簡,20,20260731,1",
+      "path": "202607\\虎尾簡易庭民事\\HUEV,115,虎簡,20,20260731,1.json",
+      "path_posix": "202607/虎尾簡易庭民事/HUEV,115,虎簡,20,20260731,1.json",
+      "size": 11199,
+      "sha256": "85113f8394297a2c1b5aa0d3630db50c0a9b5e90dc9deebfd9baa8955cdb768e",
+      "crc32_expected": "E47C1DAE",
+      "crc32_actual": "E47C1DAE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 6,
+      "boundary_kind_histogram": {
+        "natural": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "FYEM,115,豐簡,201,20260731,1",
+      "path": "202607\\豐原簡易庭刑事\\FYEM,115,豐簡,201,20260731,1.json",
+      "path_posix": "202607/豐原簡易庭刑事/FYEM,115,豐簡,201,20260731,1.json",
+      "size": 10214,
+      "sha256": "0a94ca6f0d2a5a1eda80dc0a483e5ab8b77f17ba5ede137c51ac9421c5be498f",
+      "crc32_expected": "B6F2D005",
+      "crc32_actual": "B6F2D005",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 6,
+      "boundary_kind_histogram": {
+        "natural": 5,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "FYEV,115,豐簡,33,20260723,1",
+      "path": "202607\\豐原簡易庭民事\\FYEV,115,豐簡,33,20260723,1.json",
+      "path_posix": "202607/豐原簡易庭民事/FYEV,115,豐簡,33,20260723,1.json",
+      "size": 38798,
+      "sha256": "dc602a01f5a8d24f240fc4a02b22ecc006ca37c466d462f97a5178d1b55b7687",
+      "crc32_expected": "0A8974B1",
+      "crc32_actual": "0A8974B1",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 23,
+      "boundary_kind_histogram": {
+        "natural": 17,
+        "exact": 2,
+        "forced": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        18,
+        20,
+        21
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KMEM,115,城簡,52,20260731,1",
+      "path": "202607\\金城簡易庭刑事\\KMEM,115,城簡,52,20260731,1.json",
+      "path_posix": "202607/金城簡易庭刑事/KMEM,115,城簡,52,20260731,1.json",
+      "size": 25263,
+      "sha256": "c8349819c3af5a6634e046808a30d65761923e3a69c476a0ad33436da20d991d",
+      "crc32_expected": "93AD9F32",
+      "crc32_actual": "93AD9F32",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 13,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KMEV,115,城簡,1,20260709,1",
+      "path": "202607\\金城簡易庭民事\\KMEV,115,城簡,1,20260709,1.json",
+      "path_posix": "202607/金城簡易庭民事/KMEV,115,城簡,1,20260709,1.json",
+      "size": 12954,
+      "sha256": "2875eef66bc84c497ab8a6570d6d9e3c6e980dabf51ab7940b83417efda6fcb8",
+      "crc32_expected": "63FB8F08",
+      "crc32_actual": "63FB8F08",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 7,
+      "boundary_kind_histogram": {
+        "natural": 6,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "MKEM,114,馬金簡,126,20260710,1",
+      "path": "202607\\馬公簡易庭刑事\\MKEM,114,馬金簡,126,20260710,1.json",
+      "path_posix": "202607/馬公簡易庭刑事/MKEM,114,馬金簡,126,20260710,1.json",
+      "size": 19793,
+      "sha256": "5ec7e7774fb3bb874d5ab89d375b95f6ce5405ddf23b5ce553d6f571b4048f1b",
+      "crc32_expected": "272414DB",
+      "crc32_actual": "272414DB",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 11,
+      "boundary_kind_histogram": {
+        "natural": 8,
+        "exact": 1,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        9
+      ],
+      "fail": null
+    },
+    {
+      "jid": "MKEV,115,馬簡,34,20260714,1",
+      "path": "202607\\馬公簡易庭民事\\MKEV,115,馬簡,34,20260714,1.json",
+      "path_posix": "202607/馬公簡易庭民事/MKEV,115,馬簡,34,20260714,1.json",
+      "size": 14205,
+      "sha256": "c2fdf98c0903f55a4bc6cfad447dfa0260ca071f66e2ff743c48b433a91de60b",
+      "crc32_expected": "A07984EE",
+      "crc32_actual": "A07984EE",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 8,
+      "boundary_kind_histogram": {
+        "natural": 7,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSEM,115,雄秩,151,20260727,1",
+      "path": "202607\\高雄簡易庭刑事\\KSEM,115,雄秩,151,20260727,1.json",
+      "path_posix": "202607/高雄簡易庭刑事/KSEM,115,雄秩,151,20260727,1.json",
+      "size": 7133,
+      "sha256": "aea7d0deadbbdb0b32dfda552ce6fbe17c71f966844c32ce34c27a3c3545127a",
+      "crc32_expected": "4130369C",
+      "crc32_actual": "4130369C",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSEV,114,雄簡,1162,20260710,2",
+      "path": "202607\\高雄簡易庭民事\\KSEV,114,雄簡,1162,20260710,2.json",
+      "path_posix": "202607/高雄簡易庭民事/KSEV,114,雄簡,1162,20260710,2.json",
+      "size": 29751,
+      "sha256": "00eb3dc437ef65ae36d38520bd51d0e7d14991814dccb1ab8739ae3ff4ba32c7",
+      "crc32_expected": "1E59BB9F",
+      "crc32_actual": "1E59BB9F",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 18,
+      "boundary_kind_histogram": {
+        "natural": 16,
+        "forced": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        16
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSEV,114,雄簡,159,20260710,1",
+      "path": "202607\\高雄簡易庭民事\\KSEV,114,雄簡,159,20260710,1.json",
+      "path_posix": "202607/高雄簡易庭民事/KSEV,114,雄簡,159,20260710,1.json",
+      "size": 29700,
+      "sha256": "42ba139b98f179833aa7df8ab95f98e1a0956860ee932b909e78f4c8754a9bfb",
+      "crc32_expected": "7F906833",
+      "crc32_actual": "7F906833",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 16,
+      "boundary_kind_histogram": {
+        "natural": 14,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSTA,114,交,704,20260730,2",
+      "path": "202607\\高雄高等行政法院 地方庭行政\\KSTA,114,交,704,20260730,2.json",
+      "path_posix": "202607/高雄高等行政法院 地方庭行政/KSTA,114,交,704,20260730,2.json",
+      "size": 41645,
+      "sha256": "8af2843c46d7a9645602105d70f5a888acb252ef6d97abff2e6b9b33d1727083",
+      "crc32_expected": "4555E288",
+      "crc32_actual": "4555E288",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 24,
+      "boundary_kind_histogram": {
+        "natural": 12,
+        "exact": 1,
+        "forced": 10,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21
+      ],
+      "fail": null
+    },
+    {
+      "jid": "KSTA,114,地訴,83,20260728,1",
+      "path": "202607\\高雄高等行政法院 地方庭行政\\KSTA,114,地訴,83,20260728,1.json",
+      "path_posix": "202607/高雄高等行政法院 地方庭行政/KSTA,114,地訴,83,20260728,1.json",
+      "size": 40263,
+      "sha256": "ded16f6c291b886e1b5423dee7c45781d63c6f379927ffbcf33a0f19075422fb",
+      "crc32_expected": "22A1EF57",
+      "crc32_actual": "22A1EF57",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 21,
+      "boundary_kind_histogram": {
+        "natural": 20,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "KSBA,113,訴更二,19,20260721,1",
+      "path": "202607\\高雄高等行政法院行政\\KSBA,113,訴更二,19,20260721,1.json",
+      "path_posix": "202607/高雄高等行政法院行政/KSBA,113,訴更二,19,20260721,1.json",
+      "size": 95464,
+      "sha256": "1d89b27c720d1d823b6e49f7cb1e429dd9f0c15dffd208c9cfe11bfdfa3dc7f8",
+      "crc32_expected": "3451A82B",
+      "crc32_actual": "3451A82B",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 50,
+      "boundary_kind_histogram": {
+        "natural": 47,
+        "exact": 2,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "FSEM,115,鳳秩,22,20260706,1",
+      "path": "202607\\鳳山簡易庭刑事\\FSEM,115,鳳秩,22,20260706,1.json",
+      "path_posix": "202607/鳳山簡易庭刑事/FSEM,115,鳳秩,22,20260706,1.json",
+      "size": 6480,
+      "sha256": "88030d018a27b27294e8d7a1c9fa91cee43917a91f2c20edf941a5d04282fec9",
+      "crc32_expected": "5DBFCF97",
+      "crc32_actual": "5DBFCF97",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 4,
+      "boundary_kind_histogram": {
+        "natural": 3,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    },
+    {
+      "jid": "FSEV,115,鳳簡,179,20260730,1",
+      "path": "202607\\鳳山簡易庭民事\\FSEV,115,鳳簡,179,20260730,1.json",
+      "path_posix": "202607/鳳山簡易庭民事/FSEV,115,鳳簡,179,20260730,1.json",
+      "size": 16833,
+      "sha256": "ea37b73b339127bafa49f5b3f2ff9449a75fd67d7585db800fb4609f8f2bcef4",
+      "crc32_expected": "1D5456DC",
+      "crc32_actual": "1D5456DC",
+      "stages": {
+        "extracted": true,
+        "size_crc_ok": true,
+        "schema_valid": true,
+        "chunked": true
+      },
+      "chunk_count": 9,
+      "boundary_kind_histogram": {
+        "natural": 7,
+        "exact": 1,
+        "tail": 1
+      },
+      "forced_break_chunk_indexes": [],
+      "fail": null
+    }
+  ],
+  "frozen_corpus": {
+    "seed_tree_sha256": "e8a7275bdcd1a939e8a2747741b139b8ffb150b2d16d5642a0a6c066765569bd",
+    "external_snapshot": {
+      "pattern": "<ARTIFACTS_ROOT>/t007e05cb/out/corpus_snapshot.json",
+      "present": false,
+      "sha256": null
+    }
+  }
+}

@@ -299,6 +299,44 @@ STAGES = ("extracted", "size_crc_ok", "schema_valid", "chunked")
 PROFILE_RAW_SUBDIR = "raw"
 
 
+def _verify_stratified(entries, al, frozen, court_of, jid_of) -> list[str]:
+    """`stratified_by_court_dir` 的對庫層自檢（200 卷用）。
+
+    **規則不同，故重算方式不同**：這個方法的配額是「每目錄保底 1，
+    剩餘按容量比例、上限 5」，不是 size 降冪。配額的計算函式住在
+    `agent/scripts/sample_stratified_200.py`（產生器），本模組**不重複實作**
+    （同一規則寫兩份就是兩種答案，2026-10-10 實測已踩過）。
+
+    故此處只做**與規則無關**的檢查：每筆的 path 存在、`unpacked_size` 與
+    `crc32` 相符、總筆數一致。**規則本身的復現由產生器負責**
+    （`sample_stratified_200.py` 重跑後 `entries_sha256` 必須相同）。
+    """
+    problems: list[str] = []
+    by_path = {e.path: e for e in entries}
+    if len(al.entries) != al.count:
+        problems.append(f"entries 筆數 {len(al.entries)} != count {al.count}")
+    for i, want in enumerate(al.entries):
+        got = by_path.get(want.path)
+        if got is None:
+            problems.append(f"entries[{i}] 在 archive 中不存在：{want.path}")
+            continue
+        if got.unpacked_size != want.unpacked_size:
+            problems.append(
+                f"entries[{i}] unpacked_size 不符：{want.unpacked_size} != "
+                f"{got.unpacked_size}"
+            )
+        got_crc = "%08X" % got.crc32
+        if got_crc != want.crc32:
+            problems.append(
+                f"entries[{i}] crc32 不符：allowlist {want.crc32} != archive {got_crc}"
+            )
+    # 凍結語料不得混入（憲法 X：不得擴大到 B2/B3/B4 的凍結檔案）。
+    for i, want in enumerate(al.entries):
+        if jid_of(want.path) in frozen:
+            problems.append(f"entries[{i}] 命中凍結語料：{jid_of(want.path)}")
+    return problems
+
+
 def verify_selection_against_archive(
     al: Allowlist, archive: Path | None = None
 ) -> list[str]:
@@ -323,6 +361,7 @@ def verify_selection_against_archive(
     entries = [e for e in _inventory.inventory(arch) if not e.is_dir]
     want_courts = set(al.selection.get("courts", []))
     frozen = set(al.excluded_frozen)
+    method = al.selection.get("method", "")
 
     def court_of(p: str) -> str:
         parts = _selection.forward_slash(p).split("/")
@@ -330,6 +369,12 @@ def verify_selection_against_archive(
 
     def jid_of(p: str) -> str:
         return _selection.forward_slash(p).rsplit("/", 1)[-1][:-len(".json")]
+
+    # ⚠ **選樣規則必須與清單宣告的一致**，否則重算等於在用錯的規則比對。
+    # 兩條規則的產出完全不同（size 降冪 vs 每目錄保底 1 + 容量比例配額），
+    # 拿錯規則重算會得到假的「清單已漂移」——2026-10-10 實測。
+    if method == "stratified_by_court_dir":
+        return _verify_stratified(entries, al, frozen, court_of, jid_of)
 
     pool = [
         e
