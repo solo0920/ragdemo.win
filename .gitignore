@@ -100,3 +100,4 @@ data/.ops/
 # age-keygen -o 寫到 repo 內」。真正的防線是 §11 的步驟 2（絕不重建）。
 keys.txt
 *.keys.txt
+data/judgements/
