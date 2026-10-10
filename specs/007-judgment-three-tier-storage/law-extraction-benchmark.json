@@ -1,0 +1,5713 @@
+{
+ "baseline": "整份原文依序掃描 + 縮寫表",
+ "chunkers": [
+  "ingest/judgements/chunk.py (M1 frozen)",
+  "v2 structure split max_chars=800"
+ ],
+ "documents": 100,
+ "documents_with_articles": 99,
+ "baseline_total_articles": 2017,
+ "per_document": [
+  {
+   "jid": "TPDV,109,金,24,20260731,4",
+   "baseline": 51,
+   "chunks_m1": 82,
+   "m1.chunk": [
+    38,
+    13,
+    5
+   ],
+   "m1.chunk_ab": [
+    45,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    43,
+    8,
+    9
+   ],
+   "m1.ordered_ab": [
+    49,
+    2,
+    0
+   ],
+   "chunks_v2": 100,
+   "parents_present": 42,
+   "v2.chunk": [
+    38,
+    13,
+    10
+   ],
+   "v2.chunk_ab": [
+    41,
+    10,
+    6
+   ],
+   "v2.ordered": [
+    42,
+    9,
+    14
+   ],
+   "v2.ordered_ab": [
+    43,
+    8,
+    6
+   ],
+   "v2.parent": [
+    41,
+    10,
+    14
+   ],
+   "v2.parent_ab": [
+    42,
+    9,
+    8
+   ]
+  },
+  {
+   "jid": "PCDV,111,原訴,15,20260731,1",
+   "baseline": 14,
+   "chunks_m1": 67,
+   "m1.chunk": [
+    12,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    14,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    14,
+    0,
+    0
+   ],
+   "chunks_v2": 29,
+   "parents_present": 10,
+   "v2.chunk": [
+    13,
+    1,
+    0
+   ],
+   "v2.chunk_ab": [
+    13,
+    1,
+    0
+   ],
+   "v2.ordered": [
+    14,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    14,
+    0,
+    0
+   ],
+   "v2.parent": [
+    13,
+    1,
+    0
+   ],
+   "v2.parent_ab": [
+    13,
+    1,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,114,訴,2226,20260720,1",
+   "baseline": 23,
+   "chunks_m1": 56,
+   "m1.chunk": [
+    22,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    22,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    1,
+    0
+   ],
+   "chunks_v2": 70,
+   "parents_present": 21,
+   "v2.chunk": [
+    22,
+    1,
+    1
+   ],
+   "v2.chunk_ab": [
+    22,
+    1,
+    1
+   ],
+   "v2.ordered": [
+    22,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    22,
+    1,
+    1
+   ],
+   "v2.parent": [
+    22,
+    1,
+    1
+   ],
+   "v2.parent_ab": [
+    22,
+    1,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,重訴,619,20260708,1",
+   "baseline": 32,
+   "chunks_m1": 46,
+   "m1.chunk": [
+    26,
+    6,
+    0
+   ],
+   "m1.chunk_ab": [
+    26,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    31,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    31,
+    1,
+    0
+   ],
+   "chunks_v2": 51,
+   "parents_present": 8,
+   "v2.chunk": [
+    20,
+    12,
+    0
+   ],
+   "v2.chunk_ab": [
+    20,
+    12,
+    0
+   ],
+   "v2.ordered": [
+    29,
+    3,
+    1
+   ],
+   "v2.ordered_ab": [
+    29,
+    3,
+    1
+   ],
+   "v2.parent": [
+    20,
+    12,
+    0
+   ],
+   "v2.parent_ab": [
+    20,
+    12,
+    0
+   ]
+  },
+  {
+   "jid": "TYDV,112,消,6,20260731,1",
+   "baseline": 30,
+   "chunks_m1": 46,
+   "m1.chunk": [
+    27,
+    3,
+    3
+   ],
+   "m1.chunk_ab": [
+    28,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    27,
+    3,
+    3
+   ],
+   "m1.ordered_ab": [
+    28,
+    2,
+    0
+   ],
+   "chunks_v2": 51,
+   "parents_present": 20,
+   "v2.chunk": [
+    26,
+    4,
+    5
+   ],
+   "v2.chunk_ab": [
+    27,
+    3,
+    3
+   ],
+   "v2.ordered": [
+    26,
+    4,
+    6
+   ],
+   "v2.ordered_ab": [
+    27,
+    3,
+    3
+   ],
+   "v2.parent": [
+    26,
+    4,
+    6
+   ],
+   "v2.parent_ab": [
+    27,
+    3,
+    3
+   ]
+  },
+  {
+   "jid": "PCDV,113,重訴更一,1,20260727,2",
+   "baseline": 23,
+   "chunks_m1": 39,
+   "m1.chunk": [
+    12,
+    11,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    11,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    6,
+    0
+   ],
+   "m1.ordered_ab": [
+    17,
+    6,
+    0
+   ],
+   "chunks_v2": 52,
+   "parents_present": 0,
+   "v2.chunk": [
+    11,
+    12,
+    1
+   ],
+   "v2.chunk_ab": [
+    11,
+    12,
+    1
+   ],
+   "v2.ordered": [
+    16,
+    7,
+    1
+   ],
+   "v2.ordered_ab": [
+    16,
+    7,
+    1
+   ],
+   "v2.parent": [
+    11,
+    12,
+    1
+   ],
+   "v2.parent_ab": [
+    11,
+    12,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,重訴,597,20260709,1",
+   "baseline": 32,
+   "chunks_m1": 44,
+   "m1.chunk": [
+    27,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    27,
+    5,
+    0
+   ],
+   "m1.ordered": [
+    32,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    32,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 1,
+   "v2.chunk": [
+    30,
+    2,
+    0
+   ],
+   "v2.chunk_ab": [
+    30,
+    2,
+    0
+   ],
+   "v2.ordered": [
+    30,
+    2,
+    0
+   ],
+   "v2.ordered_ab": [
+    30,
+    2,
+    0
+   ],
+   "v2.parent": [
+    30,
+    2,
+    0
+   ],
+   "v2.parent_ab": [
+    30,
+    2,
+    0
+   ]
+  },
+  {
+   "jid": "TCDV,114,勞訴,88,20260710,2",
+   "baseline": 47,
+   "chunks_m1": 45,
+   "m1.chunk": [
+    24,
+    23,
+    9
+   ],
+   "m1.chunk_ab": [
+    45,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    29,
+    18,
+    14
+   ],
+   "m1.ordered_ab": [
+    46,
+    1,
+    0
+   ],
+   "chunks_v2": 54,
+   "parents_present": 2,
+   "v2.chunk": [
+    13,
+    34,
+    20
+   ],
+   "v2.chunk_ab": [
+    29,
+    18,
+    14
+   ],
+   "v2.ordered": [
+    19,
+    28,
+    26
+   ],
+   "v2.ordered_ab": [
+    31,
+    16,
+    15
+   ],
+   "v2.parent": [
+    13,
+    34,
+    20
+   ],
+   "v2.parent_ab": [
+    29,
+    18,
+    14
+   ]
+  },
+  {
+   "jid": "PCDV,115,訴,891,20260731,1",
+   "baseline": 9,
+   "chunks_m1": 61,
+   "m1.chunk": [
+    5,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    9,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    9,
+    0,
+    0
+   ],
+   "chunks_v2": 12,
+   "parents_present": 3,
+   "v2.chunk": [
+    5,
+    4,
+    5
+   ],
+   "v2.chunk_ab": [
+    5,
+    4,
+    5
+   ],
+   "v2.ordered": [
+    5,
+    4,
+    5
+   ],
+   "v2.ordered_ab": [
+    5,
+    4,
+    5
+   ],
+   "v2.parent": [
+    5,
+    4,
+    5
+   ],
+   "v2.parent_ab": [
+    5,
+    4,
+    5
+   ]
+  },
+  {
+   "jid": "PCDV,113,訴,2258,20260716,1",
+   "baseline": 12,
+   "chunks_m1": 44,
+   "m1.chunk": [
+    12,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    12,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    12,
+    0,
+    0
+   ],
+   "chunks_v2": 21,
+   "parents_present": 0,
+   "v2.chunk": [
+    12,
+    0,
+    0
+   ],
+   "v2.chunk_ab": [
+    12,
+    0,
+    0
+   ],
+   "v2.ordered": [
+    12,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    12,
+    0,
+    0
+   ],
+   "v2.parent": [
+    12,
+    0,
+    0
+   ],
+   "v2.parent_ab": [
+    12,
+    0,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,114,訴,2451,20260721,1",
+   "baseline": 27,
+   "chunks_m1": 39,
+   "m1.chunk": [
+    15,
+    12,
+    0
+   ],
+   "m1.chunk_ab": [
+    15,
+    12,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    5,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    5,
+    0
+   ],
+   "chunks_v2": 49,
+   "parents_present": 3,
+   "v2.chunk": [
+    16,
+    11,
+    5
+   ],
+   "v2.chunk_ab": [
+    16,
+    11,
+    5
+   ],
+   "v2.ordered": [
+    19,
+    8,
+    5
+   ],
+   "v2.ordered_ab": [
+    19,
+    8,
+    5
+   ],
+   "v2.parent": [
+    19,
+    8,
+    7
+   ],
+   "v2.parent_ab": [
+    19,
+    8,
+    7
+   ]
+  },
+  {
+   "jid": "TPDV,113,重訴,245,20260731,5",
+   "baseline": 18,
+   "chunks_m1": 40,
+   "m1.chunk": [
+    17,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    17,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    18,
+    0,
+    0
+   ],
+   "chunks_v2": 34,
+   "parents_present": 7,
+   "v2.chunk": [
+    17,
+    1,
+    4
+   ],
+   "v2.chunk_ab": [
+    17,
+    1,
+    4
+   ],
+   "v2.ordered": [
+    17,
+    1,
+    4
+   ],
+   "v2.ordered_ab": [
+    17,
+    1,
+    4
+   ],
+   "v2.parent": [
+    17,
+    1,
+    4
+   ],
+   "v2.parent_ab": [
+    17,
+    1,
+    4
+   ]
+  },
+  {
+   "jid": "PCDV,114,重家財訴,1,20260707,1",
+   "baseline": 10,
+   "chunks_m1": 41,
+   "m1.chunk": [
+    9,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    9,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    10,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    10,
+    0,
+    0
+   ],
+   "chunks_v2": 66,
+   "parents_present": 9,
+   "v2.chunk": [
+    8,
+    2,
+    3
+   ],
+   "v2.chunk_ab": [
+    8,
+    2,
+    3
+   ],
+   "v2.ordered": [
+    8,
+    2,
+    3
+   ],
+   "v2.ordered_ab": [
+    8,
+    2,
+    3
+   ],
+   "v2.parent": [
+    8,
+    2,
+    3
+   ],
+   "v2.parent_ab": [
+    8,
+    2,
+    3
+   ]
+  },
+  {
+   "jid": "PCDV,112,訴,2691,20260716,1",
+   "baseline": 9,
+   "chunks_m1": 40,
+   "m1.chunk": [
+    4,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    4,
+    5,
+    0
+   ],
+   "m1.ordered": [
+    7,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    7,
+    2,
+    0
+   ],
+   "chunks_v2": 18,
+   "parents_present": 13,
+   "v2.chunk": [
+    4,
+    5,
+    1
+   ],
+   "v2.chunk_ab": [
+    4,
+    5,
+    1
+   ],
+   "v2.ordered": [
+    5,
+    4,
+    1
+   ],
+   "v2.ordered_ab": [
+    5,
+    4,
+    1
+   ],
+   "v2.parent": [
+    6,
+    3,
+    2
+   ],
+   "v2.parent_ab": [
+    6,
+    3,
+    2
+   ]
+  },
+  {
+   "jid": "PCDV,111,勞訴,165,20260714,2",
+   "baseline": 51,
+   "chunks_m1": 38,
+   "m1.chunk": [
+    22,
+    29,
+    12
+   ],
+   "m1.chunk_ab": [
+    45,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    25,
+    26,
+    20
+   ],
+   "m1.ordered_ab": [
+    51,
+    0,
+    0
+   ],
+   "chunks_v2": 51,
+   "parents_present": 7,
+   "v2.chunk": [
+    24,
+    27,
+    20
+   ],
+   "v2.chunk_ab": [
+    41,
+    10,
+    4
+   ],
+   "v2.ordered": [
+    27,
+    24,
+    23
+   ],
+   "v2.ordered_ab": [
+    42,
+    9,
+    4
+   ],
+   "v2.parent": [
+    24,
+    27,
+    20
+   ],
+   "v2.parent_ab": [
+    41,
+    10,
+    4
+   ]
+  },
+  {
+   "jid": "PCDV,115,重家繼訴,12,20260715,1",
+   "baseline": 22,
+   "chunks_m1": 35,
+   "m1.chunk": [
+    18,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    0,
+    0
+   ],
+   "chunks_v2": 37,
+   "parents_present": 7,
+   "v2.chunk": [
+    19,
+    3,
+    5
+   ],
+   "v2.chunk_ab": [
+    19,
+    3,
+    5
+   ],
+   "v2.ordered": [
+    20,
+    2,
+    5
+   ],
+   "v2.ordered_ab": [
+    20,
+    2,
+    5
+   ],
+   "v2.parent": [
+    20,
+    2,
+    5
+   ],
+   "v2.parent_ab": [
+    20,
+    2,
+    5
+   ]
+  },
+  {
+   "jid": "PCDV,114,重家繼訴,99,20260715,1",
+   "baseline": 22,
+   "chunks_m1": 35,
+   "m1.chunk": [
+    18,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    0,
+    0
+   ],
+   "chunks_v2": 37,
+   "parents_present": 7,
+   "v2.chunk": [
+    19,
+    3,
+    5
+   ],
+   "v2.chunk_ab": [
+    19,
+    3,
+    5
+   ],
+   "v2.ordered": [
+    20,
+    2,
+    5
+   ],
+   "v2.ordered_ab": [
+    20,
+    2,
+    5
+   ],
+   "v2.parent": [
+    20,
+    2,
+    5
+   ],
+   "v2.parent_ab": [
+    20,
+    2,
+    5
+   ]
+  },
+  {
+   "jid": "TPDV,111,簡上,447,20260715,1",
+   "baseline": 14,
+   "chunks_m1": 36,
+   "m1.chunk": [
+    10,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    10,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    10,
+    4,
+    0
+   ],
+   "m1.ordered_ab": [
+    10,
+    4,
+    0
+   ],
+   "chunks_v2": 41,
+   "parents_present": 5,
+   "v2.chunk": [
+    11,
+    3,
+    1
+   ],
+   "v2.chunk_ab": [
+    11,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    11,
+    3,
+    1
+   ],
+   "v2.ordered_ab": [
+    11,
+    3,
+    1
+   ],
+   "v2.parent": [
+    11,
+    3,
+    1
+   ],
+   "v2.parent_ab": [
+    11,
+    3,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,重訴,383,20260722,1",
+   "baseline": 27,
+   "chunks_m1": 32,
+   "m1.chunk": [
+    24,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    24,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    27,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    27,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 3,
+   "v2.chunk": [
+    22,
+    5,
+    0
+   ],
+   "v2.chunk_ab": [
+    22,
+    5,
+    0
+   ],
+   "v2.ordered": [
+    25,
+    2,
+    1
+   ],
+   "v2.ordered_ab": [
+    25,
+    2,
+    1
+   ],
+   "v2.parent": [
+    22,
+    5,
+    0
+   ],
+   "v2.parent_ab": [
+    22,
+    5,
+    0
+   ]
+  },
+  {
+   "jid": "TPDV,113,金,41,20260729,1",
+   "baseline": 30,
+   "chunks_m1": 32,
+   "m1.chunk": [
+    17,
+    13,
+    1
+   ],
+   "m1.chunk_ab": [
+    23,
+    7,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    10,
+    1
+   ],
+   "m1.ordered_ab": [
+    28,
+    2,
+    0
+   ],
+   "chunks_v2": 37,
+   "parents_present": 1,
+   "v2.chunk": [
+    18,
+    12,
+    3
+   ],
+   "v2.chunk_ab": [
+    22,
+    8,
+    3
+   ],
+   "v2.ordered": [
+    20,
+    10,
+    3
+   ],
+   "v2.ordered_ab": [
+    27,
+    3,
+    3
+   ],
+   "v2.parent": [
+    18,
+    12,
+    3
+   ],
+   "v2.parent_ab": [
+    22,
+    8,
+    3
+   ]
+  },
+  {
+   "jid": "PCDV,113,重訴,197,20260707,2",
+   "baseline": 25,
+   "chunks_m1": 33,
+   "m1.chunk": [
+    20,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    20,
+    5,
+    0
+   ],
+   "m1.ordered": [
+    25,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    25,
+    0,
+    0
+   ],
+   "chunks_v2": 42,
+   "parents_present": 15,
+   "v2.chunk": [
+    19,
+    6,
+    1
+   ],
+   "v2.chunk_ab": [
+    19,
+    6,
+    1
+   ],
+   "v2.ordered": [
+    25,
+    0,
+    1
+   ],
+   "v2.ordered_ab": [
+    25,
+    0,
+    1
+   ],
+   "v2.parent": [
+    21,
+    4,
+    1
+   ],
+   "v2.parent_ab": [
+    21,
+    4,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,勞訴,50,20260715,3",
+   "baseline": 14,
+   "chunks_m1": 32,
+   "m1.chunk": [
+    9,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    10,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    11,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    13,
+    1,
+    0
+   ],
+   "chunks_v2": 40,
+   "parents_present": 8,
+   "v2.chunk": [
+    9,
+    5,
+    5
+   ],
+   "v2.chunk_ab": [
+    10,
+    4,
+    5
+   ],
+   "v2.ordered": [
+    11,
+    3,
+    5
+   ],
+   "v2.ordered_ab": [
+    10,
+    4,
+    5
+   ],
+   "v2.parent": [
+    11,
+    3,
+    5
+   ],
+   "v2.parent_ab": [
+    10,
+    4,
+    5
+   ]
+  },
+  {
+   "jid": "TCDV,113,重家繼訴,52,20260731,2",
+   "baseline": 24,
+   "chunks_m1": 31,
+   "m1.chunk": [
+    18,
+    6,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    4,
+    0
+   ],
+   "m1.ordered_ab": [
+    20,
+    4,
+    0
+   ],
+   "chunks_v2": 40,
+   "parents_present": 0,
+   "v2.chunk": [
+    19,
+    5,
+    1
+   ],
+   "v2.chunk_ab": [
+    19,
+    5,
+    1
+   ],
+   "v2.ordered": [
+    19,
+    5,
+    1
+   ],
+   "v2.ordered_ab": [
+    19,
+    5,
+    1
+   ],
+   "v2.parent": [
+    19,
+    5,
+    1
+   ],
+   "v2.parent_ab": [
+    19,
+    5,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,金,99,20260731,2",
+   "baseline": 24,
+   "chunks_m1": 30,
+   "m1.chunk": [
+    23,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    23,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    24,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    24,
+    0,
+    0
+   ],
+   "chunks_v2": 34,
+   "parents_present": 0,
+   "v2.chunk": [
+    20,
+    4,
+    0
+   ],
+   "v2.chunk_ab": [
+    20,
+    4,
+    0
+   ],
+   "v2.ordered": [
+    20,
+    4,
+    0
+   ],
+   "v2.ordered_ab": [
+    20,
+    4,
+    0
+   ],
+   "v2.parent": [
+    20,
+    4,
+    0
+   ],
+   "v2.parent_ab": [
+    20,
+    4,
+    0
+   ]
+  },
+  {
+   "jid": "TCDV,114,重訴,170,20260717,1",
+   "baseline": 24,
+   "chunks_m1": 31,
+   "m1.chunk": [
+    22,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    22,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    24,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    24,
+    0,
+    0
+   ],
+   "chunks_v2": 35,
+   "parents_present": 7,
+   "v2.chunk": [
+    21,
+    3,
+    2
+   ],
+   "v2.chunk_ab": [
+    21,
+    3,
+    2
+   ],
+   "v2.ordered": [
+    22,
+    2,
+    2
+   ],
+   "v2.ordered_ab": [
+    22,
+    2,
+    2
+   ],
+   "v2.parent": [
+    22,
+    2,
+    2
+   ],
+   "v2.parent_ab": [
+    22,
+    2,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,113,金,40,20260722,1",
+   "baseline": 18,
+   "chunks_m1": 30,
+   "m1.chunk": [
+    17,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    17,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    18,
+    0,
+    0
+   ],
+   "chunks_v2": 35,
+   "parents_present": 2,
+   "v2.chunk": [
+    17,
+    1,
+    1
+   ],
+   "v2.chunk_ab": [
+    17,
+    1,
+    1
+   ],
+   "v2.ordered": [
+    17,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    17,
+    1,
+    1
+   ],
+   "v2.parent": [
+    17,
+    1,
+    1
+   ],
+   "v2.parent_ab": [
+    17,
+    1,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,家親聲,713,20260701,1",
+   "baseline": 11,
+   "chunks_m1": 29,
+   "m1.chunk": [
+    5,
+    6,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    8,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    8,
+    3,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 29,
+   "v2.chunk": [
+    5,
+    6,
+    4
+   ],
+   "v2.chunk_ab": [
+    5,
+    6,
+    4
+   ],
+   "v2.ordered": [
+    5,
+    6,
+    4
+   ],
+   "v2.ordered_ab": [
+    5,
+    6,
+    4
+   ],
+   "v2.parent": [
+    7,
+    4,
+    5
+   ],
+   "v2.parent_ab": [
+    7,
+    4,
+    5
+   ]
+  },
+  {
+   "jid": "PCDV,114,家親聲,507,20260701,3",
+   "baseline": 11,
+   "chunks_m1": 29,
+   "m1.chunk": [
+    5,
+    6,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    8,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    8,
+    3,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 29,
+   "v2.chunk": [
+    5,
+    6,
+    4
+   ],
+   "v2.chunk_ab": [
+    5,
+    6,
+    4
+   ],
+   "v2.ordered": [
+    5,
+    6,
+    4
+   ],
+   "v2.ordered_ab": [
+    5,
+    6,
+    4
+   ],
+   "v2.parent": [
+    7,
+    4,
+    5
+   ],
+   "v2.parent_ab": [
+    7,
+    4,
+    5
+   ]
+  },
+  {
+   "jid": "PCDV,114,勞訴,255,20260714,3",
+   "baseline": 17,
+   "chunks_m1": 30,
+   "m1.chunk": [
+    16,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    16,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    17,
+    0,
+    0
+   ],
+   "chunks_v2": 33,
+   "parents_present": 3,
+   "v2.chunk": [
+    16,
+    1,
+    3
+   ],
+   "v2.chunk_ab": [
+    16,
+    1,
+    3
+   ],
+   "v2.ordered": [
+    16,
+    1,
+    3
+   ],
+   "v2.ordered_ab": [
+    16,
+    1,
+    3
+   ],
+   "v2.parent": [
+    16,
+    1,
+    3
+   ],
+   "v2.parent_ab": [
+    16,
+    1,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,114,勞訴,122,20260703,3",
+   "baseline": 30,
+   "chunks_m1": 31,
+   "m1.chunk": [
+    13,
+    17,
+    1
+   ],
+   "m1.chunk_ab": [
+    23,
+    7,
+    0
+   ],
+   "m1.ordered": [
+    16,
+    14,
+    2
+   ],
+   "m1.ordered_ab": [
+    27,
+    3,
+    0
+   ],
+   "chunks_v2": 40,
+   "parents_present": 12,
+   "v2.chunk": [
+    14,
+    16,
+    2
+   ],
+   "v2.chunk_ab": [
+    22,
+    8,
+    2
+   ],
+   "v2.ordered": [
+    16,
+    14,
+    3
+   ],
+   "v2.ordered_ab": [
+    26,
+    4,
+    3
+   ],
+   "v2.parent": [
+    14,
+    16,
+    2
+   ],
+   "v2.parent_ab": [
+    23,
+    7,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,112,訴,4775,20260708,1",
+   "baseline": 17,
+   "chunks_m1": 29,
+   "m1.chunk": [
+    16,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    16,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    16,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    16,
+    1,
+    0
+   ],
+   "chunks_v2": 35,
+   "parents_present": 28,
+   "v2.chunk": [
+    15,
+    2,
+    2
+   ],
+   "v2.chunk_ab": [
+    15,
+    2,
+    2
+   ],
+   "v2.ordered": [
+    16,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    16,
+    1,
+    2
+   ],
+   "v2.parent": [
+    16,
+    1,
+    3
+   ],
+   "v2.parent_ab": [
+    16,
+    1,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,111,金,94,20260717,3",
+   "baseline": 36,
+   "chunks_m1": 30,
+   "m1.chunk": [
+    32,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    32,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    36,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    36,
+    0,
+    0
+   ],
+   "chunks_v2": 37,
+   "parents_present": 3,
+   "v2.chunk": [
+    30,
+    6,
+    2
+   ],
+   "v2.chunk_ab": [
+    30,
+    6,
+    2
+   ],
+   "v2.ordered": [
+    30,
+    6,
+    5
+   ],
+   "v2.ordered_ab": [
+    30,
+    6,
+    5
+   ],
+   "v2.parent": [
+    30,
+    6,
+    2
+   ],
+   "v2.parent_ab": [
+    30,
+    6,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,114,勞訴,183,20260717,1",
+   "baseline": 37,
+   "chunks_m1": 29,
+   "m1.chunk": [
+    22,
+    15,
+    4
+   ],
+   "m1.chunk_ab": [
+    28,
+    9,
+    0
+   ],
+   "m1.ordered": [
+    24,
+    13,
+    7
+   ],
+   "m1.ordered_ab": [
+    37,
+    0,
+    0
+   ],
+   "chunks_v2": 37,
+   "parents_present": 12,
+   "v2.chunk": [
+    15,
+    22,
+    4
+   ],
+   "v2.chunk_ab": [
+    21,
+    16,
+    4
+   ],
+   "v2.ordered": [
+    21,
+    16,
+    10
+   ],
+   "v2.ordered_ab": [
+    27,
+    10,
+    5
+   ],
+   "v2.parent": [
+    15,
+    22,
+    8
+   ],
+   "v2.parent_ab": [
+    21,
+    16,
+    7
+   ]
+  },
+  {
+   "jid": "TCDV,112,訴,3261,20260731,3",
+   "baseline": 19,
+   "chunks_m1": 28,
+   "m1.chunk": [
+    12,
+    7,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    7,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    18,
+    1,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 3,
+   "v2.chunk": [
+    12,
+    7,
+    1
+   ],
+   "v2.chunk_ab": [
+    12,
+    7,
+    1
+   ],
+   "v2.ordered": [
+    18,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    18,
+    1,
+    2
+   ],
+   "v2.parent": [
+    13,
+    6,
+    1
+   ],
+   "v2.parent_ab": [
+    13,
+    6,
+    1
+   ]
+  },
+  {
+   "jid": "TCDV,114,訴,1800,20260728,1",
+   "baseline": 12,
+   "chunks_m1": 29,
+   "m1.chunk": [
+    11,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    11,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    11,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    11,
+    1,
+    0
+   ],
+   "chunks_v2": 38,
+   "parents_present": 9,
+   "v2.chunk": [
+    11,
+    1,
+    1
+   ],
+   "v2.chunk_ab": [
+    11,
+    1,
+    1
+   ],
+   "v2.ordered": [
+    11,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    11,
+    1,
+    2
+   ],
+   "v2.parent": [
+    11,
+    1,
+    1
+   ],
+   "v2.parent_ab": [
+    11,
+    1,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,家繼訴,19,20260715,1",
+   "baseline": 22,
+   "chunks_m1": 30,
+   "m1.chunk": [
+    18,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    0,
+    0
+   ],
+   "chunks_v2": 35,
+   "parents_present": 6,
+   "v2.chunk": [
+    17,
+    5,
+    4
+   ],
+   "v2.chunk_ab": [
+    17,
+    5,
+    4
+   ],
+   "v2.ordered": [
+    18,
+    4,
+    4
+   ],
+   "v2.ordered_ab": [
+    18,
+    4,
+    4
+   ],
+   "v2.parent": [
+    17,
+    5,
+    4
+   ],
+   "v2.parent_ab": [
+    17,
+    5,
+    4
+   ]
+  },
+  {
+   "jid": "TPDV,115,訴,2022,20260728,1",
+   "baseline": 15,
+   "chunks_m1": 28,
+   "m1.chunk": [
+    14,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    14,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    15,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    15,
+    0,
+    0
+   ],
+   "chunks_v2": 21,
+   "parents_present": 3,
+   "v2.chunk": [
+    13,
+    2,
+    1
+   ],
+   "v2.chunk_ab": [
+    13,
+    2,
+    1
+   ],
+   "v2.ordered": [
+    13,
+    2,
+    1
+   ],
+   "v2.ordered_ab": [
+    13,
+    2,
+    1
+   ],
+   "v2.parent": [
+    13,
+    2,
+    1
+   ],
+   "v2.parent_ab": [
+    13,
+    2,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,111,重訴,1079,20260716,3",
+   "baseline": 6,
+   "chunks_m1": 30,
+   "m1.chunk": [
+    4,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    4,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    6,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    6,
+    0,
+    0
+   ],
+   "chunks_v2": 33,
+   "parents_present": 0,
+   "v2.chunk": [
+    4,
+    2,
+    3
+   ],
+   "v2.chunk_ab": [
+    4,
+    2,
+    3
+   ],
+   "v2.ordered": [
+    5,
+    1,
+    3
+   ],
+   "v2.ordered_ab": [
+    5,
+    1,
+    3
+   ],
+   "v2.parent": [
+    4,
+    2,
+    3
+   ],
+   "v2.parent_ab": [
+    4,
+    2,
+    3
+   ]
+  },
+  {
+   "jid": "TYDV,114,勞訴,161,20260731,2",
+   "baseline": 32,
+   "chunks_m1": 29,
+   "m1.chunk": [
+    11,
+    21,
+    1
+   ],
+   "m1.chunk_ab": [
+    21,
+    11,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    12,
+    10
+   ],
+   "m1.ordered_ab": [
+    32,
+    0,
+    0
+   ],
+   "chunks_v2": 36,
+   "parents_present": 4,
+   "v2.chunk": [
+    12,
+    20,
+    4
+   ],
+   "v2.chunk_ab": [
+    22,
+    10,
+    6
+   ],
+   "v2.ordered": [
+    16,
+    16,
+    13
+   ],
+   "v2.ordered_ab": [
+    25,
+    7,
+    7
+   ],
+   "v2.parent": [
+    13,
+    19,
+    7
+   ],
+   "v2.parent_ab": [
+    22,
+    10,
+    6
+   ]
+  },
+  {
+   "jid": "TPDV,114,重勞訴,10,20260724,1",
+   "baseline": 9,
+   "chunks_m1": 27,
+   "m1.chunk": [
+    5,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    7,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    7,
+    2,
+    0
+   ],
+   "chunks_v2": 37,
+   "parents_present": 9,
+   "v2.chunk": [
+    7,
+    2,
+    3
+   ],
+   "v2.chunk_ab": [
+    7,
+    2,
+    3
+   ],
+   "v2.ordered": [
+    7,
+    2,
+    3
+   ],
+   "v2.ordered_ab": [
+    7,
+    2,
+    3
+   ],
+   "v2.parent": [
+    7,
+    2,
+    3
+   ],
+   "v2.parent_ab": [
+    7,
+    2,
+    3
+   ]
+  },
+  {
+   "jid": "TCDV,112,簡上,348,20260724,1",
+   "baseline": 12,
+   "chunks_m1": 27,
+   "m1.chunk": [
+    5,
+    7,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    7,
+    0
+   ],
+   "m1.ordered": [
+    10,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    10,
+    2,
+    0
+   ],
+   "chunks_v2": 35,
+   "parents_present": 9,
+   "v2.chunk": [
+    6,
+    6,
+    6
+   ],
+   "v2.chunk_ab": [
+    6,
+    6,
+    6
+   ],
+   "v2.ordered": [
+    7,
+    5,
+    6
+   ],
+   "v2.ordered_ab": [
+    7,
+    5,
+    6
+   ],
+   "v2.parent": [
+    6,
+    6,
+    6
+   ],
+   "v2.parent_ab": [
+    6,
+    6,
+    6
+   ]
+  },
+  {
+   "jid": "TCDV,114,重訴,616,20260717,1",
+   "baseline": 9,
+   "chunks_m1": 28,
+   "m1.chunk": [
+    7,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    7,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    7,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    7,
+    2,
+    0
+   ],
+   "chunks_v2": 30,
+   "parents_present": 8,
+   "v2.chunk": [
+    6,
+    3,
+    1
+   ],
+   "v2.chunk_ab": [
+    6,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    6,
+    3,
+    1
+   ],
+   "v2.ordered_ab": [
+    6,
+    3,
+    1
+   ],
+   "v2.parent": [
+    6,
+    3,
+    1
+   ],
+   "v2.parent_ab": [
+    6,
+    3,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,重訴,1082,20260721,1",
+   "baseline": 19,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    15,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    15,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    18,
+    1,
+    0
+   ],
+   "chunks_v2": 31,
+   "parents_present": 10,
+   "v2.chunk": [
+    16,
+    3,
+    2
+   ],
+   "v2.chunk_ab": [
+    16,
+    3,
+    2
+   ],
+   "v2.ordered": [
+    17,
+    2,
+    2
+   ],
+   "v2.ordered_ab": [
+    17,
+    2,
+    2
+   ],
+   "v2.parent": [
+    17,
+    2,
+    2
+   ],
+   "v2.parent_ab": [
+    17,
+    2,
+    2
+   ]
+  },
+  {
+   "jid": "TYDV,114,家親聲,553,20260708,1",
+   "baseline": 15,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    12,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    13,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    13,
+    2,
+    0
+   ],
+   "chunks_v2": 26,
+   "parents_present": 18,
+   "v2.chunk": [
+    14,
+    1,
+    2
+   ],
+   "v2.chunk_ab": [
+    14,
+    1,
+    2
+   ],
+   "v2.ordered": [
+    15,
+    0,
+    2
+   ],
+   "v2.ordered_ab": [
+    15,
+    0,
+    2
+   ],
+   "v2.parent": [
+    14,
+    1,
+    2
+   ],
+   "v2.parent_ab": [
+    14,
+    1,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,114,勞訴,329,20260723,1",
+   "baseline": 13,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    4,
+    9,
+    0
+   ],
+   "m1.chunk_ab": [
+    7,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    5,
+    8,
+    1
+   ],
+   "m1.ordered_ab": [
+    11,
+    2,
+    0
+   ],
+   "chunks_v2": 30,
+   "parents_present": 10,
+   "v2.chunk": [
+    4,
+    9,
+    1
+   ],
+   "v2.chunk_ab": [
+    8,
+    5,
+    1
+   ],
+   "v2.ordered": [
+    5,
+    8,
+    2
+   ],
+   "v2.ordered_ab": [
+    11,
+    2,
+    2
+   ],
+   "v2.parent": [
+    5,
+    8,
+    2
+   ],
+   "v2.parent_ab": [
+    11,
+    2,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,114,訴,4371,20260731,1",
+   "baseline": 32,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    20,
+    12,
+    0
+   ],
+   "m1.chunk_ab": [
+    20,
+    12,
+    0
+   ],
+   "m1.ordered": [
+    31,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    31,
+    1,
+    0
+   ],
+   "chunks_v2": 31,
+   "parents_present": 1,
+   "v2.chunk": [
+    21,
+    11,
+    1
+   ],
+   "v2.chunk_ab": [
+    21,
+    11,
+    1
+   ],
+   "v2.ordered": [
+    29,
+    3,
+    7
+   ],
+   "v2.ordered_ab": [
+    29,
+    3,
+    7
+   ],
+   "v2.parent": [
+    21,
+    11,
+    1
+   ],
+   "v2.parent_ab": [
+    21,
+    11,
+    1
+   ]
+  },
+  {
+   "jid": "TCDV,114,簡上,405,20260731,2",
+   "baseline": 20,
+   "chunks_m1": 28,
+   "m1.chunk": [
+    12,
+    8,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    8,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "chunks_v2": 28,
+   "parents_present": 8,
+   "v2.chunk": [
+    12,
+    8,
+    3
+   ],
+   "v2.chunk_ab": [
+    12,
+    8,
+    3
+   ],
+   "v2.ordered": [
+    13,
+    7,
+    3
+   ],
+   "v2.ordered_ab": [
+    13,
+    7,
+    3
+   ],
+   "v2.parent": [
+    12,
+    8,
+    3
+   ],
+   "v2.parent_ab": [
+    12,
+    8,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,114,勞簡,109,20260724,2",
+   "baseline": 26,
+   "chunks_m1": 36,
+   "m1.chunk": [
+    15,
+    11,
+    2
+   ],
+   "m1.chunk_ab": [
+    23,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    16,
+    10,
+    6
+   ],
+   "m1.ordered_ab": [
+    26,
+    0,
+    0
+   ],
+   "chunks_v2": 20,
+   "parents_present": 13,
+   "v2.chunk": [
+    5,
+    21,
+    4
+   ],
+   "v2.chunk_ab": [
+    18,
+    8,
+    3
+   ],
+   "v2.ordered": [
+    9,
+    17,
+    9
+   ],
+   "v2.ordered_ab": [
+    21,
+    5,
+    3
+   ],
+   "v2.parent": [
+    9,
+    17,
+    15
+   ],
+   "v2.parent_ab": [
+    21,
+    5,
+    5
+   ]
+  },
+  {
+   "jid": "TPDV,113,重訴,698,20260731,1",
+   "baseline": 17,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    13,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    13,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    16,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    16,
+    1,
+    0
+   ],
+   "chunks_v2": 24,
+   "parents_present": 4,
+   "v2.chunk": [
+    14,
+    3,
+    0
+   ],
+   "v2.chunk_ab": [
+    14,
+    3,
+    0
+   ],
+   "v2.ordered": [
+    16,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    16,
+    1,
+    1
+   ],
+   "v2.parent": [
+    14,
+    3,
+    0
+   ],
+   "v2.parent_ab": [
+    14,
+    3,
+    0
+   ]
+  },
+  {
+   "jid": "TCDV,113,重訴,523,20260710,2",
+   "baseline": 26,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    20,
+    6,
+    0
+   ],
+   "m1.chunk_ab": [
+    20,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    23,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    23,
+    3,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 12,
+   "v2.chunk": [
+    21,
+    5,
+    0
+   ],
+   "v2.chunk_ab": [
+    21,
+    5,
+    0
+   ],
+   "v2.ordered": [
+    21,
+    5,
+    0
+   ],
+   "v2.ordered_ab": [
+    21,
+    5,
+    0
+   ],
+   "v2.parent": [
+    21,
+    5,
+    0
+   ],
+   "v2.parent_ab": [
+    21,
+    5,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,114,訴,3164,20260730,2",
+   "baseline": 18,
+   "chunks_m1": 27,
+   "m1.chunk": [
+    17,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    17,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    18,
+    0,
+    0
+   ],
+   "chunks_v2": 28,
+   "parents_present": 23,
+   "v2.chunk": [
+    18,
+    0,
+    2
+   ],
+   "v2.chunk_ab": [
+    18,
+    0,
+    2
+   ],
+   "v2.ordered": [
+    18,
+    0,
+    2
+   ],
+   "v2.ordered_ab": [
+    18,
+    0,
+    2
+   ],
+   "v2.parent": [
+    18,
+    0,
+    2
+   ],
+   "v2.parent_ab": [
+    18,
+    0,
+    2
+   ]
+  },
+  {
+   "jid": "PCDV,112,勞訴,119,20260730,5",
+   "baseline": 30,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    17,
+    13,
+    8
+   ],
+   "m1.chunk_ab": [
+    27,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    12,
+    11
+   ],
+   "m1.ordered_ab": [
+    29,
+    1,
+    0
+   ],
+   "chunks_v2": 35,
+   "parents_present": 9,
+   "v2.chunk": [
+    17,
+    13,
+    4
+   ],
+   "v2.chunk_ab": [
+    27,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    18,
+    12,
+    11
+   ],
+   "v2.ordered_ab": [
+    29,
+    1,
+    2
+   ],
+   "v2.parent": [
+    18,
+    12,
+    11
+   ],
+   "v2.parent_ab": [
+    27,
+    3,
+    2
+   ]
+  },
+  {
+   "jid": "PCDV,114,重訴,386,20260727,1",
+   "baseline": 11,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    10,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    10,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    11,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    11,
+    0,
+    0
+   ],
+   "chunks_v2": 23,
+   "parents_present": 7,
+   "v2.chunk": [
+    10,
+    1,
+    0
+   ],
+   "v2.chunk_ab": [
+    10,
+    1,
+    0
+   ],
+   "v2.ordered": [
+    11,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    11,
+    0,
+    0
+   ],
+   "v2.parent": [
+    10,
+    1,
+    0
+   ],
+   "v2.parent_ab": [
+    10,
+    1,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,112,家財訴,19,20260724,5",
+   "baseline": 19,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    12,
+    7,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    12,
+    7,
+    6
+   ],
+   "m1.ordered_ab": [
+    18,
+    1,
+    0
+   ],
+   "chunks_v2": 26,
+   "parents_present": 18,
+   "v2.chunk": [
+    11,
+    8,
+    3
+   ],
+   "v2.chunk_ab": [
+    17,
+    2,
+    4
+   ],
+   "v2.ordered": [
+    11,
+    8,
+    10
+   ],
+   "v2.ordered_ab": [
+    17,
+    2,
+    4
+   ],
+   "v2.parent": [
+    11,
+    8,
+    10
+   ],
+   "v2.parent_ab": [
+    17,
+    2,
+    4
+   ]
+  },
+  {
+   "jid": "TPDV,113,重訴,35,20260708,2",
+   "baseline": 21,
+   "chunks_m1": 27,
+   "m1.chunk": [
+    16,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    16,
+    5,
+    0
+   ],
+   "m1.ordered": [
+    21,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    21,
+    0,
+    0
+   ],
+   "chunks_v2": 29,
+   "parents_present": 4,
+   "v2.chunk": [
+    17,
+    4,
+    0
+   ],
+   "v2.chunk_ab": [
+    17,
+    4,
+    0
+   ],
+   "v2.ordered": [
+    21,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    21,
+    0,
+    0
+   ],
+   "v2.parent": [
+    17,
+    4,
+    0
+   ],
+   "v2.parent_ab": [
+    17,
+    4,
+    0
+   ]
+  },
+  {
+   "jid": "TPDV,113,簡上,194,20260715,1",
+   "baseline": 0,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    0,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    0,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    0,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    0,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 6,
+   "v2.chunk": [
+    0,
+    0,
+    1
+   ],
+   "v2.chunk_ab": [
+    0,
+    0,
+    1
+   ],
+   "v2.ordered": [
+    0,
+    0,
+    1
+   ],
+   "v2.ordered_ab": [
+    0,
+    0,
+    1
+   ],
+   "v2.parent": [
+    0,
+    0,
+    1
+   ],
+   "v2.parent_ab": [
+    0,
+    0,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,金,179,20260721,2",
+   "baseline": 22,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    20,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    20,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 5,
+   "v2.chunk": [
+    14,
+    8,
+    3
+   ],
+   "v2.chunk_ab": [
+    14,
+    8,
+    3
+   ],
+   "v2.ordered": [
+    14,
+    8,
+    3
+   ],
+   "v2.ordered_ab": [
+    14,
+    8,
+    3
+   ],
+   "v2.parent": [
+    14,
+    8,
+    3
+   ],
+   "v2.parent_ab": [
+    14,
+    8,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,113,金,212,20260729,1",
+   "baseline": 23,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    17,
+    6,
+    2
+   ],
+   "m1.chunk_ab": [
+    20,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    6,
+    5
+   ],
+   "m1.ordered_ab": [
+    22,
+    1,
+    0
+   ],
+   "chunks_v2": 31,
+   "parents_present": 1,
+   "v2.chunk": [
+    17,
+    6,
+    3
+   ],
+   "v2.chunk_ab": [
+    19,
+    4,
+    1
+   ],
+   "v2.ordered": [
+    17,
+    6,
+    6
+   ],
+   "v2.ordered_ab": [
+    21,
+    2,
+    4
+   ],
+   "v2.parent": [
+    17,
+    6,
+    3
+   ],
+   "v2.parent_ab": [
+    19,
+    4,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,重訴,1137,20260702,1",
+   "baseline": 19,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    16,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    16,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    19,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    19,
+    0,
+    0
+   ],
+   "chunks_v2": 33,
+   "parents_present": 0,
+   "v2.chunk": [
+    13,
+    6,
+    0
+   ],
+   "v2.chunk_ab": [
+    13,
+    6,
+    0
+   ],
+   "v2.ordered": [
+    16,
+    3,
+    0
+   ],
+   "v2.ordered_ab": [
+    16,
+    3,
+    0
+   ],
+   "v2.parent": [
+    13,
+    6,
+    0
+   ],
+   "v2.parent_ab": [
+    13,
+    6,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,114,訴,2354,20260731,3",
+   "baseline": 19,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    13,
+    6,
+    0
+   ],
+   "m1.chunk_ab": [
+    13,
+    6,
+    0
+   ],
+   "m1.ordered": [
+    19,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    19,
+    0,
+    0
+   ],
+   "chunks_v2": 28,
+   "parents_present": 8,
+   "v2.chunk": [
+    13,
+    6,
+    1
+   ],
+   "v2.chunk_ab": [
+    13,
+    6,
+    1
+   ],
+   "v2.ordered": [
+    18,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    18,
+    1,
+    1
+   ],
+   "v2.parent": [
+    13,
+    6,
+    1
+   ],
+   "v2.parent_ab": [
+    13,
+    6,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,訴,62,20260715,5",
+   "baseline": 27,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    9,
+    18,
+    0
+   ],
+   "m1.chunk_ab": [
+    9,
+    18,
+    0
+   ],
+   "m1.ordered": [
+    19,
+    8,
+    0
+   ],
+   "m1.ordered_ab": [
+    19,
+    8,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 5,
+   "v2.chunk": [
+    9,
+    18,
+    1
+   ],
+   "v2.chunk_ab": [
+    9,
+    18,
+    1
+   ],
+   "v2.ordered": [
+    20,
+    7,
+    1
+   ],
+   "v2.ordered_ab": [
+    20,
+    7,
+    1
+   ],
+   "v2.parent": [
+    9,
+    18,
+    1
+   ],
+   "v2.parent_ab": [
+    9,
+    18,
+    1
+   ]
+  },
+  {
+   "jid": "TCDV,112,重家繼訴,26,20260722,2",
+   "baseline": 16,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    14,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    14,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    14,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    14,
+    2,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 19,
+   "v2.chunk": [
+    16,
+    0,
+    3
+   ],
+   "v2.chunk_ab": [
+    16,
+    0,
+    3
+   ],
+   "v2.ordered": [
+    16,
+    0,
+    3
+   ],
+   "v2.ordered_ab": [
+    16,
+    0,
+    3
+   ],
+   "v2.parent": [
+    16,
+    0,
+    3
+   ],
+   "v2.parent_ab": [
+    16,
+    0,
+    3
+   ]
+  },
+  {
+   "jid": "TCDV,113,訴,754,20260731,1",
+   "baseline": 25,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    13,
+    12,
+    0
+   ],
+   "m1.chunk_ab": [
+    13,
+    12,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    8,
+    0
+   ],
+   "m1.ordered_ab": [
+    17,
+    8,
+    0
+   ],
+   "chunks_v2": 28,
+   "parents_present": 20,
+   "v2.chunk": [
+    12,
+    13,
+    2
+   ],
+   "v2.chunk_ab": [
+    12,
+    13,
+    2
+   ],
+   "v2.ordered": [
+    17,
+    8,
+    2
+   ],
+   "v2.ordered_ab": [
+    17,
+    8,
+    2
+   ],
+   "v2.parent": [
+    18,
+    7,
+    3
+   ],
+   "v2.parent_ab": [
+    18,
+    7,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,112,重訴,204,20260713,3",
+   "baseline": 20,
+   "chunks_m1": 27,
+   "m1.chunk": [
+    17,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    17,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "chunks_v2": 24,
+   "parents_present": 12,
+   "v2.chunk": [
+    17,
+    3,
+    4
+   ],
+   "v2.chunk_ab": [
+    17,
+    3,
+    4
+   ],
+   "v2.ordered": [
+    17,
+    3,
+    4
+   ],
+   "v2.ordered_ab": [
+    17,
+    3,
+    4
+   ],
+   "v2.parent": [
+    17,
+    3,
+    4
+   ],
+   "v2.parent_ab": [
+    17,
+    3,
+    4
+   ]
+  },
+  {
+   "jid": "TPDV,113,勞訴,335,20260722,1",
+   "baseline": 29,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    8,
+    21,
+    4
+   ],
+   "m1.chunk_ab": [
+    22,
+    7,
+    0
+   ],
+   "m1.ordered": [
+    15,
+    14,
+    17
+   ],
+   "m1.ordered_ab": [
+    29,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 6,
+   "v2.chunk": [
+    9,
+    20,
+    7
+   ],
+   "v2.chunk_ab": [
+    24,
+    5,
+    4
+   ],
+   "v2.ordered": [
+    17,
+    12,
+    21
+   ],
+   "v2.ordered_ab": [
+    25,
+    4,
+    5
+   ],
+   "v2.parent": [
+    9,
+    20,
+    19
+   ],
+   "v2.parent_ab": [
+    25,
+    4,
+    4
+   ]
+  },
+  {
+   "jid": "TCDV,114,重訴,284,20260722,1",
+   "baseline": 8,
+   "chunks_m1": 27,
+   "m1.chunk": [
+    5,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    6,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    6,
+    2,
+    0
+   ],
+   "chunks_v2": 21,
+   "parents_present": 9,
+   "v2.chunk": [
+    6,
+    2,
+    0
+   ],
+   "v2.chunk_ab": [
+    6,
+    2,
+    0
+   ],
+   "v2.ordered": [
+    7,
+    1,
+    0
+   ],
+   "v2.ordered_ab": [
+    7,
+    1,
+    0
+   ],
+   "v2.parent": [
+    6,
+    2,
+    0
+   ],
+   "v2.parent_ab": [
+    6,
+    2,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,115,勞簡,88,20260730,2",
+   "baseline": 29,
+   "chunks_m1": 25,
+   "m1.chunk": [
+    16,
+    13,
+    5
+   ],
+   "m1.chunk_ab": [
+    25,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    11,
+    12
+   ],
+   "m1.ordered_ab": [
+    29,
+    0,
+    0
+   ],
+   "chunks_v2": 30,
+   "parents_present": 7,
+   "v2.chunk": [
+    14,
+    15,
+    7
+   ],
+   "v2.chunk_ab": [
+    28,
+    1,
+    4
+   ],
+   "v2.ordered": [
+    18,
+    11,
+    21
+   ],
+   "v2.ordered_ab": [
+    29,
+    0,
+    4
+   ],
+   "v2.parent": [
+    14,
+    15,
+    7
+   ],
+   "v2.parent_ab": [
+    28,
+    1,
+    4
+   ]
+  },
+  {
+   "jid": "PCDV,110,重訴,571,20260723,7",
+   "baseline": 22,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    15,
+    7,
+    0
+   ],
+   "m1.chunk_ab": [
+    15,
+    7,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 18,
+   "v2.chunk": [
+    16,
+    6,
+    4
+   ],
+   "v2.chunk_ab": [
+    16,
+    6,
+    4
+   ],
+   "v2.ordered": [
+    16,
+    6,
+    4
+   ],
+   "v2.ordered_ab": [
+    16,
+    6,
+    4
+   ],
+   "v2.parent": [
+    16,
+    6,
+    4
+   ],
+   "v2.parent_ab": [
+    16,
+    6,
+    4
+   ]
+  },
+  {
+   "jid": "PCDV,113,訴,3063,20260706,1",
+   "baseline": 22,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    19,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    19,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    22,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    22,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 5,
+   "v2.chunk": [
+    19,
+    3,
+    4
+   ],
+   "v2.chunk_ab": [
+    19,
+    3,
+    4
+   ],
+   "v2.ordered": [
+    19,
+    3,
+    4
+   ],
+   "v2.ordered_ab": [
+    19,
+    3,
+    4
+   ],
+   "v2.parent": [
+    19,
+    3,
+    4
+   ],
+   "v2.parent_ab": [
+    19,
+    3,
+    4
+   ]
+  },
+  {
+   "jid": "PCDV,114,重訴,414,20260730,2",
+   "baseline": 18,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    17,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    17,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    17,
+    1,
+    0
+   ],
+   "chunks_v2": 24,
+   "parents_present": 1,
+   "v2.chunk": [
+    16,
+    2,
+    3
+   ],
+   "v2.chunk_ab": [
+    16,
+    2,
+    3
+   ],
+   "v2.ordered": [
+    16,
+    2,
+    3
+   ],
+   "v2.ordered_ab": [
+    16,
+    2,
+    3
+   ],
+   "v2.parent": [
+    16,
+    2,
+    3
+   ],
+   "v2.parent_ab": [
+    16,
+    2,
+    3
+   ]
+  },
+  {
+   "jid": "TYDV,113,重訴,467,20260724,1",
+   "baseline": 12,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    12,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    12,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    12,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    12,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 0,
+   "v2.chunk": [
+    12,
+    0,
+    0
+   ],
+   "v2.chunk_ab": [
+    12,
+    0,
+    0
+   ],
+   "v2.ordered": [
+    12,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    12,
+    0,
+    0
+   ],
+   "v2.parent": [
+    12,
+    0,
+    0
+   ],
+   "v2.parent_ab": [
+    12,
+    0,
+    0
+   ]
+  },
+  {
+   "jid": "TYDV,114,訴,1741,20260727,1",
+   "baseline": 13,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    13,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    13,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    13,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    13,
+    0,
+    0
+   ],
+   "chunks_v2": 14,
+   "parents_present": 7,
+   "v2.chunk": [
+    12,
+    1,
+    2
+   ],
+   "v2.chunk_ab": [
+    12,
+    1,
+    2
+   ],
+   "v2.ordered": [
+    12,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    12,
+    1,
+    2
+   ],
+   "v2.parent": [
+    12,
+    1,
+    2
+   ],
+   "v2.parent_ab": [
+    12,
+    1,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,115,重訴更一,6,20260724,1",
+   "baseline": 20,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    18,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 9,
+   "v2.chunk": [
+    18,
+    2,
+    0
+   ],
+   "v2.chunk_ab": [
+    18,
+    2,
+    0
+   ],
+   "v2.ordered": [
+    20,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "v2.parent": [
+    19,
+    1,
+    0
+   ],
+   "v2.parent_ab": [
+    19,
+    1,
+    0
+   ]
+  },
+  {
+   "jid": "TPDV,110,重訴,559,20260724,5",
+   "baseline": 20,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    18,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    18,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 9,
+   "v2.chunk": [
+    18,
+    2,
+    0
+   ],
+   "v2.chunk_ab": [
+    18,
+    2,
+    0
+   ],
+   "v2.ordered": [
+    20,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "v2.parent": [
+    19,
+    1,
+    0
+   ],
+   "v2.parent_ab": [
+    19,
+    1,
+    0
+   ]
+  },
+  {
+   "jid": "TCDV,114,訴,839,20260727,1",
+   "baseline": 18,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    15,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    15,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    18,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    18,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 2,
+   "v2.chunk": [
+    15,
+    3,
+    1
+   ],
+   "v2.chunk_ab": [
+    15,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    18,
+    0,
+    1
+   ],
+   "v2.ordered_ab": [
+    18,
+    0,
+    1
+   ],
+   "v2.parent": [
+    15,
+    3,
+    1
+   ],
+   "v2.parent_ab": [
+    15,
+    3,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,115,訴,61,20260730,1",
+   "baseline": 12,
+   "chunks_m1": 26,
+   "m1.chunk": [
+    8,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    8,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    10,
+    2,
+    0
+   ],
+   "m1.ordered_ab": [
+    10,
+    2,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 5,
+   "v2.chunk": [
+    9,
+    3,
+    1
+   ],
+   "v2.chunk_ab": [
+    9,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    11,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    11,
+    1,
+    1
+   ],
+   "v2.parent": [
+    10,
+    2,
+    1
+   ],
+   "v2.parent_ab": [
+    10,
+    2,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,113,訴,477,20260729,1",
+   "baseline": 28,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    26,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    26,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    27,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    27,
+    1,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 2,
+   "v2.chunk": [
+    24,
+    4,
+    4
+   ],
+   "v2.chunk_ab": [
+    24,
+    4,
+    4
+   ],
+   "v2.ordered": [
+    24,
+    4,
+    4
+   ],
+   "v2.ordered_ab": [
+    24,
+    4,
+    4
+   ],
+   "v2.parent": [
+    24,
+    4,
+    4
+   ],
+   "v2.parent_ab": [
+    24,
+    4,
+    4
+   ]
+  },
+  {
+   "jid": "TPDV,113,建,42,20260720,2",
+   "baseline": 17,
+   "chunks_m1": 24,
+   "m1.chunk": [
+    16,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    16,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    17,
+    0,
+    0
+   ],
+   "chunks_v2": 32,
+   "parents_present": 0,
+   "v2.chunk": [
+    17,
+    0,
+    1
+   ],
+   "v2.chunk_ab": [
+    17,
+    0,
+    1
+   ],
+   "v2.ordered": [
+    17,
+    0,
+    1
+   ],
+   "v2.ordered_ab": [
+    17,
+    0,
+    1
+   ],
+   "v2.parent": [
+    17,
+    0,
+    1
+   ],
+   "v2.parent_ab": [
+    17,
+    0,
+    1
+   ]
+  },
+  {
+   "jid": "TCDV,114,訴,3937,20260715,1",
+   "baseline": 14,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    10,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    10,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    14,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    14,
+    0,
+    0
+   ],
+   "chunks_v2": 25,
+   "parents_present": 0,
+   "v2.chunk": [
+    9,
+    5,
+    0
+   ],
+   "v2.chunk_ab": [
+    9,
+    5,
+    0
+   ],
+   "v2.ordered": [
+    14,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    14,
+    0,
+    0
+   ],
+   "v2.parent": [
+    9,
+    5,
+    0
+   ],
+   "v2.parent_ab": [
+    9,
+    5,
+    0
+   ]
+  },
+  {
+   "jid": "TPDV,111,重訴,882,20260731,1",
+   "baseline": 12,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    8,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    8,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    9,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    9,
+    3,
+    0
+   ],
+   "chunks_v2": 22,
+   "parents_present": 3,
+   "v2.chunk": [
+    8,
+    4,
+    0
+   ],
+   "v2.chunk_ab": [
+    8,
+    4,
+    0
+   ],
+   "v2.ordered": [
+    9,
+    3,
+    0
+   ],
+   "v2.ordered_ab": [
+    9,
+    3,
+    0
+   ],
+   "v2.parent": [
+    8,
+    4,
+    0
+   ],
+   "v2.parent_ab": [
+    8,
+    4,
+    0
+   ]
+  },
+  {
+   "jid": "TPDV,114,重訴,970,20260724,2",
+   "baseline": 27,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    23,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    23,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    27,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    27,
+    0,
+    0
+   ],
+   "chunks_v2": 26,
+   "parents_present": 2,
+   "v2.chunk": [
+    24,
+    3,
+    2
+   ],
+   "v2.chunk_ab": [
+    24,
+    3,
+    2
+   ],
+   "v2.ordered": [
+    26,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    26,
+    1,
+    2
+   ],
+   "v2.parent": [
+    24,
+    3,
+    2
+   ],
+   "v2.parent_ab": [
+    24,
+    3,
+    2
+   ]
+  },
+  {
+   "jid": "TCDV,113,家繼訴,60,20260717,1",
+   "baseline": 17,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    16,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    16,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    17,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    17,
+    0,
+    0
+   ],
+   "chunks_v2": 24,
+   "parents_present": 8,
+   "v2.chunk": [
+    14,
+    3,
+    5
+   ],
+   "v2.chunk_ab": [
+    14,
+    3,
+    5
+   ],
+   "v2.ordered": [
+    14,
+    3,
+    5
+   ],
+   "v2.ordered_ab": [
+    14,
+    3,
+    5
+   ],
+   "v2.parent": [
+    14,
+    3,
+    5
+   ],
+   "v2.parent_ab": [
+    14,
+    3,
+    5
+   ]
+  },
+  {
+   "jid": "TCDV,114,勞訴,94,20260724,2",
+   "baseline": 50,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    17,
+    33,
+    0
+   ],
+   "m1.chunk_ab": [
+    22,
+    28,
+    0
+   ],
+   "m1.ordered": [
+    32,
+    18,
+    4
+   ],
+   "m1.ordered_ab": [
+    47,
+    3,
+    0
+   ],
+   "chunks_v2": 29,
+   "parents_present": 0,
+   "v2.chunk": [
+    22,
+    28,
+    6
+   ],
+   "v2.chunk_ab": [
+    32,
+    18,
+    4
+   ],
+   "v2.ordered": [
+    27,
+    23,
+    9
+   ],
+   "v2.ordered_ab": [
+    42,
+    8,
+    5
+   ],
+   "v2.parent": [
+    22,
+    28,
+    6
+   ],
+   "v2.parent_ab": [
+    32,
+    18,
+    4
+   ]
+  },
+  {
+   "jid": "TPDV,113,訴,1921,20260713,4",
+   "baseline": 20,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    19,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    19,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    20,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    20,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 0,
+   "v2.chunk": [
+    19,
+    1,
+    2
+   ],
+   "v2.chunk_ab": [
+    19,
+    1,
+    2
+   ],
+   "v2.ordered": [
+    19,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    19,
+    1,
+    2
+   ],
+   "v2.parent": [
+    19,
+    1,
+    2
+   ],
+   "v2.parent_ab": [
+    19,
+    1,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,114,訴,5420,20260727,1",
+   "baseline": 15,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    14,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    14,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    15,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    15,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 0,
+   "v2.chunk": [
+    15,
+    0,
+    4
+   ],
+   "v2.chunk_ab": [
+    15,
+    0,
+    4
+   ],
+   "v2.ordered": [
+    15,
+    0,
+    4
+   ],
+   "v2.ordered_ab": [
+    15,
+    0,
+    4
+   ],
+   "v2.parent": [
+    15,
+    0,
+    4
+   ],
+   "v2.parent_ab": [
+    15,
+    0,
+    4
+   ]
+  },
+  {
+   "jid": "TPDV,114,訴,6166,20260716,1",
+   "baseline": 13,
+   "chunks_m1": 21,
+   "m1.chunk": [
+    8,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    8,
+    5,
+    0
+   ],
+   "m1.ordered": [
+    13,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    13,
+    0,
+    0
+   ],
+   "chunks_v2": 30,
+   "parents_present": 0,
+   "v2.chunk": [
+    11,
+    2,
+    2
+   ],
+   "v2.chunk_ab": [
+    11,
+    2,
+    2
+   ],
+   "v2.ordered": [
+    11,
+    2,
+    2
+   ],
+   "v2.ordered_ab": [
+    11,
+    2,
+    2
+   ],
+   "v2.parent": [
+    11,
+    2,
+    2
+   ],
+   "v2.parent_ab": [
+    11,
+    2,
+    2
+   ]
+  },
+  {
+   "jid": "TPDV,113,重家財訴,18,20260723,1",
+   "baseline": 10,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    9,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    9,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    9,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    9,
+    1,
+    0
+   ],
+   "chunks_v2": 31,
+   "parents_present": 8,
+   "v2.chunk": [
+    9,
+    1,
+    3
+   ],
+   "v2.chunk_ab": [
+    9,
+    1,
+    3
+   ],
+   "v2.ordered": [
+    9,
+    1,
+    3
+   ],
+   "v2.ordered_ab": [
+    9,
+    1,
+    3
+   ],
+   "v2.parent": [
+    9,
+    1,
+    3
+   ],
+   "v2.parent_ab": [
+    9,
+    1,
+    3
+   ]
+  },
+  {
+   "jid": "TYDV,113,訴,2363,20260703,1",
+   "baseline": 6,
+   "chunks_m1": 21,
+   "m1.chunk": [
+    6,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    6,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    6,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    6,
+    0,
+    0
+   ],
+   "chunks_v2": 31,
+   "parents_present": 5,
+   "v2.chunk": [
+    6,
+    0,
+    0
+   ],
+   "v2.chunk_ab": [
+    6,
+    0,
+    0
+   ],
+   "v2.ordered": [
+    6,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    6,
+    0,
+    0
+   ],
+   "v2.parent": [
+    6,
+    0,
+    0
+   ],
+   "v2.parent_ab": [
+    6,
+    0,
+    0
+   ]
+  },
+  {
+   "jid": "TCDV,114,訴,802,20260727,1",
+   "baseline": 11,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    8,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    8,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    11,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    11,
+    0,
+    0
+   ],
+   "chunks_v2": 26,
+   "parents_present": 10,
+   "v2.chunk": [
+    7,
+    4,
+    1
+   ],
+   "v2.chunk_ab": [
+    7,
+    4,
+    1
+   ],
+   "v2.ordered": [
+    8,
+    3,
+    2
+   ],
+   "v2.ordered_ab": [
+    8,
+    3,
+    2
+   ],
+   "v2.parent": [
+    8,
+    3,
+    1
+   ],
+   "v2.parent_ab": [
+    8,
+    3,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,113,重訴,25,20260730,2",
+   "baseline": 16,
+   "chunks_m1": 23,
+   "m1.chunk": [
+    14,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    14,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    16,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    16,
+    0,
+    0
+   ],
+   "chunks_v2": 27,
+   "parents_present": 1,
+   "v2.chunk": [
+    15,
+    1,
+    1
+   ],
+   "v2.chunk_ab": [
+    15,
+    1,
+    1
+   ],
+   "v2.ordered": [
+    15,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    15,
+    1,
+    1
+   ],
+   "v2.parent": [
+    15,
+    1,
+    1
+   ],
+   "v2.parent_ab": [
+    15,
+    1,
+    1
+   ]
+  },
+  {
+   "jid": "TPDV,114,訴,4515,20260724,2",
+   "baseline": 23,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    23,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    23,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    23,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    23,
+    0,
+    0
+   ],
+   "chunks_v2": 22,
+   "parents_present": 0,
+   "v2.chunk": [
+    22,
+    1,
+    4
+   ],
+   "v2.chunk_ab": [
+    22,
+    1,
+    4
+   ],
+   "v2.ordered": [
+    22,
+    1,
+    4
+   ],
+   "v2.ordered_ab": [
+    22,
+    1,
+    4
+   ],
+   "v2.parent": [
+    22,
+    1,
+    4
+   ],
+   "v2.parent_ab": [
+    22,
+    1,
+    4
+   ]
+  },
+  {
+   "jid": "TYDV,113,訴,3046,20260721,2",
+   "baseline": 13,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    11,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    11,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    13,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    13,
+    0,
+    0
+   ],
+   "chunks_v2": 21,
+   "parents_present": 8,
+   "v2.chunk": [
+    12,
+    1,
+    0
+   ],
+   "v2.chunk_ab": [
+    12,
+    1,
+    0
+   ],
+   "v2.ordered": [
+    13,
+    0,
+    0
+   ],
+   "v2.ordered_ab": [
+    13,
+    0,
+    0
+   ],
+   "v2.parent": [
+    13,
+    0,
+    0
+   ],
+   "v2.parent_ab": [
+    13,
+    0,
+    0
+   ]
+  },
+  {
+   "jid": "PCDV,115,重訴,23,20260730,2",
+   "baseline": 25,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    20,
+    5,
+    0
+   ],
+   "m1.chunk_ab": [
+    20,
+    5,
+    0
+   ],
+   "m1.ordered": [
+    24,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    24,
+    1,
+    0
+   ],
+   "chunks_v2": 26,
+   "parents_present": 7,
+   "v2.chunk": [
+    20,
+    5,
+    0
+   ],
+   "v2.chunk_ab": [
+    20,
+    5,
+    0
+   ],
+   "v2.ordered": [
+    23,
+    2,
+    0
+   ],
+   "v2.ordered_ab": [
+    23,
+    2,
+    0
+   ],
+   "v2.parent": [
+    20,
+    5,
+    0
+   ],
+   "v2.parent_ab": [
+    20,
+    5,
+    0
+   ]
+  },
+  {
+   "jid": "TCDV,113,簡上,206,20260717,1",
+   "baseline": 18,
+   "chunks_m1": 20,
+   "m1.chunk": [
+    10,
+    8,
+    0
+   ],
+   "m1.chunk_ab": [
+    10,
+    8,
+    0
+   ],
+   "m1.ordered": [
+    15,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    15,
+    3,
+    0
+   ],
+   "chunks_v2": 26,
+   "parents_present": 3,
+   "v2.chunk": [
+    8,
+    10,
+    7
+   ],
+   "v2.chunk_ab": [
+    8,
+    10,
+    7
+   ],
+   "v2.ordered": [
+    10,
+    8,
+    8
+   ],
+   "v2.ordered_ab": [
+    10,
+    8,
+    8
+   ],
+   "v2.parent": [
+    8,
+    10,
+    7
+   ],
+   "v2.parent_ab": [
+    8,
+    10,
+    7
+   ]
+  },
+  {
+   "jid": "PCDV,114,家繼訴,35,20260703,2",
+   "baseline": 11,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    10,
+    1,
+    0
+   ],
+   "m1.chunk_ab": [
+    10,
+    1,
+    0
+   ],
+   "m1.ordered": [
+    11,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    11,
+    0,
+    0
+   ],
+   "chunks_v2": 24,
+   "parents_present": 5,
+   "v2.chunk": [
+    9,
+    2,
+    2
+   ],
+   "v2.chunk_ab": [
+    9,
+    2,
+    2
+   ],
+   "v2.ordered": [
+    10,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    10,
+    1,
+    2
+   ],
+   "v2.parent": [
+    9,
+    2,
+    2
+   ],
+   "v2.parent_ab": [
+    9,
+    2,
+    2
+   ]
+  },
+  {
+   "jid": "TCDV,114,家財訴,16,20260731,1",
+   "baseline": 11,
+   "chunks_m1": 22,
+   "m1.chunk": [
+    11,
+    0,
+    0
+   ],
+   "m1.chunk_ab": [
+    11,
+    0,
+    0
+   ],
+   "m1.ordered": [
+    11,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    11,
+    0,
+    0
+   ],
+   "chunks_v2": 23,
+   "parents_present": 9,
+   "v2.chunk": [
+    11,
+    0,
+    3
+   ],
+   "v2.chunk_ab": [
+    11,
+    0,
+    3
+   ],
+   "v2.ordered": [
+    11,
+    0,
+    3
+   ],
+   "v2.ordered_ab": [
+    11,
+    0,
+    3
+   ],
+   "v2.parent": [
+    11,
+    0,
+    3
+   ],
+   "v2.parent_ab": [
+    11,
+    0,
+    3
+   ]
+  },
+  {
+   "jid": "TPDV,115,勞訴,48,20260728,1",
+   "baseline": 38,
+   "chunks_m1": 21,
+   "m1.chunk": [
+    34,
+    4,
+    0
+   ],
+   "m1.chunk_ab": [
+    34,
+    4,
+    0
+   ],
+   "m1.ordered": [
+    38,
+    0,
+    0
+   ],
+   "m1.ordered_ab": [
+    38,
+    0,
+    0
+   ],
+   "chunks_v2": 28,
+   "parents_present": 0,
+   "v2.chunk": [
+    32,
+    6,
+    6
+   ],
+   "v2.chunk_ab": [
+    32,
+    6,
+    6
+   ],
+   "v2.ordered": [
+    33,
+    5,
+    6
+   ],
+   "v2.ordered_ab": [
+    33,
+    5,
+    6
+   ],
+   "v2.parent": [
+    32,
+    6,
+    6
+   ],
+   "v2.parent_ab": [
+    32,
+    6,
+    6
+   ]
+  },
+  {
+   "jid": "PCDV,109,重國,7,20260707,7",
+   "baseline": 8,
+   "chunks_m1": 21,
+   "m1.chunk": [
+    5,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    5,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    7,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    7,
+    1,
+    0
+   ],
+   "chunks_v2": 30,
+   "parents_present": 4,
+   "v2.chunk": [
+    5,
+    3,
+    1
+   ],
+   "v2.chunk_ab": [
+    5,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    7,
+    1,
+    2
+   ],
+   "v2.ordered_ab": [
+    7,
+    1,
+    2
+   ],
+   "v2.parent": [
+    7,
+    1,
+    1
+   ],
+   "v2.parent_ab": [
+    7,
+    1,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,訴,721,20260730,1",
+   "baseline": 16,
+   "chunks_m1": 21,
+   "m1.chunk": [
+    14,
+    2,
+    0
+   ],
+   "m1.chunk_ab": [
+    14,
+    2,
+    0
+   ],
+   "m1.ordered": [
+    15,
+    1,
+    0
+   ],
+   "m1.ordered_ab": [
+    15,
+    1,
+    0
+   ],
+   "chunks_v2": 24,
+   "parents_present": 0,
+   "v2.chunk": [
+    15,
+    1,
+    1
+   ],
+   "v2.chunk_ab": [
+    15,
+    1,
+    1
+   ],
+   "v2.ordered": [
+    15,
+    1,
+    1
+   ],
+   "v2.ordered_ab": [
+    15,
+    1,
+    1
+   ],
+   "v2.parent": [
+    15,
+    1,
+    1
+   ],
+   "v2.parent_ab": [
+    15,
+    1,
+    1
+   ]
+  },
+  {
+   "jid": "PCDV,114,簡上,203,20260708,3",
+   "baseline": 10,
+   "chunks_m1": 21,
+   "m1.chunk": [
+    7,
+    3,
+    0
+   ],
+   "m1.chunk_ab": [
+    7,
+    3,
+    0
+   ],
+   "m1.ordered": [
+    7,
+    3,
+    0
+   ],
+   "m1.ordered_ab": [
+    7,
+    3,
+    0
+   ],
+   "chunks_v2": 23,
+   "parents_present": 15,
+   "v2.chunk": [
+    7,
+    3,
+    1
+   ],
+   "v2.chunk_ab": [
+    7,
+    3,
+    1
+   ],
+   "v2.ordered": [
+    7,
+    3,
+    1
+   ],
+   "v2.ordered_ab": [
+    7,
+    3,
+    1
+   ],
+   "v2.parent": [
+    7,
+    3,
+    1
+   ],
+   "v2.parent_ab": [
+    7,
+    3,
+    1
+   ]
+  }
+ ],
+ "note": "[hit, FN, disagree_with_baseline]；disagree 不等於錯，需人工標註判定"
+}
