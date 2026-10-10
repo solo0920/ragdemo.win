@@ -5,11 +5,19 @@
 #   1) backend/app/*.py 語法檢查（ast.parse，不產 __pycache__）
 #   2) IP 準則：被 git 追蹤的檔案不得出現 "LAN_IP=" 賦值（.env 不進版控抓不到，
 #      但 .env.example / 文件若殘留 LAN_IP= 即違規）
-#   3) pytest 單元測試（tests/，純函式不需外部服務；機器未裝 pytest 則跳過）
+#   3) pytest 單元測試 —— **RAGDEMO_TEST=1** 才跑，預設跳過（約 126 秒；
+#      其他段合計數秒，這是唯一值得優化的等待項。2026-10-10 maintainer 指示）
 #   4) docker compose config -q（插值與 YAML 結構；docker 未裝則跳過）
-# 可選（設 RAGDEMO_SMOKE=1 才跑，需本機 api 在線且 LLM 可用，較慢）：
-#   5) 完整 HTTP smoke：/health + /query（驗證答案非空）
+# opt-in（設變數才跑）：
+#   5) 完整 HTTP smoke —— RAGDEMO_SMOKE=1（需本機 api 在線且 LLM 可用，較慢）
+#      /health + /query（驗證答案非空）
 # 本機 api 不在線時：強制檢查照跑，HTTP 部分只警告不擋 push。
+#
+# ⚠ **跳過不等於通過**。pytest 預設不跑，所以這條 hook **不再證明測試是綠的**。
+#   真正回答「測試過了沒」的是 GitHub CI（乾淨 clone）。本機 pre-push 現在只證明
+#   「語法對、沒有 LAN_IP、compose 插值過」。要看測試結果請手動：
+#       .venv/bin/pytest -q -p no:cacheprovider
+#   或在 push 時要它跑：RAGDEMO_TEST=1 git push origin main
 #
 # 各機啟用：git config core.hooksPath .githooks
 set -euo pipefail
@@ -72,8 +80,24 @@ if LAN_HITS="$(git grep -nE '^LAN_IP=' -- 2>/dev/null)"; [ -n "$LAN_HITS" ]; the
 fi
 echo "✓ 無 LAN_IP= 殘留（IP 準則合規）"
 
-# 3) pytest 單元測試（純函式，不需 api/docker；機器未裝 pytest 則跳過）
-if [ -x .venv/bin/pytest ]; then
+# 3) pytest 單元測試 —— opt-in（2026-10-10）
+#
+# 為什麼改成 opt-in：全套 126 秒，而這條 hook 其他段合計數秒。126 秒是
+# 「每次 push 要等兩分多鐘」的唯一來源。maintainer 指示：改成有需要才手動跑。
+#
+# ⚠ **但必須說清楚這不是「通過」而是「沒跑」** —— 這支 hook 的註解裡反覆
+#   出現同一個病：CI 紅了 10 次沒人發現，因為大家只看本機 pre-push 綠。
+#   現在反過來：pre-push 不再證明測試是綠的。若這裡靜默跳過，使用者會
+#   以為測過了 —— 那是我們剛花在 CI 上處理過的同一種錯覺。
+#   所以預設路徑**一定要講出「沒跑」和怎麼跑**。這跟第 5 段那個靜默分支
+#   不同：那個是壞掉的檢查報假警報，這個是真的少做了一件該做的事。
+if [ "${RAGDEMO_TEST:-0}" != "1" ]; then
+  if [ -x .venv/bin/pytest ]; then
+    echo "⚠ pytest 未跑（opt-in，約 126 秒）。要它擋：RAGDEMO_TEST=1 git push"
+    echo "  只看結果：.venv/bin/pytest -q -p no:cacheprovider"
+    echo "  真正證明測試的是 GitHub CI（乾淨 clone）—— 這條 hook 現在不證明。"
+  fi
+elif [ -x .venv/bin/pytest ]; then
   # 2026-10-02：把「跑不起來」的原因講清楚，不要只說「pytest 失敗」。
   # 實測踩到的最常見一種：repo 目錄改名／搬移後，.venv 裡每個 script 的
   # shebang 還是舊絕對路徑 → `bad interpreter`。而 uv sync --dev 修不好它
@@ -144,7 +168,7 @@ else
   echo "⚠ docker 未安裝，跳過 compose 插值檢查"
 fi
 
-# 5) 可選完整 HTTP smoke
+# 5) 可選完整 HTTP smoke —— opt-in（RAGDEMO_SMOKE=1）
 #
 # ⚠️ 2026-10-03：這裡原本**寫死 `localhost:8000`**（4 處）。換埠到 920 之後
 #    症狀是**假陰性**：`RAGDEMO_SMOKE=1` 永遠報「api 不在線」而中止 push ——
