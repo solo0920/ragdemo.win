@@ -1,11 +1,14 @@
 # Feature Specification: S1 判決三層儲存（parquet 原文 ＋ postgres metadata ＋ qdrant 向量）
 
-- Status: Draft **rev5**（**specify 階段**；未 clarify／plan／tasks／analyze／implement）
-  2026-10-10 · rev5 納入 **§實測基線 §7**（四種法條抽取模式的實測比較，100 卷全量）
+- Status: Draft **rev5**（**specify 階段收斂完成；可進 clarify／plan**）
+  2026-10-10 · rev5 納入 **§實測基線 §7**（檢索上下文對法條抽取的影響實測）
   及其衍生的 **FR-011b／FR-011c**（`laws[]` 分文件層／片段層，各用實測選定的模式）
-  與 **SC-011b**；另加 **User Story 5**（只留接口，實作屬 spec 008）。
+  與 **SC-011b**；另加 **User Story 5**（只留接口，實作屬 spec 008）；
+  **Open Question 8 已裁決**（`hearing_closed` 恆為陣列，方案 A）。
   rev4 的三處修正與兩個流程決定保留，異動見文末兩份修訂記錄。
-  `【建議・待裁】`＝尚未裁決；`【待裁決】`＝**阻擋性**未決項（Open Question 8）。
+  ⚠ **僅 Q8 阻擋進 plan 的狀態已解除**；其餘 Open Questions 多為
+  【建議・待裁】或【雙方共識】，可在 plan 階段定案（Q3 的 `normalize_district()`
+  規則是 SC-002 ② 的實作前提，plan 必須先定）。
 - **rev5 的量測推翻了三個先前假設**：「句首殘缺回退前句」根本不存在；「帶鄰居 chunk
   無效、順序無關」是**實作把上下文丟掉**造成的假象（正確實作 +13.5pp）；
   「整份依序掃描」不能既當基準又當受評模式。詳見 §實測基線 §7 的錯誤表。
@@ -160,11 +163,21 @@ spec 008 只需新增「產生器」與「回饋表」兩件事。
   **issues**（降級）：`missing_required:*`／`no_footer`／`possibly_truncated_source`／
   `unsupported_court_type`／`no_judge`／`no_clerk`（前兩者即使必填欄位恰好齊全仍是 issue）；
   **notes**（不降級）：`no_reasoning_title`。
-  ⚠ `hearing_closed` 在「分別言詞辯論」案件是多值（實測 1/100），型別設計見
-  **Open Question 8【待裁決】**；裁決前該類文件維持 `partial`＋`missing_required:hearing_closed`。
-  ⚠ 若 Open Q8 採方案 A（恆為陣列），FR-006 的必填規則同步改為
-  **`doc_type='judgment'` 時陣列長度 ≥1；`ruling` 允許空陣列**，且 SC-009 需對應補上
-  同一個分支（見 SC-009 註）。
+  ⚠ `hearing_closed` 在「分別言詞辯論」案件是**多值**（實測 1/100），型別已定：
+  **`hearing_closed_dates date[]` 恆為陣列** ＋ `hearing_closed_raw`（原句，provenance）。
+  **單值 `hearing_closed` 為 PG generated column，取陣列最後一個日期**
+  （＝全案所有被告的言詞辯論皆已終結之日），**不另存、不手動維護**——
+  手動維護等於兩個真相來源（憲法 VI）。
+  因為單日期案件長度為 1，**全庫只有一種形狀**（與 `jid` 欄數不一致的情形不同）。
+  必填規則同步改為：**`doc_type='judgment'` 時陣列長度 ≥1；`ruling` 允許空陣列**；
+  **缺任一日期即 `partial`** ＋ `missing_required:hearing_closed`。
+  ⚠ **解析限制（實測反例支持，不得放寬）**：只在「分別」緊鄰「言詞辯論終結」時才啟用
+  多日期；日期須落在「本院於」與「分別」之間；後續日期省略年份時沿用前一個。
+  **實測 100 卷中「含辯論終結的句子」有 9 句含 ≥2 個日期，其中只有 1 句含「分別」，
+  其餘 8 句是原審判決日期落入同一句附近**——若放寬成「句內兩個日期就算多值」，
+  這 8 卷會被誤判。故此限制是**有實測反例支撐的**，不是保守估計。
+  ⚠ **UNVERIFIED**：只有 1 個樣本。上線前須在全庫掃描「分別…辯論終結」計數並抽驗
+  （SC-012 一併處理）。
 - FR-007：**qdrant 層（結構切分）**——chunk 邊界依判決書結構
   （`甲、`／`壹、`／`一、`／`（一）`／`㈠`／`⒈` 等標記，階層依建樹），**不以固定字數為主要邊界**；
   僅超長段才細切，`max_chars=800`（裁決 ①，實測見 §實測基線 §4）。
@@ -296,9 +309,12 @@ spec 008 只需新增「產生器」與「回饋表」兩件事。
   顯示，全程**不需解壓 RAR**。
 - SC-009：`judgment_meta` 中 `parse_status='ok'` 的列，**其必填欄位無 NULL**
   （分文書類型，FR-006）。此門檻會抓到「`ok` 但欄位空」那類靜默缺陷。
-  ⚠ **若 Open Q8 採方案 A（`date[]`）**，此判斷同步改為陣列語意：
-  `doc_type='judgment'` → `cardinality(hearing_closed_dates) >= 1`；
-  `doc_type='ruling'` → 允許空陣列。**不得**同時保留單值欄位（那是兩個真相來源）。
+  ⚠ **`hearing_closed` 採陣列語意**：`doc_type='judgment'` →
+  `cardinality(hearing_closed_dates) >= 1`；`doc_type='ruling'` → 允許空陣列。
+  ⚠ **generated column 必須真的由陣列衍生**：驗收時**改寫 `hearing_closed_dates`
+  陣列內容後讀 `hearing_closed`，必須跟著變**；若它是手動維護的欄位（兩個真相來源），
+  此驗收即失敗。另外斷言 `hearing_closed = hearing_closed_dates[last]`
+  （取最後一個日期，FR-006 已載明理由）。
 
 - SC-010：`pg_schema.sql` 中 `court` 的決策註解**不再含舊理由**，且含推翻證據
   （grep 驗收；FR-015）。
@@ -624,7 +640,8 @@ chunker ＝ v2 結構切分（max_chars=800，同一基準，**與上表不可�
 1. **`hearing_closed`**：空值 4 件＝3 件家親聲裁定（正常）＋ **1 件判決 `TPDV,114,重訴,383`**。
    rev2 曾寫「3 件判決空值已消失」是**說過頭**（評估端的 96 卷樣本不含 383）；實際是
    **3 件中 2 件已修（regex）、383 仍空**，且 383 的原因不是 regex，而是原文為
-   「分別言詞辯論終結」（兩個日期）。處置見 **Open Q8【待裁決】**。
+   「分別言詞辯論終結」（兩個日期）。**已處置**：Q8 採方案 A（`hearing_closed_dates`
+   date[] 恆為陣列，單值取最後一個日期為 generated column）——見 FR-006。
 2. **parent 錯配**：749 個有 parent 的 child，**749/749 正確，0 錯配**（修前 20 個：
    8 個重複編號覆蓋＋12 個標題併入）。
 3. **`laws_unresolved`**：見 §5；剩餘為指涉型與非法規，**不預期趨近 0**。
@@ -660,23 +677,15 @@ chunker ＝ v2 結構切分（max_chars=800，同一基準，**與上表不可�
    獨立切片 S1-3（見〈實作切片順序〉）：parquet／postgres 不依賴它，可先驗收；offset 只需原文，
    可獨立驗收；FR-007 在其完成前不可驗收。**rev4 已補上 S1-3 的 exit criteria**（＝SC-003 ② 的
    parser 層版本）——原本 S1-3 只有內容沒有門檻，是可驗收性缺口。
-8. **【待裁決】`hearing_closed` の多值情形**（分別言詞辯論；實測 1/100：`TPDV,114,重訴,383`）。
-   原文標頭：「本院於民國115年6月1日（米樂管理顧問有限公司以外之被告）、6月8日（米樂管理顧問
-   有限公司）分別言詞辯論終結」——兩個日期、被硬換行切斷、中間夾括號、第二個日期省略年份。
-   選項：**A** 存陣列；**B** 存「主日期」＋ raw 原文；**C** 維持單值並永遠 `partial`。
-   - C 的問題：重跑不會變好，正是 issues／notes 分級要消除的那類無效重跑。
-   - 【Claude 的建議】型別採「**恆為陣列**」`hearing_closed_dates date[]`（單日期案件長度 1，
-     所以**只有一種形狀**，不同於 `jid` 欄數不一致的情形）＋ `hearing_closed_raw`（原句，provenance）；
-     便利用單值 `hearing_closed` 為由陣列**衍生**的 generated column（PG≥12 方可），
-     **不另存**，避免兩個真相來源。單值取**最後一個**（全案辯論皆已終結之日）；
-     B 案取「第一個」亦屬確定性規則——**兩者擇一皆可，必須寫明所選規則**，並以
-     「各日期 ≤ `judgment_date`、遞增」為不變式驗證。
-   - 解析限制：只在「分別」緊鄰「言詞辯論終結」時才啟用多日期；日期須落在「本院於」與「分別」之間；
-     後續日期省略年份時沿用前一個；**不得**抓句中其他日期（樣本中 6 卷簡上案件的同一句內另有
-     原審判決日期，即為反例）。
-   - **UNVERIFIED**：目前只有 1 個樣本；上線前須在全庫掃描「分別…辯論終結」計數並抽驗。
-   - 裁決前：該類文件維持 `partial`＋`missing_required:hearing_closed`（FR-006）。
-   - ⚠ **rev4**：採 A 時 FR-006 與 SC-009 都要補陣列分支（已寫入兩處）。
+8. ✅ **已裁決（2026-10-10，方案 A）**：`hearing_closed` 恆為陣列
+   `hearing_closed_dates date[]` ＋ `hearing_closed_raw`；單值 `hearing_closed` 為
+   **generated column，取最後一個日期**，不手動維護。**詳寫入 FR-006 與 SC-009。**
+   裁決依據（新增實測，分母 100 卷）：含「辯論終結」的句子中，單日期 52 句、
+   **多日期 9 句**、零日期 45 句；但 9 句多日期裡**只有 1 句含「分別」**，
+   其餘 8 句是**原審判決日期落在同一句附近**（反例）。故真實多值 **1/100**，
+   且「只在分別緊鄰辯論終結時啟用多日期」這條限制有實測反例支撐。
+   仍待 plan／上線前處理：**UNVERIFIED**（只有 1 個樣本，須在全庫掃描「分別…辯論終結」
+   計數並抽驗）。
 
 ## 已排除（明確不做，記錄理由）
 
@@ -714,7 +723,7 @@ chunker ＝ v2 結構切分（max_chars=800，同一基準，**與上表不可�
 | # | 位置 | 類型 | 內容 |
 |---|---|---|---|
 | 1 | 〈重驗結果〉① | **更正** | rev2「3 件判決空值已消失」說過頭：實為 2/3 已修，383 因「分別言詞辯論」仍空 |
-| 2 | Open Q8 | 新增【待裁決】 | `hearing_closed` 多值設計；Claude 建議「恆為陣列＋衍生單值＋raw」；UNVERIFIED |
+| 2 | Open Q8 | 新增【待裁決】→ **已裁決** | `hearing_closed` 多值設計；Claude 建議「恆為陣列＋衍生單值＋raw」；UNVERIFIED。**2026-10-10 採方案 A**，詳見 FR-006 |
 | 3 | SC-002 | 重寫 | 改為三條非同義反覆驗收（`court_raw` 回溯、`court_in_text.startswith(court)`、`jid` 代碼對應） |
 | 4 | US3／SC-003 | 修訂 | `normalize`→`clean`（具名、有版本、可單獨呼叫）；容差待 offset 切片實測定義 |
 | 5 | 〈實作切片順序〉 | 新增 | parquet→postgres→offset→qdrant；FR-007 在 S1-3 前不可驗收 |
@@ -755,7 +764,14 @@ chunker ＝ v2 結構切分（max_chars=800，同一基準，**與上表不可�
 | 5 | User Story 5 | **新增** | 「模式可切換＋回饋閉環」明列為 **P3 且本 spec 只留接口**，實作（UI／端點／feedback 表）屬 spec 008。理由：跨檢索／生成／UI／資料表四層，違反憲法 I（小切片）與 X（不擴張 scope） |
 | 6 | SC-011b | **新增** | 召回門檻（`chunk` ≥ 0.70、`ordered_ab` ≥ 0.85，同基準重跑）；**precision 暫不設門檻**，因為基準本身會因縮寫誤歸屬 |
 | 7 | 裁決記錄 | 追加 | rev5 的六項裁決（`laws[]` 分層、`laws_mode` 必填、`ordered_ab` 附來源、`parent_expand` 不納入、量測須記 chunker、暫不設 precision 門檻） |
+| 8 | FR-006／SC-009／Open Q8 | **裁決（方案 A）** | `hearing_closed_dates date[]` **恆為陣列** ＋ `hearing_closed_raw`；單值 `hearing_closed` 為 **generated column 取最後一個日期**（＝全案辯論皆終結之日），**不手動維護**（避免兩個真相來源）。因單日期案件長度為 1，**全庫只有一種形狀** |
 | 8 | （否定結論留檔） | 記錄 | **`parent_expand` 不納入**：正確實作（父塊＋chunk 依序共用游標）召回 0.7333，**低於**鄰居展開 `ordered` 0.7938；且覆蓋率僅 23.3%、16 卷完全無 parent。**保留量測工具**，待 parent 指派規則改進後重測 |
+| 9 | Open Q8 | **新增實測依據** | 分母 100 卷：含「辯論終結」的句子中單日期 52 句、多日期 9 句、零日期 45 句；但 9 句多日期裡**只有 1 句含「分別」**，其餘 8 句是**原審判決日期落在同一句附近**（反例）。故真實多值 **1/100**，且「只在分別緊鄰辯論終結時啟用多日期」有實測反例支撐（放寬會誤判那 8 卷） |
+| 10 | SC-009 | **強化驗收** | generated column 必須**真的由陣列衍生**：改寫陣列內容後讀單值必須跟著變；並斷言 `hearing_closed == hearing_closed_dates[last]`。若單值是手動維護欄位，此驗收即失敗 |
+| 11 | 狀態行 | 更新 | **specify 階段收斂完成，Q8 已裁決，可進 clarify／plan** |
+| 9 | FR-006／SC-009／Open Q8 | **裁決（方案 A）** | `hearing_closed_dates date[]` **恆為陣列** ＋ `hearing_closed_raw`；單值 `hearing_closed` 為 **generated column 取最後一個日期**（＝全案辯論皆終結之日），**不手動維護**（避免兩個真相來源）。因單日期案件長度為 1，**全庫只有一種形狀** |
+| 10 | Open Q8 | **新增實測依據** | 分母 100 卷：含「辯論終結」的句子中單日期 52 句、多日期 9 句、零日期 45 句；但 9 句多日期裡**只有 1 句含「分別」**，其餘 8 句是**原審判決日期落在同一句附近**。故真實多值 **1/100**，且「只在分別緊鄰辯論終結時啟用多日期」有實測反例支撐（放寬會誤判那 8 卷） |
+| 11 | SC-009 | **強化驗收** | generated column 必須**真的由陣列衍生**：改寫陣列內容後讀單值必須跟著變；並斷言 `hearing_closed == hearing_closed_dates[last]`。若單值是手動維護欄位，此驗收即失敗 |
 
 ### 這次量測推翻了什麼（記錄以免日後重蹈）
 
