@@ -1,31 +1,27 @@
 <!--
 SYNC IMPACT REPORT
-Version change: 1.1.0 → 1.2.0
-Bump rationale: MINOR — a new NON-NEGOTIABLE principle is added. No existing
-  principle is removed or redefined, so backward compatibility is preserved.
-Modified principles: none (maintainer constraint: 不改既有憲法條文)
-Added principles:
-  XII. Measured, Reproducible, and Honest Reporting
-       (covers maintainer rules R1, R2, R3, R5, R6, and the generalizable part of R4)
+Version change: 1.2.0 → 1.2.1
+Bump rationale: PATCH — wording/cross-reference corrections only. No principle content
+  added, removed, or redefined.
+Modified principles: none (only two cross-references inside existing sections)
+Changed lines (text only):
+  - Development Workflow → Constitution Check (gate): "Principles I–X" → "Principles I–XII"
+  - Governance → Conflict resolution: NON-NEGOTIABLE list "(I, III, VI, VII, X)"
+    → "(I, III, VI, VII, X, XI, XII)"
+    Rationale: XI and XII are already titled NON-NEGOTIABLE in their own headings
+    (line 179, line 206); the governance list omitted them, which understated their
+    precedence. This corrects a pre-existing inconsistency — it was already wrong when
+    XI was added without updating the list.
 Added sections: none
 Removed sections: none
 Templates requiring updates:
   ✅ none — verified by grep that .specify/templates/*.md do not enumerate principle
-     names or numbers; they read this file at runtime. (Only constitution-template.md
-     matched, and only for the literal heading "## Core Principles".)
-Follow-up TODOs:
-  ⚠ R4 as written names specific modules: "不得修改 b1_serve 的取捨邏輯與 S1-3 既有檔案行為".
-    Those are feature-scoped, not project-wide. `backend/app/b1_serve.py` (21,121 bytes,
-    verified present) is one module of one feature; "S1-3" is a slice of spec 007 only.
-    Baking them into the project constitution would freeze a temporary scope into
-    permanent governance. DELIBERATELY OMITTED from Principle XII. The generalizable
-    rule it carries ("purely additive changes; ask before touching existing behavior")
-    IS included. The module-specific constraint belongs in specs/007 scope.
-  ⚠ Pre-existing inconsistency, left untouched under the same 不改既有條文 constraint:
-    the Constitution Check gate below says "Principles I–X" while I–XI (now XII) exist.
-    This was already wrong before this amendment (XI was added without updating it).
-    Needs a separate decision — fixing it would modify existing text.
-  ⚠ No TODO(...) placeholders were introduced; this document has no deferred fields.
+    names or numbers; they read this file at runtime.
+Follow-up TODOs: none. This PATCH resolves both deferrals recorded in the 1.2.0 report:
+  (1) the stale "Principles I–X" gate reference, and
+  (2) the omitted XI/XII in the NON-NEGOTIABLE precedence list.
+  The deliberate omission of b1_serve / S1-3 from Principle XII remains a recorded
+  decision, not a deferral.
 -->
 
 # ragdemo.win Constitution
@@ -261,7 +257,7 @@ Non-trivial features SHOULD follow:
 
 - Specs define **WHAT and WHY**; plans define **HOW**; tasks define **actionable work**.
   Implementation MUST NOT redefine requirements that belong in the spec.
-- **Constitution Check (gate)**: every `plan.md` MUST be checked against Principles I–X
+- **Constitution Check (gate)**: every `plan.md` MUST be checked against Principles I–XII
   before design (Phase 0) and re-checked after design (Phase 1).
 - **Violations**: any violation MUST be recorded in the plan's *Complexity Tracking* table,
   stating the principle violated, why it is needed, and the simpler alternative rejected.
@@ -296,10 +292,10 @@ This constitution supersedes other project practices. It is intentionally stable
   PATCH for clarifications and wording fixes.
 - **Repeated violations**: if a feature repeatedly requires violating a principle, the
   constitution itself SHOULD be reconsidered rather than letting implementations bypass it.
-- **Conflict resolution**: NON-NEGOTIABLE principles (I, III, VI, VII, X) take precedence over
-  all others. Among the rest, the order of preference is: Stable Core (II) > Explicit
+- **Conflict resolution**: NON-NEGOTIABLE principles (I, III, VI, VII, X, XI, XII) take precedence
+  over all others. Among the rest, the order of preference is: Stable Core (II) > Explicit
   Contracts (IV) > Testability (V) > Reproducibility (VIII) > Observability (IX).
 - **Compliance review**: all plans, tasks, and implementation reviews MUST verify compliance
   with this constitution.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-04 | **Last Amended**: 2026-10-10
+**Version**: 1.2.1 | **Ratified**: 2026-10-04 | **Last Amended**: 2026-10-10
