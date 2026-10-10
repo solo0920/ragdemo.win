@@ -239,7 +239,7 @@ def point_id(pcode: str, seq: int, ci: int) -> int:
         int.from_bytes(hashlib.md5(f"{pcode}-{seq}".encode()).digest()[:8], "big")
 
 
-def build_points(flat: list[dict], limit: int) -> list[dict]:
+def build_points(flat: list[dict], limit: int, level_of: dict | None = None) -> list[dict]:
     """把條文轉成 Qdrant points。**不排除**已廢止／已中止條文。
 
     ⚠️ 2026-10-05 決定反轉舊行為。舊版在這裡 `continue` 掉
@@ -256,7 +256,15 @@ def build_points(flat: list[dict], limit: int) -> list[dict]:
     （使用者問「證券交易法第9條」時應該得到「第9條已刪除」而不是查不到），
     但要明確標示已廢止、不該與現行條文同等排序。那是 retrieve 的判斷，
     這裡只負責**誠實地存進去**。
+
+    ⚠️ `level_of`：**`law_level` 只存在於 laws_meta.jsonl，flat 檔沒有**
+    （2026-10-10 實測 flat 的 keys 為 pcode/law_name/law_url/source_api/
+    law_category/is_abandoned/is_repealed/article_seq/article_type/
+    article_no/chapter/article_content/char_len，**無 law_level**）。
+    故由呼叫端從 meta 建 pcode→law_level 的對照傳進來。
+    這是 FR-017 的要求：payload 要能分辨「法律」與「命令」。
     """
+    level_of = level_of or {}
     pts: list[dict] = []
     for a in flat:
         seq = a["article_seq"]
@@ -267,6 +275,15 @@ def build_points(flat: list[dict], limit: int) -> list[dict]:
             payload = {
                 "pcode": a["pcode"],
                 "law_name": a["law_name"],
+                # ⚠ 以下三個欄位是 **spec 007 FR-017/018** 要求的，2026-10-10 補上。
+                #   補的原因：重建後抽 400 點發現 `law_level`／`source_api`／`law_url`
+                #   **全部不在 payload**（qdrant_load 從沒讀過這三個欄位）。
+                #   後果是引用呈現無法判斷「這是法律還是命令」，也**跳不回目錄官網**——
+                #   而「每處法條引用附官方連結」是 maintainer 明文指定的呈現規格。
+                #   source_api 同時是「命令層已納入」的證據（spec 007 §11）。
+                "law_level": level_of.get(a["pcode"], a.get("law_level", "")),
+                "source_api": a.get("source_api", ""),
+                "law_url": a.get("law_url", ""),
                 "law_category": a["law_category"],
                 "article_seq": seq,
                 "article_no": a["article_no"],
@@ -293,8 +310,11 @@ def build_points(flat: list[dict], limit: int) -> list[dict]:
 
 async def run(limit: int = 0) -> None:
     flat = load_jsonl(DATA / "laws_flat.jsonl")
-    pts = build_points(flat, limit) if limit else build_points(flat, len(flat))
-    print(f"待灌 {len(pts)} 條（排除已廢止/刪除）")
+    # `law_level` 只在 meta 裡（flat 沒有），故建 pcode→level 對照傳進去。
+    # 少了這個，payload 的 law_level 會全空，引用呈現就分不出法律/命令（FR-017）。
+    level_of = {m["pcode"]: m.get("law_level", "") for m in load_jsonl(DATA / "laws_meta.jsonl")}
+    pts = build_points(flat, limit, level_of) if limit else build_points(flat, len(flat), level_of)
+    print(f"待灌 {len(pts)} 條（**不排除**已廢止/已刪除——理由見 build_points docstring）")
 
     async with httpx.AsyncClient(headers=QDRANT_HEADERS) as c:
         await backup_old(c)
