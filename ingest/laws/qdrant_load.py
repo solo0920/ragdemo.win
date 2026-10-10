@@ -126,7 +126,18 @@ def chunk_text(content: str, maxlen: int = MAX_DOC) -> list[str]:
 
 
 async def _embed_one(c: httpx.AsyncClient, text: str) -> list[float]:
-    """單筆 embed：超長/膨脹文本逐步縮短，直到 bge-m3 放得下；最終必定試到 ≤80 字。"""
+    """單筆 embed：超長/膨脹文本逐步縮短，直到 bge-m3 放得下；最終必定試到 ≤80 字。
+
+    ⚠ **2026-10-10 修**：原本只把 400 當作「太長，縮短再試」，
+    其餘狀態碼一律 `raise_for_status()`。但命令層（order API）有超長條文，
+    ollama 對那些回的是 **413 Payload Too Large**
+    （"the input length exceeds the context length"），不是 400。
+    → 走進 `raise_for_status()` 直接炸掉，整批 222,109 筆重建中斷。
+
+    修正：**400 與 413 都視為「太長」**。兩者的差別只是 ollama 版本對
+    哪個限制先觸發（單筆 context length vs 整批 token 總量），處置相同。
+    其餘狀態碼維持 raise（那是真正的故障，不該被縮短掩蓋）。
+    """
     t = text
     while True:
         try:
@@ -134,7 +145,8 @@ async def _embed_one(c: httpx.AsyncClient, text: str) -> list[float]:
                              json={"model": EMBED_MODEL, "input": [t], "keep_alive": -1}, timeout=600)
             if r.status_code == 200:
                 return r.json()["embeddings"][0]
-            if r.status_code != 400:
+            # 400 = 整批總字元超限；413 = 單筆超出 context length。兩者都縮短。
+            if r.status_code not in (400, 413):
                 r.raise_for_status()
         except httpx.TransportError:
             await asyncio.sleep(2)
@@ -142,7 +154,7 @@ async def _embed_one(c: httpx.AsyncClient, text: str) -> list[float]:
         if len(t) <= 80:
             break
         t = t[: max(80, len(t) * 3 // 4)]
-    raise RuntimeError(f"embed 始終失敗：{text[:40]!r}")
+    raise RuntimeError(f"embed 始終失敗（縮到 80 字仍不過）：{text[:40]!r}")
 
 
 async def embed(c: httpx.AsyncClient, texts: list[str]) -> list[list[float]]:

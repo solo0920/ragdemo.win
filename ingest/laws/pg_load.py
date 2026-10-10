@@ -56,7 +56,8 @@ async def run() -> None:
 
         law_rows = [
             (
-                m["pcode"], m["law_name"], m["law_level"], m["law_category"],
+                m["pcode"], m["law_name"], m["law_level"], m.get("source_api", ""),
+                m.get("law_url", ""), m["law_category"],
                 m["law_modified_date"], m["law_effective_date"], m["law_effective_note"],
                 m["is_abandoned"], m["law_abandon_note"], m["has_eng"], m["eng_name"],
                 m["attach_count"], m["law_foreword"], m["law_histories"], m["article_count"],
@@ -64,13 +65,14 @@ async def run() -> None:
             for m in meta
         ]
         LAW_SQL = """
-            INSERT INTO law (pcode, law_name, law_level, law_category,
+            INSERT INTO law (pcode, law_name, law_level, source_api, law_url, law_category,
                              law_modified_date, law_effective_date, law_effective_note,
                              is_abandoned, law_abandon_note, has_eng, eng_name,
                              attach_count, foreword, histories, article_count)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
             ON CONFLICT (pcode) DO UPDATE SET
               law_name=EXCLUDED.law_name, law_level=EXCLUDED.law_level,
+              source_api=EXCLUDED.source_api, law_url=EXCLUDED.law_url,
               law_category=EXCLUDED.law_category, law_modified_date=EXCLUDED.law_modified_date,
               law_effective_date=EXCLUDED.law_effective_date, law_effective_note=EXCLUDED.law_effective_note,
               is_abandoned=EXCLUDED.is_abandoned, law_abandon_note=EXCLUDED.law_abandon_note,
@@ -97,12 +99,27 @@ async def run() -> None:
         """
 
         async with con.transaction():
-            with open(DATA / "ChLaw.json", encoding="utf-8-sig") as f:
-                update_date = json.load(f).get("UpdateDate", "")
+            # ⚠ **兩個 API 都要記錄**（2026-10-10）。原本只讀 ChLaw.json，
+            # 結果 law_import 看起來像「已涵蓋全部法規」，實際上整個命令層缺席。
+            # 記 sources 是為了讓日後看紀錄的人不會重蹈那個誤解。
+            dates, shas = [], []
+            for _tag, fn in (("law", "ChLaw.json"), ("order", "ChOrder.json")):
+                p = DATA / fn
+                if p.is_file():
+                    with open(p, encoding="utf-8-sig") as f:
+                        dates.append(json.load(f).get("UpdateDate", ""))
+                    shas.append(sha256f(p))
+            update_date = " | ".join(d for d in dates if d)
+            sources = ",".join(t for t, fn in (("law", "ChLaw.json"), ("order", "ChOrder.json"))
+                               if (DATA / fn).is_file())
+            src_urls = ",".join(
+                f"https://law.moj.gov.tw/api/ch/{t}/json"
+                for t in ("law", "order") if (DATA / f"Ch{t.capitalize()}.json").is_file()
+            )
             imp = await con.fetchrow(
-                "INSERT INTO law_import (source_url, update_date, source_sha256, laws_count, articles_count) "
-                "VALUES ('https://law.moj.gov.tw/api/ch/law/json', $1, $2, $3, $4) RETURNING id",
-                update_date, sha256f(DATA / "ChLaw.json"), len(meta), len(flat),
+                "INSERT INTO law_import (source_url, sources, update_date, source_sha256, "
+                "laws_count, articles_count) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+                src_urls, sources, update_date, ";".join(shas), len(meta), len(flat),
             )
 
             for i in range(0, len(law_rows), CHUNK):

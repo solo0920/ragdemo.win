@@ -1,0 +1,48 @@
+{
+  "recorded_at": "2026-10-10",
+  "why": "法規與命令層重建的**可重現錨點**。原始檔共 334 MB，不進版控（data/laws/* 已 gitignore）；但門檻錨點必須可驗證（spec 007〈共同評估分母〉的同一原則），故記 sha256。",
+  "apis": {
+    "law": {
+      "url": "https://law.moj.gov.tw/api/ch/law/json",
+      "local": "data/laws/ChLaw.zip",
+      "inner": "ChLaw.json",
+      "entries": 1351,
+      "levels": {
+        "法律": 1342,
+        "憲法": 9
+      }
+    },
+    "order": {
+      "url": "https://law.moj.gov.tw/api/ch/order/json",
+      "local": "data/laws/ChOrder.zip",
+      "inner": "ChOrder.json",
+      "entries": 10452,
+      "levels": {
+        "命令": 10452
+      }
+    }
+  },
+  "sha256": {
+    "ChLaw.zip": "7b07559a81083d0ee3c6ae390b42ba879b3f166aba76a1f288bca042667b7a9d",
+    "ChLaw.json": "346e06eab30649c9cb75a0702e12ea0e53f7120ce4bd82a3c7ad9b1a0460d027",
+    "ChOrder.zip": "18433ebd13313f61433c3ec3ac0aebc10b6d4cd6a7c6c5bb2d7d3716afb8a619",
+    "ChOrder.json": "22f2d65375a0f03c862fcb78bfee91f5d697c7b5ca94121912c354b252f9dc98"
+  },
+  "update_date": {
+    "law": "2026/10/2 上午 12:00:00",
+    "order": "2026/10/2 上午 12:00:00"
+  },
+  "rebuild_result": {
+    "laws": 11803,
+    "articles": 222109,
+    "is_repealed": 3694,
+    "is_abandoned": 59723,
+    "verification": "pg 逐筆比對原始 JSON（繞過 jsonl 中間層）：222,109/222,109 = 100.000000%",
+    "content_hash_selfconsistent": "222,109/222,109",
+    "law_url_落庫": "11,803/11,803"
+  },
+  "bug_fixed": [
+    "qdrant_load._embed_one：只把 400 當『太長』，命令層超長條文（最長 37,200 字元）讓 ollama 回 413 → raise_for_status() 直接炸掉整批重建。已改為 400/413 都縮短。"
+  ],
+  "note": "law ∪ order 的 pcode 與 LawName 實測零重疊，故可合併進同一張 law 表。"
+}
