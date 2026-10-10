@@ -1,0 +1,314 @@
+
+==============================================================================
+【1】extract_statute_mentions 的簽名 —— 參數即它能看到的全部輸入
+==============================================================================
+  extract_statute_mentions(text: 'str', corpus: 'StatuteCorpus') -> 'list[StatuteMention]'
+  extract_statute_mentions_with_spans(text: 'str', corpus: 'StatuteCorpus')
+
+  參數只有 text 與 corpus。**沒有** court_type、body_start、chunk、
+  section、parse_result 任何一項 → 結構上不可能依賴 parser 輸出。
+
+==============================================================================
+【2】逐行原始碼：呼叫鏈與所有被引用的屬性
+==============================================================================
+    232| def extract_statute_mentions_with_spans(text: str, corpus: StatuteCorpus):
+    233|     """extract_statute_mentions plus original-coordinate spans.
+    234| 
+    235|     Returns [(mention, start, end, sentence)] with start/end as code-point
+    236|     offsets into `text` (the un-collapsed input), sentence the original
+    237|     (un-collapsed) sentence containing the mention. Order and objects are
+    238|     identical to extract_statute_mentions.
+    239|     """
+    240|     qualified_re, bare_re = _mention_re(corpus)
+    241|     out: list[tuple[StatuteMention, int, int, str]] = []
+    242|     for sent, base in _sentences_with_spans(text):
+    243|         if not sent.strip():
+    244|             continue
+    245|         flat, amap = _collapse_with_map(sent)
+    246|         collapsed = bool(re.search(r"\s", sent))
+    247|         quals = list(qualified_re.finditer(flat))
+    248|         for m in quals:
+    249|             built = _build_mention(m, m.group("law"))
+    250|             if built is None:
+    251|                 continue
+    252|             if collapsed:
+    253|                 built.surface_collapsed = True
+    254|             out.append((built, base + amap[m.start()],
+    255|                         base + amap[m.end() - 1] + 1, sent))
+    256|         spans = [(m.start(), m.end()) for m in quals]
+    257|         for m in bare_re.finditer(flat):
+    258|             if any(s <= m.start() < e for s, e in spans):
+    259|                 continue
+    260|             prev = [qm for qm in quals if qm.start() < m.start()]
+    261|             if not prev:
+    262|                 continue
+    263|             qm = prev[-1]
+    264|             built = _build_mention(m, qm.group("law"), scoped=True,
+    265|                                    scoped_from=qm.group(0))
+    266|             if built is None:
+    267|                 continue
+    268|             if collapsed:
+    269|                 built.surface_collapsed = True
+    270|             out.append((built, base + amap[m.start()],
+    271|                         base + amap[m.end() - 1] + 1, sent))
+    272|     return out
+    273| 
+    274| def extract_statute_mentions(text: str, corpus: StatuteCorpus) -> list[StatuteMention]:
+    275|     """Level-1 mention extraction: full law name + article, verbatim.
+    276| 
+    277|     Thin wrapper over extract_statute_mentions_with_spans (identical order and
+    278|     objects; spans dropped). All semantics documented there.
+    279|     """
+    280|     return [m for m, _, _, _ in extract_statute_mentions_with_spans(text, corpus)]
+    281| 
+    282| 
+
+==============================================================================
+【3】靜態檢查：函式體內是否出現任何 parser 相關識別字
+==============================================================================
+  court_type               函式體內：無    整個 b1_serve.py：無
+  unsupported_court_type   函式體內：無    整個 b1_serve.py：無
+  body_start               函式體內：無    整個 b1_serve.py：無
+  no_body_start            函式體內：無    整個 b1_serve.py：無
+  split_judgment           函式體內：無    整個 b1_serve.py：無
+  parse_                   函式體內：無    整個 b1_serve.py：無
+  chunk_index              函式體內：無    整個 b1_serve.py：有
+  parse_issues             函式體內：無    整個 b1_serve.py：無
+
+==============================================================================
+【4】corpus 載入並對 200 卷實跑
+==============================================================================
+  corpus：222,109 條文／11,803 部法規（載入 1.93 s）
+  分母：200 卷（of 200）｜JFULL 總字元 6,688,933
+  耗時 median 175.4 ms｜max 2924.5 ms｜min 6.4 ms
+  抽出為空的卷：1/200
+    · LCDV,115,消債更,2,20260722,2
+
+==============================================================================
+【5】行政／特別法域 11 卷上的實際輸出
+==============================================================================
+  母體：unsupported_court_type 且標頭命中行政／特別法域關鍵字
+  注意：這 11/12 卷**仍然被 parser 標記失敗**，但抽取函式照樣跑了。
+  jid                                           字元 mention  scoped     耗時ms
+  ----------------------------------------------------------------------------
+  KSBA,113,訴更二,19,20260721,1                 36834      27       4    335.8
+  KSTA,114,交,704,20260730,2                  17690       8       1    164.3
+  KSTA,114,地訴,83,20260728,1                  15417      31       3    145.7
+  TCBA,113,訴,88,20260723,3                   32907      62      11    288.5
+  TCTA,113,地訴,14,20260710,1                  19291      15       0    204.5
+  TPBA,114,訴,972,20260723,1                  30521      25       2    313.6
+  TPBA,115,訴,355,20260709,1                  33174      36      14    316.3
+  TPCM,115,台覆,26,20260722,1                   3599      10       4     31.3
+  TPHA,115,訴願,13,20260707,1                   2112       4       1     17.4
+  TPTA,113,地訴,61,20260729,1                  21768      17       2    232.6
+  TPTA,114,交,2444,20260707,1                 28842      49       4    263.3
+  ----------------------------------------------------------------------------
+  合計                                                   284      46
+  其中抽出為空：0/11 卷
+
+  對照組（被標記 unsupported_court_type 但**非**行政／特別法域）：92 卷
+    mention 合計 4,699｜抽出為空 0/92 卷
+  未被標記組：97 卷｜mention 合計 3,976｜抽出為空 1/97 卷
+
+  → 三組的「抽出為空率」若無系統性差異，即證明抽取不受標記影響。
+
+==============================================================================
+【6】行政／特別法域卷的實際 mention 內容（逐筆）
+==============================================================================
+
+  ── KSBA,113,訴更二,19,20260721,1
+     標頭：高雄高等行政法院判決
+     mention 數：27
+       · 教師法第17條第1款  surface='教師法第17條第1款'  scoped=False  collapsed=True
+       · 教師法第14條第1項  surface='第14條第1項'  scoped=True  collapsed=True
+       · 教師法第17條  surface='教師法第17條'  scoped=False  collapsed=True
+       · 教師法第17條  surface='教師法第17條'  scoped=False  collapsed=True
+       · 教師法第14條第1項  surface='教師法第14條第1項'  scoped=False  collapsed=True
+       · 教師法第14條  surface='教師法第14條'  scoped=False  collapsed=True
+       · 教師法第14條之1  surface='第14條之1'  scoped=True  collapsed=True
+       · 教師法第14條第1項  surface='教師法第14條第1項'  scoped=False  collapsed=True
+       … 另 19 筆
+
+  ── KSTA,114,交,704,20260730,2
+     標頭：高雄高等行政法院判決
+     mention 數：8
+       · 行政訴訟法第237條之1第1項  surface='行政訴訟法第237條之1第1項'  scoped=False  collapsed=True
+       · 當舖業法第3條第4款  surface='當舖業法第3條第4款'  scoped=False  collapsed=True
+       · 行政罰法第7條第1項  surface='行政罰法第7條第1項'  scoped=False  collapsed=True
+       · 行政罰法第7條第1項  surface='行政罰法第7條第1項'  scoped=False  collapsed=True
+       · 行政罰法第7條  surface='行政罰法第7條'  scoped=False  collapsed=True
+       · 行政罰法第7條第1項  surface='行政罰法第7條第1項'  scoped=False  collapsed=True
+       · 行政罰法第85條第4項  surface='第85條第4項'  scoped=True  collapsed=True
+       · 違反道路交通管理事件統一裁罰基準及處理細則第2條第2項  surface='違反道路交通管理事件統一裁罰基準及處理細則第2條第2項'  scoped=False  collapsed=True
+
+  ── KSTA,114,地訴,83,20260728,1
+     標頭：高雄高等行政法院判決
+     mention 數：31
+       · 政府採購法第87條第5項  surface='政府採購法第87條第5項'  scoped=False  collapsed=True
+       · 營造業法第54條第1項  surface='營造業法第54條第1項'  scoped=False  collapsed=True
+       · 行政程序法第36條  surface='行政程序法第36條'  scoped=False  collapsed=True
+       · 行政程序法第43條  surface='第43條'  scoped=True  collapsed=True
+       · 營造業法第54條第1項  surface='營造業法第54條第1項'  scoped=False  collapsed=True
+       · 政府採購法第101條第1項  surface='政府採購法第101條第1項'  scoped=False  collapsed=True
+       · 營造業法第54條第1項  surface='營造業法第54條第1項'  scoped=False  collapsed=True
+       · 營造業法第54條第1項  surface='營造業法第54條第1項'  scoped=False  collapsed=True
+       … 另 23 筆
+
+  ── TCBA,113,訴,88,20260723,3
+     標頭：臺中高等行政法院判決
+     mention 數：62
+       · 教師法第15條第1項  surface='教師法第15條第1項'  scoped=False  collapsed=True
+       · 教師法第15條第1項  surface='教師法第15條第1項'  scoped=False  collapsed=True
+       · 兒童及少年福利與權益保障法第97條  surface='兒童及少年福利與權益保障法第97條'  scoped=False  collapsed=True
+       · 教師法第15條第1項  surface='教師法第15條第1項'  scoped=False  collapsed=True
+       · 教師法第2條第1項  surface='教師法第2條第1項'  scoped=False  collapsed=True
+       · 教師法第15條第1項  surface='教師法第15條第1項'  scoped=False  collapsed=True
+       · 教師法第97條  surface='第97條'  scoped=True  collapsed=True
+       · 教師法第16條第1項  surface='教師法第16條第1項'  scoped=False  collapsed=True
+       … 另 54 筆
+
+  ── TCTA,113,地訴,14,20260710,1
+     標頭：臺中高等行政法院判決
+     mention 數：15
+       · 行政訴訟法第111條第1項  surface='行政訴訟法第111條第1項'  scoped=False  collapsed=True
+       · 環境教育法第23條  surface='環境教育法第23條'  scoped=False  collapsed=True
+       · 環境講習執行辦法第8條第1項  surface='環境講習執行辦法第8條第1項'  scoped=False  collapsed=True
+       · 環境教育法第23條  surface='環境教育法第23條'  scoped=False  collapsed=True
+       · 環境講習執行辦法第8條第1項  surface='環境講習執行辦法第8條第1項'  scoped=False  collapsed=True
+       · 環境教育法第23條  surface='環境教育法第23條'  scoped=False  collapsed=True
+       · 環境講習執行辦法第8條第1項  surface='環境講習執行辦法第8條第1項'  scoped=False  collapsed=True
+       · 環境教育法第23條  surface='環境教育法第23條'  scoped=False  collapsed=True
+       … 另 7 筆
+
+  ── TPBA,114,訴,972,20260723,1
+     標頭：臺北高等行政法院判決
+     mention 數：25
+       · 行政訴訟法第201條  surface='行政訴訟法第201條'  scoped=False  collapsed=True
+       · 道路交通管理處罰條例第5條  surface='道路交通管理處罰條例第5條'  scoped=False  collapsed=True
+       · 市區道路條例第2條  surface='市區道路條例第2條'  scoped=False  collapsed=True
+       · 市區道路條例第32條第2項  surface='市區道路條例第32條第2項'  scoped=False  collapsed=True
+       · 市區道路條例第2條  surface='第2條'  scoped=True  collapsed=True
+       · 道路交通管理處罰條例第3條第1款  surface='道路交通管理處罰條例第3條第1款'  scoped=False  collapsed=True
+       · 道路交通管理處罰條例第4條第3項  surface='道路交通管理處罰條例第4條第3項'  scoped=False  collapsed=True
+       · 道路交通管理處罰條例第2條  surface='第2條'  scoped=True  collapsed=True
+       … 另 17 筆
+
+  ── TPBA,115,訴,355,20260709,1
+     標頭：臺北高等行政法院判決
+     mention 數：36
+       · 行政程序法第4條  surface='行政程序法第4條'  scoped=False  collapsed=True
+       · 金融消費者保護法第11條之1  surface='金融消費者保護法第11條之1'  scoped=False  collapsed=True
+       · 金融消費者保護法第5條  surface='第5條'  scoped=True  collapsed=True
+       · 保險商品銷售前程序作業準則第9條第1項  surface='保險商品銷售前程序作業準則第9條第1項'  scoped=False  collapsed=True
+       · 保險商品銷售前程序作業準則第9條第1項  surface='保險商品銷售前程序作業準則第9條第1項'  scoped=False  collapsed=True
+       · 保險商品銷售前程序作業準則第29條  surface='保險商品銷售前程序作業準則第29條'  scoped=False  collapsed=True
+       · 保險商品銷售前程序作業準則第30條  surface='第30條'  scoped=True  collapsed=True
+       · 保險商品銷售前程序作業準則第31條  surface='第31條'  scoped=True  collapsed=True
+       … 另 28 筆
+
+  ── TPCM,115,台覆,26,20260722,1
+     標頭：司法院刑事補償法庭覆審決定書
+     mention 數：10
+       · 刑事補償法第3條  surface='刑事補償法第3條'  scoped=False  collapsed=True
+       · 刑事補償法第4條  surface='第4條'  scoped=True  collapsed=True
+       · 刑事補償法第1條第1款  surface='第1條第1款'  scoped=True  collapsed=True
+       · 刑事補償法第6條第1項  surface='第6條第1項'  scoped=True  collapsed=True
+       · 刑事補償法第8條第3款  surface='刑事補償法第8條第3款'  scoped=False  collapsed=True
+       · 刑事補償法第3條第2款  surface='刑事補償法第3條第2款'  scoped=False  collapsed=True
+       · 刑事補償法第6條第1項  surface='刑事補償法第6條第1項'  scoped=False  collapsed=True
+       · 刑事補償法第8條  surface='第8條'  scoped=True  collapsed=True
+       … 另 2 筆
+
+  ── TPHA,115,訴願,13,20260707,1
+     標頭：臺灣高等法院訴願決定書
+     mention 數：4
+       · 訴願法第1條第1項  surface='訴願法第1條第1項'  scoped=False  collapsed=True
+       · 訴願法第2條第1項  surface='第2條第1項'  scoped=True  collapsed=True
+       · 訴願法第3條第1項  surface='訴願法第3條第1項'  scoped=False  collapsed=True
+       · 訴願法第77條第8款  surface='訴願法第77條第8款'  scoped=False  collapsed=True
+
+  ── TPTA,113,地訴,61,20260729,1
+     標頭：臺北高等行政法院判決
+     mention 數：17
+       · 行政訴訟法第218條  surface='行政訴訟法第218條'  scoped=False  collapsed=True
+       · 民事訴訟法第386條  surface='民事訴訟法第386條'  scoped=False  collapsed=True
+       · 行政訴訟法第218條  surface='行政訴訟法第218條'  scoped=False  collapsed=True
+       · 民事訴訟法第385條第1項  surface='民事訴訟法第385條第1項'  scoped=False  collapsed=True
+       · 勞工職業災害保險及保護法第36條  surface='勞工職業災害保險及保護法第36條'  scoped=False  collapsed=True
+       · 公路法第2條第14款  surface='公路法第2條第14款'  scoped=False  collapsed=True
+       · 汽車運輸業管理規則第1條  surface='汽車運輸業管理規則第1條'  scoped=False  collapsed=True
+       · 公路法第34條之1第二項  surface='公路法第三十四條之一第二項'  scoped=False  collapsed=True
+       … 另 9 筆
+
+  ── TPTA,114,交,2444,20260707,1
+     標頭：臺北高等行政法院判決
+     mention 數：49
+       · 道路交通管理處罰條例第8條  surface='道路交通管理處罰條例第8條'  scoped=False  collapsed=True
+       · 行政訴訟法第237條之1第1項  surface='行政訴訟法第237條之1第1項'  scoped=False  collapsed=True
+       · 行政訴訟法第237條之4第1項  surface='行政訴訟法第237條之4第1項'  scoped=False  collapsed=True
+       · 行政訴訟法第237條之4第3項  surface='行政訴訟法第237條之4第3項'  scoped=False  collapsed=True
+       · 道路交通管理處罰條例第35條第1項  surface='道路交通管理處罰條例第35條第1項'  scoped=False  collapsed=True
+       · 道路交通管理處罰條例第35條第3項  surface='道路交通管理處罰條例第35條第3項'  scoped=False  collapsed=True
+       · 道路交通管理處罰條例第24條  surface='第24條'  scoped=True  collapsed=True
+       · 道路交通管理處罰條例第35條第9項  surface='道路交通管理處罰條例第35條第9項'  scoped=False  collapsed=True
+       … 另 41 筆
+
+==============================================================================
+【7】is_inferred：spec 引用的欄位在程式碼中是否存在
+==============================================================================
+  spec 005/FR-005 宣稱：游標推斷（「前開／上開／同法」）必須標 is_inferred=true
+
+  $ grep -rn 'is_inferred' --include='*.py' backend/app/ ingest/ scripts/ agent/
+  （無輸出）
+  rc=1（rc=1 ＝ 完全找不到）
+
+  $ grep -rn 'is_inferred' --include='*.py' backend/.venv/
+  1 筆，全部在第三方套件內（與本功能無關）：
+    backend/.venv/lib/python3.12/site-packages/pydantic/mypy.py:803:        if sym.type is None and node.is_final and node.is_inferred:
+  rc=0
+
+  實際存在的對應欄位（StatuteMention dataclass）：
+      181| class StatuteMention:
+      182|     law_name: str
+      183|     article: str  # lookup form, e.g. 第184條 (branch folded in, e.g. 第436條之18)
+      184|     detail: str | None  # e.g. 第1項
+      185|     surface: str  # mention text (whitespace-collapsed; see below)
+      186|     scoped: bool = False  # True when the law name comes from same-sentence scoping
+      187|     scoped_from: str | None = None  # the verbatim qualified mention providing the law
+      188|     surface_collapsed: bool = False  # True when layout whitespace split the mention
+      189| 
+
+==============================================================================
+【8】實際的「游標推斷」機制是 scoped／scoped_from
+==============================================================================
+  $ grep -n 'scoped' backend/app/b1_serve.py
+  186:    scoped: bool = False  # True when the law name comes from same-sentence scoping
+187:    scoped_from: str | None = None  # the verbatim qualified mention providing the law
+191:def _build_mention(m: re.Match, law_name: str, *, scoped: bool = False,
+192:                   scoped_from: str | None = None) -> StatuteMention | None:
+205:        surface=m.group(0), scoped=scoped, scoped_from=scoped_from,
+264:            built = _build_mention(m, qm.group("law"), scoped=True,
+265:                                   scoped_from=qm.group(0))
+328:            "scoped": mention.scoped,
+329:            "scoped_from": mention.scoped_from,
+
+  機制：同一句中先出現「某法第X條」（qualified），後續裸「同法第Y條」
+  由**前一個 qualified mention**提供法名（scoped=True）。
+  這是**同句內的游標**，不是 spec 描述的「前開／上開／同法」跨段推斷。
+
+  全 200 卷的 scoped 比例（實測）：
+    qualified mention：8,959 筆
+    其中 scoped（靠游標）：2,317 筆（25.86%）
+
+==============================================================================
+結論（僅陳述實測，不改 Q2=B）
+==============================================================================
+  1. extract_statute_mentions(text, corpus) 的參數不含任何 parser 輸出，
+     函式體內也無 court_type / body_start 等識別字 → **結構上不可能**
+     依賴 parser 的 court type 或 body-start 結果。
+  2. 11 卷行政／特別法域卷**照樣被抽取**，合計 284 筆 mention；
+     抽出為空 0 卷。
+  3. `is_inferred` 欄位在專案程式碼中**完全不存在**（只在 pydantic 內部）。
+     spec 引用的「前開／上開／同法」游標推斷**尚未實作**；
+     現有的是 scoped／scoped_from（同句內游標）。
+     ⇒ spec 的 FR-005 描述的是**待建功能**，不是既有行為。

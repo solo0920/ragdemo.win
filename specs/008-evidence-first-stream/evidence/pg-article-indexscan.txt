@@ -1,0 +1,29 @@
+==============================================================================
+查證：pg article 表的 Index Scan 實際延遲
+產生時間：2026-10-10 20:03:59 +0800
+分母定義：單一 (pcode, article_seq) 主鍵點查；law 表有 11803 部法規、article 表 222109 條條文
+==============================================================================
+
+$ docker compose exec -T postgres psql -U rag -d ragdemo -c "EXPLAIN (ANALYZE, BUFFERS) SELECT content FROM article WHERE pcode='A0000001' AND article_seq=3;"
+                                                       QUERY PLAN                                                        
+-------------------------------------------------------------------------------------------------------------------------
+ Index Scan using article_pkey on article  (cost=0.42..38.51 rows=9 width=357) (actual time=0.023..0.024 rows=1 loops=1)
+   Index Cond: ((pcode = 'A0000001'::text) AND (article_seq = 3))
+   Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=161
+ Planning Time: 0.421 ms
+ Execution Time: 0.042 ms
+(7 rows)
+
+
+$ 同上，重跑 3 次以確認穩定性
+Execution Time: 0.046 ms
+Execution Time: 0.047 ms
+Execution Time: 0.047 ms
+
+$ 對照：不同法規、不同條號（第 5 次取樣，避免只量單一點）
+  pcode=A0000001 seq=3 → Execution Time: 0.046 ms
+  pcode=A0000001 seq=10 → Execution Time: 0.047 ms
+  pcode=G0380259 seq=3 → Execution Time: 0.073 ms
+  pcode=G0380259 seq=10 → Execution Time: 0.092 ms

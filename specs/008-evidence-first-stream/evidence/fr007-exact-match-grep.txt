@@ -1,0 +1,52 @@
+==============================================================================
+查證：FR-007 宣稱「條號精準分支在 generate() 前 return」
+產生時間：2026-10-10 20:04:09 +0800
+==============================================================================
+
+$ grep -n '_exact_match' backend/app/rag.py
+1012:    # retrieve._exact_match() 提供（它自己會去空白比對）。不要放寬成
+1014:    if an and top and retrieve._exact_match(top, an):
+
+$ grep -n 'async def generate' backend/app/rag.py
+777:async def generate(question: str, contexts: list[dict], cautious: bool = False,
+
+$ 精確匹配分支的 return 行與 generate() 呼叫行的行號比較
+  分支起點行：[1014]
+  分支內 return base 行：[1037, 1041, 1048, 1063, 1069]
+  全文 await generate( 行：[1045, 1064]
+  分支第一個 return base：第 1037 行
+  該行之前的 generate() 呼叫：無
+  結論：分支內 generate() 呼叫數 = 0
+
+$ 該分支原始碼（第 1014 行起 30 行）
+    if an and top and retrieve._exact_match(top, an):
+        p0 = top[0].get("payload") or {}
+        # ⚠️ **不可**用 collapse_ws()：它把換行壓成空格，而 corpus 的 text
+        # 是用 \n 分隔各項（例：證券交易法第14條 =「本法所稱財務報告…\n前項…」）。
+        # 壓掉換行之後各項黏成一段、款次標籤（「一、」「（一）」）看起來像消失了
+        # —— 2026-10-05 使用者回報的正是這個（與司法院原文比對，項次不見）。
+        # law_struct.structure()/cite_item() 也靠 \n 計算「1項6款」與「第N項」，
+        # 所以換行是**結構資訊**，不是排版雜訊。只 strip() 頭尾空白。
+        txt = (p0.get("text") or "").strip()
+        if txt:
+            # ⚠️ 廢止／中止條文被條號精準命中時，**不可**只把「（刪除）」
+            #   當答案回。實測第9條那類條文全文就是「（刪除）」四個字，
+            #   讀者只會得到一個沒頭沒尾的答案。使用者問「第9條怎麼規定」，
+            #   正確回答是「第9條已刪除，無現行條文」。
+            if p0.get("is_repealed") or p0.get("is_abandoned"):
+                why = "已刪除" if p0.get("is_repealed") else "已中止施行"
+                base["answer"] = (
+                    f"{gateway.HOST_ID}: {law_meta._detect_law(question) or ''}"
+                    f"{p0.get('article_no') or ''}（{why}），無現行條文可引用。"
+                    + ("（原文標示為「（刪除）」）" if "刪除" in txt else "")
+                )
+                base["confidence"] = "rule"
+                base["trace"] += f"｜條號命中但該條{why}"
+                return base
+            base["answer"] = f"{gateway.HOST_ID}: {txt}"
+            base["confidence"] = "rule"   # 逐字引用、非生成
+            base["trace"] += f"｜條號精準→直接引用{law_meta._detect_law(question) or ''}條號{an}"
+            return base
+    if brief_law and an is None and top and (top[0].get("payload") or {}).get("law_name") == brief_law:
+        brief = law_meta._law_brief(brief_law)
+        try:

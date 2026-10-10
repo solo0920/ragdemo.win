@@ -1,0 +1,79 @@
+==============================================================================
+pytest skipped 分類：119 個的完整歸戶
+==============================================================================
+產生時間：2026-10-10 21:03:18 +0800
+指令：.venv/bin/python -m pytest -q -rs -p no:cacheprovider
+
+(A) pytest 印出的每一條 skip 分組（含括號數字，合計 = 119）
+==============================================================================
+×1    本機 stack 不在線（本測試要求它健康才能驗）
+        檔案：tests/test_ensure_stack.py
+×14   node 不在 PATH
+        檔案：tests/test_frontend_cf_access.py
+×27   node 不在 PATH
+        檔案：tests/test_frontend_host_defaults.py
+×50   node 不在 PATH
+        檔案：tests/test_frontend_host_defaults.py
+×1    node 不在 PATH
+        檔案：tests/test_frontend_host_defaults.py
+×2    node 不在 PATH
+        檔案：tests/test_frontend_host_defaults.py
+×8    node 不在 PATH
+        檔案：tests/test_frontend_hosts.py
+×2    node 不在 PATH
+        檔案：tests/test_frontend_hosts.py
+×5    node 不在 PATH
+        檔案：tests/test_frontend_probe.py
+×1    需要 UNRAR_BIN 指向的 decoder binary（這三台機器預設都沒有）
+        檔案：tests/test_judgement_extract.py
+×1    需要 UNRAR_BIN 指向的 decoder binary（這三台機器預設都沒有）
+        檔案：tests/test_judgement_extract.py
+×1    需要 UNRAR_BIN 指向的 decoder binary（這三台機器預設都沒有）
+        檔案：tests/test_judgement_extract.py
+×1    本機沒有 Qdrant（T018–T020 的契約測試不需要它）
+        檔案：tests/test_judgement_retrieve.py
+×2    本機 qdrant 沒跑
+        檔案：tests/test_sync_snapshot_auth.py
+×1    本機 qdrant 沒跑
+        檔案：tests/test_sync_snapshot_auth.py
+×2    沒有 node，跑不了前端函式
+        檔案：tests/test_worker_sensitive_paths.py
+------------------------------------------------------------------------------
+合計 skip：119
+
+==============================================================================
+(B) 依缺失依賴歸類
+==============================================================================
+缺失依賴                        skip     佔119
+--------------------------------------------
+前端 JS（node 執行檔）              111    93.3%
+外部服務 Qdrant                    4     3.4%
+RAR 解碼（UNRAR_BIN）              3     2.5%
+外部服務 整組 stack                  1     0.8%
+--------------------------------------------
+合計                           119
+
+==============================================================================
+(C) 貢獻 skip 的檔案（依檔）
+==============================================================================
+檔案                                                  skip
+--------------------------------------------------------
+tests/test_frontend_host_defaults.py                  80
+tests/test_frontend_cf_access.py                      14
+tests/test_frontend_hosts.py                          10
+tests/test_frontend_probe.py                           5
+tests/test_judgement_extract.py                        3
+tests/test_sync_snapshot_auth.py                       3
+tests/test_worker_sensitive_paths.py                   2
+tests/test_ensure_stack.py                             1
+tests/test_judgement_retrieve.py                       1
+--------------------------------------------------------
+合計                                                   119
+
+==============================================================================
+判讀（只陳述實測事實）
+==============================================================================
+• 119 個全部為**環境依賴缺失**（node / unrar / 外部服務），無 xfail 標記。
+• 最大宗 node 缺失 111 個 → 只影響前端 JS 測試。
+• backend 與 ingest 的純函式測試全部有跑（1775 passed）。
+• 2 deselected 不在 -rs 輸出（未收集）；實際被收集的 skip ＝ 119。
