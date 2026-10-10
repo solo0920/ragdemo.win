@@ -1,15 +1,31 @@
 <!--
 SYNC IMPACT REPORT
-Version change: 1.0.0 → 1.1.0
-Modified principles: none
-Added principles: XI. Judicial Source Immutability (financial/legal source text is immutable)
+Version change: 1.1.0 → 1.2.0
+Bump rationale: MINOR — a new NON-NEGOTIABLE principle is added. No existing
+  principle is removed or redefined, so backward compatibility is preserved.
+Modified principles: none (maintainer constraint: 不改既有憲法條文)
+Added principles:
+  XII. Measured, Reproducible, and Honest Reporting
+       (covers maintainer rules R1, R2, R3, R5, R6, and the generalizable part of R4)
 Added sections: none
 Removed sections: none
 Templates requiring updates:
-  ✅ .specify/templates/plan-template.md  (Constitution Check must now list Principles I–XI; use Complexity Tracking for violations)
-  ✅ .specify/templates/spec-template.md  (no change required)
-  ✅ .specify/templates/tasks-template.md (tasks must be grouped by vertical slice / user story)
-Follow-up TODOs: none
+  ✅ none — verified by grep that .specify/templates/*.md do not enumerate principle
+     names or numbers; they read this file at runtime. (Only constitution-template.md
+     matched, and only for the literal heading "## Core Principles".)
+Follow-up TODOs:
+  ⚠ R4 as written names specific modules: "不得修改 b1_serve 的取捨邏輯與 S1-3 既有檔案行為".
+    Those are feature-scoped, not project-wide. `backend/app/b1_serve.py` (21,121 bytes,
+    verified present) is one module of one feature; "S1-3" is a slice of spec 007 only.
+    Baking them into the project constitution would freeze a temporary scope into
+    permanent governance. DELIBERATELY OMITTED from Principle XII. The generalizable
+    rule it carries ("purely additive changes; ask before touching existing behavior")
+    IS included. The module-specific constraint belongs in specs/007 scope.
+  ⚠ Pre-existing inconsistency, left untouched under the same 不改既有條文 constraint:
+    the Constitution Check gate below says "Principles I–X" while I–XI (now XII) exist.
+    This was already wrong before this amendment (XI was added without updating it).
+    Needs a separate decision — fixing it would modify existing text.
+  ⚠ No TODO(...) placeholders were introduced; this document has no deferred fields.
 -->
 
 # ragdemo.win Constitution
@@ -187,6 +203,44 @@ byte-for-byte from acquisition through retrieval.
 no answer. Immutability is what makes traceability and refusal meaningful; traceability over
 mutable text proves nothing, and refusal based on fabricated source text is itself fabrication.
 
+### XII. Measured, Reproducible, and Honest Reporting (NON-NEGOTIABLE)
+
+Any quantitative claim — elapsed time, count, percentage, ratio, recall, coverage — is
+governance-bearing and MUST be reproducible or MUST NOT be asserted.
+
+Every such number MUST carry three things together:
+
+1. **The exact command that produces it**, re-runnable as written.
+2. **Its raw output archived** under `specs/<feature>/evidence/`.
+3. **The denominator stated explicitly**: what the population is and how large it is.
+
+A number missing any of the three MUST NOT appear in a spec, a commit message, or a report.
+"About 600 MB" is not a measurement; "619 MB, measured by `python -c '…'`, output archived at
+`evidence/rss-baseline.txt`, population = one process after loading laws_flat.jsonl" is.
+
+- **Baseline before change.** Before altering behavior, the current state MUST be measured and
+  archived using the same command that will later re-measure it. The report MUST show
+  before-and-after side by side. A post-change number with no pre-change number is not evidence
+  of improvement.
+- **No invented references.** File paths, function names, field names, and table names MUST be
+  confirmed to exist before being cited. When a lookup fails, the failure MUST be reported as a
+  failure. A plausible-looking name MUST NOT be used in place of a verified one.
+- **Completion requires its own evidence.** A task MUST NOT be marked complete without the
+  verification command and that command's actual output. A failed verification means the task is
+  not complete.
+- **Additive by default.** Changes SHOULD be purely additive and committed independently. When a
+  change would alter existing behavior, the agent MUST stop and ask before proceeding.
+- **Verified and inferred MUST be distinguishable.** Reporting MUST separate what was measured
+  from what was reasoned. Inferences MUST be labeled as such, and MUST NOT be phrased as
+  observations.
+
+**Cross-reference**: This principle enforces the falsifiability that Principles VI and XI assume.
+Traceability claims are only meaningful if the numbers behind them can be re-derived; a
+traceability rule satisfied by an unrerunnable figure is not satisfied.
+
+**Rationale**: An unverifiable number is indistinguishable from a guess, and a guess that reads
+like a measurement corrodes exactly the trust that Principles VI and XI exist to protect.
+
 ## Technology & Environment Constraints
 
 - **Backend**: Python managed with `uv`; HTTP API via FastAPI.
@@ -248,4 +302,4 @@ This constitution supersedes other project practices. It is intentionally stable
 - **Compliance review**: all plans, tasks, and implementation reviews MUST verify compliance
   with this constitution.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-04 | **Last Amended**: 2026-10-07
+**Version**: 1.2.0 | **Ratified**: 2026-10-04 | **Last Amended**: 2026-10-10
