@@ -11,6 +11,7 @@ pre-push 綠就把信寄出去。所以同一道檢查必須**兩邊都有**。
 它「有做那些事」。那比執行可靠：hook 的行為本來就靠 pre-push 自己在每次 push
 時驗證，而「某道檢查**存在**」這件事沒有任何執行點能證明。
 """
+import os
 import re
 from pathlib import Path
 
@@ -255,8 +256,16 @@ def _run_pytest_block(tmp_path, stderr_text, exit_code=127):
     script = tmp_path / "seg.sh"
     script.write_text("#!/usr/bin/env bash\nset -euo pipefail\n"
                       + _pytest_block(), encoding="utf-8")
+    # ⚠ 2026-10-10：必須設 RAGDEMO_TEST=1。hook 的 pytest 段改成 **opt-in**
+    #   （maintainer 指示：126 秒太慢，改有需要才手動跑）。不設這個變數，
+    #   抽出來的那段會走「⚠ pytest 未跑」分支然後正常結束 → 壞掉的 venv
+    #   診斷訊息**永遠不會被執行到**，這三個測試會各自帶著無關的失敗綠燈。
+    #   （實測踩到：改 opt-in 後這裡 3 red。）
+    #   這不是「把測試調成綠」—— 測的是「RAGDEMO_TEST=1 時壞 venv 會被正確
+    #   診斷成環境問題」，那正是該段程式碼現在的實際契約。
+    env = dict(os.environ, RAGDEMO_TEST="1")
     return subprocess.run(["bash", str(script)], cwd=tmp_path,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=env)
 
 
 def test_broken_venv_is_diagnosed_as_environment_not_tests(tmp_path):

@@ -10,6 +10,113 @@ for sub in ("backend", "ingest/laws"):
         sys.path.insert(0, str(p))
 
 
+# ── 模組層級載入 laws_flat.jsonl 的測試：沒有該檔就跳過整個檔 ────────────
+#
+# ## 為什麼需要這段（2026-10-10）
+#
+# 11 個測試檔在**檔案頂層**寫 `CORPUS = B1.StatuteCorpus.from_jsonl()`。
+# 頂層 = import 時就執行，而 pytest 的 import 發生在**收集階段**。所以：
+#
+#   乾淨 clone（CI，沒有 laws_flat.jsonl）
+#     → collection 時 FileNotFoundError
+#     → 整個 pytest 退出碼非 0
+#     → CI 紅，而且**其他所有測試一個都沒跑到**
+#
+# 症狀不是「有測試失敗」，是「測試根本沒開始跑」。2026-10-09 引入這批測試後
+# CI 連續紅了 8 次，兩份 workflow（fast-ci / full-ci）都是這個原因。
+#
+# 本機之所以綠，是因為開發機有那個 179 MB 的檔（跑過 `sync_daily.py`）。
+# **這正是 pre-push 註解裡反覆出現的那個病**：本機綠 ≠ 乾淨 clone 綠。
+#
+# ## 為什麼在 conftest 擋，而不是改那 11 個檔
+#
+# 改 11 個檔要動 11 處一模一樣的样板，而它們沒有 `import pytest`
+# （11/11 確認過），得連 import 一起加。集中在一處的好處是：
+#   · 新增同類測試檔時，**不需要記得**再寫一次守衛
+#   · 守衛本身有單元測試（見 test_conftest_corpus_guard.py）
+#
+# ## 為什麼用「跳過」而不是造一個假的 laws_flat.jsonl
+#
+# 假的 corpus 會讓測試**綠著跑但沒驗證任何東西** —— 那比紅更糟
+#（constitution VI：不得以通過的假象掩蓋未驗證）。`test_embed_batch.py:69`
+# 與 `test_backup_env.py:37` 早已用同一個理由走 skipif。
+#
+# 這 11 個檔需要 corpus 的**全部**內容（test_b3b_eval.py:27 遍歷
+# CORPUS.rows、test_b2b_resolve.py:50 用 find("民事訴訟法","第436條")），
+# 造假 fixture 等於只測造出來的那部分。
+
+#: 模組層級 `StatuteCorpus.from_jsonl()` 的測試檔。**逐一列舉，不 glob** ——
+#: glob 會讓新增的檔案自動被跳過，而新增者正是最需要被提醒要加判斷的人。
+CORPUS_MODULE_TESTS = frozenset({
+    "test_b2b_chain.py",
+    "test_b2b_extract.py",
+    "test_b2b_resolve.py",
+    "test_b2b_safety.py",
+    "test_b2c_chain.py",
+    "test_b2c_structure.py",
+    "test_b2d_chain.py",
+    "test_b2e_eval.py",
+    "test_b2f_serve.py",
+    "test_b3b_eval.py",
+    "test_b4b_eval.py",
+})
+
+#: 測試函式**內部**呼叫 `b1_helpers.real_corpus()` 或 `serve_question()`
+#: 而沒傳 `statute_corpus` 的檔 —— 那些會在 `b1_serve.py:436` 走到
+#: `StatuteCorpus.from_jsonl()` 同樣炸掉。
+#:
+#: ⚠ 這一組是**量測後才補上的**，不是一次想到的。第一版只擋了上面那 11 個
+#:   模組層級的檔，實測（暫時移走 laws_flat.jsonl 後跑全套）發現還有 12 個
+#:   檔紅 —— 症狀不同但根因同一個。**推論模式比列舉可靠**：只要一個檔會走到
+#:   `from_jsonl()` 而沒先傳 corpus，它就需要進這張表。
+CORPUS_RUNTIME_TESTS = frozenset({
+    # real_corpus()（b1_helpers.py:64）
+    "test_b1_linking.py",
+    "test_b1_evidence.py",
+    # serve_question() 未傳 statute_corpus → b1_serve.py:436 走 from_jsonl()
+    "test_b1_serving_demo.py",
+    "test_b1_abstention.py",
+    "test_b2d_abstain.py",
+    "test_b3b_serve.py",
+    "test_b3c_gate.py",
+    "test_b4a_serve.py",
+    "test_b4b_serve.py",
+    "test_b4b_f1_live.py",
+    "test_judgements_slice.py",
+})
+
+#: `b3b` 另外在模組層級讀 laws_meta.jsonl（同一個來源機制，缺檔會讀到 {}）。
+CORPUS_META_MODULE_TESTS = frozenset({"test_b3b_eval.py"})
+
+LAWS_FLAT = ROOT / "data" / "laws" / "laws_flat.jsonl"
+LAWS_META = ROOT / "data" / "laws" / "laws_meta.jsonl"
+
+
+def _needs_corpus(name: str) -> bool:
+    if name in CORPUS_META_MODULE_TESTS:
+        return not (LAWS_FLAT.is_file() and LAWS_META.is_file())
+    if name in CORPUS_MODULE_TESTS or name in CORPUS_RUNTIME_TESTS:
+        return not LAWS_FLAT.is_file()
+    return False
+
+
+def pytest_ignore_collect(collection_path, config):  # noqa: ARG001
+    """沒有 laws_flat.jsonl 時，整個跳過那 11 個檔（不 import 它們）。
+
+    為什麼是 `ignore_collect` 而不是 `pytest.mark.skipif`：
+    skipif 是在**收集之後**才生效，而這些檔的失敗發生在**收集期間**
+    （import 時執行頂層陳述句）。skipif 救不了 —— 那正是本 bug 最初的樣子：
+    有人以為加個 skipif 就好，但頂層那行會先炸。
+
+    `ignore_collect` 在 import 之前就擋掉，所以那些檔的頂層永遠不會執行。
+    顯示上它們**不會**出現在報告裡（不是 "skipped"）—— 這是取捨：
+    換取的是「乾淨 clone 上其他 1700+ 個測試真的跑得到」。
+    """
+    if _needs_corpus(collection_path.name):
+        return True
+    return None
+
+
 # ── 從 +server.ts 抽出宣告、丟給 node 跑的共用工具 ──────────────────────
 #
 # 為什麼放 conftest：這些工具要被三個測試檔共用（test_frontend_hosts、

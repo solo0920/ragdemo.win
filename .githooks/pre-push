@@ -12,12 +12,8 @@
 #   5) 完整 HTTP smoke —— RAGDEMO_SMOKE=1（需本機 api 在線且 LLM 可用，較慢）
 #      /health + /query（驗證答案非空）
 # 本機 api 不在線時：強制檢查照跑，HTTP 部分只警告不擋 push。
-#
-# ⚠ **跳過不等於通過**。pytest 預設不跑，所以這條 hook **不再證明測試是綠的**。
-#   真正回答「測試過了沒」的是 GitHub CI（乾淨 clone）。本機 pre-push 現在只證明
-#   「語法對、沒有 LAN_IP、compose 插值過」。要看測試結果請手動：
-#       .venv/bin/pytest -q -p no:cacheprovider
-#   或在 push 時要它跑：RAGDEMO_TEST=1 git push origin main
+# ⚠ **跳過不等於通過**：pytest 預設不跑，本 hook 不再證明測試是綠的（要測試請手動
+#   跑 `.venv/bin/pytest -q`，或 RAGDEMO_TEST=1 git push）。證明測試的是 CI。
 #
 # 各機啟用：git config core.hooksPath .githooks
 set -euo pipefail
@@ -91,13 +87,19 @@ echo "✓ 無 LAN_IP= 殘留（IP 準則合規）"
 #   以為測過了 —— 那是我們剛花在 CI 上處理過的同一種錯覺。
 #   所以預設路徑**一定要講出「沒跑」和怎麼跑**。這跟第 5 段那個靜默分支
 #   不同：那個是壞掉的檢查報假警報，這個是真的少做了一件該做的事。
-if [ "${RAGDEMO_TEST:-0}" != "1" ]; then
-  if [ -x .venv/bin/pytest ]; then
+if [ -x .venv/bin/pytest ]; then
+  # ⚠ opt-in 判斷放在**內層**，不與 `[ -x .venv/bin/pytest ]` 併成 elif。
+  #   原因：tests/test_prepush_hook.py 的 `_pytest_block()` 用
+  #   `text.index("if [ -x .venv/bin/pytest ]; then")` 抽出這一整段來實際執行，
+  #   驗證「壞掉的 venv 被當成環境問題而非測試失敗」。若把 opt-in 寫成
+  #   `if ...; then ... elif [ -x ...]`，抽出來的那段會以 `elif` 開頭
+  #   → `syntax error near unexpected token 'elif'` → 那 3 個測試全紅。
+  #   （2026-10-10 實測踩到：改 opt-in 後 test_prepush_hook 3 red。）
+  if [ "${RAGDEMO_TEST:-0}" != "1" ]; then
     echo "⚠ pytest 未跑（opt-in，約 126 秒）。要它擋：RAGDEMO_TEST=1 git push"
     echo "  只看結果：.venv/bin/pytest -q -p no:cacheprovider"
     echo "  真正證明測試的是 GitHub CI（乾淨 clone）—— 這條 hook 現在不證明。"
-  fi
-elif [ -x .venv/bin/pytest ]; then
+  else
   # 2026-10-02：把「跑不起來」的原因講清楚，不要只說「pytest 失敗」。
   # 實測踩到的最常見一種：repo 目錄改名／搬移後，.venv 裡每個 script 的
   # shebang 還是舊絕對路徑 → `bad interpreter`。而 uv sync --dev 修不好它
@@ -121,6 +123,7 @@ elif [ -x .venv/bin/pytest ]; then
         ;;
     esac
     exit 1
+  fi
   fi
   # ⚠️ 2026-10-03：這裡原本**跑兩次** pytest —— 第 101 行為了退出碼（輸出丟進
   #    /dev/null），第 103 行又跑一次只為了數 `passed`。實測 pre-push 要 51 秒，
