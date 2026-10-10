@@ -29,6 +29,94 @@ def test_hook_is_executable():
     assert HOOK.stat().st_mode & 0o111, "pre-push 沒有執行位元"
 
 
+def test_pytest_is_opt_in_and_actually_skipped_when_off():
+    """RAGDEMO_TEST 未設時，hook **不得**真的執行 pytest。
+
+    ## 這個測試是為了釘住一個真實事故
+
+    2026-10-10：把 pytest 段改成 opt-in 時，只在 `[ -x .venv/bin/pytest ]`
+    裡面加了內層的 `if RAGDEMO_TEST != 1`，**沒有把後面的 pytest 收進去**。
+    結果那個 `fi` 關掉 opt-in 之後，pytest 落到無條件執行 ——
+    push 輸出同時印「⚠ pytest 未跑」與「✓ pytest 1775 passed」，
+    等待時間完全沒降。
+
+    ## 為什麼其他測試抓不到
+
+    `test_broken_venv_*` 那 3 個驗的是「RAGDEMO_TEST=1 時壞掉的 venv
+    會被正確診斷」，走的是**開啟**路徑。`bash -n` 也查不到 ——
+    改錯後仍是合法 shell，只是邏輯錯了。
+
+    所以缺的正是這個斷言：**關閉時必須真的不跑**。
+    """
+    hook = ROOT / ".githooks" / "pre-push"
+    text = hook.read_text(encoding="utf-8")
+
+    # 抽出整段 pytest 區塊：從外層 `if [ -x .venv/bin/pytest ]` 到**外層** fi。
+    # 外層 fi 的錨點是 else 分支那句「pytest 未安裝」之後的第一個行首 fi。
+    # ⚠ 不要用「# 4) compose 那一行之後的第一個 \nfi\n」當終點 —— 那是
+    #   compose 區塊的 fi，會把中間的 compose 段落一起撈進來（我第一版
+    #   就這樣寫，結果 else_at 落在別的區塊裡，整個斷言失效）。
+    start = text.index("if [ -x .venv/bin/pytest ]; then")
+    anchor = text.index('echo "⚠ pytest 未安裝')
+    end = text.index("\nfi\n", anchor) + len("\nfi\n")
+    block = text[start:end]
+
+    # opt-in 的 else 之後必須還有 fi，且 pytest 呼叫必須落在 else 與 fi 之間
+    # ⚠ 搜尋字串要用**唯一**的執行式（含重導向），不能用單純的指令名 ——
+    #   opt-in 分支的說明註解裡也提到了「`.venv/bin/pytest -q`」，
+    #   用寬鬆字串會先命中註解（我第一版就這樣，斷言誤報 hook 有問題）。
+    opt_in = block.index('if [ "${RAGDEMO_TEST:-0}" != "1" ]; then')
+    else_at = block.index("\n  else", opt_in)
+    pytest_at = block.index('.venv/bin/pytest -q -p no:cacheprovider >"$_pt"')
+    assert opt_in < else_at < pytest_at, (
+        "pytest 執行必須在 opt-in 判斷的 else 之後 —— "
+        f"opt_in@{opt_in}, else@{else_at}, pytest@{pytest_at}"
+    )
+    # pytest 之後到區塊結尾要有 fi 關掉那個 else
+    tail = block[pytest_at:]
+    assert "\n  fi\n" in tail, "opt-in 的 else 沒有對應的 fi —— pytest 會變成無條件執行"
+
+
+def test_pytest_block_actually_skips_when_off(tmp_path):
+    """執行層驗證：關閉時不該出現 pytest 專屬輸出，開啟時會。"""
+    hook = ROOT / ".githooks" / "pre-push"
+    text = hook.read_text(encoding="utf-8")
+    start = text.index("if [ -x .venv/bin/pytest ]; then")
+    anchor = text.index('echo "⚠ pytest 未安裝')
+    end = text.index("\nfi\n", anchor) + len("\nfi\n")
+    block = text[start:end]
+    script = tmp_path / "seg.sh"
+    script.write_text(
+        "#!/usr/bin/env bash\nset -uo pipefail\n"
+        # 用假的 pytest：若被呼叫會立刻印一個好認的標記
+        + f"mkdir -p {tmp_path}/.venv/bin\n"
+        # 假的 pytest：被呼叫就寫一個哨兵檔。不能用 stdout 判定 ——
+        # hook 把它重導向 mktemp（`>"$_pt" 2>&1`），stdout 只會看到
+        # 「✓ pytest N passed」，看不到內容（我第一版就這樣寫錯了）。
+        + f"printf '#!/bin/sh\\ntouch {tmp_path}/CALLED\\n' "
+        + f"> {tmp_path}/.venv/bin/pytest\n"
+        + f"chmod +x {tmp_path}/.venv/bin/pytest\n"
+        + block,
+        encoding="utf-8",
+    )
+
+    def run(env_extra):
+        env = dict(os.environ, **env_extra)
+        sentinel = tmp_path / "CALLED"
+        sentinel.unlink(missing_ok=True)
+        r = subprocess.run(["bash", str(script)], cwd=tmp_path,
+                           capture_output=True, text=True, env=env)
+        return r, sentinel.exists()
+
+    off, off_called = run({"RAGDEMO_TEST": "0"})
+    assert not off_called, (
+        "opt-in 關閉時 pytest 仍然被執行 —— 這正是 2026-10-10 的事故")
+    assert "未跑" in off.stdout, f"關閉時應印「未跑」，實際：{off.stdout!r}"
+
+    on, on_called = run({"RAGDEMO_TEST": "1"})
+    assert on_called, f"opt-in 開啟時應執行 pytest，實際輸出：{on.stdout!r}"
+
+
 def test_hook_has_bash_shebang_and_strict_mode():
     head = _hook().splitlines()[:20]
     assert head[0].startswith("#!"), "第一行必須是 shebang"

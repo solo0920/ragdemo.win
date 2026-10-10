@@ -124,8 +124,17 @@ if [ -x .venv/bin/pytest ]; then
     esac
     exit 1
   fi
-  fi
-  # ⚠️ 2026-10-03：這裡原本**跑兩次** pytest —— 第 101 行為了退出碼（輸出丟進
+  # ⚠️ 2026-10-10 修正：這整段（含下面的 pytest）**必須在 opt-in 的 else 內**。
+  #   我第一版把 opt-in 判斷加在內層卻沒把後面的 pytest 收進去，結果
+  #   :127 的 fi 關掉 opt-in 之後，pytest 就成了**無條件執行** ——
+  #   push 輸出同時出現「⚠ pytest 未跑」與「✓ pytest 1775 passed」，
+  #   等待時間完全沒降。
+  #   `bash -n` 查不到：它確實是合法 shell，只是邏輯錯了。
+  #   ⚠ 而且當時的 3 個 test_prepush_hook 測試查不到，因為它們驗的是
+  #     「RAGDEMO_TEST=1 時壞 venv 會被診斷」，沒有任何測試驗
+  #     「opt-in 關閉時 pytest 確實沒跑」。已補（見 4158351 之後的 commit）。
+  #
+  #   ⚠️ 2026-10-03：這裡原本**跑兩次** pytest —— 第 101 行為了退出碼（輸出丟進
   #    /dev/null），第 103 行又跑一次只為了數 `passed`。實測 pre-push 要 51 秒，
   #    其中 48 秒是這兩次。單元測試是這條 hook 最貴的一段，沒有理由付兩倍。
   #
@@ -143,6 +152,7 @@ if [ -x .venv/bin/pytest ]; then
     cp "$_pt" .git/pre-push-pytest.log
     exit 1
   fi
+  fi   # ← 關 opt-in 的 else（:98 的 if 對應）
 else
   echo "⚠ pytest 未安裝（uv sync --dev 後啟用），跳過單元測試"
 fi
