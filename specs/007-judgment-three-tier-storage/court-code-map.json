@@ -1,0 +1,1139 @@
+{
+ "source": "archive 目錄（RAR directory entries，不解壓內容）",
+ "documents": 108409,
+ "directories": 137,
+ "codes": 137,
+ "codes_with_multiple_dirs": {},
+ "jid_field_count_histogram": {
+  "5": 139,
+  "6": 108270
+ },
+ "level_histogram": {
+  "地方法院": {
+   "dirs": 44,
+   "documents": 83387
+  },
+  "高等法院": {
+   "dirs": 13,
+   "documents": 5985
+  },
+  "簡易庭": {
+   "dirs": 62,
+   "documents": 13235
+  },
+  "行政法院": {
+   "dirs": 6,
+   "documents": 3625
+  },
+  "最高": {
+   "dirs": 8,
+   "documents": 1583
+  },
+  "少年家事": {
+   "dirs": 1,
+   "documents": 516
+  },
+  "智財法院": {
+   "dirs": 3,
+   "documents": 78
+  }
+ },
+ "rows": [
+  {
+   "court_code": "TPDV",
+   "court_dir": "臺灣臺北地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 7171,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TYDV",
+   "court_dir": "臺灣桃園地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 6512,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCDV",
+   "court_dir": "臺灣臺中地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 6481,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PCDV",
+   "court_dir": "臺灣新北地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 5830,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TYDM",
+   "court_dir": "臺灣桃園地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 3884,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SLDV",
+   "court_dir": "臺灣士林地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 3806,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PCDM",
+   "court_dir": "臺灣新北地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 3791,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCDM",
+   "court_dir": "臺灣臺中地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 3711,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSDV",
+   "court_dir": "臺灣高雄地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 3699,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TNDV",
+   "court_dir": "臺灣臺南地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 3523,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSDM",
+   "court_dir": "臺灣高雄地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 2982,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TNDM",
+   "court_dir": "臺灣臺南地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 2682,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPDM",
+   "court_dir": "臺灣臺北地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 2468,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPHM",
+   "court_dir": "臺灣高等法院刑事",
+   "level": "高等法院",
+   "business": "刑事",
+   "documents": 2235,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PTDV",
+   "court_dir": "臺灣屏東地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 2160,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SCDV",
+   "court_dir": "臺灣新竹地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 1864,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CHDV",
+   "court_dir": "臺灣彰化地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 1853,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPEV",
+   "court_dir": "臺北簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 1732,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CTDM",
+   "court_dir": "臺灣橋頭地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 1715,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CTDV",
+   "court_dir": "臺灣橋頭地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 1613,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CHDM",
+   "court_dir": "臺灣彰化地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 1612,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SLDM",
+   "court_dir": "臺灣士林地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 1532,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CYDV",
+   "court_dir": "臺灣嘉義地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 1519,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPTA",
+   "court_dir": "臺北高等行政法院 地方庭行政",
+   "level": "行政法院",
+   "business": "行政",
+   "documents": 1468,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCEV",
+   "court_dir": "臺中簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 1388,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "MLDV",
+   "court_dir": "臺灣苗栗地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 1278,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PTDM",
+   "court_dir": "臺灣屏東地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 1156,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCHM",
+   "court_dir": "臺灣高等法院臺中分院刑事",
+   "level": "高等法院",
+   "business": "刑事",
+   "documents": 1123,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CYDM",
+   "court_dir": "臺灣嘉義地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 1078,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PCEV",
+   "court_dir": "板橋簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 1019,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "ULDV",
+   "court_dir": "臺灣雲林地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 1008,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "ULDM",
+   "court_dir": "臺灣雲林地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 987,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SCDM",
+   "court_dir": "臺灣新竹地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 975,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCTA",
+   "court_dir": "臺中高等行政法院 地方庭行政",
+   "level": "行政法院",
+   "business": "行政",
+   "documents": 887,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPSM",
+   "court_dir": "最高法院刑事",
+   "level": "最高",
+   "business": "刑事",
+   "documents": 883,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSTA",
+   "court_dir": "高雄高等行政法院 地方庭行政",
+   "level": "行政法院",
+   "business": "行政",
+   "documents": 774,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "ILDV",
+   "court_dir": "臺灣宜蘭地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 745,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSEV",
+   "court_dir": "高雄簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 738,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SJEV",
+   "court_dir": "三重簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 718,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "MLDM",
+   "court_dir": "臺灣苗栗地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 684,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TYEV",
+   "court_dir": "桃園簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 681,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPHV",
+   "court_dir": "臺灣高等法院民事",
+   "level": "高等法院",
+   "business": "民事",
+   "documents": 671,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSHM",
+   "court_dir": "臺灣高等法院高雄分院刑事",
+   "level": "高等法院",
+   "business": "刑事",
+   "documents": 661,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KLDM",
+   "court_dir": "臺灣基隆地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 602,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TNHM",
+   "court_dir": "臺灣高等法院臺南分院刑事",
+   "level": "高等法院",
+   "business": "刑事",
+   "documents": 599,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "NTDV",
+   "court_dir": "臺灣南投地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 598,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TTDV",
+   "court_dir": "臺灣臺東地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 598,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "NTDM",
+   "court_dir": "臺灣南投地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 583,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "ILDM",
+   "court_dir": "臺灣宜蘭地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 555,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSYV",
+   "court_dir": "臺灣高雄少年及家事法院民事",
+   "level": "少年家事",
+   "business": "民事",
+   "documents": 516,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "HLDM",
+   "court_dir": "臺灣花蓮地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 499,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CDEV",
+   "court_dir": "橋頭簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 481,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CLEV",
+   "court_dir": "中壢簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 479,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KLDV",
+   "court_dir": "臺灣基隆地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 479,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SLEM",
+   "court_dir": "士林簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 453,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TTDM",
+   "court_dir": "臺灣臺東地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 442,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "NHEV",
+   "court_dir": "內湖簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 430,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TNEV",
+   "court_dir": "臺南簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 414,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SLEV",
+   "court_dir": "士林簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 392,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "STEV",
+   "court_dir": "新店簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 380,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "HLDV",
+   "court_dir": "臺灣花蓮地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 349,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPSV",
+   "court_dir": "最高法院民事",
+   "level": "最高",
+   "business": "民事",
+   "documents": 341,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPBA",
+   "court_dir": "臺北高等行政法院行政",
+   "level": "行政法院",
+   "business": "行政",
+   "documents": 318,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CYEV",
+   "court_dir": "嘉義簡易庭(含朴子)民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 287,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "FSEV",
+   "court_dir": "鳳山簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 252,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SDEM",
+   "court_dir": "沙鹿簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 250,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CPEV",
+   "court_dir": "竹北簡易庭(含竹東)民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 248,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PTEV",
+   "court_dir": "屏東簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 226,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CCEV",
+   "court_dir": "潮州簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 218,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "FYEV",
+   "court_dir": "豐原簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 215,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPAA",
+   "court_dir": "最高行政法院行政",
+   "level": "最高",
+   "business": "行政",
+   "documents": 200,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCHV",
+   "court_dir": "臺灣高等法院臺中分院民事",
+   "level": "高等法院",
+   "business": "民事",
+   "documents": 196,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSHV",
+   "court_dir": "臺灣高等法院高雄分院民事",
+   "level": "高等法院",
+   "business": "民事",
+   "documents": 193,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "GSEV",
+   "court_dir": "岡山簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 162,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TNHV",
+   "court_dir": "臺灣高等法院臺南分院民事",
+   "level": "高等法院",
+   "business": "民事",
+   "documents": 156,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SYEV",
+   "court_dir": "柳營簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 155,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "FYEM",
+   "court_dir": "豐原簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 145,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CHEV",
+   "court_dir": "彰化簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 144,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SSEV",
+   "court_dir": "新市簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 140,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "JCCC",
+   "court_dir": "憲法法庭憲法",
+   "level": "最高",
+   "business": "憲法",
+   "documents": 139,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KMDV",
+   "court_dir": "福建金門地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 137,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SDEV",
+   "court_dir": "沙鹿簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 135,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PHDV",
+   "court_dir": "臺灣澎湖地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 128,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "NTEV",
+   "court_dir": "南投簡易庭(含埔里)民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 122,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CPEM",
+   "court_dir": "竹北簡易庭(含竹東)刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 109,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TLEV",
+   "court_dir": "斗六簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 108,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "LTEV",
+   "court_dir": "羅東簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 108,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "HLHM",
+   "court_dir": "臺灣高等法院花蓮分院刑事",
+   "level": "高等法院",
+   "business": "刑事",
+   "documents": 106,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCBA",
+   "court_dir": "臺中高等行政法院行政",
+   "level": "行政法院",
+   "business": "行政",
+   "documents": 93,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "ILEV",
+   "court_dir": "宜蘭簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 91,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PDEV",
+   "court_dir": "北斗簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 87,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSBA",
+   "court_dir": "高雄高等行政法院行政",
+   "level": "行政法院",
+   "business": "行政",
+   "documents": 85,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "OLEV",
+   "court_dir": "員林簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 80,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "HLEV",
+   "court_dir": "花蓮簡易庭(含玉里)民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 75,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TTEV",
+   "court_dir": "臺東簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 63,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PKEV",
+   "court_dir": "北港簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 62,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "MKEM",
+   "court_dir": "馬公簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 53,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CSEV",
+   "court_dir": "旗山簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 52,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "IPCV",
+   "court_dir": "智慧財產及商業法院民事",
+   "level": "智財法院",
+   "business": "民事",
+   "documents": 48,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "HUEV",
+   "court_dir": "虎尾簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 48,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PHDM",
+   "court_dir": "臺灣澎湖地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 43,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPEM",
+   "court_dir": "臺北簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 38,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KMDM",
+   "court_dir": "福建金門地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 30,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KMEM",
+   "court_dir": "金城簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 30,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PCEM",
+   "court_dir": "板橋簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 26,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CLEM",
+   "court_dir": "中壢簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 23,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "HLHV",
+   "court_dir": "臺灣高等法院花蓮分院民事",
+   "level": "高等法院",
+   "business": "民事",
+   "documents": 23,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TCEM",
+   "court_dir": "臺中簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 22,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KSEM",
+   "court_dir": "高雄簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 22,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TYEM",
+   "court_dir": "桃園簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 20,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "LCDV",
+   "court_dir": "福建連江地方法院民事",
+   "level": "地方法院",
+   "business": "民事",
+   "documents": 20,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "MKEV",
+   "court_dir": "馬公簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 20,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "IPCM",
+   "court_dir": "智慧財產及商業法院刑事",
+   "level": "智財法院",
+   "business": "刑事",
+   "documents": 19,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SJEM",
+   "court_dir": "三重簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 17,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KMEV",
+   "court_dir": "金城簡易庭民事",
+   "level": "簡易庭",
+   "business": "民事",
+   "documents": 14,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KMHM",
+   "court_dir": "福建高等法院金門分院刑事",
+   "level": "高等法院",
+   "business": "刑事",
+   "documents": 13,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "IPCA",
+   "court_dir": "智慧財產及商業法院行政",
+   "level": "智財法院",
+   "business": "行政",
+   "documents": 11,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TNEM",
+   "court_dir": "臺南簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 11,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "FSEM",
+   "court_dir": "鳳山簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 11,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPPP",
+   "court_dir": "懲戒法院-懲戒法庭",
+   "level": "最高",
+   "business": "懲戒",
+   "documents": 10,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "NHEM",
+   "court_dir": "內湖簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 9,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPHA",
+   "court_dir": "臺灣高等法院--訴願決定",
+   "level": "高等法院",
+   "business": "訴願",
+   "documents": 7,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPCM",
+   "court_dir": "司法院刑事補償法庭",
+   "level": "最高",
+   "business": "刑事",
+   "documents": 6,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SSEM",
+   "court_dir": "新市簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 6,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "NTEM",
+   "court_dir": "南投簡易庭(含埔里)刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 5,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "GSEM",
+   "court_dir": "岡山簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 5,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "LCDM",
+   "court_dir": "福建連江地方法院刑事",
+   "level": "地方法院",
+   "business": "刑事",
+   "documents": 5,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CYEM",
+   "court_dir": "嘉義簡易庭(含朴子)刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 3,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CSEM",
+   "court_dir": "旗山簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 3,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CDEM",
+   "court_dir": "橋頭簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 3,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "PTEM",
+   "court_dir": "屏東簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 2,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPJP",
+   "court_dir": "懲戒法院-職務法庭",
+   "level": "最高",
+   "business": "懲戒",
+   "documents": 2,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "TPSU",
+   "court_dir": "最高法院家事",
+   "level": "最高",
+   "business": "家事",
+   "documents": 2,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "SYEM",
+   "court_dir": "柳營簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 2,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "CCEM",
+   "court_dir": "潮州簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 2,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "KMHV",
+   "court_dir": "福建高等法院金門分院民事",
+   "level": "高等法院",
+   "business": "民事",
+   "documents": 2,
+   "distinct_dirs": 1
+  },
+  {
+   "court_code": "STEM",
+   "court_dir": "新店簡易庭刑事",
+   "level": "簡易庭",
+   "business": "刑事",
+   "documents": 1,
+   "distinct_dirs": 1
+  }
+ ]
+}
