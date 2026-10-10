@@ -266,7 +266,14 @@ def build_points(flat: list[dict], limit: int, level_of: dict | None = None) -> 
     """
     level_of = level_of or {}
     pts: list[dict] = []
-    for a in flat:
+    # ⚠ `limit` 的語意是「**條文**數」，不是點數。條文可能切成多點，
+    #   所以判斷必須在**條文層級**，否則會在點數追上條文數時提前截斷
+    #   （2026-10-10 實測：丟掉 42 個點，32 條超長條文只剩第一段）。
+    #   `limit <= 0` 表示不限制——這是「全部」的正規表示。
+    stop_after = limit if limit and limit > 0 else None
+    for n_seen, a in enumerate(flat, start=1):
+        if stop_after is not None and n_seen > stop_after:
+            break
         seq = a["article_seq"]
         chunks = chunk_text(a["article_content"])
         head = f"{a['article_no']} {a['chapter']} "
@@ -303,8 +310,8 @@ def build_points(flat: list[dict], limit: int, level_of: dict | None = None) -> 
                 payload["chunk_idx"] = ci
                 payload["full_content"] = a["article_content"]
             pts.append({"id": pid, "payload": payload, "_text": f"{head}{text}"})
-            if limit and len(pts) >= limit:
-                return pts
+            # ⚠ 這裡**不能**再檢查 `len(pts) >= limit`：那是點數，會截斷超長條文的
+            #   後續分段。條文層級的截斷已在迴圈開頭用 n_seen 處理。
     return pts
 
 
@@ -313,8 +320,25 @@ async def run(limit: int = 0) -> None:
     # `law_level` 只在 meta 裡（flat 沒有），故建 pcode→level 對照傳進去。
     # 少了這個，payload 的 law_level 會全空，引用呈現就分不出法律/命令（FR-017）。
     level_of = {m["pcode"]: m.get("law_level", "") for m in load_jsonl(DATA / "laws_meta.jsonl")}
-    pts = build_points(flat, limit, level_of) if limit else build_points(flat, len(flat), level_of)
-    print(f"待灌 {len(pts)} 條（**不排除**已廢止/已刪除——理由見 build_points docstring）")
+    # ⚠⚠ **2026-10-10 修的真 bug**。原本是：
+    #     pts = build_points(flat, limit, level_of) if limit else build_points(flat, len(flat), level_of)
+    #
+    # `build_points` 裡的 `if limit and len(pts) >= limit: return pts` 是在**點**層級
+    # 檢查，而這裡傳的 `len(flat)` 是**條文數**。當條文被切成多點（chunk_idx）時，
+    # 點數會**超過**條文數，於是在第 len(flat) 個點就提前 return。
+    #
+    # 實測（2026-10-10）：222,109 條文 → 222,151 點，被截成 222,109 點，
+    # **丟掉 42 個點**（32 條超長含表格的條文被切 2 段，多出來的段全沒了）。
+    # 後果是那 32 條法規在向量庫**只剩第一段**——正好是最需要完整內容的那些。
+    #
+    # 修法：limit 語意是「條文數」，所以必須在**條文層級**判斷，不是點層級。
+    # 最簡單且不會再錯的作法：**沒有明確給 limit 就不設上限**（0 = 全部）。
+    if limit:
+        pts = build_points(flat, limit, level_of)
+    else:
+        pts = build_points(flat, 0, level_of)
+    print(f"待灌 {len(pts)} 點／{len(flat)} 條文"
+          f"（**不排除**已廢止/已刪除——理由見 build_points docstring）")
 
     async with httpx.AsyncClient(headers=QDRANT_HEADERS) as c:
         await backup_old(c)
