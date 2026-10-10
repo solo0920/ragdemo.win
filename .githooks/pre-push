@@ -205,15 +205,29 @@ else
   fi
   if [ -z "$_probe_port" ] && command -v docker >/dev/null 2>&1; then
     # 一樣欄位受限（見上面 smoke 分支的說明）：不用 `--format json`。
+    #
+    # ⚠ 2026-10-10：**這裡原來寫的樣式 `[0-9]+ +[0-9]+ +tcp` 抓不到東西。**
+    #   Docker Compose v5.6.0 的 `{{.Publishers}}` 實際印的是
+    #     `[920/tcp -> 127.0.0.1:920]`
+    #   `920` 與 `tcp` 之間有斜線，`[0-9]+ +[0-9]+ +tcp` 匹配不上 →
+    #   取不到埠 → 下面印「讀不到 docker」——**那句話是錯的**，docker 明明有回應，
+    #   是這個樣式沒解析出來。使用者回報這是「沒意義又誤導的訊息」。
+    #   改成抓發布端的 `主機:埠`，那才是我們要的（主機端埠，不是容器內埠）。
+    #   實測：舊樣式無輸出；新樣式 [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+ → 920 ✓
     _probe_port="$(docker compose ps --format '{{.Publishers}}' api 2>/dev/null \
-      | grep -oE '[0-9]+ +[0-9]+ +tcp' | head -1 | awk '{print $1}' || true)"
+      | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+' | head -1 | awk -F: '{print $NF}' || true)"
   fi
   if [ -z "$_probe_port" ]; then
-    echo "⚠ 拿不到本機 api 的主機埠（.env 的 API_PORT 未設且讀不到 docker）→ 跳過"
+    # 2026-10-10：**靜默**。這整個 else 分支不擋 push（沒有任何 exit），
+    #   所以「拿不到埠」不是一個需要使用者行動的問題 —— 印出來只會讓人
+    #   以為 push 出了事。舊訊息還寫「讀不到 docker」，但 docker 其實有回應，
+    #   是樣式沒匹配上，那更是誤導。
+    #   要跑真正會擋 push 的完整檢查 → RAGDEMO_SMOKE=1（那條分支失敗會 exit 1）。
+    #   要看這台的 api 狀態 → scripts/host-check.sh 或 curl /health。
+    :
   elif curl -sf -m 3 "http://127.0.0.1:${_probe_port}/health" >/dev/null 2>&1; then
+    # 在線才講。離線時同樣靜默 —— 它不擋 push，不是使用者要處理的事。
     echo "✓ 本機 api OK（:${_probe_port}，完整 smoke 可加 RAGDEMO_SMOKE=1 跑 /query）"
-  else
-    echo "⚠ 本機 api(:${_probe_port}) 不在線，跳過 HTTP smoke（push 照常）"
   fi
 fi
 
