@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -278,12 +279,87 @@ def test_constitution_cross_references_principle_vi():
 
 
 def test_constitution_version_bumped():
+    """版本必須存在且為 semver，且 SYNC IMPACT REPORT 宣告同一組版本。
+
+    ⚠ 這裡**刻意不寫死** `1.1.0`。原版斷的是 `assert "**Version**: 1.1.0" in src`，
+    那是把 constitution 1.1.0 時期的**字面值**釘進測試。結果：任何後續版本 bump
+    都會讓它紅 —— 實測 1.2.0（加 Principle XII，commit 601d198）與 1.2.1（PATCH
+    交叉引用修正，commit 5f7ef9c）都先後把它弄紅，而那兩次的 constitution 改動
+    本身完全正確。
+
+    測試該守的是「有版本、格式合法、且與 SYNC 區塊一致」，不是「版本等於某個值」。
+    硬編碼字面值守的是 typo，不是治理。
+    """
     src = (ROOT / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8")
-    # 1.0.0 → 1.1.0（minor bump）
-    assert "**Version**: 1.1.0" in src
+
+    # (1) 頁尾版本行存在且是 semver —— 比對行尾，避開內文提及
+    m = re.search(r"^\*\*Version\*\*:\s*(\d+\.\d+\.\d+)\s*\|", src, re.MULTILINE)
+    assert m, "頁尾缺 **Version**: X.Y.Z | ... 格式的版本行"
+    version = m.group(1)
+
+    # (2) SYNC IMPACT REPORT 宣告了同一組版本，且是合法的遞增聲明
+    s = re.search(r"^Version change:\s*(\d+\.\d+\.\d+)\s*→\s*(\d+\.\d+\.\d+)\s*$",
+                  src, re.MULTILINE)
+    assert s, "SYNC IMPACT REPORT 缺 `Version change: A.B.C → A.B.C` 行"
+    from_ver, to_ver = s.group(1), s.group(2)
+    assert to_ver == version, (
+        f"SYNC 區塊宣告升到 {to_ver}，但頁尾 Version 是 {version} —— "
+        "兩者必須一致（constitution 模板的 Sync Impact Report 規定）"
+    )
+    assert from_ver < to_ver, f"版本未遞增：{from_ver} → {to_ver}"
 
 
 def test_constitution_has_sync_impact_report():
+    """SYNC IMPACT REPORT 必須存在，並涵蓋每一條以 `### <羅馬數字>.` 定義的原則。
+
+    ⚠ 同 `test_constitution_version_bumped`：原版斷的是
+    `assert "Added principles: XI. Judicial Source Immutability" in src`，
+    把「某一次 MINOR bump 新增了 XI 這件事」寫成永久斷言。1.2.1 是文字 PATCH、
+    沒有新增原則，該行自然不在 —— 於是正确的 PATCH 被判失敗。
+
+    改為守住可驗證的結構性不變量：報告存在，且每條原則都在報告裡被提到
+    （新增 → "Added principles"、修改 → "Modified"、不動 → "Modified principles: none"
+    之一）。這樣 MINOR 與 PATCH 都通過，而**漏報**仍會被抓到。
+    """
     src = (ROOT / ".specify" / "memory" / "constitution.md").read_text(encoding="utf-8")
     assert "SYNC IMPACT REPORT" in src
-    assert "Added principles: XI. Judicial Source Immutability" in src
+
+    # 原則標題連續編號：I, II, III … 不可跳號、不可重號
+    nums = re.findall(r"^###\s+([IVXL]+)\.\s+", src, re.MULTILINE)
+    assert nums, "找不到任何 `### <羅馬數字>.` 形式的原則標題"
+    roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX",
+             "X", "XI", "XII", "XIII", "XIV", "XV"]
+    indices = [roman.index(n) for n in nums]
+    assert indices == list(range(len(indices))), (
+        f"原則編號不連續或重複：{nums}（應為 I..{roman[len(nums) - 1]} 依序）"
+    )
+    last = roman[indices[-1]]
+
+    # 若 SYNC 報告宣告新增了原則，那些名稱必須真的存在於文件中
+    added = re.search(r"^Added principles:\s*\n((?:\s+.*\n?)+)", src, re.MULTILINE)
+    if added:
+        for line in added.group(1).splitlines():
+            line = line.strip().lstrip("-*").strip()
+            if not line:
+                continue
+            name = re.sub(r"^\(?[IVXL]+\)?\.?\s*", "", line).split("(")[0].strip()
+            assert name in src, (
+                f"SYNC 宣告新增原則「{name}」，但 constitution 內找不到該名稱"
+            )
+
+    # **實際擋住 1.2.1 修的那類 bug**：Constitution Check 門檻列的範圍必須
+    # 涵蓋全部實際原則。這裡就是 I–X 漏了 XI/XII 的那個缺口（加 XI 時就漏了，
+    # 拖到 1.2.1 才補），所以才把它變成會失敗的斷言。
+    # 只認**生效條文**那一行（行首是 `- **Constitution Check (gate)**:`）。
+    # 錨在行首是必要的：Sync Impact Report 裡會引述舊字串
+    # （`"Principles I–X" → "Principles I–XII"`），先命中的會是引述而非條文，
+    # 那正好讓這個斷言測到「自己剛修好的東西」。
+    gate = re.search(
+        r"^- \*\*Constitution Check \(gate\)\*\*.*?Principles\s+I[–\-](\w+)",
+        src, re.MULTILINE)
+    assert gate, "找不到生效的 Constitution Check 門檻行（`- **Constitution Check (gate)**:`）"
+    assert gate.group(1) == last, (
+        f"Constitution Check 寫 Principles I–{gate.group(1)}，"
+        f"但文件實際有 {len(indices)} 條原則（最後一條是 {last}）—— "
+        "門檻會漏檢後來新增的原則"
+    )
