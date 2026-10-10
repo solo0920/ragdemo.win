@@ -1,0 +1,40 @@
+========================================================================
+基線量測（改動前）  2026-10-10 19:24:45 +0800
+========================================================================
+
+【1】judgement_store.jfull_map() — 查詢路徑上的記憶體與時間
+  母體：data/judgements/seed 下的 seed 檔案
+  分母：1 個檔案
+  RSS（量測前）：15 MB
+  首次 jfull_map() 耗時：0 ms
+  RSS（量測後）：16 MB
+  回傳 entry 數：1｜JFULL 總字元：3,137
+  ⚠ 這是**單一份 seed**的量測，不是全庫。若 seed 換成 200 卷，成本會變。
+  第二次（TTL 快取）耗時：0.002 ms
+
+【2】extract_statute_mentions() — 法名 regex 抽取成本
+  法名來源：data/laws/laws_flat.jsonl
+  StatuteCorpus.from_jsonl() 載入耗時：1.92 s
+  母體：/home/solo/projects/ragdemo.win/data/laws/laws_flat.jsonl 的全部條文
+  分母：222,109 條文／11,803 部法規
+  RSS（載入 corpus 後）：526 MB
+  量測母體：評估 manifest 的 200 卷判決
+  實測卷數（分母）：200
+  JFULL 總字元（分母）：6,688,933
+  耗時 min    ：6.7 ms
+  耗時 median ：175.5 ms
+  耗時 p95    ：957.5 ms
+  耗時 max    ：2718.1 ms
+  抽出結果為空的卷：1/200
+
+【3】容器對 laws_flat.jsonl 的依賴
+  git check-ignore data/laws/laws_flat.jsonl → rc=0
+    規則：.gitignore:52:data/laws/*	data/laws/laws_flat.jsonl
+    ⇒ 該檔**不在版控**，git clone 後不存在
+  git ls-files --error-unmatch → rc=1（未被追蹤）
+  檔案目前存在於本機：True（大小 179,384,373 bytes）
+  ⇒ 結論需由呼叫端比對 Dockerfile 的 COPY 清單才能定案；本工具只陳述 git 事實。
+
+========================================================================
+量測結束。以上數字僅為**改動前**基線（R2）。
+========================================================================

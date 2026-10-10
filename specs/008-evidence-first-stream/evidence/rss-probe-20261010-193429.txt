@@ -1,0 +1,11 @@
+【母體 B】同一程序，僅 import 查詢路徑模組（不載入 corpus）
+  起始 RSS：14 MB
+  import 查詢路徑模組後：29 MB
+  + httpx/asyncpg：29 MB
+
+【母體 A】同上，再載入 StatuteCorpus（現行行為）
+  載入 corpus 後：525 MB
+  corpus 條文數：222,109
+
+  corpus 造成的 RSS 增量 = A − B = 525 − 29 = 496 MB
+  （母體：單一 Python 程序；指標 = ru_maxrss；一次量測，無重複取樣）
