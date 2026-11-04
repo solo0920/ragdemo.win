@@ -1,0 +1,9 @@
+# Friendly shortcuts for the two products and their source code.
+# Exact rules first; splat rules last.
+/prompter            https://prompter.ragdemo.win/   301
+/promper             https://prompter.ragdemo.win/   301
+/analysis            https://analysis.ragdemo.win/   301
+/gh/prompter         https://github.com/solo0920/prompter   301
+/gh/analysis         https://github.com/solo0920/analysis   301
+/prompter/*          https://prompter.ragdemo.win/:splat  301
+/analysis/*          https://analysis.ragdemo.win/:splat  301

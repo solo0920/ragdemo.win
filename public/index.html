@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RAGDEMO.WIN — Prompter 與分析師備考站</title>
+  <meta name="description" content="RAGDEMO.WIN 集結兩個為深度工作而生的工具：Prompter 區塊式 Markdown 提示詞編輯器，以及證券投資分析人員考試備考站。本機優先、零後端、無追蹤。">
+  <meta name="author" content="Solomon Lee">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="canonical" href="https://ragdemo.win/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="assets/css/main.css?v=20261105-02">
+  <link rel="preload" href="assets/images/prompter-icon.svg" as="image" type="image/svg+xml">
+  <link rel="preload" href="assets/images/analysis-icon.svg" as="image" type="image/svg+xml">
+  <script src="assets/js/main.js?v=20261105-02" defer></script>
+
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_TW">
+  <meta property="og:site_name" content="RAGDEMO.WIN">
+  <meta property="og:title" content="RAGDEMO.WIN — 把複雜，整理成清晰。">
+  <meta property="og:description" content="Prompter 讓提示詞更有結構；分析師備考站讓考試準備更有方向。兩個本機優先、零後端的深度工作工具。">
+  <meta property="og:url" content="https://ragdemo.win/">
+  <meta property="og:image" content="https://ragdemo.win/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="RAGDEMO.WIN — Prompter 與分析師備考站">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="RAGDEMO.WIN — 把複雜，整理成清晰。">
+  <meta name="twitter:description" content="Prompter 讓提示詞更有結構；分析師備考站讓考試準備更有方向。">
+  <meta name="twitter:image" content="https://ragdemo.win/og-image.png">
+  <meta name="twitter:image:alt" content="RAGDEMO.WIN — Prompter 與分析師備考站">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "RAGDEMO.WIN",
+    "url": "https://ragdemo.win/",
+    "description": "兩個為深度工作而生的工具：Prompter 區塊式 Markdown 提示詞編輯器，以及證券投資分析人員考試備考站。",
+    "inLanguage": "zh-Hant-TW",
+    "publisher": {
+      "@type": "Person",
+      "name": "Solomon Lee",
+      "url": "https://github.com/solo0920"
+    },
+    "hasPart": [
+      {
+        "@type": "WebApplication",
+        "name": "Prompter",
+        "url": "https://prompter.ragdemo.win/",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires a modern browser",
+        "description": "以區塊為單位的 Markdown 提示詞編輯器，支援拖曳排序、層級聚焦、即時預覽與本機文件庫。",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "TWD"
+        },
+        "license": "https://github.com/solo0920/prompter/blob/main/LICENSE"
+      },
+      {
+        "@type": "WebSite",
+        "name": "分析師備考站",
+        "url": "https://analysis.ragdemo.win/",
+        "description": "證券投資分析人員考試的靜態備考網站，整理總體經濟學、投資學、會計學與證券法規的章節、公式、法規與考古題。",
+        "inLanguage": "zh-Hant-TW",
+        "isAccessibleForFree": true
+      }
+    ]
+  }
+  </script>
+</head>
+<body id="top">
+  <a class="skip-link" href="#main">跳到主要內容</a>
+
+  <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <symbol id="icon-arrow" viewBox="0 0 16 16">
+      <path d="M2.75 8h9.5M8.5 3.5 13 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-arrow-up-right" viewBox="0 0 16 16">
+      <path d="M4.5 11.5 11.5 4.5M5.5 4.5h6v6" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="icon-github" viewBox="0 0 24 24">
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" fill="currentColor"/>
+    </symbol>
+    <symbol id="icon-menu" viewBox="0 0 24 24">
+      <path d="M4 8.25h16M4 15.75h16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24">
+      <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 16 16">
+      <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </svg>
+
+  <header class="site-header" id="site-header">
+    <div class="nav-inner">
+      <a class="nav-brand" href="#top" aria-label="RAGDEMO.WIN 回到頂端">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="3" y="3.5" width="18" height="3" rx="1.5" fill="currentColor"/>
+          <rect x="3" y="10.5" width="12.5" height="3" rx="1.5" fill="currentColor"/>
+          <rect x="3" y="17.5" width="8" height="3" rx="1.5" fill="#2997ff"/>
+        </svg>
+        <span>ragdemo.win</span>
+      </a>
+
+      <nav class="nav-links" aria-label="主要導覽">
+        <a href="#prompter">Prompter</a>
+        <a href="#analysis">分析師備考站</a>
+        <a href="#principles">設計理念</a>
+      </nav>
+
+      <div class="nav-meta">
+        <a class="nav-github" href="https://github.com/solo0920" target="_blank" rel="noopener noreferrer">
+          <svg width="14" height="14" aria-hidden="true" focusable="false"><use href="#icon-github"/></svg>
+          <span>GitHub</span>
+          <svg class="external-icon" width="11" height="11" aria-hidden="true" focusable="false"><use href="#icon-arrow-up-right"/></svg>
+        </a>
+      </div>
+
+      <button class="nav-toggle" type="button" aria-label="開啟選單" aria-haspopup="dialog" aria-controls="mobile-menu" data-menu-open>
+        <svg width="22" height="22" aria-hidden="true" focusable="false"><use href="#icon-menu"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <dialog class="mobile-menu" id="mobile-menu" aria-label="網站選單">
+    <div class="mobile-menu-inner">
+      <div class="mobile-menu-head">
+        <a class="nav-brand" href="#top" aria-label="RAGDEMO.WIN 回到頂端">
+          <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="3.5" width="18" height="3" rx="1.5" fill="currentColor"/>
+            <rect x="3" y="10.5" width="12.5" height="3" rx="1.5" fill="currentColor"/>
+            <rect x="3" y="17.5" width="8" height="3" rx="1.5" fill="#2997ff"/>
+          </svg>
+          <span>ragdemo.win</span>
+        </a>
+        <button class="mobile-menu-close" type="button" aria-label="關閉選單" data-menu-close>
+          <svg width="22" height="22" aria-hidden="true" focusable="false"><use href="#icon-close"/></svg>
+        </button>
+      </div>
+
+      <nav class="mobile-menu-links" aria-label="行動版主要導覽">
+        <a href="#prompter">
+          <span class="label">Prompter</span>
+          <span class="desc">區塊式 Markdown 提示詞編輯器</span>
+        </a>
+        <a href="#analysis">
+          <span class="label">分析師備考站</span>
+          <span class="desc">證券投資分析人員備考網站</span>
+        </a>
+        <a href="#principles">
+          <span class="label">設計理念</span>
+          <span class="desc">本機優先、零後端、無追蹤</span>
+        </a>
+        <a href="https://github.com/solo0920" target="_blank" rel="noopener noreferrer">
+          <span class="label">GitHub <svg width="14" height="14" aria-hidden="true" focusable="false"><use href="#icon-arrow-up-right"/></svg></span>
+          <span class="desc">查看開源原始碼</span>
+        </a>
+      </nav>
+
+      <div class="mobile-menu-foot">
+        <p>兩個工具，一種專注。</p>
+        <a href="#top">回到頂端</a>
+      </div>
+    </div>
+  </dialog>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner">
+        <p class="eyebrow" data-reveal>RAGDEMO.WIN</p>
+        <h1 id="hero-title" data-reveal class="delay-1">把複雜，<br>整理成清晰。</h1>
+        <p class="hero-lede delay-2" data-reveal>兩個為深度工作而生的工具。<br class="br-desktop">一個讓提示詞更有結構，一個讓考試準備更有方向。</p>
+        <div class="hero-actions delay-3" data-reveal>
+          <a class="btn btn-primary" href="#tools">
+            探索工具
+            <svg class="btn-icon" width="15" height="15" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+          </a>
+          <a class="btn btn-text" href="#principles">了解設計理念</a>
+        </div>
+        <p class="hero-note delay-4" data-reveal>本機優先 · 零後端 · 無追蹤</p>
+
+        <div class="hero-apps delay-5" data-reveal>
+          <a class="app-tile" href="https://prompter.ragdemo.win/">
+            <span class="app-icon"><img src="assets/images/prompter-icon.svg" width="56" height="56" alt=""></span>
+            <span class="app-copy">
+              <span class="app-kicker">PROMPTER</span>
+              <span class="app-name">Markdown 提示詞編輯器</span>
+              <span class="app-desc">區塊式編輯 × 即時預覽</span>
+            </span>
+            <svg class="app-arrow" width="16" height="16" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+          </a>
+
+          <a class="app-tile" href="https://analysis.ragdemo.win/">
+            <span class="app-icon"><img src="assets/images/analysis-icon.svg" width="56" height="56" alt=""></span>
+            <span class="app-copy">
+              <span class="app-kicker">ANALYSIS</span>
+              <span class="app-name">分析師備考站</span>
+              <span class="app-desc">73 章 × 3,710 題考古題</span>
+            </span>
+            <svg class="app-arrow" width="16" height="16" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+          </a>
+        </div>
+
+        <p class="hero-scroll delay-6" data-reveal aria-hidden="true">
+          <span>向下探索</span>
+          <svg width="12" height="12" focusable="false"><use href="#icon-chevron-down"/></svg>
+        </p>
+      </div>
+    </section>
+
+    <section class="tools" id="tools" aria-labelledby="tools-title">
+      <div class="section-head">
+        <p class="eyebrow" data-reveal>THE TOOLS</p>
+        <h2 id="tools-title" data-reveal class="delay-1">兩個工具，<br class="br-mobile">各自專注。</h2>
+        <p class="section-sub delay-2" data-reveal>不同領域，同一種設計選擇：把複雜留給結構，把專注還給你。</p>
+      </div>
+    </section>
+
+    <section class="product product-light" id="prompter" aria-labelledby="prompter-title">
+      <div class="product-inner">
+        <div class="product-copy" data-reveal>
+          <p class="product-index">01 — PROMPTER</p>
+          <div class="product-heading">
+            <span class="product-icon"><img src="assets/images/prompter-icon.svg" width="56" height="56" alt=""></span>
+            <h2 id="prompter-title">Prompter</h2>
+          </div>
+          <p class="product-tagline">以區塊為單位，重寫你和 AI 的對話方式。</p>
+          <p class="product-desc">把 Markdown 提示詞拆成一個一個區塊。拖曳排序、層級聚焦、即時預覽，讓長提示詞像樂高一樣被組裝、被理解。文件、圖片與設定都留在你的瀏覽器裡。</p>
+
+          <dl class="spec-grid">
+            <div>
+              <dt>區塊式編輯</dt>
+              <dd>標題、段落、清單各自獨立；拖曳、複選、收合都在彈指之間。</dd>
+            </div>
+            <div>
+              <dt>即時預覽</dt>
+              <dd>Markdown、表格、程式碼與 KaTeX 公式同步呈現，所見即所得。</dd>
+            </div>
+            <div>
+              <dt>本機文件庫</dt>
+              <dd>使用 IndexedDB 儲存最近文件，沒有帳號，也不經過伺服器。</dd>
+            </div>
+            <div>
+              <dt>離線優先</dt>
+              <dd>所有資源隨專案提供，不載入 CDN；沒有網路也能工作。</dd>
+            </div>
+          </dl>
+
+          <div class="product-actions">
+            <a class="btn btn-primary" href="https://prompter.ragdemo.win/">
+              前往 Prompter
+              <svg class="btn-icon" width="15" height="15" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+            </a>
+            <a class="btn btn-text" href="https://github.com/solo0920/prompter" target="_blank" rel="noopener noreferrer">
+              查看原始碼
+              <svg class="btn-icon" width="14" height="14" aria-hidden="true" focusable="false"><use href="#icon-arrow-up-right"/></svg>
+            </a>
+          </div>
+          <p class="product-meta">開源 · MIT 授權 · 無需安裝</p>
+        </div>
+
+        <div class="product-visual delay-1" data-reveal>
+          <figure class="app-window app-window-light">
+            <img src="assets/images/prompter-editor-1200.webp"
+                 srcset="assets/images/prompter-editor-800.webp 800w, assets/images/prompter-editor-1200.webp 1200w, assets/images/prompter-editor.webp 1600w"
+                 sizes="(max-width: 980px) calc(100vw - 48px), 600px"
+                 width="1600" height="1000" loading="lazy" decoding="async"
+                 alt="Prompter 編輯器介面：左側是 Markdown 區塊清單，右側是即時預覽。">
+          </figure>
+          <p class="visual-note">區塊式編輯 × 即時 Markdown 預覽</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="product product-dark" id="analysis" aria-labelledby="analysis-title">
+      <div class="product-inner">
+        <div class="product-copy" data-reveal>
+          <p class="product-index">02 — ANALYSIS</p>
+          <div class="product-heading">
+            <span class="product-icon"><img src="assets/images/analysis-icon.svg" width="56" height="56" alt=""></span>
+            <h2 id="analysis-title">分析師備考站</h2>
+          </div>
+          <p class="product-tagline">把四科考試範圍，變成一張可前進的地圖。</p>
+          <p class="product-desc">為證券投資分析人員考試而做的靜態備考網站。以章節為骨架，整理名詞、公式、法規與考古題，讓龐大的範圍變成每天都能前進一點的路線。</p>
+
+          <ul class="stats">
+            <li><strong>4</strong><span>科目</span></li>
+            <li><strong>73</strong><span>章</span></li>
+            <li><strong>3,710</strong><span>考古題</span></li>
+            <li><strong>1,507</strong><span>法規條文</span></li>
+          </ul>
+          <p class="stats-note">總體經濟學、投資學、會計學、證券交易相關法規與實務；選擇題附逐選項解析。</p>
+
+          <div class="product-actions">
+            <a class="btn btn-primary" href="https://analysis.ragdemo.win/">
+              前往分析師備考站
+              <svg class="btn-icon" width="15" height="15" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+            </a>
+            <a class="btn btn-text btn-on-dark" href="https://github.com/solo0920/analysis" target="_blank" rel="noopener noreferrer">
+              查看原始碼
+              <svg class="btn-icon" width="14" height="14" aria-hidden="true" focusable="false"><use href="#icon-arrow-up-right"/></svg>
+            </a>
+          </div>
+          <p class="product-meta">開源 · MIT 授權 · 無需註冊</p>
+        </div>
+
+        <div class="product-visual delay-1" data-reveal>
+          <figure class="app-window app-window-dark">
+            <img src="assets/images/analysis-home-1200.webp"
+                 srcset="assets/images/analysis-home-800.webp 800w, assets/images/analysis-home-1200.webp 1200w, assets/images/analysis-home.webp 1600w"
+                 sizes="(max-width: 980px) calc(100vw - 48px), 600px"
+                 width="1600" height="1000" loading="lazy" decoding="async"
+                 alt="分析師備考站首頁，以深色介面呈現四科考試範圍、章節統計與考古題入口。">
+          </figure>
+          <p class="visual-note">四科章節 × 考古題練習 × 考前整理</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="principles" id="principles" aria-labelledby="principles-title">
+      <div class="section-head">
+        <p class="eyebrow" data-reveal>THE PRINCIPLES</p>
+        <h2 id="principles-title" data-reveal class="delay-1">工具退到背景，<br>思考走到前面。</h2>
+        <p class="section-sub delay-2" data-reveal>我們相信好的工具應該安靜、可靠，並且把資料的控制權留給你。</p>
+      </div>
+
+      <div class="principle-grid">
+        <article class="principle" data-reveal>
+          <p class="principle-num">01</p>
+          <h3>本機優先</h3>
+          <p>文件、圖片與練習紀錄留在你的裝置。沒有帳號、沒有上傳、沒有追蹤。</p>
+        </article>
+        <article class="principle delay-1" data-reveal>
+          <p class="principle-num">02</p>
+          <h3>零後端</h3>
+          <p>兩個網站都是純靜態頁面。開啟即用，沒有伺服器等待，也沒有多餘的依賴。</p>
+        </article>
+        <article class="principle delay-2" data-reveal>
+          <p class="principle-num">03</p>
+          <h3>專注本質</h3>
+          <p>把操作與視覺降到最少，讓內容、結構與思考成為真正的主角。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <div class="closing-inner">
+        <p class="eyebrow" data-reveal>START HERE</p>
+        <h2 id="closing-title" data-reveal class="delay-1">現在，把想法<br>整理成結構。</h2>
+        <p class="closing-sub delay-2" data-reveal>選擇一個工具，直接開始。無需註冊，所有內容留在你的裝置。</p>
+        <div class="closing-actions delay-3" data-reveal>
+          <a class="btn btn-primary" href="https://prompter.ragdemo.win/">
+            開啟 Prompter
+            <svg class="btn-icon" width="15" height="15" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+          </a>
+          <a class="btn btn-ghost-dark" href="https://analysis.ragdemo.win/">
+            前往分析師備考站
+            <svg class="btn-icon" width="15" height="15" aria-hidden="true" focusable="false"><use href="#icon-arrow"/></svg>
+          </a>
+        </div>
+        <p class="closing-note delay-4" data-reveal>免費使用 · 開源 · 無追蹤</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <p class="footer-brand-line">
+            <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="3" y="3.5" width="18" height="3" rx="1.5" fill="currentColor"/>
+              <rect x="3" y="10.5" width="12.5" height="3" rx="1.5" fill="currentColor"/>
+              <rect x="3" y="17.5" width="8" height="3" rx="1.5" fill="#0066cc"/>
+            </svg>
+            <span>ragdemo.win</span>
+          </p>
+          <p>為深度工作而生的數位工具。<br>把複雜，整理成清晰。</p>
+        </div>
+
+        <div class="footer-col">
+          <h3>工具</h3>
+          <ul>
+            <li><a href="https://prompter.ragdemo.win/">Prompter</a></li>
+            <li><a href="https://analysis.ragdemo.win/">分析師備考站</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h3>原始碼</h3>
+          <ul>
+            <li><a href="https://github.com/solo0920/prompter" target="_blank" rel="noopener noreferrer">Prompter on GitHub</a></li>
+            <li><a href="https://github.com/solo0920/analysis" target="_blank" rel="noopener noreferrer">Analysis on GitHub</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h3>網站</h3>
+          <ul>
+            <li><a href="#principles">設計理念</a></li>
+            <li><a href="#top">回到頂端</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>© <span data-year>2026</span> RAGDEMO.WIN · Prompter 與分析師備考站以 MIT 授權開源。</p>
+        <p>靜態網站 · 無追蹤 · 無廣告</p>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
