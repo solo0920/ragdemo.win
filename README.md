@@ -60,8 +60,6 @@ python3 -m http.server 8788 --directory public
 
 因為沒有建置步驟，Cloudflare 會直接發佈 `public/` 內容。
 
-> 此 repository 另外包含 `.github/workflows/deploy.yml`：push 到 `main` 時會呼叫 Cloudflare Pages 的 Deploy Hook，作為 Git 整合以外的自動部署備援。Hook URL 存於 GitHub Actions secret `CLOUDFLARE_PAGES_DEPLOY_HOOK`。
-
 ### 方式 B：Wrangler 直接上傳
 
 ```bash
