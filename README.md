@@ -45,6 +45,8 @@ python3 -m http.server 8788 --directory public
 
 ## 部署到 Cloudflare Pages
 
+正式網站：<https://ragdemo.win/>（Cloudflare Pages 專案 `ragdemo-win`）
+
 ### 方式 A：Git 整合（推薦）
 
 1. 將此資料夾推到 GitHub 或 GitLab。
