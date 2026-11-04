@@ -919,52 +919,6 @@ html.menu-open body {
   color: #a1a1a6;
 }
 
-/* ---------- Principles ---------- */
-
-.principles {
-  padding: clamp(88px, 11vw, 140px) 24px;
-  background: var(--canvas);
-  scroll-margin-top: 60px;
-}
-
-.principle-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 48px;
-  max-width: 1100px;
-  margin: 60px auto 0;
-}
-
-.principle {
-  padding-top: 22px;
-  border-top: 1px solid var(--hairline);
-}
-
-.principle-num {
-  margin-bottom: 20px;
-  color: var(--blue);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: 0.16em;
-}
-
-.principle h3 {
-  margin-bottom: 10px;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-}
-
-.principle p {
-  color: var(--muted);
-  font-size: 15px;
-  line-height: 1.65;
-  letter-spacing: 0;
-}
-
 /* ---------- Closing ---------- */
 
 .closing {
@@ -1232,25 +1186,6 @@ html.menu-open body {
 }
 
 @media (max-width: 760px) {
-  .principle-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-    margin-top: 48px;
-  }
-
-  .principle {
-    padding: 22px 0;
-    border-top: 1px solid var(--hairline);
-  }
-
-  .principle:last-child {
-    border-bottom: 1px solid var(--hairline);
-  }
-
-  .principle-num {
-    margin-bottom: 12px;
-  }
-
   .footer-top {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 32px;
@@ -1381,10 +1316,6 @@ html.menu-open body {
 
   .visual-note {
     font-size: 10px;
-  }
-
-  .principles {
-    padding: 76px 20px;
   }
 
   .closing {
