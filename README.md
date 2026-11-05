@@ -1,6 +1,6 @@
 # ragdemo.win
 
-`ragdemo.win` 的入口網站：以 Apple 官網的留白、白灰黑三段交替區塊、SF Pro 字體節奏與單一藍色行動色為預設靈感，介紹兩個本機優先的數位工具，並導向各自的子網站。右上角的風格按鈕可切換十種科技品牌語彙，選擇會保存在本機。
+`ragdemo.win` 的入口網站：預設以 NVIDIA 官網的黑綠對比、粗體幾何與性能感為靈感，介紹兩個本機優先的數位工具，並導向各自的子網站。右上角的風格按鈕可切換十種科技品牌語彙，選擇會保存在本機。
 
 - **Prompter** — 區塊式 Markdown 提示詞編輯器：[prompter.ragdemo.win](https://prompter.ragdemo.win/)
 - **分析師備考站** — 證券投資分析人員考試備考網站：[analysis.ragdemo.win](https://analysis.ragdemo.win/)
@@ -23,8 +23,8 @@
 │   ├── _redirects             # /prompter、/analysis、GitHub 捷徑
 │   └── assets/
 │       ├── css/
-│       │   ├── main.css       # 版面、元件與 Apple 預設 token
-│       │   └── themes.css     # 其餘九種風格的 token 覆寫
+│       │   ├── main.css       # 版面、元件與基礎 token
+│       │   └── themes.css     # 十種風格的 token 覆寫
 │       ├── js/
 │       │   ├── main.js        # 導覽、進場動畫、風格選單
 │       │   └── theme-init.js  # 首屏前還原已儲存風格
@@ -81,7 +81,7 @@ npx wrangler pages deploy public --project-name ragdemo-win
 
 ## 設計與實作備註
 
-- **預設視覺**：Apple 風格的留白、白灰黑三段交替區塊與 `#0066cc` 行動色；系統 SF Pro / PingFang TC 字體堆疊、膠囊按鈕、產品截圖僅使用一層柔和陰影。
+- **預設視覺**：NVIDIA 風格的黑底、`#76b900` 行動色、粗體標題、接近直角的幾何與高對比；切換到 Apple 時則回到留白、`#0066cc` 與 SF Pro 系統字體節奏。產品截圖僅使用一層柔和陰影。
 - **風格系統**：右上角調色盤按鈕開啟原生 Popover 選單，提供 `apple`、`meta`、`nvidia`、`tesla`、`ibm`、`oracle`、`stripe`、`shopify`、`spotify`、`uber` 十種風格。設計參考取自 [getdesign.md](https://getdesign.md/) 上這十家科技公司的 DESIGN.md 分析，僅以色彩、字體堆疊、字重、字距與圓角等 CSS token 重新詮釋，不複製任何品牌素材。
 - **風格持續性**：選擇寫入 `localStorage` 的 `ragdemo-style`；`assets/js/theme-init.js` 在 CSS 載入前套用 `data-style`，避免首屏閃爍。CSP 不允許 inline style，所有主題皆由 `themes.css` 的 token 覆寫完成。
 - **互動**：原生 `<dialog>` 行動版選單、原生 Popover 風格選單、`IntersectionObserver` 進場動畫、`prefers-reduced-motion` 支援、固定導覽列捲動細線。全部由 `assets/js/main.js` 處理。

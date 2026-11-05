@@ -13,7 +13,7 @@
 
   /* ---------- Visual style chooser ---------- */
   var STYLE_KEY = "ragdemo-style";
-  var DEFAULT_STYLE = "apple";
+  var DEFAULT_STYLE = "nvidia";
   var STYLES = [
     { id: "apple", name: "Apple", note: "純粹留白", themeColor: "#ffffff" },
     { id: "meta", name: "Meta", note: "明亮社群藍", themeColor: "#ffffff" },
