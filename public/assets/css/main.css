@@ -13,6 +13,7 @@
   --muted-48: #7a7a7a;
   --canvas: #ffffff;
   --parchment: #f5f5f7;
+  --mist: #e8e8ed;
   --tile: #272729;
   --hairline: #e0e0e0;
   --hairline-dark: rgba(255, 255, 255, 0.16);
@@ -486,7 +487,7 @@ html.menu-open body {
   background: rgba(0, 102, 204, 0.06);
 }
 
-.btn-on-dark {
+.product-dark .btn-text {
   color: var(--blue-dark);
 }
 
@@ -497,6 +498,14 @@ html.menu-open body {
   background: var(--canvas);
   text-align: center;
   overflow: hidden;
+}
+
+.hero .btn-primary {
+  background: var(--ink);
+}
+
+.hero .btn-primary:hover {
+  background: #000;
 }
 
 .hero-inner {
@@ -585,9 +594,9 @@ html.menu-open body {
   gap: 14px;
   min-height: 88px;
   padding: 15px 18px;
-  border: 1px solid var(--hairline);
+  border: 1px solid transparent;
   border-radius: 18px;
-  background: var(--canvas);
+  background: var(--parchment);
   transition: border-color 0.3s ease, transform 0.3s var(--ease-out);
 }
 
@@ -660,16 +669,16 @@ html.menu-open body {
 
 .tools {
   padding: clamp(84px, 10vw, 124px) 24px clamp(48px, 6vw, 72px);
-  background: var(--tile);
-  color: #fff;
+  background: var(--mist);
+  color: var(--ink);
 }
 
 .tools .eyebrow {
-  color: var(--blue-dark);
+  color: var(--blue);
 }
 
 .tools .section-sub {
-  color: #a1a1a6;
+  color: var(--ink-soft);
 }
 
 /* ---------- Product tiles ---------- */
@@ -816,14 +825,14 @@ html.menu-open body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 30px 0 14px;
   padding: 20px 0;
-  border-top: 1px solid var(--hairline-dark);
-  border-bottom: 1px solid var(--hairline-dark);
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .stats li {
   min-width: 0;
   padding: 0 14px;
-  border-left: 1px solid var(--hairline-dark);
+  border-left: 1px solid var(--hairline);
 }
 
 .stats li:first-child {
@@ -843,7 +852,7 @@ html.menu-open body {
 .stats span {
   display: block;
   margin-top: 6px;
-  color: #a1a1a6;
+  color: var(--muted);
   font-size: 11px;
   line-height: 1.3;
   letter-spacing: 0.03em;
@@ -851,10 +860,23 @@ html.menu-open body {
 
 .stats-note {
   margin-bottom: 30px;
-  color: #a1a1a6;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
   letter-spacing: 0;
+}
+
+.product-dark .stats {
+  border-color: var(--hairline-dark);
+}
+
+.product-dark .stats li {
+  border-color: var(--hairline-dark);
+}
+
+.product-dark .stats span,
+.product-dark .stats-note {
+  color: #a1a1a6;
 }
 
 .product-actions {
@@ -905,6 +927,16 @@ html.menu-open body {
   box-shadow: 3px 5px 30px rgba(0, 0, 0, 0.5);
 }
 
+.product-dark .app-window {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 3px 5px 30px rgba(0, 0, 0, 0.5);
+}
+
+.product-light .app-window-dark {
+  border-color: var(--hairline);
+  box-shadow: 3px 5px 30px rgba(0, 0, 0, 0.16);
+}
+
 .visual-note {
   margin-top: 14px;
   color: #6e6e73;
@@ -922,7 +954,7 @@ html.menu-open body {
 
 .closing {
   padding: clamp(100px, 14vw, 170px) 24px;
-  background: var(--canvas);
+  background: var(--mist);
   color: var(--ink);
   text-align: center;
 }
@@ -949,7 +981,7 @@ html.menu-open body {
 .closing-sub {
   max-width: 560px;
   margin: 22px auto 0;
-  color: var(--muted);
+  color: var(--ink-soft);
   font-size: 18px;
   line-height: 1.55;
   letter-spacing: -0.01em;
@@ -967,7 +999,7 @@ html.menu-open body {
 
 .closing-note {
   margin-top: 18px;
-  color: var(--muted);
+  color: var(--ink-soft);
   font-size: 12px;
   line-height: 1.4;
   letter-spacing: 0.02em;

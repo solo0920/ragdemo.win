@@ -1,6 +1,6 @@
 # ragdemo.win
 
-`ragdemo.win` 的入口網站：以 Apple 官網的留白、黑白交替區塊、SF Pro 字體節奏與單一藍色行動色為靈感，介紹兩個本機優先的數位工具，並導向各自的子網站。
+`ragdemo.win` 的入口網站：以 Apple 官網的留白、白灰黑三段交替區塊、SF Pro 字體節奏與單一藍色行動色為靈感，介紹兩個本機優先的數位工具，並導向各自的子網站。
 
 - **Prompter** — 區塊式 Markdown 提示詞編輯器：[prompter.ragdemo.win](https://prompter.ragdemo.win/)
 - **分析師備考站** — 證券投資分析人員考試備考網站：[analysis.ragdemo.win](https://analysis.ragdemo.win/)
@@ -77,7 +77,7 @@ npx wrangler pages deploy public --project-name ragdemo-win
 
 ## 設計與實作備註
 
-- **視覺**：白／`#f5f5f7` 與 `#272729` 深色區塊交替、`#0066cc` 單一藍色行動色、系統 SF Pro / PingFang TC 字體堆疊、膠囊按鈕、產品截圖僅使用一層柔和陰影。
+- **視覺**：白、`#e8e8ed` 中間灰與 `#272729` 深色區塊三段循環；`#0066cc` 為主要行動色，首屏 CTA 以墨黑提高對比；系統 SF Pro / PingFang TC 字體堆疊、膠囊按鈕、產品截圖僅使用一層柔和陰影。
 - **互動**：原生 `<dialog>` 行動版選單、`IntersectionObserver` 進場動畫、`prefers-reduced-motion` 支援、固定導覽列捲動細線。全部由 `assets/js/main.js` 處理。
 - **無外部請求**：沒有 Google Fonts、沒有 CDN、沒有分析工具；CSP 的 `connect-src` 限制為 `'self'`，不允許連線到任何外部來源。
 - **CSP**：`public/_headers` 內的 `script-src` 包含首頁 JSON-LD 的 SHA-256 hash。若修改 `index.html` 的 JSON-LD，請重新計算並更新 hash：
