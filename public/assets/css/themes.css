@@ -1,0 +1,1102 @@
+/* =========================================================
+   RAGDEMO.WIN — visual style themes
+   Ten references analysed on getdesign.md, expressed only
+   through tokens, local system fonts, and CSS.
+   ========================================================= */
+
+/* ---------- Meta ---------- */
+
+[data-style="meta"] {
+  --accent: #0866ff;
+  --accent-hover: #0457cb;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(8, 102, 255, 0.08);
+  --accent-on-dark: #78b9ff;
+  --link: #0866ff;
+  --eyebrow: #0866ff;
+  --focus: #0866ff;
+  --focus-on-dark: #78b9ff;
+  --selection: rgba(8, 102, 255, 0.2);
+  --skip-bg: #0866ff;
+  --skip-ink: #ffffff;
+
+  --ink: #1c1e21;
+  --ink-soft: #444950;
+  --muted: #5d6c7b;
+  --faint: #8595a4;
+  --canvas: #ffffff;
+  --parchment: #f7f9fb;
+  --mist: #f1f4f7;
+  --tile: #0a1317;
+  --hairline: #dee3e9;
+  --hairline-dark: rgba(255, 255, 255, 0.14);
+
+  --nav-bg: #ffffff;
+  --nav-fg: #1c1e21;
+  --nav-fg-soft: rgba(28, 30, 33, 0.68);
+  --nav-fg-faint: #8595a4;
+  --nav-line: #dee3e9;
+  --nav-hover-bg: rgba(8, 102, 255, 0.07);
+  --nav-shadow: 0 1px 0 #dee3e9;
+  --nav-focus: #0866ff;
+  --brand-accent: #0866ff;
+
+  --hero-bg: #ffffff;
+  --hero-image: radial-gradient(90% 70% at 50% -12%, #e8f3ff 0%, rgba(255, 255, 255, 0) 70%);
+  --hero-ink: #1c1e21;
+  --hero-soft: #444950;
+  --hero-muted: #5d6c7b;
+  --hero-note: #5d6c7b;
+  --hero-btn-bg: #0866ff;
+  --hero-btn-hover: #0457cb;
+  --hero-btn-ink: #ffffff;
+  --hero-tile-bg: #f1f4f7;
+  --hero-tile-border: transparent;
+  --hero-tile-hover: #ced0d4;
+  --hero-tile-ink: #1c1e21;
+  --hero-tile-muted: #5d6c7b;
+  --hero-tile-kicker: #0757d8;
+  --hero-tile-arrow: #8595a4;
+  --hero-focus: #0866ff;
+
+  --tools-bg: #f1f4f7;
+  --tools-ink: #1c1e21;
+  --tools-soft: #444950;
+  --tools-eyebrow: #0757d8;
+  --tools-focus: #0866ff;
+
+  --dark-bg: #0a1317;
+  --dark-ink: #ffffff;
+  --dark-soft: #d5dbe1;
+  --dark-muted: #9aa8b5;
+  --dark-line: rgba(255, 255, 255, 0.14);
+  --dark-eyebrow: #78b9ff;
+  --dark-btn-bg: #0866ff;
+  --dark-btn-hover: #0457cb;
+  --dark-btn-ink: #ffffff;
+  --dark-link: #78b9ff;
+  --dark-focus: #78b9ff;
+
+  --light-bg: #f7f9fb;
+  --light-ink: #1c1e21;
+  --light-soft: #444950;
+  --light-muted: #5d6c7b;
+  --light-line: #dee3e9;
+  --light-eyebrow: #0757d8;
+  --light-focus: #0866ff;
+
+  --closing-bg: #f1f4f7;
+  --closing-ink: #1c1e21;
+  --closing-soft: #444950;
+  --closing-muted: #5d6c7b;
+  --closing-eyebrow: #0757d8;
+  --closing-btn-bg: #0866ff;
+  --closing-btn-hover: #0457cb;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: #0866ff;
+  --closing-ghost-ink: #0757d8;
+  --closing-ghost-hover: rgba(8, 102, 255, 0.08);
+  --closing-focus: #0866ff;
+
+  --footer-bg: #0a1317;
+  --footer-ink: #ffffff;
+  --footer-muted: #9aa8b5;
+  --footer-faint: #8595a4;
+  --footer-line: rgba(255, 255, 255, 0.14);
+  --footer-focus: #78b9ff;
+
+  --font-display: "Optimistic VF", "Helvetica Neue", Helvetica, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "Optimistic VF", "Helvetica Neue", Helvetica, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 500;
+  --display-tracking: -0.035em;
+  --heading-weight: 500;
+  --heading-tracking: -0.03em;
+  --eyebrow-tracking: 0.12em;
+
+  --btn-radius: 9999px;
+  --card-radius: 24px;
+  --icon-radius: 16px;
+  --window-radius: 20px;
+  --window-shadow: 0 18px 50px rgba(10, 19, 23, 0.14);
+  --window-shadow-dark: 0 18px 50px rgba(0, 0, 0, 0.5);
+  --icon-shadow: 0 8px 22px rgba(10, 19, 23, 0.16);
+  --error-code: #ced0d4;
+}
+
+/* ---------- NVIDIA ---------- */
+
+[data-style="nvidia"] {
+  --accent: #76b900;
+  --accent-hover: #8fd400;
+  --accent-on: #000000;
+  --accent-soft: rgba(118, 185, 0, 0.12);
+  --accent-on-dark: #bff230;
+  --link: #4a7500;
+  --eyebrow: #4a7500;
+  --hero-eyebrow: #bff230;
+  --focus: #4a7500;
+  --focus-on-dark: #bff230;
+  --selection: rgba(118, 185, 0, 0.28);
+  --skip-bg: #76b900;
+  --skip-ink: #000000;
+
+  --ink: #000000;
+  --ink-soft: #1a1a1a;
+  --muted: #5f5f5f;
+  --faint: #898989;
+  --canvas: #ffffff;
+  --parchment: #f7f7f7;
+  --mist: #f7f7f7;
+  --tile: #000000;
+  --hairline: #d6d6d6;
+  --hairline-dark: rgba(255, 255, 255, 0.18);
+
+  --nav-bg: #000000;
+  --nav-fg: #ffffff;
+  --nav-fg-soft: rgba(255, 255, 255, 0.78);
+  --nav-fg-faint: #a7a7a7;
+  --nav-line: rgba(255, 255, 255, 0.18);
+  --nav-hover-bg: rgba(255, 255, 255, 0.1);
+  --nav-shadow: none;
+  --nav-focus: #bff230;
+  --brand-accent: #76b900;
+
+  --hero-bg: #000000;
+  --hero-image: radial-gradient(75% 90% at 50% 0%, #1a1a1a 0%, #000000 72%);
+  --hero-ink: #ffffff;
+  --hero-soft: #c7c7c7;
+  --hero-muted: #a7a7a7;
+  --hero-note: #a7a7a7;
+  --hero-btn-bg: #76b900;
+  --hero-btn-hover: #8fd400;
+  --hero-btn-ink: #000000;
+  --hero-tile-bg: #1a1a1a;
+  --hero-tile-border: #333333;
+  --hero-tile-hover: #76b900;
+  --hero-tile-ink: #ffffff;
+  --hero-tile-muted: #a7a7a7;
+  --hero-tile-kicker: #bff230;
+  --hero-tile-arrow: #a7a7a7;
+  --hero-focus: #bff230;
+
+  --tools-bg: #f7f7f7;
+  --tools-ink: #000000;
+  --tools-soft: #4a4a4a;
+  --tools-eyebrow: #4a7500;
+  --tools-focus: #4a7500;
+
+  --dark-bg: #000000;
+  --dark-ink: #ffffff;
+  --dark-soft: rgba(255, 255, 255, 0.74);
+  --dark-muted: #a7a7a7;
+  --dark-line: rgba(255, 255, 255, 0.18);
+  --dark-eyebrow: #bff230;
+  --dark-btn-bg: #76b900;
+  --dark-btn-hover: #8fd400;
+  --dark-btn-ink: #000000;
+  --dark-link: #bff230;
+  --dark-focus: #bff230;
+
+  --light-bg: #f7f7f7;
+  --light-ink: #000000;
+  --light-soft: #1a1a1a;
+  --light-muted: #5f5f5f;
+  --light-line: #d6d6d6;
+  --light-eyebrow: #4a7500;
+  --light-focus: #4a7500;
+
+  --closing-bg: #76b900;
+  --closing-ink: #000000;
+  --closing-soft: rgba(0, 0, 0, 0.72);
+  --closing-muted: rgba(0, 0, 0, 0.62);
+  --closing-eyebrow: rgba(0, 0, 0, 0.68);
+  --closing-btn-bg: #000000;
+  --closing-btn-hover: #1a1a1a;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: rgba(0, 0, 0, 0.45);
+  --closing-ghost-ink: #000000;
+  --closing-ghost-hover: rgba(0, 0, 0, 0.07);
+  --closing-focus: #000000;
+
+  --footer-bg: #000000;
+  --footer-ink: #ffffff;
+  --footer-muted: #a7a7a7;
+  --footer-faint: #898989;
+  --footer-line: rgba(255, 255, 255, 0.18);
+  --footer-focus: #bff230;
+
+  --font-display: "NVIDIA-EMEA", "Inter", "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "NVIDIA-EMEA", "Inter", "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 700;
+  --display-tracking: 0;
+  --heading-weight: 700;
+  --heading-tracking: 0;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.16em;
+
+  --btn-radius: 2px;
+  --card-radius: 4px;
+  --icon-radius: 6px;
+  --window-radius: 4px;
+  --window-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
+  --window-shadow-dark: 0 18px 48px rgba(0, 0, 0, 0.6);
+  --icon-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  --error-code: #d6d6d6;
+}
+
+/* ---------- Tesla ---------- */
+
+[data-style="tesla"] {
+  --accent: #3e6ae1;
+  --accent-hover: #2f57c9;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(62, 106, 225, 0.08);
+  --accent-on-dark: #8fb0ff;
+  --link: #3e6ae1;
+  --eyebrow: #3e6ae1;
+  --focus: #3e6ae1;
+  --focus-on-dark: #8fb0ff;
+  --selection: rgba(62, 106, 225, 0.2);
+  --skip-bg: #3e6ae1;
+  --skip-ink: #ffffff;
+
+  --ink: #171a20;
+  --ink-soft: #393c41;
+  --muted: #5c5e62;
+  --faint: #8e8e8e;
+  --canvas: #ffffff;
+  --parchment: #f4f4f4;
+  --mist: #f4f4f4;
+  --tile: #171a20;
+  --hairline: #eeeeee;
+  --hairline-dark: rgba(255, 255, 255, 0.18);
+
+  --nav-bg: #ffffff;
+  --nav-fg: #171a20;
+  --nav-fg-soft: rgba(23, 26, 32, 0.68);
+  --nav-fg-faint: #8e8e8e;
+  --nav-line: #eeeeee;
+  --nav-hover-bg: rgba(23, 26, 32, 0.05);
+  --nav-shadow: 0 1px 0 #eeeeee;
+  --nav-focus: #3e6ae1;
+  --brand-accent: #3e6ae1;
+
+  --hero-bg: #ffffff;
+  --hero-image: linear-gradient(180deg, #ffffff 0%, #f4f4f4 100%);
+  --hero-ink: #171a20;
+  --hero-soft: #393c41;
+  --hero-muted: #5c5e62;
+  --hero-note: #5c5e62;
+  --hero-btn-bg: #3e6ae1;
+  --hero-btn-hover: #2f57c9;
+  --hero-btn-ink: #ffffff;
+  --hero-tile-bg: #f4f4f4;
+  --hero-tile-border: transparent;
+  --hero-tile-hover: #d0d1d2;
+  --hero-tile-ink: #171a20;
+  --hero-tile-muted: #5c5e62;
+  --hero-tile-kicker: #2f57c9;
+  --hero-tile-arrow: #8e8e8e;
+  --hero-focus: #3e6ae1;
+
+  --tools-bg: #f4f4f4;
+  --tools-ink: #171a20;
+  --tools-soft: #393c41;
+  --tools-eyebrow: #2f57c9;
+  --tools-focus: #3e6ae1;
+
+  --dark-bg: #171a20;
+  --dark-ink: #ffffff;
+  --dark-soft: #c9ccd2;
+  --dark-muted: #9a9da4;
+  --dark-line: rgba(255, 255, 255, 0.16);
+  --dark-eyebrow: #8fb0ff;
+  --dark-btn-bg: #3e6ae1;
+  --dark-btn-hover: #2f57c9;
+  --dark-btn-ink: #ffffff;
+  --dark-link: #8fb0ff;
+  --dark-focus: #8fb0ff;
+
+  --light-bg: #f4f4f4;
+  --light-ink: #171a20;
+  --light-soft: #393c41;
+  --light-muted: #5c5e62;
+  --light-line: #eeeeee;
+  --light-eyebrow: #2f57c9;
+  --light-focus: #3e6ae1;
+
+  --closing-bg: #171a20;
+  --closing-ink: #ffffff;
+  --closing-soft: #c9ccd2;
+  --closing-muted: #9a9da4;
+  --closing-eyebrow: #8fb0ff;
+  --closing-btn-bg: #3e6ae1;
+  --closing-btn-hover: #2f57c9;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: rgba(255, 255, 255, 0.45);
+  --closing-ghost-ink: #ffffff;
+  --closing-ghost-hover: rgba(255, 255, 255, 0.08);
+  --closing-focus: #8fb0ff;
+
+  --footer-bg: #000000;
+  --footer-ink: #ffffff;
+  --footer-muted: #9a9da4;
+  --footer-faint: #8e8e8e;
+  --footer-line: rgba(255, 255, 255, 0.16);
+  --footer-focus: #8fb0ff;
+
+  --font-display: "Universal Sans Display", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "Universal Sans Text", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 500;
+  --display-tracking: 0;
+  --heading-weight: 500;
+  --heading-tracking: 0;
+  --tagline-weight: 400;
+  --body-tracking: 0;
+  --eyebrow-weight: 500;
+  --eyebrow-tracking: 0.04em;
+  --eyebrow-transform: none;
+
+  --btn-radius: 4px;
+  --card-radius: 4px;
+  --icon-radius: 8px;
+  --window-radius: 4px;
+  --window-shadow: none;
+  --window-shadow-dark: none;
+  --icon-shadow: none;
+  --error-code: #d0d1d2;
+}
+
+/* ---------- IBM ---------- */
+
+[data-style="ibm"] {
+  --accent: #0f62fe;
+  --accent-hover: #0050e6;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(15, 98, 254, 0.08);
+  --accent-on-dark: #78a9ff;
+  --link: #0f62fe;
+  --eyebrow: #0f62fe;
+  --focus: #0f62fe;
+  --focus-on-dark: #78a9ff;
+  --selection: rgba(15, 98, 254, 0.2);
+  --skip-bg: #0f62fe;
+  --skip-ink: #ffffff;
+
+  --ink: #161616;
+  --ink-soft: #525252;
+  --muted: #5c5c5c;
+  --faint: #8c8c8c;
+  --canvas: #ffffff;
+  --parchment: #f4f4f4;
+  --mist: #f4f4f4;
+  --tile: #161616;
+  --hairline: #e0e0e0;
+  --hairline-dark: rgba(255, 255, 255, 0.2);
+
+  --nav-bg: #ffffff;
+  --nav-fg: #161616;
+  --nav-fg-soft: rgba(22, 22, 22, 0.68);
+  --nav-fg-faint: #8c8c8c;
+  --nav-line: #e0e0e0;
+  --nav-hover-bg: rgba(15, 98, 254, 0.07);
+  --nav-shadow: 0 1px 0 #e0e0e0;
+  --nav-focus: #0f62fe;
+  --brand-accent: #0f62fe;
+
+  --hero-bg: #ffffff;
+  --hero-image: none;
+  --hero-ink: #161616;
+  --hero-soft: #525252;
+  --hero-muted: #5c5c5c;
+  --hero-note: #5c5c5c;
+  --hero-btn-bg: #0f62fe;
+  --hero-btn-hover: #0050e6;
+  --hero-btn-ink: #ffffff;
+  --hero-tile-bg: #f4f4f4;
+  --hero-tile-border: transparent;
+  --hero-tile-hover: #c6c6c6;
+  --hero-tile-ink: #161616;
+  --hero-tile-muted: #5c5c5c;
+  --hero-tile-kicker: #0f62fe;
+  --hero-tile-arrow: #8c8c8c;
+  --hero-focus: #0f62fe;
+
+  --tools-bg: #f4f4f4;
+  --tools-image: linear-gradient(180deg, #0f62fe 0 4px, transparent 4px);
+  --tools-ink: #161616;
+  --tools-soft: #525252;
+  --tools-eyebrow: #0f62fe;
+  --tools-focus: #0f62fe;
+
+  --dark-bg: #161616;
+  --dark-ink: #ffffff;
+  --dark-soft: #e0e0e0;
+  --dark-muted: #c6c6c6;
+  --dark-line: rgba(255, 255, 255, 0.2);
+  --dark-eyebrow: #78a9ff;
+  --dark-btn-bg: #0f62fe;
+  --dark-btn-hover: #0050e6;
+  --dark-btn-ink: #ffffff;
+  --dark-link: #78a9ff;
+  --dark-focus: #78a9ff;
+
+  --light-bg: #f4f4f4;
+  --light-ink: #161616;
+  --light-soft: #525252;
+  --light-muted: #5c5c5c;
+  --light-line: #e0e0e0;
+  --light-eyebrow: #0f62fe;
+  --light-focus: #0f62fe;
+
+  --closing-bg: #f4f4f4;
+  --closing-ink: #161616;
+  --closing-soft: #525252;
+  --closing-muted: #5c5c5c;
+  --closing-eyebrow: #0f62fe;
+  --closing-btn-bg: #0f62fe;
+  --closing-btn-hover: #0050e6;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: #0f62fe;
+  --closing-ghost-ink: #0f62fe;
+  --closing-ghost-hover: rgba(15, 98, 254, 0.08);
+  --closing-focus: #0f62fe;
+
+  --footer-bg: #161616;
+  --footer-ink: #ffffff;
+  --footer-muted: #c6c6c6;
+  --footer-faint: #8c8c8c;
+  --footer-line: rgba(255, 255, 255, 0.2);
+  --footer-focus: #78a9ff;
+
+  --font-display: "IBM Plex Sans", "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "IBM Plex Sans", "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 300;
+  --display-tracking: -0.02em;
+  --heading-weight: 300;
+  --heading-tracking: -0.01em;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.16em;
+
+  --btn-radius: 0;
+  --card-radius: 0;
+  --icon-radius: 0;
+  --window-radius: 0;
+  --window-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --window-shadow-dark: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --icon-shadow: none;
+  --error-code: #c6c6c6;
+}
+
+/* ---------- Oracle ---------- */
+
+[data-style="oracle"] {
+  --accent: #312d2a;
+  --accent-hover: #47423e;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(49, 45, 42, 0.07);
+  --accent-on-dark: #f0cc71;
+  --link: #006b8f;
+  --eyebrow: #b23a28;
+  --focus: #006b8f;
+  --focus-on-dark: #f0cc71;
+  --selection: rgba(199, 70, 52, 0.2);
+  --skip-bg: #312d2a;
+  --skip-ink: #ffffff;
+
+  --ink: #161513;
+  --ink-soft: #47423e;
+  --muted: #66605a;
+  --faint: #8a837c;
+  --canvas: #ffffff;
+  --parchment: #fbf9f8;
+  --mist: #f5f4f2;
+  --tile: #211e1c;
+  --hairline: #e4e1dd;
+  --hairline-dark: rgba(255, 255, 255, 0.16);
+
+  --nav-bg: #ffffff;
+  --nav-fg: #211e1c;
+  --nav-fg-soft: rgba(33, 30, 28, 0.68);
+  --nav-fg-faint: #8a837c;
+  --nav-line: #e4e1dd;
+  --nav-hover-bg: rgba(199, 70, 52, 0.06);
+  --nav-shadow: 0 1px 0 #e4e1dd;
+  --nav-focus: #006b8f;
+  --brand-accent: #c74634;
+
+  --hero-bg: #fbf9f8;
+  --hero-image: none;
+  --hero-ink: #161513;
+  --hero-soft: #47423e;
+  --hero-muted: #66605a;
+  --hero-note: #66605a;
+  --hero-btn-bg: #312d2a;
+  --hero-btn-hover: #47423e;
+  --hero-btn-ink: #ffffff;
+  --hero-tile-bg: #f5f4f2;
+  --hero-tile-border: transparent;
+  --hero-tile-hover: #d4cfca;
+  --hero-tile-ink: #211e1c;
+  --hero-tile-muted: #66605a;
+  --hero-tile-kicker: #b23a28;
+  --hero-tile-arrow: #8a837c;
+  --hero-focus: #006b8f;
+
+  --tools-bg: #f5f4f2;
+  --tools-ink: #161513;
+  --tools-soft: #47423e;
+  --tools-eyebrow: #b23a28;
+  --tools-focus: #006b8f;
+
+  --dark-bg: #211e1c;
+  --dark-ink: #ffffff;
+  --dark-soft: #d8d2cc;
+  --dark-muted: #b7afa8;
+  --dark-line: rgba(255, 255, 255, 0.16);
+  --dark-eyebrow: #f0cc71;
+  --dark-btn-bg: #f0cc71;
+  --dark-btn-hover: #f7e0a1;
+  --dark-btn-ink: #211e1c;
+  --dark-link: #f0cc71;
+  --dark-focus: #f0cc71;
+
+  --light-bg: #fbf9f8;
+  --light-ink: #161513;
+  --light-soft: #47423e;
+  --light-muted: #66605a;
+  --light-line: #e4e1dd;
+  --light-eyebrow: #b23a28;
+  --light-focus: #006b8f;
+
+  --closing-bg: #f5f4f2;
+  --closing-ink: #161513;
+  --closing-soft: #47423e;
+  --closing-muted: #66605a;
+  --closing-eyebrow: #b23a28;
+  --closing-btn-bg: #312d2a;
+  --closing-btn-hover: #47423e;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: #312d2a;
+  --closing-ghost-ink: #312d2a;
+  --closing-ghost-hover: rgba(49, 45, 42, 0.07);
+  --closing-focus: #006b8f;
+
+  --footer-bg: #211e1c;
+  --footer-ink: #ffffff;
+  --footer-muted: #b7afa8;
+  --footer-faint: #9a928a;
+  --footer-line: rgba(255, 255, 255, 0.16);
+  --footer-focus: #f0cc71;
+
+  --font-display: Georgia, "Songti TC", "Noto Serif TC", "Times New Roman", serif;
+  --font-text: "Oracle Sans", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 400;
+  --display-tracking: -0.01em;
+  --heading-weight: 400;
+  --heading-tracking: 0;
+  --tagline-weight: 400;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.14em;
+
+  --btn-radius: 6px;
+  --card-radius: 14px;
+  --icon-radius: 12px;
+  --window-radius: 10px;
+  --window-shadow: 0 18px 44px rgba(56, 40, 30, 0.14);
+  --window-shadow-dark: 0 18px 44px rgba(0, 0, 0, 0.5);
+  --icon-shadow: 0 10px 24px rgba(56, 40, 30, 0.16);
+  --error-code: #d4cfca;
+}
+
+/* ---------- Stripe ---------- */
+
+[data-style="stripe"] {
+  --accent: #635bff;
+  --accent-hover: #533afd;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(99, 91, 255, 0.08);
+  --accent-on-dark: #b3adff;
+  --link: #635bff;
+  --eyebrow: #635bff;
+  --focus: #635bff;
+  --focus-on-dark: #b3adff;
+  --selection: rgba(99, 91, 255, 0.2);
+  --skip-bg: #635bff;
+  --skip-ink: #ffffff;
+
+  --ink: #0a2540;
+  --ink-soft: #273951;
+  --muted: #5d6b82;
+  --faint: #8796a8;
+  --canvas: #ffffff;
+  --parchment: #f6f9fc;
+  --mist: #f6f9fc;
+  --tile: #0a2540;
+  --hairline: #e3e8ee;
+  --hairline-dark: rgba(255, 255, 255, 0.16);
+
+  --nav-bg: #ffffff;
+  --nav-fg: #0a2540;
+  --nav-fg-soft: rgba(10, 37, 64, 0.68);
+  --nav-fg-faint: #8796a8;
+  --nav-line: #e3e8ee;
+  --nav-hover-bg: rgba(99, 91, 255, 0.06);
+  --nav-shadow: 0 1px 0 #e3e8ee;
+  --nav-focus: #635bff;
+  --brand-accent: #635bff;
+
+  --hero-bg: #ffffff;
+  --hero-image: radial-gradient(90% 80% at 10% -10%, rgba(99, 91, 255, 0.2) 0%, rgba(255, 255, 255, 0) 62%), radial-gradient(70% 70% at 92% 4%, rgba(0, 212, 255, 0.14) 0%, rgba(255, 255, 255, 0) 60%);
+  --hero-ink: #0a2540;
+  --hero-soft: #273951;
+  --hero-muted: #5d6b82;
+  --hero-note: #5d6b82;
+  --hero-btn-bg: #635bff;
+  --hero-btn-hover: #533afd;
+  --hero-btn-ink: #ffffff;
+  --hero-tile-bg: #f6f9fc;
+  --hero-tile-border: transparent;
+  --hero-tile-hover: #c9d3e0;
+  --hero-tile-ink: #0a2540;
+  --hero-tile-muted: #5d6b82;
+  --hero-tile-kicker: #554cf0;
+  --hero-tile-arrow: #8796a8;
+  --hero-focus: #635bff;
+
+  --tools-bg: #f6f9fc;
+  --tools-ink: #0a2540;
+  --tools-soft: #273951;
+  --tools-eyebrow: #554cf0;
+  --tools-focus: #635bff;
+
+  --dark-bg: #0a2540;
+  --dark-ink: #ffffff;
+  --dark-soft: #c0d0e0;
+  --dark-muted: #8fa6bd;
+  --dark-line: rgba(255, 255, 255, 0.16);
+  --dark-eyebrow: #b3adff;
+  --dark-btn-bg: #635bff;
+  --dark-btn-hover: #7a73ff;
+  --dark-btn-ink: #ffffff;
+  --dark-link: #b3adff;
+  --dark-focus: #b3adff;
+
+  --light-bg: #f6f9fc;
+  --light-ink: #0a2540;
+  --light-soft: #273951;
+  --light-muted: #5d6b82;
+  --light-line: #e3e8ee;
+  --light-eyebrow: #554cf0;
+  --light-focus: #635bff;
+
+  --closing-bg: #f6f9fc;
+  --closing-image: radial-gradient(80% 100% at 50% 0%, rgba(99, 91, 255, 0.13) 0%, rgba(246, 249, 252, 0) 70%);
+  --closing-ink: #0a2540;
+  --closing-soft: #273951;
+  --closing-muted: #5d6b82;
+  --closing-eyebrow: #554cf0;
+  --closing-btn-bg: #635bff;
+  --closing-btn-hover: #533afd;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: #635bff;
+  --closing-ghost-ink: #554cf0;
+  --closing-ghost-hover: rgba(99, 91, 255, 0.08);
+  --closing-focus: #635bff;
+
+  --footer-bg: #0a2540;
+  --footer-ink: #ffffff;
+  --footer-muted: #8fa6bd;
+  --footer-faint: #7d94ab;
+  --footer-line: rgba(255, 255, 255, 0.16);
+  --footer-focus: #b3adff;
+
+  --font-display: "sohne-var", "SF Pro Display", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-text: "sohne-var", "SF Pro Text", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --display-weight: 300;
+  --display-tracking: -0.04em;
+  --heading-weight: 300;
+  --heading-tracking: -0.03em;
+  --tagline-weight: 300;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.12em;
+
+  --btn-radius: 6px;
+  --card-radius: 10px;
+  --icon-radius: 12px;
+  --window-radius: 10px;
+  --window-shadow: 0 20px 50px rgba(10, 37, 64, 0.16);
+  --window-shadow-dark: 0 20px 50px rgba(0, 0, 0, 0.5);
+  --icon-shadow: 0 8px 22px rgba(10, 37, 64, 0.18);
+  --error-code: #d7e0ea;
+}
+
+/* ---------- Shopify ---------- */
+
+[data-style="shopify"] {
+  --accent: #000000;
+  --accent-hover: #1e2c31;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(0, 0, 0, 0.07);
+  --accent-on-dark: #c1fbd4;
+  --link: #0b5c46;
+  --eyebrow: #0b5c46;
+  --hero-eyebrow: #c1fbd4;
+  --focus: #0b5c46;
+  --focus-on-dark: #c1fbd4;
+  --selection: rgba(193, 251, 212, 0.35);
+  --skip-bg: #c1fbd4;
+  --skip-ink: #000000;
+
+  --ink: #ffffff;
+  --ink-soft: #b9c6c2;
+  --muted: #93a39e;
+  --faint: #7d8d88;
+  --canvas: #000000;
+  --parchment: #fbfbf5;
+  --mist: #0a0a0a;
+  --tile: #1e2c31;
+  --hairline: #e4e4e7;
+  --hairline-dark: rgba(255, 255, 255, 0.18);
+
+  --nav-bg: #000000;
+  --nav-fg: #ffffff;
+  --nav-fg-soft: rgba(255, 255, 255, 0.72);
+  --nav-fg-faint: #93a39e;
+  --nav-line: rgba(255, 255, 255, 0.18);
+  --nav-hover-bg: rgba(255, 255, 255, 0.08);
+  --nav-shadow: none;
+  --nav-focus: #c1fbd4;
+  --brand-accent: #c1fbd4;
+
+  --hero-bg: #000000;
+  --hero-image: radial-gradient(80% 90% at 50% 0%, #0d171a 0%, #000000 70%);
+  --hero-ink: #ffffff;
+  --hero-soft: #b9c6c2;
+  --hero-muted: #93a39e;
+  --hero-note: #93a39e;
+  --hero-btn-bg: #c1fbd4;
+  --hero-btn-hover: #a7f0bf;
+  --hero-btn-ink: #000000;
+  --hero-tile-bg: #0a0a0a;
+  --hero-tile-border: #1e2c31;
+  --hero-tile-hover: #2a3c42;
+  --hero-tile-ink: #ffffff;
+  --hero-tile-muted: #93a39e;
+  --hero-tile-kicker: #c1fbd4;
+  --hero-tile-arrow: #93a39e;
+  --hero-focus: #c1fbd4;
+
+  --tools-bg: #0a0a0a;
+  --tools-ink: #ffffff;
+  --tools-soft: #b9c6c2;
+  --tools-eyebrow: #c1fbd4;
+  --tools-focus: #c1fbd4;
+
+  --dark-bg: #1e2c31;
+  --dark-ink: #ffffff;
+  --dark-soft: #c3d0cd;
+  --dark-muted: #93a39e;
+  --dark-line: rgba(255, 255, 255, 0.18);
+  --dark-eyebrow: #c1fbd4;
+  --dark-btn-bg: #c1fbd4;
+  --dark-btn-hover: #a7f0bf;
+  --dark-btn-ink: #000000;
+  --dark-link: #c1fbd4;
+  --dark-focus: #c1fbd4;
+
+  --light-bg: #fbfbf5;
+  --light-ink: #000000;
+  --light-soft: #3f3f46;
+  --light-muted: #52525b;
+  --light-line: #e4e4e7;
+  --light-eyebrow: #0b5c46;
+  --light-focus: #0b5c46;
+
+  --closing-bg: #000000;
+  --closing-ink: #ffffff;
+  --closing-soft: #b9c6c2;
+  --closing-muted: #93a39e;
+  --closing-eyebrow: #c1fbd4;
+  --closing-btn-bg: #c1fbd4;
+  --closing-btn-hover: #a7f0bf;
+  --closing-btn-ink: #000000;
+  --closing-ghost-border: rgba(255, 255, 255, 0.45);
+  --closing-ghost-ink: #ffffff;
+  --closing-ghost-hover: rgba(255, 255, 255, 0.08);
+  --closing-focus: #c1fbd4;
+
+  --footer-bg: #000000;
+  --footer-ink: #ffffff;
+  --footer-muted: #93a39e;
+  --footer-faint: #7d8d88;
+  --footer-line: rgba(255, 255, 255, 0.18);
+  --footer-focus: #c1fbd4;
+
+  --font-display: "NeueHaasGrotesk Display", "Helvetica Neue", Helvetica, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "NeueHaasGrotesk Text", "Helvetica Neue", Helvetica, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 300;
+  --display-tracking: 0;
+  --heading-weight: 500;
+  --heading-tracking: 0.01em;
+  --tagline-weight: 300;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.14em;
+
+  --btn-radius: 9999px;
+  --card-radius: 16px;
+  --icon-radius: 12px;
+  --window-radius: 12px;
+  --window-shadow: 0 20px 52px rgba(30, 44, 49, 0.2);
+  --window-shadow-dark: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --icon-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  --error-code: #2a3c42;
+}
+
+/* ---------- Spotify ---------- */
+
+[data-style="spotify"] {
+  --accent: #1ed760;
+  --accent-hover: #1fdf64;
+  --accent-on: #000000;
+  --accent-soft: rgba(30, 215, 96, 0.12);
+  --accent-on-dark: #1ed760;
+  --link: #121212;
+  --eyebrow: #121212;
+  --hero-eyebrow: #1ed760;
+  --focus: #000000;
+  --focus-on-dark: #1ed760;
+  --selection: rgba(30, 215, 96, 0.35);
+  --skip-bg: #1ed760;
+  --skip-ink: #000000;
+
+  --ink: #ffffff;
+  --ink-soft: #b3b3b3;
+  --muted: #b3b3b3;
+  --faint: #8a8a8a;
+  --canvas: #121212;
+  --parchment: #f5f5f5;
+  --mist: #000000;
+  --tile: #181818;
+  --hairline: #d6d6d6;
+  --hairline-dark: rgba(255, 255, 255, 0.16);
+
+  --nav-bg: #000000;
+  --nav-fg: #ffffff;
+  --nav-fg-soft: #b3b3b3;
+  --nav-fg-faint: #8a8a8a;
+  --nav-line: rgba(255, 255, 255, 0.16);
+  --nav-hover-bg: rgba(255, 255, 255, 0.08);
+  --nav-shadow: none;
+  --nav-focus: #1ed760;
+  --brand-accent: #1ed760;
+
+  --hero-bg: #121212;
+  --hero-image: radial-gradient(80% 90% at 50% 0%, #1f1f1f 0%, #121212 70%);
+  --hero-ink: #ffffff;
+  --hero-soft: #b3b3b3;
+  --hero-muted: #a7a7a7;
+  --hero-note: #a7a7a7;
+  --hero-btn-bg: #1ed760;
+  --hero-btn-hover: #1fdf64;
+  --hero-btn-ink: #000000;
+  --hero-tile-bg: #181818;
+  --hero-tile-border: #2a2a2a;
+  --hero-tile-hover: #1ed760;
+  --hero-tile-ink: #ffffff;
+  --hero-tile-muted: #b3b3b3;
+  --hero-tile-kicker: #1ed760;
+  --hero-tile-arrow: #b3b3b3;
+  --hero-focus: #1ed760;
+
+  --tools-bg: #000000;
+  --tools-ink: #ffffff;
+  --tools-soft: #b3b3b3;
+  --tools-eyebrow: #1ed760;
+  --tools-focus: #1ed760;
+
+  --dark-bg: #181818;
+  --dark-ink: #ffffff;
+  --dark-soft: #cbcbcb;
+  --dark-muted: #b3b3b3;
+  --dark-line: #2a2a2a;
+  --dark-eyebrow: #1ed760;
+  --dark-btn-bg: #1ed760;
+  --dark-btn-hover: #1fdf64;
+  --dark-btn-ink: #000000;
+  --dark-link: #1ed760;
+  --dark-focus: #1ed760;
+
+  --light-bg: #f5f5f5;
+  --light-ink: #121212;
+  --light-soft: #4d4d4d;
+  --light-muted: #6a6a6a;
+  --light-line: #d6d6d6;
+  --light-eyebrow: #121212;
+  --light-focus: #121212;
+
+  --closing-bg: #1ed760;
+  --closing-ink: #000000;
+  --closing-soft: rgba(0, 0, 0, 0.72);
+  --closing-muted: rgba(0, 0, 0, 0.62);
+  --closing-eyebrow: rgba(0, 0, 0, 0.68);
+  --closing-btn-bg: #000000;
+  --closing-btn-hover: #282828;
+  --closing-btn-ink: #ffffff;
+  --closing-ghost-border: rgba(0, 0, 0, 0.4);
+  --closing-ghost-ink: #000000;
+  --closing-ghost-hover: rgba(0, 0, 0, 0.07);
+  --closing-focus: #000000;
+
+  --footer-bg: #000000;
+  --footer-ink: #ffffff;
+  --footer-muted: #b3b3b3;
+  --footer-faint: #8a8a8a;
+  --footer-line: rgba(255, 255, 255, 0.16);
+  --footer-focus: #1ed760;
+
+  --font-display: "CircularSp", "SpotifyMixUITitle", "Helvetica Neue", Helvetica, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "CircularSp", "SpotifyMixUI", "Helvetica Neue", Helvetica, "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 700;
+  --display-tracking: -0.03em;
+  --heading-weight: 700;
+  --heading-tracking: -0.02em;
+  --tagline-weight: 600;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.1em;
+
+  --btn-weight: 700;
+  --btn-size: 13px;
+  --btn-tracking: 0.08em;
+  --btn-transform: uppercase;
+  --btn-radius: 9999px;
+  --card-radius: 8px;
+  --icon-radius: 6px;
+  --window-radius: 8px;
+  --window-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  --window-shadow-dark: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --icon-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  --error-code: #2a2a2a;
+}
+
+/* ---------- Uber ---------- */
+
+[data-style="uber"] {
+  --accent: #000000;
+  --accent-hover: #282828;
+  --accent-on: #ffffff;
+  --accent-soft: rgba(0, 0, 0, 0.06);
+  --accent-on-dark: #ffffff;
+  --link: #000000;
+  --eyebrow: #000000;
+  --focus: #000000;
+  --focus-on-dark: #ffffff;
+  --selection: rgba(0, 0, 0, 0.14);
+  --skip-bg: #000000;
+  --skip-ink: #ffffff;
+
+  --ink: #000000;
+  --ink-soft: #5e5e5e;
+  --muted: #5e5e5e;
+  --faint: #7a7a7a;
+  --canvas: #ffffff;
+  --parchment: #f3f3f3;
+  --mist: #efefef;
+  --tile: #000000;
+  --hairline: #e2e2e2;
+  --hairline-dark: rgba(255, 255, 255, 0.18);
+
+  --nav-bg: #000000;
+  --nav-fg: #ffffff;
+  --nav-fg-soft: rgba(255, 255, 255, 0.76);
+  --nav-fg-faint: #afafaf;
+  --nav-line: rgba(255, 255, 255, 0.18);
+  --nav-hover-bg: rgba(255, 255, 255, 0.1);
+  --nav-shadow: none;
+  --nav-focus: #ffffff;
+  --brand-accent: #ffffff;
+
+  --hero-bg: #ffffff;
+  --hero-image: none;
+  --hero-ink: #000000;
+  --hero-soft: #5e5e5e;
+  --hero-muted: #5e5e5e;
+  --hero-note: #5e5e5e;
+  --hero-btn-bg: #000000;
+  --hero-btn-hover: #282828;
+  --hero-btn-ink: #ffffff;
+  --hero-tile-bg: #efefef;
+  --hero-tile-border: transparent;
+  --hero-tile-hover: #c9c9c9;
+  --hero-tile-ink: #000000;
+  --hero-tile-muted: #5e5e5e;
+  --hero-tile-kicker: #000000;
+  --hero-tile-arrow: #7a7a7a;
+  --hero-focus: #000000;
+
+  --tools-bg: #efefef;
+  --tools-ink: #000000;
+  --tools-soft: #5e5e5e;
+  --tools-eyebrow: #000000;
+  --tools-focus: #000000;
+
+  --dark-bg: #000000;
+  --dark-ink: #ffffff;
+  --dark-soft: #d6d6d6;
+  --dark-muted: #afafaf;
+  --dark-line: rgba(255, 255, 255, 0.18);
+  --dark-eyebrow: #ffffff;
+  --dark-btn-bg: #ffffff;
+  --dark-btn-hover: #efefef;
+  --dark-btn-ink: #000000;
+  --dark-link: #ffffff;
+  --dark-focus: #ffffff;
+
+  --light-bg: #f3f3f3;
+  --light-ink: #000000;
+  --light-soft: #5e5e5e;
+  --light-muted: #5e5e5e;
+  --light-line: #e2e2e2;
+  --light-eyebrow: #000000;
+  --light-focus: #000000;
+
+  --closing-bg: #000000;
+  --closing-ink: #ffffff;
+  --closing-soft: #d6d6d6;
+  --closing-muted: #afafaf;
+  --closing-eyebrow: #ffffff;
+  --closing-btn-bg: #ffffff;
+  --closing-btn-hover: #efefef;
+  --closing-btn-ink: #000000;
+  --closing-ghost-border: rgba(255, 255, 255, 0.45);
+  --closing-ghost-ink: #ffffff;
+  --closing-ghost-hover: rgba(255, 255, 255, 0.08);
+  --closing-focus: #ffffff;
+
+  --footer-bg: #000000;
+  --footer-ink: #ffffff;
+  --footer-muted: #afafaf;
+  --footer-faint: #8a8a8a;
+  --footer-line: rgba(255, 255, 255, 0.18);
+  --footer-focus: #ffffff;
+
+  --font-display: "UberMove", "UberMoveText", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --font-text: "UberMoveText", "UberMove", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+  --display-weight: 700;
+  --display-tracking: -0.035em;
+  --heading-weight: 700;
+  --heading-tracking: -0.03em;
+  --tagline-weight: 500;
+  --body-tracking: 0;
+  --eyebrow-tracking: 0.02em;
+
+  --btn-weight: 500;
+  --btn-radius: 8px;
+  --card-radius: 8px;
+  --icon-radius: 8px;
+  --window-radius: 8px;
+  --window-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
+  --window-shadow-dark: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --icon-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  --error-code: #d9d9d9;
+}

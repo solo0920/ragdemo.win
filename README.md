@@ -1,6 +1,6 @@
 # ragdemo.win
 
-`ragdemo.win` 的入口網站：以 Apple 官網的留白、白灰黑三段交替區塊、SF Pro 字體節奏與單一藍色行動色為靈感，介紹兩個本機優先的數位工具，並導向各自的子網站。
+`ragdemo.win` 的入口網站：以 Apple 官網的留白、白灰黑三段交替區塊、SF Pro 字體節奏與單一藍色行動色為預設靈感，介紹兩個本機優先的數位工具，並導向各自的子網站。右上角的風格按鈕可切換十種科技品牌語彙，選擇會保存在本機。
 
 - **Prompter** — 區塊式 Markdown 提示詞編輯器：[prompter.ragdemo.win](https://prompter.ragdemo.win/)
 - **分析師備考站** — 證券投資分析人員考試備考網站：[analysis.ragdemo.win](https://analysis.ragdemo.win/)
@@ -22,8 +22,12 @@
 │   ├── _headers               # 安全性標頭與快取規則
 │   ├── _redirects             # /prompter、/analysis、GitHub 捷徑
 │   └── assets/
-│       ├── css/main.css
-│       ├── js/main.js
+│       ├── css/
+│       │   ├── main.css       # 版面、元件與 Apple 預設 token
+│       │   └── themes.css     # 其餘九種風格的 token 覆寫
+│       ├── js/
+│       │   ├── main.js        # 導覽、進場動畫、風格選單
+│       │   └── theme-init.js  # 首屏前還原已儲存風格
 │       └── images/            # 產品截圖與 App 圖示
 ├── wrangler.toml              # Pages 專案與輸出目錄設定
 └── README.md
@@ -77,9 +81,11 @@ npx wrangler pages deploy public --project-name ragdemo-win
 
 ## 設計與實作備註
 
-- **視覺**：白、`#e8e8ed` 中間灰與 `#272729` 深色區塊三段循環；`#0066cc` 為主要行動色，首屏 CTA 以墨黑提高對比；系統 SF Pro / PingFang TC 字體堆疊、膠囊按鈕、產品截圖僅使用一層柔和陰影。
-- **互動**：原生 `<dialog>` 行動版選單、`IntersectionObserver` 進場動畫、`prefers-reduced-motion` 支援、固定導覽列捲動細線。全部由 `assets/js/main.js` 處理。
-- **無外部請求**：沒有 Google Fonts、沒有 CDN、沒有分析工具；CSP 的 `connect-src` 限制為 `'self'`，不允許連線到任何外部來源。
+- **預設視覺**：Apple 風格的留白、白灰黑三段交替區塊與 `#0066cc` 行動色；系統 SF Pro / PingFang TC 字體堆疊、膠囊按鈕、產品截圖僅使用一層柔和陰影。
+- **風格系統**：右上角調色盤按鈕開啟原生 Popover 選單，提供 `apple`、`meta`、`nvidia`、`tesla`、`ibm`、`oracle`、`stripe`、`shopify`、`spotify`、`uber` 十種風格。設計參考取自 [getdesign.md](https://getdesign.md/) 上這十家科技公司的 DESIGN.md 分析，僅以色彩、字體堆疊、字重、字距與圓角等 CSS token 重新詮釋，不複製任何品牌素材。
+- **風格持續性**：選擇寫入 `localStorage` 的 `ragdemo-style`；`assets/js/theme-init.js` 在 CSS 載入前套用 `data-style`，避免首屏閃爍。CSP 不允許 inline style，所有主題皆由 `themes.css` 的 token 覆寫完成。
+- **互動**：原生 `<dialog>` 行動版選單、原生 Popover 風格選單、`IntersectionObserver` 進場動畫、`prefers-reduced-motion` 支援、固定導覽列捲動細線。全部由 `assets/js/main.js` 處理。
+- **無外部請求**：沒有 Google Fonts、沒有 CDN、沒有分析工具；CSP 的 `connect-src` 限制為 `'self'`，不允許連線到任何外部來源。各風格若指定品牌專有字型，只會在本機已安裝時使用，否則回退到系統字體。
 - **CSP**：`public/_headers` 內的 `script-src` 包含首頁 JSON-LD 的 SHA-256 hash。若修改 `index.html` 的 JSON-LD，請重新計算並更新 hash：
 
   ```bash
